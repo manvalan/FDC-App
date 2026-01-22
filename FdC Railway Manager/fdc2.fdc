@@ -1,0 +1,2253 @@
+{
+  "lines": [
+    {
+      "color": "#fffb00",
+      "id": "LINE_001",
+      "name": "ALTA VELOCITÀ",
+      "stations": [
+        "STATION_055",
+        "STATION_056",
+        "STATION_057",
+        "STATION_058",
+        "STATION_059"
+      ]
+    },
+    {
+      "color": "#00f900",
+      "id": "LINE_002",
+      "name": "VERDE",
+      "stations": [
+        "STATION_012",
+        "STATION_011",
+        "STATION_032",
+        "STATION_013",
+        "STATION_038",
+        "STATION_053",
+        "STATION_052",
+        "STATION_051",
+        "STATION_042",
+        "STATION_043",
+        "STATION_045",
+        "STATION_044",
+        "STATION_002"
+      ]
+    }
+  ],
+  "metadata": {
+    "created_by": "FDC Railway Manager C++",
+    "num_lines": 2,
+    "num_schedules": 2,
+    "num_trains": 24,
+    "version": "0.2.0"
+  },
+  "network": {
+    "edges": [
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 20.0,
+        "from_node": "STATION_001",
+        "max_speed": 120.0,
+        "to_node": "STATION_003",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 24.0,
+        "from_node": "STATION_002",
+        "max_speed": 120.0,
+        "to_node": "STATION_044",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 26.0,
+        "from_node": "STATION_002",
+        "max_speed": 100.0,
+        "to_node": "STATION_003",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 20.0,
+        "from_node": "STATION_003",
+        "max_speed": 120.0,
+        "to_node": "STATION_001",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 26.0,
+        "from_node": "STATION_003",
+        "max_speed": 100.0,
+        "to_node": "STATION_002",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 10.0,
+        "from_node": "STATION_003",
+        "max_speed": 120.0,
+        "to_node": "STATION_004",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 10.0,
+        "from_node": "STATION_004",
+        "max_speed": 120.0,
+        "to_node": "STATION_003",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 20.0,
+        "from_node": "STATION_004",
+        "max_speed": 120.0,
+        "to_node": "STATION_005",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 20.0,
+        "from_node": "STATION_005",
+        "max_speed": 120.0,
+        "to_node": "STATION_004",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 20.0,
+        "from_node": "STATION_005",
+        "max_speed": 120.0,
+        "to_node": "STATION_006",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 20.0,
+        "from_node": "STATION_006",
+        "max_speed": 120.0,
+        "to_node": "STATION_005",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 20.0,
+        "from_node": "STATION_006",
+        "max_speed": 120.0,
+        "to_node": "STATION_007",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 22.0,
+        "from_node": "STATION_006",
+        "max_speed": 100.0,
+        "to_node": "STATION_019",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 20.0,
+        "from_node": "STATION_007",
+        "max_speed": 120.0,
+        "to_node": "STATION_006",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 9.0,
+        "from_node": "STATION_007",
+        "max_speed": 120.0,
+        "to_node": "STATION_008",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 9.0,
+        "from_node": "STATION_008",
+        "max_speed": 120.0,
+        "to_node": "STATION_007",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 8.0,
+        "from_node": "STATION_008",
+        "max_speed": 120.0,
+        "to_node": "STATION_009",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 8.0,
+        "from_node": "STATION_009",
+        "max_speed": 120.0,
+        "to_node": "STATION_008",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 4.0,
+        "from_node": "STATION_009",
+        "max_speed": 120.0,
+        "to_node": "STATION_010",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 4.0,
+        "from_node": "STATION_010",
+        "max_speed": 120.0,
+        "to_node": "STATION_009",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 10.0,
+        "from_node": "STATION_010",
+        "max_speed": 120.0,
+        "to_node": "STATION_011",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 10.0,
+        "from_node": "STATION_011",
+        "max_speed": 120.0,
+        "to_node": "STATION_010",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 3.0,
+        "from_node": "STATION_011",
+        "max_speed": 120.0,
+        "to_node": "STATION_012",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 12.0,
+        "from_node": "STATION_011",
+        "max_speed": 160.0,
+        "to_node": "STATION_032",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 12.0,
+        "from_node": "STATION_011",
+        "max_speed": 120.0,
+        "to_node": "STATION_022",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 3.0,
+        "from_node": "STATION_012",
+        "max_speed": 120.0,
+        "to_node": "STATION_011",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 15.0,
+        "from_node": "STATION_012",
+        "max_speed": 200.0,
+        "to_node": "STATION_051",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 20.0,
+        "from_node": "STATION_012",
+        "max_speed": 200.0,
+        "to_node": "STATION_023",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 28.0,
+        "from_node": "STATION_012",
+        "max_speed": 300.0,
+        "to_node": "STATION_053",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 84.0,
+        "from_node": "STATION_012",
+        "max_speed": 300.0,
+        "to_node": "STATION_027",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 0.3,
+        "from_node": "STATION_012",
+        "max_speed": 30.0,
+        "to_node": "STATION_058",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 8.0,
+        "from_node": "STATION_013",
+        "max_speed": 120.0,
+        "to_node": "STATION_038",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 16.0,
+        "from_node": "STATION_013",
+        "max_speed": 120.0,
+        "to_node": "STATION_032",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 11.0,
+        "from_node": "STATION_014",
+        "max_speed": 160.0,
+        "to_node": "STATION_032",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 12.0,
+        "from_node": "STATION_014",
+        "max_speed": 160.0,
+        "to_node": "STATION_033",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 10.0,
+        "from_node": "STATION_014",
+        "max_speed": 100.0,
+        "to_node": "STATION_015",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 10.0,
+        "from_node": "STATION_015",
+        "max_speed": 100.0,
+        "to_node": "STATION_014",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 10.0,
+        "from_node": "STATION_015",
+        "max_speed": 100.0,
+        "to_node": "STATION_054",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 10.0,
+        "from_node": "STATION_016",
+        "max_speed": 120.0,
+        "to_node": "STATION_017",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 10.0,
+        "from_node": "STATION_017",
+        "max_speed": 120.0,
+        "to_node": "STATION_016",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 12.0,
+        "from_node": "STATION_017",
+        "max_speed": 120.0,
+        "to_node": "STATION_018",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 12.0,
+        "from_node": "STATION_018",
+        "max_speed": 120.0,
+        "to_node": "STATION_017",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 12.0,
+        "from_node": "STATION_018",
+        "max_speed": 120.0,
+        "to_node": "STATION_019",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 22.0,
+        "from_node": "STATION_019",
+        "max_speed": 100.0,
+        "to_node": "STATION_006",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 12.0,
+        "from_node": "STATION_019",
+        "max_speed": 120.0,
+        "to_node": "STATION_018",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 6.0,
+        "from_node": "STATION_019",
+        "max_speed": 120.0,
+        "to_node": "STATION_020",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 6.0,
+        "from_node": "STATION_020",
+        "max_speed": 120.0,
+        "to_node": "STATION_019",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 6.0,
+        "from_node": "STATION_020",
+        "max_speed": 120.0,
+        "to_node": "STATION_021",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 6.0,
+        "from_node": "STATION_021",
+        "max_speed": 120.0,
+        "to_node": "STATION_020",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 8.0,
+        "from_node": "STATION_021",
+        "max_speed": 120.0,
+        "to_node": "STATION_022",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 12.0,
+        "from_node": "STATION_022",
+        "max_speed": 120.0,
+        "to_node": "STATION_011",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 8.0,
+        "from_node": "STATION_022",
+        "max_speed": 120.0,
+        "to_node": "STATION_021",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 20.0,
+        "from_node": "STATION_023",
+        "max_speed": 200.0,
+        "to_node": "STATION_012",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 16.0,
+        "from_node": "STATION_023",
+        "max_speed": 200.0,
+        "to_node": "STATION_024",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 16.0,
+        "from_node": "STATION_024",
+        "max_speed": 200.0,
+        "to_node": "STATION_023",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 17.0,
+        "from_node": "STATION_024",
+        "max_speed": 200.0,
+        "to_node": "STATION_025",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 17.0,
+        "from_node": "STATION_025",
+        "max_speed": 200.0,
+        "to_node": "STATION_024",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 16.0,
+        "from_node": "STATION_025",
+        "max_speed": 200.0,
+        "to_node": "STATION_026",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 16.0,
+        "from_node": "STATION_026",
+        "max_speed": 200.0,
+        "to_node": "STATION_025",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 15.0,
+        "from_node": "STATION_026",
+        "max_speed": 200.0,
+        "to_node": "STATION_027",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 84.0,
+        "from_node": "STATION_027",
+        "max_speed": 300.0,
+        "to_node": "STATION_012",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 15.0,
+        "from_node": "STATION_027",
+        "max_speed": 200.0,
+        "to_node": "STATION_026",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 5.0,
+        "from_node": "STATION_027",
+        "max_speed": 160.0,
+        "to_node": "STATION_028",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 0.3,
+        "from_node": "STATION_027",
+        "max_speed": 30.0,
+        "to_node": "STATION_059",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 5.0,
+        "from_node": "STATION_028",
+        "max_speed": 160.0,
+        "to_node": "STATION_027",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 12.0,
+        "from_node": "STATION_028",
+        "max_speed": 160.0,
+        "to_node": "STATION_034",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 12.0,
+        "from_node": "STATION_028",
+        "max_speed": 100.0,
+        "to_node": "STATION_029",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 12.0,
+        "from_node": "STATION_029",
+        "max_speed": 100.0,
+        "to_node": "STATION_028",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 12.0,
+        "from_node": "STATION_029",
+        "max_speed": 100.0,
+        "to_node": "STATION_031",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 25.0,
+        "from_node": "STATION_030",
+        "max_speed": 100.0,
+        "to_node": "STATION_035",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 14.0,
+        "from_node": "STATION_030",
+        "max_speed": 100.0,
+        "to_node": "STATION_031",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 12.0,
+        "from_node": "STATION_031",
+        "max_speed": 100.0,
+        "to_node": "STATION_029",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 14.0,
+        "from_node": "STATION_031",
+        "max_speed": 100.0,
+        "to_node": "STATION_030",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 12.0,
+        "from_node": "STATION_032",
+        "max_speed": 160.0,
+        "to_node": "STATION_011",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 16.0,
+        "from_node": "STATION_032",
+        "max_speed": 120.0,
+        "to_node": "STATION_013",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 11.0,
+        "from_node": "STATION_032",
+        "max_speed": 160.0,
+        "to_node": "STATION_014",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 12.0,
+        "from_node": "STATION_033",
+        "max_speed": 160.0,
+        "to_node": "STATION_014",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 14.0,
+        "from_node": "STATION_033",
+        "max_speed": 160.0,
+        "to_node": "STATION_034",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 12.0,
+        "from_node": "STATION_034",
+        "max_speed": 160.0,
+        "to_node": "STATION_028",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 14.0,
+        "from_node": "STATION_034",
+        "max_speed": 160.0,
+        "to_node": "STATION_033",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 25.0,
+        "from_node": "STATION_035",
+        "max_speed": 100.0,
+        "to_node": "STATION_030",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 18.0,
+        "from_node": "STATION_035",
+        "max_speed": 100.0,
+        "to_node": "STATION_036",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 18.0,
+        "from_node": "STATION_036",
+        "max_speed": 100.0,
+        "to_node": "STATION_035",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 12.0,
+        "from_node": "STATION_036",
+        "max_speed": 100.0,
+        "to_node": "STATION_037",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 12.0,
+        "from_node": "STATION_037",
+        "max_speed": 100.0,
+        "to_node": "STATION_036",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 21.0,
+        "from_node": "STATION_037",
+        "max_speed": 100.0,
+        "to_node": "STATION_054",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 8.0,
+        "from_node": "STATION_038",
+        "max_speed": 120.0,
+        "to_node": "STATION_013",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 8.0,
+        "from_node": "STATION_038",
+        "max_speed": 120.0,
+        "to_node": "STATION_053",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 21.0,
+        "from_node": "STATION_039",
+        "max_speed": 200.0,
+        "to_node": "STATION_047",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 22.0,
+        "from_node": "STATION_039",
+        "max_speed": 200.0,
+        "to_node": "STATION_041",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 88.0,
+        "from_node": "STATION_039",
+        "max_speed": 300.0,
+        "to_node": "STATION_050",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 42.0,
+        "from_node": "STATION_039",
+        "max_speed": 300.0,
+        "to_node": "STATION_053",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 0.3,
+        "from_node": "STATION_039",
+        "max_speed": 30.0,
+        "to_node": "STATION_056",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 21.0,
+        "from_node": "STATION_040",
+        "max_speed": 200.0,
+        "to_node": "STATION_050",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 24.0,
+        "from_node": "STATION_040",
+        "max_speed": 200.0,
+        "to_node": "STATION_046",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 22.0,
+        "from_node": "STATION_041",
+        "max_speed": 200.0,
+        "to_node": "STATION_039",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 13.0,
+        "from_node": "STATION_041",
+        "max_speed": 200.0,
+        "to_node": "STATION_051",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 23.0,
+        "from_node": "STATION_042",
+        "max_speed": 120.0,
+        "to_node": "STATION_043",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 23.0,
+        "from_node": "STATION_042",
+        "max_speed": 120.0,
+        "to_node": "STATION_051",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 23.0,
+        "from_node": "STATION_043",
+        "max_speed": 120.0,
+        "to_node": "STATION_042",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 22.0,
+        "from_node": "STATION_043",
+        "max_speed": 120.0,
+        "to_node": "STATION_045",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 24.0,
+        "from_node": "STATION_044",
+        "max_speed": 120.0,
+        "to_node": "STATION_002",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 22.0,
+        "from_node": "STATION_044",
+        "max_speed": 120.0,
+        "to_node": "STATION_045",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 22.0,
+        "from_node": "STATION_045",
+        "max_speed": 120.0,
+        "to_node": "STATION_043",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 22.0,
+        "from_node": "STATION_045",
+        "max_speed": 120.0,
+        "to_node": "STATION_044",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 24.0,
+        "from_node": "STATION_046",
+        "max_speed": 200.0,
+        "to_node": "STATION_040",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 22.0,
+        "from_node": "STATION_046",
+        "max_speed": 200.0,
+        "to_node": "STATION_047",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 21.0,
+        "from_node": "STATION_047",
+        "max_speed": 200.0,
+        "to_node": "STATION_039",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 22.0,
+        "from_node": "STATION_047",
+        "max_speed": 200.0,
+        "to_node": "STATION_046",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 14.0,
+        "from_node": "STATION_048",
+        "max_speed": 200.0,
+        "to_node": "STATION_049",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 14.0,
+        "from_node": "STATION_049",
+        "max_speed": 200.0,
+        "to_node": "STATION_048",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 12.0,
+        "from_node": "STATION_049",
+        "max_speed": 200.0,
+        "to_node": "STATION_050",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 88.0,
+        "from_node": "STATION_050",
+        "max_speed": 300.0,
+        "to_node": "STATION_039",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 21.0,
+        "from_node": "STATION_050",
+        "max_speed": 200.0,
+        "to_node": "STATION_040",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 12.0,
+        "from_node": "STATION_050",
+        "max_speed": 200.0,
+        "to_node": "STATION_049",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 0.3,
+        "from_node": "STATION_050",
+        "max_speed": 30.0,
+        "to_node": "STATION_055",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 15.0,
+        "from_node": "STATION_051",
+        "max_speed": 200.0,
+        "to_node": "STATION_012",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 13.0,
+        "from_node": "STATION_051",
+        "max_speed": 200.0,
+        "to_node": "STATION_041",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 23.0,
+        "from_node": "STATION_051",
+        "max_speed": 120.0,
+        "to_node": "STATION_042",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 14.0,
+        "from_node": "STATION_051",
+        "max_speed": 120.0,
+        "to_node": "STATION_052",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 14.0,
+        "from_node": "STATION_052",
+        "max_speed": 120.0,
+        "to_node": "STATION_051",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 10.0,
+        "from_node": "STATION_052",
+        "max_speed": 120.0,
+        "to_node": "STATION_053",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 28.0,
+        "from_node": "STATION_053",
+        "max_speed": 300.0,
+        "to_node": "STATION_012",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 8.0,
+        "from_node": "STATION_053",
+        "max_speed": 120.0,
+        "to_node": "STATION_038",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 42.0,
+        "from_node": "STATION_053",
+        "max_speed": 300.0,
+        "to_node": "STATION_039",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 10.0,
+        "from_node": "STATION_053",
+        "max_speed": 120.0,
+        "to_node": "STATION_052",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 0.3,
+        "from_node": "STATION_053",
+        "max_speed": 30.0,
+        "to_node": "STATION_057",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 10.0,
+        "from_node": "STATION_054",
+        "max_speed": 100.0,
+        "to_node": "STATION_015",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 21.0,
+        "from_node": "STATION_054",
+        "max_speed": 100.0,
+        "to_node": "STATION_037",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 0.3,
+        "from_node": "STATION_055",
+        "max_speed": 30.0,
+        "to_node": "STATION_050",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 88.0,
+        "from_node": "STATION_055",
+        "max_speed": 300.0,
+        "to_node": "STATION_056",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 0.3,
+        "from_node": "STATION_056",
+        "max_speed": 30.0,
+        "to_node": "STATION_039",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 88.0,
+        "from_node": "STATION_056",
+        "max_speed": 300.0,
+        "to_node": "STATION_055",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 42.0,
+        "from_node": "STATION_056",
+        "max_speed": 300.0,
+        "to_node": "STATION_057",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 0.3,
+        "from_node": "STATION_057",
+        "max_speed": 30.0,
+        "to_node": "STATION_053",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 42.0,
+        "from_node": "STATION_057",
+        "max_speed": 300.0,
+        "to_node": "STATION_056",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 28.0,
+        "from_node": "STATION_057",
+        "max_speed": 300.0,
+        "to_node": "STATION_058",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 0.3,
+        "from_node": "STATION_058",
+        "max_speed": 30.0,
+        "to_node": "STATION_012",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 28.0,
+        "from_node": "STATION_058",
+        "max_speed": 300.0,
+        "to_node": "STATION_057",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 68.0,
+        "from_node": "STATION_058",
+        "max_speed": 300.0,
+        "to_node": "STATION_059",
+        "track_type": "double"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 1,
+        "distance": 0.3,
+        "from_node": "STATION_059",
+        "max_speed": 30.0,
+        "to_node": "STATION_027",
+        "track_type": "single"
+      },
+      {
+        "bidirectional": true,
+        "capacity": 2,
+        "distance": 68.0,
+        "from_node": "STATION_059",
+        "max_speed": 300.0,
+        "to_node": "STATION_058",
+        "track_type": "double"
+      }
+    ],
+    "metadata": {
+      "num_edges": 142,
+      "num_nodes": 59,
+      "total_track_length": 2651.000000000001
+    },
+    "nodes": [
+      {
+        "capacity": 6,
+        "id": "STATION_001",
+        "latitude": 56.0,
+        "longitude": 38.0,
+        "name": "Greenfield",
+        "platform_count": 4,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_002",
+        "latitude": 50.0,
+        "longitude": 10.0,
+        "name": "Nobottle",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_003",
+        "latitude": 52.0,
+        "longitude": 40.0,
+        "name": "Longcleve",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_004",
+        "latitude": 47.0,
+        "longitude": 40.0,
+        "name": "Lowcleve",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_005",
+        "latitude": 42.0,
+        "longitude": 40.0,
+        "name": "Needhole",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_006",
+        "latitude": 37.0,
+        "longitude": 40.0,
+        "name": "Rushock Bag",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_007",
+        "latitude": 32.0,
+        "longitude": 40.0,
+        "name": "Bagend",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_008",
+        "latitude": 27.0,
+        "longitude": 40.0,
+        "name": "Over The Hill",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_009",
+        "latitude": 23.0,
+        "longitude": 40.0,
+        "name": "The Hill",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_010",
+        "latitude": 19.0,
+        "longitude": 40.0,
+        "name": "Hobbiton",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 6,
+        "id": "STATION_011",
+        "latitude": 14.0,
+        "longitude": 40.0,
+        "name": "ByWater Pool",
+        "platform_count": 4,
+        "type": "interchange"
+      },
+      {
+        "capacity": 6,
+        "id": "STATION_012",
+        "latitude": 11.0,
+        "longitude": 40.0,
+        "name": "Bywater",
+        "platform_count": 4,
+        "type": "interchange"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_013",
+        "latitude": 8.0,
+        "longitude": 40.0,
+        "name": "Tuckland",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_014",
+        "latitude": 5.0,
+        "longitude": 40.0,
+        "name": "Stockroad",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_015",
+        "latitude": 0.0,
+        "longitude": 40.0,
+        "name": "Greenhill Country",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_016",
+        "latitude": 53.0,
+        "longitude": 60.0,
+        "name": "Girdlay Island",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_017",
+        "latitude": 48.0,
+        "longitude": 60.0,
+        "name": "Quarry",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_018",
+        "latitude": 43.0,
+        "longitude": 60.0,
+        "name": "Scary",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_019",
+        "latitude": 38.0,
+        "longitude": 60.0,
+        "name": "Dwaling",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_020",
+        "latitude": 33.0,
+        "longitude": 60.0,
+        "name": "Brockenborings",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_021",
+        "latitude": 28.0,
+        "longitude": 60.0,
+        "name": "Oatbarton",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_022",
+        "latitude": 24.0,
+        "longitude": 60.0,
+        "name": "The North Farthing",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_023",
+        "latitude": 14.0,
+        "longitude": 60.0,
+        "name": "Frogmorton",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_024",
+        "latitude": 14.0,
+        "longitude": 75.0,
+        "name": "Withfurrows",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_025",
+        "latitude": 14.0,
+        "longitude": 90.0,
+        "name": "Bridge",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_026",
+        "latitude": 10.0,
+        "longitude": 90.0,
+        "name": "Newbury",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 6,
+        "id": "STATION_027",
+        "latitude": 5.0,
+        "longitude": 90.0,
+        "name": "Brandy Hall",
+        "platform_count": 4,
+        "type": "interchange"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_028",
+        "latitude": 0.0,
+        "longitude": 90.0,
+        "name": "Buckelbury Ferry",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_029",
+        "latitude": 0.0,
+        "longitude": 60.0,
+        "name": "Rush",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_030",
+        "latitude": 0.0,
+        "longitude": 70.0,
+        "name": "Willow Bottom",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_031",
+        "latitude": 0.0,
+        "longitude": 80.0,
+        "name": "Deep Hallow",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_032",
+        "latitude": 8.0,
+        "longitude": 55.0,
+        "name": "The Stone",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_033",
+        "latitude": 5.0,
+        "longitude": 55.0,
+        "name": "The Yale",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_034",
+        "latitude": 5.0,
+        "longitude": 70.0,
+        "name": "Stock",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_035",
+        "latitude": -5.0,
+        "longitude": 50.0,
+        "name": "Woody End",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_036",
+        "latitude": -5.0,
+        "longitude": 40.0,
+        "name": "Whistle Brook",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_037",
+        "latitude": -5.0,
+        "longitude": 30.0,
+        "name": "Pincup",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_038",
+        "latitude": 8.0,
+        "longitude": 30.0,
+        "name": "Tukborrow",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_039",
+        "latitude": 14.0,
+        "longitude": 20.0,
+        "name": "Michel Delving",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_040",
+        "latitude": 14.0,
+        "longitude": 30.0,
+        "name": "Westmarch",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_041",
+        "latitude": 20.0,
+        "longitude": 25.0,
+        "name": "White Downs",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_042",
+        "latitude": 26.0,
+        "longitude": 30.0,
+        "name": "Westbank",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_043",
+        "latitude": 32.0,
+        "longitude": 20.0,
+        "name": "Little Delvings",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_044",
+        "latitude": 37.0,
+        "longitude": 20.0,
+        "name": "Gamwich",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_045",
+        "latitude": 42.0,
+        "longitude": 20.0,
+        "name": "Tightfield",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_046",
+        "latitude": 14.0,
+        "longitude": 10.0,
+        "name": "Westmarch Greenholm",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_047",
+        "latitude": 14.0,
+        "longitude": 0.0,
+        "name": "Foxdown",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 6,
+        "id": "STATION_048",
+        "latitude": 14.0,
+        "longitude": -10.0,
+        "name": "Flostirion",
+        "platform_count": 4,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_049",
+        "latitude": 14.0,
+        "longitude": -5.0,
+        "name": "White Towers",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 6,
+        "id": "STATION_050",
+        "latitude": 11.0,
+        "longitude": 0.0,
+        "name": "Undertower",
+        "platform_count": 4,
+        "type": "interchange"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_051",
+        "latitude": 14.0,
+        "longitude": 35.0,
+        "name": "Waymeet",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_052",
+        "latitude": 30.0,
+        "longitude": 35.0,
+        "name": "Withwell",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_053",
+        "latitude": 1.0,
+        "longitude": 40.0,
+        "name": "Tuck",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 3,
+        "id": "STATION_054",
+        "latitude": 0.0,
+        "longitude": 30.0,
+        "name": "Greenhill",
+        "platform_count": 2,
+        "type": "station"
+      },
+      {
+        "capacity": 12,
+        "id": "STATION_055",
+        "latitude": 12.0,
+        "longitude": 1.0,
+        "name": "Undertower AV",
+        "platform_count": 6,
+        "type": "station"
+      },
+      {
+        "capacity": 6,
+        "id": "STATION_056",
+        "latitude": 15.0,
+        "longitude": 21.0,
+        "name": "Michel Delving AV",
+        "platform_count": 4,
+        "type": "station"
+      },
+      {
+        "capacity": 6,
+        "id": "STATION_057",
+        "latitude": 2.0,
+        "longitude": 41.0,
+        "name": "Tuck AV",
+        "platform_count": 4,
+        "type": "station"
+      },
+      {
+        "capacity": 12,
+        "id": "STATION_058",
+        "latitude": 12.0,
+        "longitude": 41.0,
+        "name": "Bywater AV",
+        "platform_count": 6,
+        "type": "station"
+      },
+      {
+        "capacity": 12,
+        "id": "STATION_059",
+        "latitude": 6.0,
+        "longitude": 91.0,
+        "name": "Brandy Hall AV",
+        "platform_count": 6,
+        "type": "station"
+      }
+    ]
+  },
+  "schedules": [
+    {
+      "schedule_id": "SCH_TRAIN_023_1",
+      "stops": [
+        {
+          "arrival": "2025-11-16T05:00:00",
+          "departure": "2025-11-16T05:00:00",
+          "is_stop": true,
+          "node_id": "STATION_012",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T05:01:30",
+          "departure": "2025-11-16T05:03:30",
+          "is_stop": true,
+          "node_id": "STATION_011",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T05:09:30",
+          "departure": "2025-11-16T05:11:30",
+          "is_stop": true,
+          "node_id": "STATION_032",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T05:19:30",
+          "departure": "2025-11-16T05:21:30",
+          "is_stop": true,
+          "node_id": "STATION_013",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T05:25:30",
+          "departure": "2025-11-16T05:27:30",
+          "is_stop": true,
+          "node_id": "STATION_038",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T05:31:30",
+          "departure": "2025-11-16T05:33:30",
+          "is_stop": true,
+          "node_id": "STATION_053",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T05:38:30",
+          "departure": "2025-11-16T05:40:30",
+          "is_stop": true,
+          "node_id": "STATION_052",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T05:47:30",
+          "departure": "2025-11-16T05:49:30",
+          "is_stop": true,
+          "node_id": "STATION_051",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T06:01:00",
+          "departure": "2025-11-16T06:03:00",
+          "is_stop": true,
+          "node_id": "STATION_042",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T06:14:30",
+          "departure": "2025-11-16T06:16:30",
+          "is_stop": true,
+          "node_id": "STATION_043",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T06:27:30",
+          "departure": "2025-11-16T06:29:30",
+          "is_stop": true,
+          "node_id": "STATION_045",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T06:40:30",
+          "departure": "2025-11-16T06:42:30",
+          "is_stop": true,
+          "node_id": "STATION_044",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T06:54:30",
+          "departure": "2025-11-16T06:56:30",
+          "is_stop": true,
+          "node_id": "STATION_002",
+          "platform": 1
+        }
+      ],
+      "train_id": "TRAIN_023"
+    },
+    {
+      "schedule_id": "SCH_TRAIN_024_2",
+      "stops": [
+        {
+          "arrival": "2025-11-16T05:00:00",
+          "departure": "2025-11-16T05:00:00",
+          "is_stop": true,
+          "node_id": "STATION_002",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T05:12:00",
+          "departure": "2025-11-16T05:14:00",
+          "is_stop": true,
+          "node_id": "STATION_044",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T05:25:00",
+          "departure": "2025-11-16T05:27:00",
+          "is_stop": true,
+          "node_id": "STATION_045",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T05:38:00",
+          "departure": "2025-11-16T05:40:00",
+          "is_stop": true,
+          "node_id": "STATION_043",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T05:51:30",
+          "departure": "2025-11-16T05:53:30",
+          "is_stop": true,
+          "node_id": "STATION_042",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T06:05:00",
+          "departure": "2025-11-16T06:07:00",
+          "is_stop": true,
+          "node_id": "STATION_051",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T06:14:00",
+          "departure": "2025-11-16T06:16:00",
+          "is_stop": true,
+          "node_id": "STATION_052",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T06:21:00",
+          "departure": "2025-11-16T06:23:00",
+          "is_stop": true,
+          "node_id": "STATION_053",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T06:27:00",
+          "departure": "2025-11-16T06:29:00",
+          "is_stop": true,
+          "node_id": "STATION_038",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T06:33:00",
+          "departure": "2025-11-16T06:35:00",
+          "is_stop": true,
+          "node_id": "STATION_013",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T06:43:00",
+          "departure": "2025-11-16T06:45:00",
+          "is_stop": true,
+          "node_id": "STATION_032",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T06:51:00",
+          "departure": "2025-11-16T06:53:00",
+          "is_stop": true,
+          "node_id": "STATION_011",
+          "platform": 1
+        },
+        {
+          "arrival": "2025-11-16T06:54:30",
+          "departure": "2025-11-16T06:56:30",
+          "is_stop": true,
+          "node_id": "STATION_012",
+          "platform": 1
+        }
+      ],
+      "train_id": "TRAIN_024"
+    }
+  ],
+  "trains": [
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_001",
+      "max_speed": 300.0,
+      "name": "AV 1001",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_002",
+      "max_speed": 300.0,
+      "name": "Treno 1001",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_003",
+      "max_speed": 300.0,
+      "name": "Treno 1002",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_004",
+      "max_speed": 300.0,
+      "name": "Treno 1003",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_005",
+      "max_speed": 300.0,
+      "name": "Treno 1004",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_006",
+      "max_speed": 300.0,
+      "name": "Treno 1005",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_007",
+      "max_speed": 300.0,
+      "name": "Treno 1006",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_008",
+      "max_speed": 300.0,
+      "name": "Treno 1007",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_009",
+      "max_speed": 300.0,
+      "name": "Treno 1008",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_010",
+      "max_speed": 300.0,
+      "name": "Treno 1009",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_011",
+      "max_speed": 300.0,
+      "name": "Treno 1010",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_012",
+      "max_speed": 300.0,
+      "name": "Treno 1011",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_013",
+      "max_speed": 300.0,
+      "name": "Treno 1012",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_014",
+      "max_speed": 300.0,
+      "name": "Treno 1013",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_015",
+      "max_speed": 300.0,
+      "name": "Treno 1014",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_016",
+      "max_speed": 300.0,
+      "name": "Treno 1015",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_017",
+      "max_speed": 300.0,
+      "name": "Treno 1016",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_018",
+      "max_speed": 300.0,
+      "name": "Treno 1017",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_019",
+      "max_speed": 300.0,
+      "name": "Treno 1018",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_020",
+      "max_speed": 300.0,
+      "name": "Treno 1019",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_021",
+      "max_speed": 300.0,
+      "name": "Treno 1020",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.4,
+      "deceleration": 0.6,
+      "id": "TRAIN_022",
+      "max_speed": 300.0,
+      "name": "AV2001",
+      "type": "high_speed"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_023",
+      "max_speed": 160.0,
+      "name": "V TEST",
+      "type": "regional"
+    },
+    {
+      "acceleration": 0.6,
+      "deceleration": 0.8,
+      "id": "TRAIN_024",
+      "max_speed": 160.0,
+      "name": "V TEST2",
+      "type": "regional"
+    }
+  ]
+}
