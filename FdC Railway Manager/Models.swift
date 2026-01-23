@@ -1,6 +1,8 @@
 import Foundation
 import Combine
 import UniformTypeIdentifiers
+import CoreLocation
+import MapKit
 
 // Nodo della rete ferroviaria (stazione o interscambio)
 struct Node: Identifiable, Codable, Hashable {
@@ -14,6 +16,11 @@ struct Node: Identifiable, Codable, Hashable {
     var longitude: Double?
     var capacity: Int?
     var platforms: Int?
+
+    var coordinate: CLLocationCoordinate2D? {
+        guard let lat = latitude, let lon = longitude else { return nil }
+        return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+    }
 }
 
 // Binario (arco del grafo)
@@ -30,36 +37,27 @@ struct Edge: Identifiable, Codable, Hashable {
     var capacity: Int?
 }
 
+// Linea ferroviaria (insieme di stazioni)
+struct RailwayLine: Identifiable, Codable, Hashable {
+    let id: String
+    var name: String
+    var color: String? // ex: "#ff0000"
+    var stations: [String] // IDs delle stazioni
+}
+
 // Rete ferroviaria (grafo)
-class RailwayNetwork: ObservableObject, Codable {
+@MainActor
+class RailwayNetwork: ObservableObject {
     @Published var name: String
     @Published var nodes: [Node]
     @Published var edges: [Edge]
+    @Published var lines: [RailwayLine]
 
-    enum CodingKeys: String, CodingKey {
-        case name, nodes, edges
-    }
-
-    init(name: String, nodes: [Node] = [], edges: [Edge] = []) {
+    init(name: String, nodes: [Node] = [], edges: [Edge] = [], lines: [RailwayLine] = []) {
         self.name = name
         self.nodes = nodes
         self.edges = edges
-    }
-
-    // MARK: - Codable manuale per @Published
-    required convenience init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let name = try container.decode(String.self, forKey: .name)
-        let nodes = try container.decode([Node].self, forKey: .nodes)
-        let edges = try container.decode([Edge].self, forKey: .edges)
-        self.init(name: name, nodes: nodes, edges: edges)
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(name, forKey: .name)
-        try container.encode(nodes, forKey: .nodes)
-        try container.encode(edges, forKey: .edges)
+        self.lines = lines
     }
 
     // MARK: - Gestione nodi e archi
@@ -69,7 +67,15 @@ class RailwayNetwork: ObservableObject, Codable {
     func addEdge(_ edge: Edge) {
         edges.append(edge)
     }
-    // ...altre funzioni di gestione...
+    
+    func removeNode(_ id: String) {
+        nodes.removeAll { $0.id == id }
+        edges.removeAll { $0.from == id || $0.to == id }
+    }
+    
+    func removeEdge(_ from: String, _ to: String) {
+        edges.removeAll { $0.from == from && $0.to == to }
+    }
 
     // MARK: - Pathfinding (Dijkstra base)
     func findShortestPath(from start: String, to end: String) -> ([String], Double)? {
@@ -111,13 +117,14 @@ extension RailwayNetwork {
     func saveToFile(url: URL) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
-        let data = try encoder.encode(self)
+        let dto = self.toDTO()
+        let data = try encoder.encode(dto)
         try data.write(to: url)
     }
     
-    static func loadFromFile(url: URL) throws -> RailwayNetwork {
+    static func loadFromFile(url: URL) throws -> RailwayNetworkDTO {
         let data = try Data(contentsOf: url)
         let decoder = JSONDecoder()
-        return try decoder.decode(RailwayNetwork.self, from: data)
+        return try decoder.decode(RailwayNetworkDTO.self, from: data)
     }
 }

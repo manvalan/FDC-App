@@ -33,6 +33,10 @@ struct ContentView: View {
                 .tabItem {
                     Label("Scheduler", systemImage: "calendar")
                 }.tag(5)
+            RailwayAISchedulerView(network: network)
+                .tabItem {
+                    Label("RailwayAI", systemImage: "sparkles")
+                }.tag(6)
         }
     }
 }
@@ -56,6 +60,21 @@ struct NetworkView: View {
                         VStack(alignment: .leading) {
                             Text("\(edge.from) → \(edge.to)")
                             Text("Tipo: \(edge.trackType.rawValue), Velocità max: \(edge.maxSpeed) km/h").font(.caption)
+                        }
+                    }
+                }
+                if !network.lines.isEmpty {
+                    Section(header: Text("Linee")) {
+                        ForEach(network.lines) { line in
+                            VStack(alignment: .leading) {
+                                HStack {
+                                    if let color = line.color {
+                                        Circle().fill(Color(hex: color) ?? .gray).frame(width: 10, height: 10)
+                                    }
+                                    Text(line.name).font(.headline)
+                                }
+                                Text("\(line.stations.count) stazioni").font(.caption).foregroundColor(.secondary)
+                            }
                         }
                     }
                 }
@@ -144,7 +163,7 @@ struct TrainsView: View {
                         ToolbarItem(placement: .confirmationAction) {
                             Button("Aggiungi") {
                                 guard !newName.isEmpty else { return }
-                                manager.trains.append(Train(id: UUID(), name: newName, type: newType, maxSpeed: newMaxSpeed))
+                                 manager.trains.append(Train(id: UUID(), name: newName, type: newType, maxSpeed: newMaxSpeed, priority: 5, acceleration: 0.5, deceleration: 0.5))
                                 newName = ""
                                 newType = "Regionale"
                                 newMaxSpeed = 120
@@ -169,9 +188,13 @@ struct RailwayNetworkDocument: FileDocument {
         // If .fdc, parse text with FDCParser
         if configuration.contentType == .fdc {
             let parsed = try FDCParser.parse(data: data)
-            let nodes = parsed.stations.map { Node(id: $0.id, name: $0.name, type: .station, latitude: nil, longitude: nil, capacity: nil, platforms: nil) }
-            let edges = parsed.edges.map { Edge(from: $0.from, to: $0.to, distance: $0.distance ?? 1.0, trackType: .regional, maxSpeed: 120, capacity: nil) }
-            self.dto = RailwayNetworkDTO(name: parsed.name, nodes: nodes, edges: edges)
+            let nodes = parsed.stations.map { fdc in
+                Node(id: fdc.id, name: fdc.name, type: .station, latitude: fdc.latitude, longitude: fdc.longitude, capacity: fdc.capacity, platforms: fdc.platformCount ?? 2)
+            }
+            let edges = parsed.edges.map { fdc in
+                Edge(from: fdc.from, to: fdc.to, distance: fdc.distance ?? 1.0, trackType: .regional, maxSpeed: Int(fdc.maxSpeed ?? 120), capacity: fdc.capacity)
+            }
+            self.dto = RailwayNetworkDTO(name: parsed.name, nodes: nodes, edges: edges, lines: parsed.lines)
             return
         }
         let decoder = JSONDecoder()
@@ -213,11 +236,16 @@ struct SettingsView: View {
                     let data = try Data(contentsOf: url)
                     if url.pathExtension.lowercased() == "fdc" {
                         let parsed = try FDCParser.parse(data: data)
-                        let nodes = parsed.stations.map { Node(id: $0.id, name: $0.name, type: .station, latitude: nil, longitude: nil, capacity: nil, platforms: nil) }
-                        let edges = parsed.edges.map { Edge(from: $0.from, to: $0.to, distance: $0.distance ?? 1.0, trackType: .regional, maxSpeed: 120, capacity: nil) }
+                        let nodes = parsed.stations.map { fdc in
+                            Node(id: fdc.id, name: fdc.name, type: .station, latitude: fdc.latitude, longitude: fdc.longitude, capacity: fdc.capacity, platforms: fdc.platformCount ?? 2)
+                        }
+                        let edges = parsed.edges.map { fdc in
+                            Edge(from: fdc.from, to: fdc.to, distance: fdc.distance ?? 1.0, trackType: .regional, maxSpeed: Int(fdc.maxSpeed ?? 120), capacity: fdc.capacity)
+                        }
                         network.name = parsed.name
                         network.nodes = nodes
                         network.edges = edges
+                        network.lines = parsed.lines
                     } else {
                         let decoder = JSONDecoder()
                         if let dto = try? decoder.decode(RailwayNetworkDTO.self, from: data) {
@@ -287,6 +315,7 @@ struct RailwayAIView: View {
 }
 
 // Funzione per chiamare la RailwayAI custom (invocata solo dove serve)
+@MainActor
 func sendToRailwayAI(prompt: String, network: RailwayNetwork, completion: @escaping (Result<String, Error>) -> Void) {
     guard let url = URL(string: "http://82.165.138.64:8080/") else { completion(.failure(NSError(domain: "URL non valida", code: 0))); return }
     struct Payload: Codable { let prompt: String; let network: RailwayNetworkDTO }
@@ -295,6 +324,7 @@ func sendToRailwayAI(prompt: String, network: RailwayNetwork, completion: @escap
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc2ODkzOTkxN30.a4MzrT4Xlig1DvEbzp2r-H9sAcIu5SD9-i2IRz8DXg4", forHTTPHeaderField: "Authorization")
     request.httpBody = data
     let task = URLSession.shared.dataTask(with: request) { data, response, error in
         if let error = error { completion(.failure(error)); return }

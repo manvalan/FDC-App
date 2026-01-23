@@ -11,6 +11,8 @@ struct SchedulerView: View {
     @State private var isLoading = false
     @State private var errorMessage: String? = nil
     @State private var showTrains = false
+    @StateObject private var simulator = FDCSimulator()
+    @State private var selectedSchedule: TrainSchedule? = nil
     @State private var showExport = false
     @State private var showChart = false
     @State private var showManualEdit = false
@@ -57,6 +59,41 @@ struct SchedulerView: View {
                     Button("Visualizza grafico orari") {
                         showChart = true
                     }.disabled(schedulerResult.isEmpty)
+                }
+                Section(header: Text("Infrastruttura Locale (FDC Engine)")) {
+                    Button("Simula Rete Completa") {
+                        simulateLocally()
+                    }.disabled(trainManager.trains.isEmpty || network.lines.isEmpty)
+                    
+                    if !simulator.schedules.isEmpty {
+                        ForEach(simulator.schedules) { schedule in
+                            Button(action: { selectedSchedule = schedule }) {
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text(schedule.trainName).font(.headline)
+                                        Text("\(schedule.stops.count) fermate").font(.caption)
+                                    }
+                                    Spacer()
+                                    if schedule.totalDelayMinutes > 0 {
+                                        Text("+\(schedule.totalDelayMinutes)m")
+                                            .font(.caption).padding(4).background(Color.red.opacity(0.1)).cornerRadius(4)
+                                    }
+                                    Image(systemName: "chevron.right")
+                                }
+                            }
+                        }
+                    }
+                }
+                if !simulator.activeConflicts.isEmpty {
+                    Section(header: Text("Conflitti Operativi")) {
+                        ForEach(simulator.activeConflicts) { conflict in
+                            VStack(alignment: .leading) {
+                                Text("\(conflict.type.rawValue) a \(conflict.locationId)").bold()
+                                Text(conflict.trainNames.joined(separator: " vs "))
+                                    .font(.caption).foregroundColor(.red)
+                            }
+                        }
+                    }
                 }
                 Section(header: Text("Editing manuale orari")) {
                     Button("Modifica orari manualmente") {
@@ -147,6 +184,37 @@ struct SchedulerView: View {
                     errorMessage = error.localizedDescription
                 }
             }
+            .sheet(item: $selectedSchedule) { schedule in
+                TrainTimetableView(schedule: schedule, simulator: simulator)
+            }
+        }
+    }
+    
+    func simulateLocally() {
+        isLoading = true
+        errorMessage = nil
+        
+        // Use a MainActor task for simulation to safely access @Published properties
+        Task { @MainActor in
+            var newSchedules: [TrainSchedule] = []
+            
+            // For each line in the network, try to assign a train and build a schedule
+            for (index, line) in network.lines.enumerated() {
+                // Pick a train for this line (simple mapping)
+                guard index < trainManager.trains.count else { break }
+                let train = trainManager.trains[index]
+                
+                // Build schedule starting today at 08:00 + index * 10 mins
+                let baseTime = Calendar.current.date(bySettingHour: 8, minute: index * 15, second: 0, of: Date()) ?? Date()
+                
+                if let schedule = FDCSchedulerEngine.buildSchedule(train: train, network: network, route: line.stations, startTime: baseTime) {
+                    newSchedules.append(schedule)
+                }
+            }
+            
+            simulator.schedules = newSchedules
+            simulator.resolveConflicts(trains: trainManager.trains)
+            isLoading = false
         }
     }
 }
@@ -302,7 +370,7 @@ struct TrainsDetailView: View {
                         ToolbarItem(placement: .confirmationAction) {
                             Button("Aggiungi") {
                                 guard !newName.isEmpty else { return }
-                                manager.trains.append(Train(id: UUID(), name: newName, type: newType, maxSpeed: newMaxSpeed))
+                                 manager.trains.append(Train(id: UUID(), name: newName, type: newType, maxSpeed: newMaxSpeed, priority: 5, acceleration: 0.5, deceleration: 0.5))
                                 newName = ""
                                 newType = "Regionale"
                                 newMaxSpeed = 120
@@ -361,6 +429,7 @@ struct FDCFileDocument: FileDocument {
 }
 
 // Funzione per chiamare il backend FDC_Scheduler
+@MainActor
 func sendToScheduler(network: RailwayNetwork, trains: [Train], completion: @escaping (Result<String, Error>) -> Void) {
     guard let url = URL(string: "http://82.165.138.64:8080/scheduler") else {
         completion(.failure(NSError(domain: "URL non valida", code: 0)))
@@ -478,6 +547,7 @@ struct PrintView: View {
 
 // Funzioni per il caricamento e il salvataggio della rete ferroviaria
 extension SchedulerView {
+    @MainActor
     func loadRailwayNetwork(from url: URL) {
         do {
             let loadedNetwork = try RailwayNetwork.loadFromFile(url: url)
@@ -489,6 +559,7 @@ extension SchedulerView {
         }
     }
 
+    @MainActor
     func saveRailwayNetwork(to url: URL) {
         do {
             try network.saveToFile(url: url)

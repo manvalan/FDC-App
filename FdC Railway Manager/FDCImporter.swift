@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import Combine
 
 enum ImportStatus: Equatable {
     case idle
@@ -11,11 +12,13 @@ enum ImportStatus: Equatable {
 @MainActor
 class FDCImportViewModel: ObservableObject {
     @Published var status: ImportStatus = .idle
-    // Reference to app network to populate
+    // Reference to app state to populate
     var network: RailwayNetwork?
+    var trainManager: TrainManager?
 
-    init(network: RailwayNetwork? = nil) {
+    init(network: RailwayNetwork? = nil, trainManager: TrainManager? = nil) {
         self.network = network
+        self.trainManager = trainManager
     }
 
     func importBundledFDC(named name: String = "fdc2.fdc") async {
@@ -57,18 +60,53 @@ class FDCImportViewModel: ObservableObject {
             let parsed = try FDCParser.parse(data: data)
             print("[FDCImportViewModel] Parsed network: \(parsed.name) stations=\(parsed.stations.count) edges=\(parsed.edges.count) trains=\(parsed.trains.count)")
 
-            // Map parsed into RailwayNetwork (ViewModel)
-            let nodes = parsed.stations.map { Node(id: $0.id, name: $0.name, type: .station, latitude: nil, longitude: nil, capacity: nil, platforms: nil) }
-            let edges = parsed.edges.map { Edge(from: $0.from, to: $0.to, distance: $0.distance ?? 1.0, trackType: .regional, maxSpeed: 120, capacity: nil) }
+            // Map parsed into RailwayNetwork
+            let nodes = parsed.stations.map { fdcStation in
+                let type: Node.NodeType = {
+                    switch fdcStation.type?.lowercased() {
+                    case "interchange": return .interchange
+                    case "depot": return .depot
+                    default: return .station
+                    }
+                }()
+                return Node(id: fdcStation.id, name: fdcStation.name, type: type, latitude: fdcStation.latitude, longitude: fdcStation.longitude, capacity: fdcStation.capacity, platforms: fdcStation.platformCount ?? 2)
+            }
+            let edges = parsed.edges.map { fdcEdge in
+                let trackType: Edge.TrackType = {
+                    switch fdcEdge.trackType?.lowercased() {
+                    case "highspeed", "high_speed": return .highSpeed
+                    case "single": return .single
+                    case "double": return .double
+                    default: return .regional
+                    }
+                }()
+                return Edge(from: fdcEdge.from, to: fdcEdge.to, distance: fdcEdge.distance ?? 1.0, trackType: trackType, maxSpeed: Int(fdcEdge.maxSpeed ?? 120.0), capacity: fdcEdge.capacity)
+            }
+            
+            // Map trains
+            let trains = parsed.trains.map { fdcTrain in
+                Train(id: UUID(), 
+                      name: fdcTrain.name, 
+                      type: fdcTrain.type ?? "Regionale", 
+                      maxSpeed: fdcTrain.maxSpeed ?? 120, 
+                      priority: fdcTrain.priority ?? 5,
+                      acceleration: fdcTrain.acceleration ?? 0.5,
+                      deceleration: fdcTrain.deceleration ?? 0.5)
+            }
+
             if let network = self.network {
                 network.name = parsed.name
                 network.nodes = nodes
                 network.edges = edges
-                print("[FDCImportViewModel] Applied parsed network to RailwayNetwork instance")
-            } else {
-                print("[FDCImportViewModel] No network instance provided; parsed data not applied")
+                network.lines = parsed.lines
+                print("[FDCImportViewModel] Applied parsed network (nodes, edges, lines) to RailwayNetwork instance")
             }
-            let summary = "Importati \(nodes.count) stazioni, \(edges.count) binari, \(parsed.trains.count) treni"
+            
+            if let trainManager = self.trainManager {
+                trainManager.trains = trains
+                print("[FDCImportViewModel] Applied \(trains.count) trains to TrainManager")
+            }
+            let summary = "Importati \(nodes.count) stazioni, \(edges.count) binari, \(parsed.lines.count) linee, \(trains.count) treni"
             status = .success(summary: summary)
             print("[FDCImportViewModel] Import success: \(summary)")
         } catch let err as NSError {
