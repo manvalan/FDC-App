@@ -7,4 +7,5 @@ final class AppState: ObservableObject {
     var aiNetwork: RailwayNetwork? = nil
     @Published var didAutoImport: Bool = false
     @Published var importMessage: String? = nil
+    @Published var simulator = FDCSimulator()
 }

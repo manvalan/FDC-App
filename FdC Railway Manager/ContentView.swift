@@ -44,21 +44,43 @@ struct ContentView: View {
 // MARK: - NetworkView
 struct NetworkView: View {
     @ObservedObject var network: RailwayNetwork
+    @State private var selectedNode: Node? = nil
+    @State private var displayMode = 0 // 0: Lista, 1: Mappa
+    
     var body: some View {
         NavigationStack {
-            List {
-                Section(header: Text("Stazioni")) {
+            VStack {
+                Picker("Vista", selection: $displayMode) {
+                    Text("Lista").tag(0)
+                    Text("Mappa").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                
+                if displayMode == 0 {
+                    List {
+                        Section(header: Text("Stazioni")) {
                     ForEach(network.nodes) { node in
-                        VStack(alignment: .leading) {
-                            Text(node.name).font(.headline)
-                            Text(node.id).font(.caption).foregroundColor(.secondary)
+                        Button(action: { selectedNode = node }) {
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(node.name).font(.headline)
+                                    Text(node.id).font(.caption).foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "list.bullet.rectangle")
+                                    .foregroundColor(.blue)
+                            }
                         }
                     }
                 }
                 Section(header: Text("Binari")) {
                     ForEach(network.edges) { edge in
                         VStack(alignment: .leading) {
-                            Text("\(edge.from) → \(edge.to)")
+                            let fromName = network.nodes.first(where: { $0.id == edge.from })?.name ?? edge.from
+                            let toName = network.nodes.first(where: { $0.id == edge.to })?.name ?? edge.to
+                            Text("\(fromName) → \(toName)")
+                                .font(.subheadline).bold()
                             Text("Tipo: \(edge.trackType.rawValue), Velocità max: \(edge.maxSpeed) km/h").font(.caption)
                         }
                     }
@@ -73,13 +95,24 @@ struct NetworkView: View {
                                     }
                                     Text(line.name).font(.headline)
                                 }
-                                Text("\(line.stations.count) stazioni").font(.caption).foregroundColor(.secondary)
+                                let stationNames = line.stations.compactMap { id in network.nodes.first(where: { $0.id == id })?.name }.joined(separator: ", ")
+                                Text(stationNames)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(2)
                             }
                         }
                     }
                 }
+                    }
+                } else {
+                    RailwayMapView(network: network)
+                }
             }
             .navigationTitle("Rete Ferroviaria")
+            .sheet(item: $selectedNode) { node in
+                StationBoardView(station: node)
+            }
         }
     }
 }
@@ -93,15 +126,14 @@ struct PathFinderView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("Seleziona stazioni")) {
                     Picker("Da", selection: $from) {
-                        ForEach(network.nodes.map { $0.id }, id: \ .self) { id in
-                            Text(id)
+                        ForEach(network.nodes) { node in
+                            Text(node.name).tag(node.id)
                         }
                     }
                     Picker("A", selection: $to) {
-                        ForEach(network.nodes.map { $0.id }, id: \ .self) { id in
-                            Text(id)
+                        ForEach(network.nodes) { node in
+                            Text(node.name).tag(node.id)
                         }
                     }
                     Button("Calcola percorso") {
@@ -109,9 +141,12 @@ struct PathFinderView: View {
                     }.disabled(from.isEmpty || to.isEmpty || from == to)
                 }
                 if let result = result {
-                    Section(header: Text("Percorso")) {
-                        Text(result.0.joined(separator: " → "))
-                        Text("Distanza: \(String(format: "%.1f", result.1)) km")
+                    Section(header: Text("Percorso Ottimale")) {
+                        let names = result.0.compactMap { id in network.nodes.first(where: { $0.id == id })?.name ?? id }
+                        Text(names.joined(separator: " → "))
+                            .font(.headline)
+                        Text("Distanza Totale: \(String(format: "%.1f", result.1)) km")
+                            .foregroundColor(.secondary)
                     }
                 }
             }
@@ -129,6 +164,9 @@ struct TrainsView: View {
     @State private var newName = ""
     @State private var newType = "Regionale"
     @State private var newMaxSpeed = 120
+    @State private var newPriority = 5
+    @State private var newAccel = 0.5
+    @State private var newDecel = 0.5
     var body: some View {
         NavigationStack {
             List {
@@ -151,9 +189,26 @@ struct TrainsView: View {
             .sheet(isPresented: $showAdd) {
                 NavigationStack {
                     Form {
-                        TextField("Nome treno", text: $newName)
-                        TextField("Tipo", text: $newType)
-                        TextField("Velocità max (km/h)", value: $newMaxSpeed, format: .number)
+                        Section(header: Text("Dati Generali")) {
+                            TextField("Nome treno", text: $newName)
+                            TextField("Tipo (es: AV, Regionale)", text: $newType)
+                            TextField("Velocità max (km/h)", value: $newMaxSpeed, format: .number)
+                        }
+                        Section(header: Text("Parametri Fisici (FDC Engine)")) {
+                            Stepper("Priorità: \(newPriority)", value: $newPriority, in: 1...10)
+                            HStack {
+                                Text("Accelerazione (m/s²)")
+                                Spacer()
+                                TextField("Accel", value: $newAccel, format: .number)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                            HStack {
+                                Text("Decelerazione (m/s²)")
+                                Spacer()
+                                TextField("Decel", value: $newDecel, format: .number)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                        }
                     }
                     .navigationTitle("Nuovo Treno")
                     .toolbar {
@@ -163,10 +218,13 @@ struct TrainsView: View {
                         ToolbarItem(placement: .confirmationAction) {
                             Button("Aggiungi") {
                                 guard !newName.isEmpty else { return }
-                                 manager.trains.append(Train(id: UUID(), name: newName, type: newType, maxSpeed: newMaxSpeed, priority: 5, acceleration: 0.5, deceleration: 0.5))
+                                manager.trains.append(Train(id: UUID(), name: newName, type: newType, maxSpeed: newMaxSpeed, priority: newPriority, acceleration: newAccel, deceleration: newDecel))
                                 newName = ""
                                 newType = "Regionale"
                                 newMaxSpeed = 120
+                                newPriority = 5
+                                newAccel = 0.5
+                                newDecel = 0.5
                                 showAdd = false
                             }
                         }
@@ -216,6 +274,7 @@ struct RailwayNetworkDocument: FileDocument {
 // MARK: - SettingsView
 struct SettingsView: View {
     @EnvironmentObject var network: RailwayNetwork
+    @EnvironmentObject var trainManager: TrainManager
     @State private var showExporter = false
     @State private var showImporter = false
     @State private var importError: String? = nil
@@ -242,6 +301,15 @@ struct SettingsView: View {
                         let edges = parsed.edges.map { fdc in
                             Edge(from: fdc.from, to: fdc.to, distance: fdc.distance ?? 1.0, trackType: .regional, maxSpeed: Int(fdc.maxSpeed ?? 120), capacity: fdc.capacity)
                         }
+                        
+                        // Import Trains
+                        let newTrains = parsed.trains.map { fdc in
+                            Train(id: UUID(), name: fdc.name, type: fdc.type ?? "Regionale", maxSpeed: fdc.maxSpeed ?? 120, priority: fdc.priority ?? 5, acceleration: fdc.acceleration ?? 0.5, deceleration: fdc.deceleration ?? 0.5)
+                        }
+                        if !newTrains.isEmpty {
+                            trainManager.trains = newTrains
+                        }
+                        
                         network.name = parsed.name
                         network.nodes = nodes
                         network.edges = edges
@@ -323,7 +391,7 @@ func sendToRailwayAI(prompt: String, network: RailwayNetwork, completion: @escap
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc2ODkzOTkxN30.a4MzrT4Xlig1DvEbzp2r-H9sAcIu5SD9-i2IRz8DXg4", forHTTPHeaderField: "Authorization")
+    request.setValue("Bearer \(Secrets.railwayAiToken)", forHTTPHeaderField: "Authorization")
     request.httpBody = data
     let task = URLSession.shared.dataTask(with: request) { data, response, error in
         if let error = error { completion(.failure(error)); return }

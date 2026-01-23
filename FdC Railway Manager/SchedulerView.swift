@@ -11,7 +11,7 @@ struct SchedulerView: View {
     @State private var isLoading = false
     @State private var errorMessage: String? = nil
     @State private var showTrains = false
-    @StateObject private var simulator = FDCSimulator()
+    @EnvironmentObject var appState: AppState
     @State private var selectedSchedule: TrainSchedule? = nil
     @State private var showExport = false
     @State private var showChart = false
@@ -65,8 +65,8 @@ struct SchedulerView: View {
                         simulateLocally()
                     }.disabled(trainManager.trains.isEmpty || network.lines.isEmpty)
                     
-                    if !simulator.schedules.isEmpty {
-                        ForEach(simulator.schedules) { schedule in
+                    if !appState.simulator.schedules.isEmpty {
+                        ForEach(appState.simulator.schedules) { schedule in
                             Button(action: { selectedSchedule = schedule }) {
                                 HStack {
                                     VStack(alignment: .leading) {
@@ -84,9 +84,9 @@ struct SchedulerView: View {
                         }
                     }
                 }
-                if !simulator.activeConflicts.isEmpty {
+                if !appState.simulator.activeConflicts.isEmpty {
                     Section(header: Text("Conflitti Operativi")) {
-                        ForEach(simulator.activeConflicts) { conflict in
+                        ForEach(appState.simulator.activeConflicts) { conflict in
                             VStack(alignment: .leading) {
                                 Text("\(conflict.type.rawValue) a \(conflict.locationId)").bold()
                                 Text(conflict.trainNames.joined(separator: " vs "))
@@ -185,7 +185,7 @@ struct SchedulerView: View {
                 }
             }
             .sheet(item: $selectedSchedule) { schedule in
-                TrainTimetableView(schedule: schedule, simulator: simulator)
+                TrainTimetableView(schedule: schedule, simulator: appState.simulator)
             }
         }
     }
@@ -212,8 +212,8 @@ struct SchedulerView: View {
                 }
             }
             
-            simulator.schedules = newSchedules
-            simulator.resolveConflicts(trains: trainManager.trains)
+            appState.simulator.schedules = newSchedules
+            appState.simulator.resolveConflicts(trains: trainManager.trains)
             isLoading = false
         }
     }
@@ -238,15 +238,84 @@ struct TimetableChartView: View {
 }
 
 struct TimetableChart: View {
-    let data: [TimetableChartData]
+    @EnvironmentObject var appState: AppState
+    let data: [TimetableChartData] // Fallback for remote results
+    
     var body: some View {
         Chart {
-            ForEach(data) { item in
-                LineMark(
-                    x: .value("Orario", item.date),
-                    y: .value("Stazione", item.station)
-                )
-                .foregroundStyle(by: .value("Treno", item.train))
+            if !appState.simulator.schedules.isEmpty {
+                // Professional view from simulator data
+                ForEach(appState.simulator.schedules) { schedule in
+                    ForEach(schedule.stops) { stop in
+                        if let arr = stop.arrivalTime {
+                            PointMark(
+                                x: .value("Tempo", arr),
+                                y: .value("Stazione", stop.stationName)
+                            )
+                            .foregroundStyle(by: .value("Treno", schedule.trainName))
+                            .symbolSize(20)
+                        }
+                        
+                        if let dep = stop.departureTime {
+                            PointMark(
+                                x: .value("Tempo", dep),
+                                y: .value("Stazione", stop.stationName)
+                            )
+                            .foregroundStyle(by: .value("Treno", schedule.trainName))
+                            .symbolSize(20)
+                        }
+                        
+                        // Line segment within the station (Dwelling)
+                        if let arr = stop.arrivalTime, let dep = stop.departureTime {
+                            LineMark(
+                                x: .value("Tempo", arr),
+                                y: .value("Stazione", stop.stationName)
+                            )
+                            .foregroundStyle(by: .value("Treno", schedule.trainName))
+                            .lineStyle(StrokeStyle(lineWidth: 4))
+                            
+                            LineMark(
+                                x: .value("Tempo", dep),
+                                y: .value("Stazione", stop.stationName)
+                            )
+                            .foregroundStyle(by: .value("Treno", schedule.trainName))
+                            .lineStyle(StrokeStyle(lineWidth: 4))
+                        }
+                    }
+                    
+                    // Connecting lines between stations
+                    ForEach(0..<schedule.stops.count-1, id: \.self) { i in
+                        let start = schedule.stops[i]
+                        let end = schedule.stops[i+1]
+                        if let t1 = start.departureTime ?? start.arrivalTime,
+                           let t2 = end.arrivalTime ?? end.departureTime {
+                            LineMark(x: .value("T", t1), y: .value("S", start.stationName))
+                                .foregroundStyle(by: .value("Treno", schedule.trainName))
+                            LineMark(x: .value("T", t2), y: .value("S", end.stationName))
+                                .foregroundStyle(by: .value("Treno", schedule.trainName))
+                        }
+                    }
+                }
+                
+                // Conflict annotations
+                ForEach(appState.simulator.activeConflicts) { conflict in
+                    RuleMark(x: .value("Conflitto", conflict.startTime))
+                        .foregroundStyle(.red.opacity(0.3))
+                        .annotation(position: .top) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.red)
+                                .font(.caption)
+                        }
+                }
+            } else {
+                // Fallback for legacy text results
+                ForEach(data) { item in
+                    LineMark(
+                        x: .value("Orario", item.date),
+                        y: .value("Stazione", item.station)
+                    )
+                    .foregroundStyle(by: .value("Treno", item.train))
+                }
             }
         }
         .chartXAxis {
@@ -257,6 +326,8 @@ struct TimetableChart: View {
             }
         }
         .chartYAxisLabel("Stazione")
+        .chartLegend(position: .bottom)
+        .padding()
     }
 }
 
