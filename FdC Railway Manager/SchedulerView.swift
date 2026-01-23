@@ -436,13 +436,13 @@ func sendToScheduler(network: RailwayNetwork, trains: [Train], completion: @esca
         return
     }
     struct Payload: Codable {
-        let network: RailwayNetwork
+        let network: RailwayNetworkDTO
         let trains: [Train]
     }
     struct SchedulerResponse: Codable {
         let result: String
     }
-    let payload = Payload(network: network, trains: trains)
+    let payload = Payload(network: network.toDTO(), trains: trains)
     guard let data = try? JSONEncoder().encode(payload) else {
         completion(.failure(NSError(domain: "Serializzazione JSON fallita", code: 0)))
         return
