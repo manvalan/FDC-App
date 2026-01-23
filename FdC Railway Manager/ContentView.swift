@@ -181,6 +181,7 @@ struct TrainsView: View {
 struct RailwayNetworkDocument: FileDocument {
     static var readableContentTypes: [UTType] { [UTType.json, UTType.fdc] }
     var dto: RailwayNetworkDTO
+    @MainActor
     init(network: RailwayNetwork) { self.dto = network.toDTO() }
     @MainActor
     init(configuration: ReadConfiguration) throws {
@@ -202,8 +203,7 @@ struct RailwayNetworkDocument: FileDocument {
             self.dto = dto
             return
         }
-        let legacy = try decoder.decode(RailwayNetwork.self, from: data)
-        self.dto = legacy.toDTO()
+        throw CocoaError(.fileReadCorruptFile)
     }
     @MainActor
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {

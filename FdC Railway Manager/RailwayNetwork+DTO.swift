@@ -9,6 +9,6 @@ extension RailwayNetwork {
         self.name = dto.name
         self.nodes = dto.nodes
         self.edges = dto.edges
-        self.lines = dto.lines
+        self.lines = dto.lines ?? []
     }
 }

@@ -5,5 +5,5 @@ struct RailwayNetworkDTO: Codable {
     let name: String
     let nodes: [Node]
     let edges: [Edge]
-    let lines: [RailwayLine]
+    let lines: [RailwayLine]?
 }
