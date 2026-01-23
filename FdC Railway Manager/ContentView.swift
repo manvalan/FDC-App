@@ -251,8 +251,7 @@ struct SettingsView: View {
                         if let dto = try? decoder.decode(RailwayNetworkDTO.self, from: data) {
                             network.apply(dto: dto)
                         } else {
-                            let legacy = try decoder.decode(RailwayNetwork.self, from: data)
-                            network.name = legacy.name; network.nodes = legacy.nodes; network.edges = legacy.edges
+                            importError = "Formato file non supportato o corrotto"
                         }
                     }
                 } catch {
