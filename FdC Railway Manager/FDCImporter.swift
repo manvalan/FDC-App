@@ -15,10 +15,12 @@ class FDCImportViewModel: ObservableObject {
     // Reference to app state to populate
     var network: RailwayNetwork?
     var trainManager: TrainManager?
+    var appState: AppState?
 
-    init(network: RailwayNetwork? = nil, trainManager: TrainManager? = nil) {
+    init(network: RailwayNetwork? = nil, trainManager: TrainManager? = nil, appState: AppState? = nil) {
         self.network = network
         self.trainManager = trainManager
+        self.appState = appState
     }
 
     func importBundledFDC(named name: String = "fdc2.fdc") async {
@@ -83,9 +85,14 @@ class FDCImportViewModel: ObservableObject {
                 return Edge(from: fdcEdge.from, to: fdcEdge.to, distance: fdcEdge.distance ?? 1.0, trackType: trackType, maxSpeed: Int(fdcEdge.maxSpeed ?? 120.0), capacity: fdcEdge.capacity)
             }
             
+            // Mapping for train IDs (FDC String -> Swift UUID)
+            var trainIdMap: [String: UUID] = [:]
+            
             // Map trains
-            let trains = parsed.trains.map { fdcTrain in
-                Train(id: UUID(), 
+            let trains = parsed.trains.map { fdcTrain -> Train in
+                let newId = UUID()
+                trainIdMap[fdcTrain.id] = newId
+                return Train(id: newId, 
                       name: fdcTrain.name, 
                       type: fdcTrain.type ?? "Regionale", 
                       maxSpeed: fdcTrain.maxSpeed ?? 120, 
@@ -94,19 +101,42 @@ class FDCImportViewModel: ObservableObject {
                       deceleration: fdcTrain.deceleration ?? 0.5)
             }
 
+            // Map schedules with correct UUIDs and Names
+            let df = ISO8601DateFormatter()
+            let mappedSchedules = parsed.rawSchedules.map { sch -> TrainSchedule in
+                let stops = sch.stops.map { stop -> ScheduleStop in
+                    let stationName = nodes.first(where: { $0.id == stop.node_id })?.name ?? stop.node_id
+                    return ScheduleStop(stationId: stop.node_id, 
+                                       arrivalTime: df.date(from: stop.arrival), 
+                                       departureTime: df.date(from: stop.departure), 
+                                       platform: stop.platform,
+                                       dwellsMinutes: 2,
+                                       stationName: stationName)
+                }
+                let swiftTrainId = trainIdMap[sch.train_id] ?? UUID()
+                let trainName = trains.first(where: { $0.id == swiftTrainId })?.name ?? sch.train_id
+                return TrainSchedule(trainId: swiftTrainId, trainName: trainName, stops: stops)
+            }
+
             if let network = self.network {
                 network.name = parsed.name
                 network.nodes = nodes
                 network.edges = edges
                 network.lines = parsed.lines
-                print("[FDCImportViewModel] Applied parsed network (nodes, edges, lines) to RailwayNetwork instance")
+                print("[FDCImportViewModel] Applied \(nodes.count) nodes, \(edges.count) edges, \(parsed.lines.count) lines")
             }
             
             if let trainManager = self.trainManager {
                 trainManager.trains = trains
                 print("[FDCImportViewModel] Applied \(trains.count) trains to TrainManager")
             }
-            let summary = "Importati \(nodes.count) stazioni, \(edges.count) binari, \(parsed.lines.count) linee, \(trains.count) treni"
+            
+            // Populate simulator
+            if let appState = self.appState {
+                appState.simulator.schedules = mappedSchedules
+            }
+            
+            let summary = "Importati \(nodes.count) stazioni, \(edges.count) binari, \(parsed.lines.count) linee, \(trains.count) treni, \(mappedSchedules.count) orari"
             status = .success(summary: summary)
             print("[FDCImportViewModel] Import success: \(summary)")
         } catch let err as NSError {

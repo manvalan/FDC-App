@@ -19,7 +19,7 @@ struct FdC_Railway_ManagerApp: App {
                 .task {
                     // automatic import of bundled fdc2.fdc once per launch
                     guard !appState.didAutoImport else { return }
-                    let importer = FDCImportViewModel(network: network, trainManager: trainManager)
+                    let importer = FDCImportViewModel(network: network, trainManager: trainManager, appState: appState)
                     print("[App] Attempting automatic bundled FDC import...")
                     await importer.importBundledFDC(named: "fdc2.fdc")
                     switch importer.status {

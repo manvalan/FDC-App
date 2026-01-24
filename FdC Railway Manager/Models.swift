@@ -9,9 +9,20 @@ struct Node: Identifiable, Codable, Hashable {
     enum NodeType: String, Codable {
         case station, interchange, depot
     }
+    enum StationVisualType: String, Codable, CaseIterable, Identifiable {
+        case filledStar = "Stella piena"
+        case filledSquare = "Quadrato pieno"
+        case emptySquare = "Quadrato vuoto"
+        case filledCircle = "Cerchio pieno"
+        case emptyCircle = "Cerchio vuoto"
+        
+        var id: String { self.rawValue }
+    }
     let id: String // es: "MI"
     var name: String
     var type: NodeType
+    var visualType: StationVisualType?
+    var customColor: String?
     var latitude: Double?
     var longitude: Double?
     var capacity: Int?
@@ -42,6 +53,7 @@ struct RailwayLine: Identifiable, Codable, Hashable {
     let id: String
     var name: String
     var color: String? // ex: "#ff0000"
+    var width: Double? // Line thickness in schematic view
     var stations: [String] // IDs delle stazioni
 }
 
@@ -108,6 +120,38 @@ class RailwayNetwork: ObservableObject {
         if u == start { path.insert(start, at: 0) }
         else { return nil }
         return (path, distances[end] ?? .infinity)
+    }
+
+    // Calcolo percorsi alternativi (Diretto + Via Interscambi)
+    func findAlternativePaths(from start: String, to end: String) -> [(path: [String], distance: Double, description: String)] {
+        var alternatives: [(path: [String], distance: Double, description: String)] = []
+        
+        // 1. Percorso Diretto (Shortest)
+        if let direct = findShortestPath(from: start, to: end) {
+            alternatives.append((direct.0, direct.1, "Diretto"))
+        }
+        
+        // 2. Via Interscambi
+        let interchanges = nodes.filter { $0.type == .interchange && $0.id != start && $0.id != end }
+        
+        for mid in interchanges {
+            if let p1 = findShortestPath(from: start, to: mid.id),
+               let p2 = findShortestPath(from: mid.id, to: end) {
+                
+                // Combine paths
+                var combinedPath = p1.0
+                combinedPath.append(contentsOf: p2.0.dropFirst())
+                let combinedDist = p1.1 + p2.1
+                
+                // Avoid duplicates (checking path content)
+                if !alternatives.contains(where: { $0.path == combinedPath }) {
+                     alternatives.append((combinedPath, combinedDist, "Via \(mid.name)"))
+                }
+            }
+        }
+        
+        // Sort by distance
+        return alternatives.sorted { $0.distance < $1.distance }
     }
 }
 

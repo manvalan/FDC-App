@@ -88,7 +88,10 @@ struct SchedulerView: View {
                     Section(header: Text("Conflitti Operativi")) {
                         ForEach(appState.simulator.activeConflicts) { conflict in
                             VStack(alignment: .leading) {
-                                Text("\(conflict.type.rawValue) a \(conflict.locationId)").bold()
+                                HStack {
+                                    Image(systemName: conflict.type == .stationOverlap ? "building.2.fill" : "rail.tracks")
+                                    Text("\(conflict.type.rawValue) a \(conflict.locationId)").bold()
+                                }
                                 Text(conflict.trainNames.joined(separator: " vs "))
                                     .font(.caption).foregroundColor(.red)
                             }
@@ -213,7 +216,7 @@ struct SchedulerView: View {
             }
             
             appState.simulator.schedules = newSchedules
-            appState.simulator.resolveConflicts(trains: trainManager.trains)
+            appState.simulator.resolveConflicts(trains: trainManager.trains, network: network)
             isLoading = false
         }
     }
@@ -473,12 +476,6 @@ struct SchedulerResultDocument: FileDocument {
     }
 }
 
-// MARK: - Supporto apertura file .fdc
-extension UTType {
-    static var fdc: UTType {
-        UTType(importedAs: "com.yourdomain.fdc")
-    }
-}
 
 struct FDCFileDocument: FileDocument {
     static var readableContentTypes: [UTType] { [.fdc, .plainText] }

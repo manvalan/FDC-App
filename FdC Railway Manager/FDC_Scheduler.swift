@@ -161,42 +161,89 @@ class FDCSchedulerEngine {
     }
     
     /// Find all operational conflicts in a set of schedules
-    static func checkConflicts(schedules: [TrainSchedule]) -> [Conflict] {
+    static func checkConflicts(schedules: [TrainSchedule], network: RailwayNetwork) -> [Conflict] {
         var conflicts: [Conflict] = []
         
         // 1. Station Platform Overlaps
-        // Key: stationId -> [(startTime, endTime, trainId, trainName)]
-        var stationUsage: [String: [(Date, Date, UUID, String)]] = [:]
+        // Key: stationId -> [(startTime, endTime, trainId, trainName, platform)]
+        var stationUsage: [String: [(Date, Date, UUID, String, Int)]] = [:]
         
         for sch in schedules {
             for stop in sch.stops {
                 guard let arrival = stop.arrivalTime, let departure = stop.departureTime else { continue }
-                stationUsage[stop.stationId, default: []].append((arrival, departure, sch.trainId, sch.trainName))
+                stationUsage[stop.stationId, default: []].append((arrival, departure, sch.trainId, sch.trainName, stop.platform ?? 1))
             }
         }
         
         for (stationId, usages) in stationUsage {
+            let node = network.nodes.first(where: { $0.id == stationId })
+            let maxPlatforms = node?.platforms ?? 1
+            
+            // Sweep-line algorithm to find overlapping occupation
+            var events: [(Date, Int, UUID, String)] = []
+            for u in usages {
+                events.append((u.0, 1, u.2, u.3))
+                events.append((u.1, -1, u.2, u.3))
+            }
+            events.sort { $0.0 < $1.0 || ($0.0 == $1.0 && $0.1 < $1.1) }
+            
+            var activeTrains = Set<UUID>()
+            var lastTime = events.first?.0 ?? Date()
+            
+            for event in events {
+                if activeTrains.count > maxPlatforms && event.0 > lastTime {
+                    // Conflict window
+                    let involvedNames = usages.filter { activeTrains.contains($0.2) }.map { $0.3 }
+                    conflicts.append(Conflict(type: .stationOverlap,
+                                           locationId: stationId,
+                                           trainIds: Array(activeTrains),
+                                           trainNames: involvedNames,
+                                           startTime: lastTime,
+                                           endTime: event.0))
+                }
+                
+                if event.1 == 1 { activeTrains.insert(event.2) }
+                else { activeTrains.remove(event.2) }
+                lastTime = event.0
+            }
+        }
+        
+        // 2. Track Overlaps (Single Track Sections)
+        var trackUsage: [String: [(Date, Date, UUID, String)]] = [:]
+        
+        for sch in schedules {
+            for i in 0..<(sch.stops.count - 1) {
+                let s1 = sch.stops[i]
+                let s2 = sch.stops[i+1]
+                guard let dep = s1.departureTime, let arr = s2.arrivalTime else { continue }
+                
+                // Check if the edge between s1 and s2 is a single track
+                if let edge = network.edges.first(where: { ($0.from == s1.stationId && $0.to == s2.stationId) || ($0.from == s2.stationId && $0.to == s1.stationId) }),
+                   edge.trackType == .single {
+                    let edgeKey = [s1.stationId, s2.stationId].sorted().joined(separator: "-")
+                    trackUsage[edgeKey, default: []].append((dep, arr, sch.trainId, sch.trainName))
+                }
+            }
+        }
+        
+        for (edgeKey, usages) in trackUsage {
             let sorted = usages.sorted(by: { $0.0 < $1.0 })
             for i in 0..<sorted.count {
                 for j in (i+1)..<sorted.count {
                     let u1 = sorted[i]
                     let u2 = sorted[j]
                     
-                    // Check overlap: start1 < end2 and start2 < end1
                     if u1.0 < u2.1 && u2.0 < u1.1 {
-                        conflicts.append(Conflict(type: .stationOverlap, 
-                                               locationId: stationId, 
-                                               trainIds: [u1.2, u2.2], 
-                                               trainNames: [u1.3, u2.3], 
-                                               startTime: max(u1.0, u2.0), 
+                        conflicts.append(Conflict(type: .trackOverlap,
+                                               locationId: edgeKey,
+                                               trainIds: [u1.2, u2.2],
+                                               trainNames: [u1.3, u2.3],
+                                               startTime: max(u1.0, u2.0),
                                                endTime: min(u1.1, u2.1)))
                     }
                 }
             }
         }
-        
-        // 2. Track Overlaps (Simplification: checks if two trains are in the same section at the same time)
-        // Note: Real FDC logic would check if it's a "single track" type edge.
         
         return conflicts
     }
@@ -210,28 +257,49 @@ class FDCSimulator: ObservableObject {
     @Published var activeConflicts: [Conflict] = []
     
     /// Resolve conflicts by delaying lower priority trains first
-    /// Ported from C++ priority-based resolution
-    func resolveConflicts(trains: [Train]) {
-        activeConflicts = FDCSchedulerEngine.checkConflicts(schedules: schedules)
+    func resolveConflicts(trains: [Train], network: RailwayNetwork) {
+        activeConflicts = FDCSchedulerEngine.checkConflicts(schedules: schedules, network: network)
         
         var iterations = 0
-        while !activeConflicts.isEmpty && iterations < 15 {
+        while !activeConflicts.isEmpty && iterations < 20 {
             iterations += 1
             
-            for conflict in activeConflicts {
-                // Find the train with lower priority to delay
-                let involvedTrains = trains.filter { t in conflict.trainIds.contains(t.id) }
-                let sortedByPriority = involvedTrains.sorted(by: { $0.priority < $1.priority })
-                
-                guard let lowPriorityTrain = sortedByPriority.first,
-                      let scheduleToDelay = schedules.first(where: { $0.trainId == lowPriorityTrain.id }) else { continue }
-                
-                // Shift the entire schedule by 5 minutes starting from the conflict point
-                applyDelay(to: scheduleToDelay, minutes: 5, startingFrom: conflict.locationId)
+            // Take the first conflict and resolve it
+            guard let conflict = activeConflicts.first else { break }
+            
+            let involvedTrains = trains.filter { t in conflict.trainIds.contains(t.id) }
+            let sortedByPriority = involvedTrains.sorted(by: { $0.priority < $1.priority })
+            
+            guard let lowPriorityTrain = sortedByPriority.first,
+                  let scheduleToDelay = schedules.first(where: { $0.trainId == lowPriorityTrain.id }) else {
+                activeConflicts.removeFirst()
+                continue
             }
             
-            activeConflicts = FDCSchedulerEngine.checkConflicts(schedules: schedules)
+            if conflict.type == .stationOverlap {
+                // Try platform re-assignment first (logic refinement needed)
+                // For now, delay by 2 minutes
+                applyDelay(to: scheduleToDelay, minutes: 2, startingFrom: conflict.locationId)
+            } else if conflict.type == .trackOverlap {
+                // For track overlaps, we must delay BEFORE entering the section
+                let stationPriorToTrack = findStationBeforeTrack(schedule: scheduleToDelay, edgeKey: conflict.locationId)
+                applyDelay(to: scheduleToDelay, minutes: 5, startingFrom: stationPriorToTrack ?? conflict.locationId)
+            }
+            
+            activeConflicts = FDCSchedulerEngine.checkConflicts(schedules: schedules, network: network)
         }
+    }
+    
+    private func findStationBeforeTrack(schedule: TrainSchedule, edgeKey: String) -> String? {
+        let stationIds = edgeKey.components(separatedBy: "-")
+        for i in 0..<(schedule.stops.count - 1) {
+            let s1 = schedule.stops[i].stationId
+            let s2 = schedule.stops[i+1].stationId
+            if stationIds.contains(s1) && stationIds.contains(s2) {
+                return s1
+            }
+        }
+        return nil
     }
     
     func applyDelay(to schedule: TrainSchedule, minutes: Int, startingFrom stationId: String) {

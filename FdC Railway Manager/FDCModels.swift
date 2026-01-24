@@ -46,7 +46,7 @@ struct FDCNetworkParsed {
     var stations: [FDCStation]
     var edges: [FDCEdge]
     var trains: [FDCTrain]
-    var timetable: [FDCTimetableEntry]
+    var rawSchedules: [FDCScheduleData]
     var lines: [RailwayLine]
 }
 

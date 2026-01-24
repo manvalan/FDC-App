@@ -36,14 +36,7 @@ class FDCParser {
             FDCTrain(id: $0.id, name: $0.name, type: $0.type, maxSpeed: Int($0.max_speed), acceleration: $0.acceleration, deceleration: $0.deceleration, priority: $0.priority)
         }
         
-        var timetable: [FDCTimetableEntry] = []
-        if let schedules = root.schedules {
-            for sch in schedules {
-                for stop in sch.stops {
-                    timetable.append(FDCTimetableEntry(trainId: sch.train_id, stationId: stop.node_id, time: stop.arrival))
-                }
-            }
-        }
+        let rawSchedules = root.schedules ?? []
         
         let lines = root.lines?.map {
             RailwayLine(id: $0.id, name: $0.name, color: $0.color, stations: $0.stations)
@@ -54,7 +47,7 @@ class FDCParser {
             stations: stations,
             edges: edges,
             trains: trains,
-            timetable: timetable,
+            rawSchedules: rawSchedules,
             lines: lines
         )
     }
@@ -100,7 +93,7 @@ class FDCParser {
         }
         
         if stations.isEmpty && edges.isEmpty { throw FDCParserError.empty }
-        return FDCNetworkParsed(name: "Imported Network", stations: stations, edges: edges, trains: trains, timetable: timetable, lines: parsedLines)
+        return FDCNetworkParsed(name: "Imported Network", stations: stations, edges: edges, trains: trains, rawSchedules: [], lines: parsedLines)
     }
 
     /// Normalize many common time formats into "HH:MM" (24h) or return nil.
