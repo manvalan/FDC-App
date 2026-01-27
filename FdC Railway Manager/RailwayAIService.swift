@@ -18,13 +18,12 @@ class RailwayAIService: ObservableObject {
     
     @Published var connectionStatus: ConnectionStatus = .disconnected
     
-    /// PIGNOLO PROTOCOL: Synchronizes credentials from AppState
     func syncCredentials(endpoint: String, apiKey: String, token: String? = nil) {
         var cleanEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         
         // Robust Endpoint Sanitization: ensure /api/v1 is present
         if !cleanEndpoint.isEmpty {
-            if !cleanEndpoint.contains("/api/v1") {
+            if !cleanEndpoint.contains("/api/v1") && !cleanEndpoint.contains("/token") {
                 if cleanEndpoint.hasSuffix("/") {
                     cleanEndpoint += "api/v1"
                 } else {
@@ -45,10 +44,8 @@ class RailwayAIService: ObservableObject {
             self.token = t
         }
         
-        print("--------------------------------------------------")
-        print("🔑 [Auth] Sync Complete. Endpoint: \(self.baseURL)")
-        print("🔑 [Auth] API Key: \(self.apiKey != nil ? "(Presente)" : "(Assente)"), Token: \(self.token != nil ? "Presente" : "Assente")")
-        print("--------------------------------------------------")
+        RailwayAILogger.shared.log("Sync Complete. Endpoint: \(self.baseURL)", type: .info)
+        RailwayAILogger.shared.log("API Key: \(self.apiKey != nil ? "Presente" : "Assente"), Token: \(self.token != nil ? "Presente" : "Assente")", type: .info)
     }
     
     struct TokenResponse: Codable {
@@ -62,18 +59,25 @@ class RailwayAIService: ObservableObject {
     
     func login(username: String, password: String) -> AnyPublisher<String, Error> {
         // ROBUST URL CONSTRUCTION: We need the root level /token endpoint.
-        // If baseURL is http://host:port/api/v1, we want http://host:port/token
         var loginURL: URL
         
         let urlString = baseURL.absoluteString
         if let components = URLComponents(string: urlString) {
             var rootComponents = components
-            // Remove the /api/v1 (or any path) to get the root
-            rootComponents.path = "/"
+            // If the path contains api/v1, we strip it to get the root.
+            if rootComponents.path.contains("/api") {
+                rootComponents.path = "/token"
+            } else if rootComponents.path == "/" || rootComponents.path.isEmpty {
+                rootComponents.path = "/token"
+            } else if !rootComponents.path.hasSuffix("/token") {
+                // If it's something else, maybe it's already the root or a custom path
+                rootComponents.path = (rootComponents.path as NSString).appendingPathComponent("token")
+            }
+            
             if let rootURL = rootComponents.url {
-                 loginURL = rootURL.appendingPathComponent("token")
+                loginURL = rootURL
             } else {
-                 loginURL = baseURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("token")
+                loginURL = baseURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("token")
             }
         } else {
             loginURL = baseURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("token")
@@ -81,7 +85,7 @@ class RailwayAIService: ObservableObject {
         
         var request = URLRequest(url: loginURL)
         request.httpMethod = "POST"
-        request.timeoutInterval = 60.0
+        request.timeoutInterval = 30.0
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
         let allowed = CharacterSet.urlQueryAllowed
@@ -92,8 +96,7 @@ class RailwayAIService: ObservableObject {
         let bodyString = "username=\(encode(username))&password=\(encode(password))&grant_type=password"
         request.httpBody = bodyString.data(using: .utf8)
         
-        print("[Auth] Requesting Token from: \(loginURL.absoluteString)")
-        print("[Auth] Parameters: username=\(username), grant_type=password")
+        RailwayAILogger.shared.log("Login Request -> \(loginURL.absoluteString)", type: .info)
         
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { output in
@@ -102,21 +105,20 @@ class RailwayAIService: ObservableObject {
                 }
                 
                 let body = String(data: output.data, encoding: .utf8) ?? ""
-                print("[Auth] Login Response Code: \(httpResponse.statusCode)")
-                if !body.isEmpty { print("[Auth] Login Response Body: \(body)") }
+                RailwayAILogger.shared.log("Login Response (\(httpResponse.statusCode)): \(body.prefix(100))", type: httpResponse.statusCode == 200 ? .success : .error)
                 
                 if httpResponse.statusCode != 200 {
                     if httpResponse.statusCode == 403 && body.contains("inactive") {
-                        throw NSError(domain: "Account inattivo. Contatta l'amministratore per l'attivazione.", code: 403)
+                        throw NSError(domain: "Account inattivo.", code: 403)
                     }
-                    throw NSError(domain: "Errore Login (\(httpResponse.statusCode)): \(body)", code: httpResponse.statusCode)
+                    throw NSError(domain: "Codice \(httpResponse.statusCode): \(body)", code: httpResponse.statusCode)
                 }
                 return output.data
             }
             .decode(type: TokenResponse.self, decoder: JSONDecoder())
             .map { response in
-                print("[Auth] Token received successfully.")
                 self.token = response.access_token
+                RailwayAILogger.shared.log("Token JWT ottenuto.", type: .success)
                 return response.access_token
             }
             .receive(on: DispatchQueue.main)
@@ -146,9 +148,7 @@ class RailwayAIService: ObservableObject {
         URLSession.shared.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
                 if let httpResponse = response as? HTTPURLResponse {
-                    print("[Auth] Health Check Status: \(httpResponse.statusCode)")
-                    // 200, 403, 404, 405 are all "server alive and auth potentially accepted"
-                    // 401 is specifically "not authorized"
+                    RailwayAILogger.shared.log("Health Check Status: \(httpResponse.statusCode)", type: httpResponse.statusCode < 400 ? .success : .warning)
                     if httpResponse.statusCode == 401 {
                         self.connectionStatus = .unauthorized
                     } else if httpResponse.statusCode >= 200 && httpResponse.statusCode < 500 {
@@ -159,7 +159,7 @@ class RailwayAIService: ObservableObject {
                 } else {
                     let errStr = error?.localizedDescription ?? "Server non raggiungibile"
                     self.connectionStatus = .error(errStr)
-                    print("[Auth] Health Check Error: \(errStr)")
+                    RailwayAILogger.shared.log("Health Check Error: \(errStr)", type: .error)
                 }
             }
         }.resume()
