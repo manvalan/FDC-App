@@ -557,15 +557,18 @@ struct RelationRow: View {
                                     Spacer()
                                     Text(train.type).font(.caption2).foregroundColor(.secondary)
                                 }
-                                .padding(.vertical, 4)
-                            }
+                            .buttonStyle(.plain)
+                        }
+                        .background(selectedIds.contains(train.id) ? Color.accentColor.opacity(0.1) : Color.clear)
+                        .cornerRadius(4)
+                        Divider().padding(.leading, 32)
                     }
                 }
             }
         }
     }
 }
-
+}
 
 struct LineDetailView: View {
     @Binding var line: RailwayLine
