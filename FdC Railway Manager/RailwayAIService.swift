@@ -126,27 +126,35 @@ class RailwayAIService: ObservableObject {
         
         self.connectionStatus = .connecting
         
-        // Simple ping to check if credentials are valid
-        var request = URLRequest(url: baseURL.appendingPathComponent("admin/users"))
+        // Use a more generic endpoint for connection health check
+        var request = URLRequest(url: baseURL)
         request.httpMethod = "GET"
+        request.timeoutInterval = 10.0
+        
         if let t = token {
             request.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization")
         } else if let key = apiKey {
-            request.setValue(key, forHTTPHeaderField: "X-API-Key")
+            let finalKey = key.hasPrefix("rw-") ? key : "rw-\(key)"
+            request.setValue(finalKey, forHTTPHeaderField: "X-API-Key")
         }
         
         URLSession.shared.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
                 if let httpResponse = response as? HTTPURLResponse {
-                    if httpResponse.statusCode == 200 {
-                        self.connectionStatus = .connected
-                    } else if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+                    print("[Auth] Health Check Status: \(httpResponse.statusCode)")
+                    // 200, 403, 404, 405 are all "server alive and auth potentially accepted"
+                    // 401 is specifically "not authorized"
+                    if httpResponse.statusCode == 401 {
                         self.connectionStatus = .unauthorized
+                    } else if httpResponse.statusCode >= 200 && httpResponse.statusCode < 500 {
+                        self.connectionStatus = .connected
                     } else {
-                        self.connectionStatus = .error("Codice: \(httpResponse.statusCode)")
+                        self.connectionStatus = .error("Status: \(httpResponse.statusCode)")
                     }
                 } else {
-                    self.connectionStatus = .error(error?.localizedDescription ?? "Errore di rete")
+                    let errStr = error?.localizedDescription ?? "Server non raggiungibile"
+                    self.connectionStatus = .error(errStr)
+                    print("[Auth] Health Check Error: \(errStr)")
                 }
             }
         }.resume()
@@ -201,6 +209,7 @@ class RailwayAIService: ObservableObject {
         }
         
         return URLSession.shared.dataTaskPublisher(for: urlRequest)
+            .timeout(60, scheduler: DispatchQueue.main)
             .map(\.data)
             .decode(type: RailwayAIResponse.self, decoder: JSONDecoder())
             .receive(on: DispatchQueue.main)
@@ -557,6 +566,7 @@ class RailwayAIService: ObservableObject {
         }
         
         return URLSession.shared.dataTaskPublisher(for: urlRequest)
+            .timeout(180, scheduler: DispatchQueue.main)
             .tryMap { output in
                 guard let httpResponse = output.response as? HTTPURLResponse else {
                     throw URLError(.badServerResponse)

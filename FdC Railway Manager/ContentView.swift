@@ -8,6 +8,7 @@ struct ContentView: View {
     @EnvironmentObject var network: RailwayNetwork
     @EnvironmentObject var trainManager: TrainManager
     @EnvironmentObject var appState: AppState
+    @StateObject private var aiService = RailwayAIService.shared
     
     // Navigation State
     @State private var sidebarSelection: SidebarItem? = .lines
@@ -180,9 +181,8 @@ struct ContentView: View {
     private func releaseOthers() {} // Deprecated by specific handlers
     
     private var connectionIndicator: some View {
-        let service = RailwayAIService.shared
         return Group {
-            switch service.connectionStatus {
+            switch aiService.connectionStatus {
             case .connected:
                 Circle().fill(Color.green).frame(width: 8, height: 8)
             case .connecting:
@@ -1120,13 +1120,17 @@ struct RailwayAIView: View {
 
     private func performOptimizationCall() {
         aiResult = "Ottimizzazione matematica in corso..."
+        print("[AI] Starting Advanced Optimization Call...")
+        
         RailwayAIService.shared.advancedOptimize(network: network, trains: trainManager.trains)
             .sink { completion in
                 isLoading = false
                 if case .failure(let error) = completion {
                     errorMessage = "Optimizer Error: \(error.localizedDescription)"
+                    print("[AI] Request Failed: \(error)")
                 }
             } receiveValue: { response in
+                print("[AI] Received Response. Success: \(response.success)")
                 if response.success {
                     self.resolutions = response.resolutions
                     self.optimizerStats = (response.total_delay_minutes, response.conflicts_detected)
