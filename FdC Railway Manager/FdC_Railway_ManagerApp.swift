@@ -24,6 +24,7 @@ struct FdC_Railway_ManagerApp: App {
             if showSplash {
                 SplashScreen()
                     .onAppear {
+                        print("🚀 APP AVVIATA - TEST CONSOLE OK 🚀")
                         // Keep splash for at least 2.5 seconds
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
                             withAnimation {

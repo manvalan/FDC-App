@@ -45,8 +45,10 @@ class RailwayAIService: ObservableObject {
             self.token = t
         }
         
-        print("[Auth] Sync Complete. Endpoint: \(self.baseURL)")
-        print("[Auth] API Key: \(self.apiKey != nil ? "(Presente)" : "(Assente)"), Token: \(self.token != nil ? "Presente" : "Assente")")
+        print("--------------------------------------------------")
+        print("🔑 [Auth] Sync Complete. Endpoint: \(self.baseURL)")
+        print("🔑 [Auth] API Key: \(self.apiKey != nil ? "(Presente)" : "(Assente)"), Token: \(self.token != nil ? "Presente" : "Assente")")
+        print("--------------------------------------------------")
     }
     
     struct TokenResponse: Codable {
