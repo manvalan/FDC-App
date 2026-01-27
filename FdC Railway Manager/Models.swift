@@ -7,7 +7,7 @@ import MapKit
 // Nodo della rete ferroviaria (stazione o interscambio)
 struct Node: Identifiable, Codable, Hashable {
     enum NodeType: String, Codable {
-        case station, interchange, depot
+        case station, interchange, depot, junction
     }
     enum StationVisualType: String, Codable, CaseIterable, Identifiable {
         case filledStar = "Stella piena"
@@ -57,6 +57,30 @@ struct RailwayLine: Identifiable, Codable, Hashable {
     var stations: [String] // IDs delle stazioni
 }
 
+// Fermata in una relazione (con tempo di sosta)
+struct RelationStop: Identifiable, Codable, Hashable {
+    var id: UUID = UUID()
+    var stationId: String
+    var minDwellTime: Int = 3 // Minuti di sosta (default 3)
+    var extraDwellTime: Double = 0 // Extra delay from AI (minutes)
+    var isSkipped: Bool = false // Se true, il treno non ferma (transito)
+    var track: String? // Binario programmato (es: "1", "2", "1 Tronco")
+    
+    // Cached calculation for persistence/display
+    var arrival: Date?
+    var departure: Date?
+}
+
+// Relazione Treno (Template di itinerario)
+struct TrainRelation: Identifiable, Codable, Hashable {
+    let id: UUID
+    var lineId: String
+    var name: String
+    var originId: String
+    var destinationId: String
+    var stops: [RelationStop] // Updated from [String]
+}
+
 // Rete ferroviaria (grafo)
 @MainActor
 class RailwayNetwork: ObservableObject {
@@ -64,12 +88,14 @@ class RailwayNetwork: ObservableObject {
     @Published var nodes: [Node]
     @Published var edges: [Edge]
     @Published var lines: [RailwayLine]
+    @Published var relations: [TrainRelation]
 
-    init(name: String, nodes: [Node] = [], edges: [Edge] = [], lines: [RailwayLine] = []) {
+    init(name: String, nodes: [Node] = [], edges: [Edge] = [], lines: [RailwayLine] = [], relations: [TrainRelation] = []) {
         self.name = name
         self.nodes = nodes
         self.edges = edges
         self.lines = lines
+        self.relations = relations
     }
 
     // MARK: - Gestione nodi e archi
@@ -101,12 +127,18 @@ class RailwayNetwork: ObservableObject {
             let current = unvisited.min { (a, b) in (distances[a] ?? .infinity) < (distances[b] ?? .infinity) }!
             unvisited.remove(current)
             if current == end { break }
-            let neighbors = edges.filter { $0.from == current && unvisited.contains($0.to) }
+            let neighbors = edges.filter { edge in
+                if edge.from == current && unvisited.contains(edge.to) { return true }
+                if edge.trackType == .single && edge.to == current && unvisited.contains(edge.from) { return true }
+                return false
+            }
+            
             for edge in neighbors {
+                let neighborId = (edge.from == current) ? edge.to : edge.from
                 let alt = (distances[current] ?? .infinity) + edge.distance
-                if alt < (distances[edge.to] ?? .infinity) {
-                    distances[edge.to] = alt
-                    previous[edge.to] = current
+                if alt < (distances[neighborId] ?? .infinity) {
+                    distances[neighborId] = alt
+                    previous[neighborId] = current
                 }
             }
         }
@@ -140,18 +172,54 @@ class RailwayNetwork: ObservableObject {
                 
                 // Combine paths
                 var combinedPath = p1.0
-                combinedPath.append(contentsOf: p2.0.dropFirst())
-                let combinedDist = p1.1 + p2.1
+                let leg2 = p2.0.dropFirst()
                 
-                // Avoid duplicates (checking path content)
-                if !alternatives.contains(where: { $0.path == combinedPath }) {
-                     alternatives.append((combinedPath, combinedDist, "Via \(mid.name)"))
+                // PIGNOLO PROTOCOL: Check for simple paths (no doubling back)
+                let fullPath = combinedPath + Array(leg2)
+                let uniqueNodes = Set(fullPath)
+                
+                if uniqueNodes.count == fullPath.count {
+                    combinedPath.append(contentsOf: leg2)
+                    let combinedDist = p1.1 + p2.1
+                    
+                    // Avoid duplicates (checking path content)
+                    if !alternatives.contains(where: { $0.path == combinedPath }) {
+                         alternatives.append((combinedPath, combinedDist, "Via \(mid.name)"))
+                    }
                 }
             }
         }
         
         // Sort by distance
         return alternatives.sorted { $0.distance < $1.distance }
+    }
+    
+    // Support for per-edge travel logic
+    func findPathEdges(from startId: String, to endId: String) -> [Edge]? {
+        var queue: [(id: String, path: [Edge])] = [(startId, [])]
+        var visited: Set<String> = [startId]
+        
+        while !queue.isEmpty {
+            let (curr, path) = queue.removeFirst()
+            if curr == endId { return path }
+            
+            let outgoing = edges.filter { edge in
+                if edge.from == curr { return true }
+                if edge.trackType == .single && edge.to == curr { return true }
+                return false
+            }
+            
+            for edge in outgoing {
+                let nextId = (edge.from == curr) ? edge.to : edge.from
+                if !visited.contains(nextId) {
+                    visited.insert(nextId)
+                    var newPath = path
+                    newPath.append(edge)
+                    queue.append((nextId, newPath))
+                }
+            }
+        }
+        return nil
     }
 }
 

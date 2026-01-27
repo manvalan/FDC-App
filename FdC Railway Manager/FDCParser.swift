@@ -11,6 +11,11 @@ class FDCParser {
             return mapOfficial(official)
         }
         
+        // 1b. Try Topology JSON format (nodes/links)
+        if let topology = try? decoder.decode(FDCTopology.self, from: data) {
+            return mapTopology(topology)
+        }
+        
         // 2. Try Legacy JSON format (as implemented in old parser)
         if let legacyObj = try? JSONSerialization.jsonObject(with: data, options: []),
            let dict = legacyObj as? [String: Any],
@@ -49,6 +54,25 @@ class FDCParser {
             trains: trains,
             rawSchedules: rawSchedules,
             lines: lines
+        )
+    }
+    
+    private static func mapTopology(_ topology: FDCTopology) -> FDCNetworkParsed {
+        let stations = topology.nodes.map { 
+            FDCStation(id: $0.id, name: $0.name, type: $0.type, latitude: $0.latitude, longitude: $0.longitude, capacity: $0.capacity, platformCount: $0.platform_count ?? $0.platforms)
+        }
+        
+        let edges = topology.links.map {
+            FDCEdge(from: $0.source, to: $0.target, distance: $0.length ?? 1.0, trackType: $0.track_type ?? "regional", maxSpeed: $0.max_speed ?? 120, capacity: 10, bidirectional: true)
+        }
+        
+        return FDCNetworkParsed(
+            name: "FDC Topology",
+            stations: stations,
+            edges: edges,
+            trains: [],
+            rawSchedules: [],
+            lines: []
         )
     }
     

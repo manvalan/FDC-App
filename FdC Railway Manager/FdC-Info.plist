@@ -23,16 +23,48 @@
     <key>UILaunchStoryboardName</key>
     <string>LaunchScreen</string>
     <!-- UIMainStoryboardFile intentionally omitted: SwiftUI lifecycle -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+    </dict>
+    <key>LSSupportsOpeningDocumentsInPlace</key>
+    <true/>
+    <key>UIFileSharingEnabled</key>
+    <true/>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>FdC Railway Network</string>
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>it.fdc.railwaynetwork</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>RailML</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>org.railml</string>
+            </array>
+        </dict>
+    </array>
     <key>UTExportedTypeDeclarations</key>
     <array>
         <dict>
             <key>UTTypeIdentifier</key>
-            <string>com.yourdomain.fdc</string>
+            <string>it.fdc.railwaynetwork</string>
             <key>UTTypeDescription</key>
-            <string>FdC Railway Manager File</string>
+            <string>FdC Railway Manager Network</string>
             <key>UTTypeConformsTo</key>
             <array>
-                <string>public.text</string>
+                <string>public.json</string>
             </array>
             <key>UTTypeTagSpecification</key>
             <dict>
@@ -40,8 +72,24 @@
                 <array>
                     <string>fdc</string>
                 </array>
-                <key>public.mime-type</key>
-                <string>text/plain</string>
+            </dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>org.railml</string>
+            <key>UTTypeDescription</key>
+            <string>RailML Data</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.xml</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>railml</string>
+                    <string>xml</string>
+                </array>
             </dict>
         </dict>
     </array>

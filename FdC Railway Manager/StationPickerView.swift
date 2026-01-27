@@ -4,14 +4,27 @@ struct StationPickerView: View {
     @EnvironmentObject var network: RailwayNetwork
     @Environment(\.dismiss) var dismiss
     @Binding var selectedStationId: String
+    var linkedToStationId: String? = nil
     
     @State private var searchText = ""
     
     var filteredStations: [Node] {
+        var stations = network.nodes
+        
+        // Connectivity filter
+        if let originId = linkedToStationId {
+            let connectedIds = network.edges.compactMap { edge -> String? in
+                if edge.from == originId { return edge.to }
+                if edge.trackType == .single && edge.to == originId { return edge.from }
+                return nil
+            }
+            stations = stations.filter { connectedIds.contains($0.id) }
+        }
+        
         if searchText.isEmpty {
-            return network.nodes
+            return stations
         } else {
-            return network.nodes.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+            return stations.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
         }
     }
     

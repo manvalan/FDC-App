@@ -11,6 +11,9 @@ struct LineCreationView: View {
     @State private var endStationId: String = ""
     @State private var stationSequence: [String] = []
     
+    @State private var showManualAddPicker = false
+    @State private var manualStationId: String = ""
+    
     // Alternative routes
     @State private var alternatives: [(path: [String], distance: Double, description: String)] = []
     @State private var selectedAlternativeIndex: Int? = nil
@@ -117,6 +120,11 @@ struct LineCreationView: View {
                             .onDelete { offsets in
                                 stationSequence.remove(atOffsets: offsets)
                             }
+                            
+                            Button(action: { showManualAddPicker = true }) {
+                                Label("Aggiungi fermata successiva", systemImage: "plus.circle.fill")
+                                    .foregroundColor(.green)
+                            }
                         }
                         Text("Puoi modificare l'ordine o rimuovere stazioni se necessario.").font(.caption).foregroundColor(.secondary)
                     }
@@ -148,6 +156,15 @@ struct LineCreationView: View {
                     StationPickerView(selectedStationId: $viaStationId)
                 case .end:
                     StationPickerView(selectedStationId: $endStationId)
+                }
+            }
+            .sheet(isPresented: $showManualAddPicker) {
+                StationPickerView(selectedStationId: $manualStationId, linkedToStationId: stationSequence.last)
+            }
+            .onChange(of: manualStationId) { old, new in
+                if !new.isEmpty {
+                    stationSequence.append(new)
+                    manualStationId = ""
                 }
             }
         }
@@ -193,19 +210,23 @@ struct LineCreationView: View {
             for l1 in leg1.prefix(2) {
                 for l2 in leg2.prefix(2) {
                     // Merge paths. l1 ends with Via, l2 starts with Via.
-                    // path = l1 + l2.dropFirst()
-                    let mergedPath = l1.path + l2.path.dropFirst()
-                    let totalDist = l1.distance + l2.distance
-                    let desc = "Via \(stationName(viaStationId))" // Simple description
-                    combined.append((path: mergedPath, distance: totalDist, description: desc))
+                    let leg2Filtered = l2.path.dropFirst()
+                    let fullPath = l1.path + Array(leg2Filtered)
+                    
+                    // PIGNOLO PROTOCOL: Check for simple paths (no doubling back)
+                    let uniqueNodes = Set(fullPath)
+                    if uniqueNodes.count == fullPath.count {
+                        let totalDist = l1.distance + l2.distance
+                        let desc = "Via \(stationName(viaStationId))"
+                        combined.append((path: fullPath, distance: totalDist, description: desc))
+                    }
                 }
             }
             
-            // Deduplicate? Unlikely needed if algos are deterministic
             alternatives = combined.sorted(by: { $0.distance < $1.distance })
             
             if alternatives.isEmpty {
-                 errorMessage = "Errore nella combinazione dei percorsi."
+                 errorMessage = "Nessun percorso semplice trovato passando per \(stationName(viaStationId))."
             } else {
                  selectAlternative(0)
             }

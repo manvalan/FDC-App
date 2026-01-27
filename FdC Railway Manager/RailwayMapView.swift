@@ -64,6 +64,38 @@ struct SchematicRailwayView: View {
         var id: String { rawValue }
     }
     
+    // Pinch to Zoom state
+    @State private var magnification: CGFloat = 1.0
+    
+    private var totalZoom: CGFloat {
+        zoomLevel * magnification
+    }
+    
+    private var coordinateGridStep: Double {
+        let zoom = totalZoom
+        if zoom < 1.5 { return 10.0 }
+        if zoom < 3.0 { return 5.0 }
+        return 1.0
+    }
+    
+    struct MapBounds {
+        let minLat, maxLat, minLon, maxLon: Double
+        let xRange, yRange: Double
+    }
+    
+    private var mapBounds: MapBounds {
+        let lats = network.nodes.compactMap { $0.latitude }
+        let lons = network.nodes.compactMap { $0.longitude }
+        let minLat = lats.min() ?? 0
+        let maxLat = lats.max() ?? 100
+        let minLon = lons.min() ?? 0
+        let maxLon = lons.max() ?? 100
+        let xr = maxLon - minLon
+        let yr = maxLat - minLat
+        return MapBounds(minLat: minLat, maxLat: maxLat, minLon: minLon, maxLon: maxLon,
+                         xRange: xr == 0 ? 1.0 : xr, yRange: yr == 0 ? 1.0 : yr)
+    }
+    
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .bottomTrailing) {
@@ -71,17 +103,22 @@ struct SchematicRailwayView: View {
                 // ScrollView for native scrolling/panning
                 ScrollView([.horizontal, .vertical], showsIndicators: true) {
                     let canvasSize = CGSize(
-                        width: max(geo.size.width * zoomLevel, geo.size.width),
-                        height: max(geo.size.height * zoomLevel, geo.size.height)
+                        width: max(geo.size.width * totalZoom, geo.size.width),
+                        height: max(geo.size.height * totalZoom, geo.size.height)
                     )
+                    let bounds = self.mapBounds
                     
                     ZStack(alignment: .topLeading) {
                         // Background (White + Grid)
                         ZStack {
                             Color.white
                             if showGrid {
-                                GridShape(spacing: gridSize)
-                                    .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+                                CoordinateGridShape(
+                                    bounds: bounds,
+                                    unit: coordinateGridStep,
+                                    size: canvasSize
+                                )
+                                .stroke(Color.gray.opacity(0.15), lineWidth: 1)
                             }
                         }
                         .frame(width: canvasSize.width, height: canvasSize.height)
@@ -90,11 +127,12 @@ struct SchematicRailwayView: View {
                         }
                         
                         // 1. Draw Map Content
-                        Canvas { context, size in
-                            // Helper to project point
-                            func p(_ node: Node) -> CGPoint {
-                                schematicPoint(for: node, in: size)
-                            }
+                        TimelineView(.animation) { timelineContext in
+                            Canvas { context, size in
+                                // Helper to project point
+                                func p(_ node: Node) -> CGPoint {
+                                    self.schematicPoint(for: node, in: size, bounds: bounds)
+                                }
 
                             if mode == .network {
                                 // Draw RAW Infrastructure (Edges)
@@ -171,17 +209,18 @@ struct SchematicRailwayView: View {
                                 }
                             }
                             
-                            // Draw Active Trains (Overlay)
-                             let now = Date()
-                             for schedule in appState.simulator.schedules {
-                                if let pos = currentSchematicTrainPos(for: schedule, in: size, now: now) {
-                                    let trainDot = Path(ellipseIn: CGRect(x: pos.x - 6, y: pos.y - 6, width: 12, height: 12))
-                                    context.fill(trainDot, with: .color(.yellow))
-                                    context.stroke(trainDot, with: .color(.black), lineWidth: 1)
-                                    // Label? Only on high zoom
-                                    if zoomLevel > 2.0 {
-                                        let label = Text(schedule.trainName).font(.caption2).bold()
-                                        context.draw(label, at: CGPoint(x: pos.x, y: pos.y - 15))
+                                // Draw Active Trains (Overlay)
+                                 let now = timelineContext.date
+                                 for schedule in appState.simulator.schedules {
+                                    if let pos = self.currentSchematicTrainPos(for: schedule, in: size, now: now, bounds: bounds) {
+                                        let trainDot = Path(ellipseIn: CGRect(x: pos.x - 6, y: pos.y - 6, width: 12, height: 12))
+                                        context.fill(trainDot, with: .color(.yellow))
+                                        context.stroke(trainDot, with: .color(.black), lineWidth: 1)
+                                        // Label? Only on high zoom
+                                        if totalZoom > 2.0 {
+                                            let label = Text(schedule.trainName).font(.caption2).bold()
+                                            context.draw(label, at: CGPoint(x: pos.x, y: pos.y - 15))
+                                        }
                                     }
                                 }
                             }
@@ -197,14 +236,25 @@ struct SchematicRailwayView: View {
                                 canvasSize: canvasSize,
                                 isSelected: selectedNode?.id == network.nodes[index].id,
                                 snapToGrid: showGrid,
-                                gridSize: gridSize,
+                                gridUnit: coordinateGridStep,
+                                bounds: bounds,
                                 onTap: { handleStationTap(network.nodes[index]) }
                             )
-                            .position(schematicPoint(for: network.nodes[index], in: canvasSize))
+                            .position(schematicPoint(for: network.nodes[index], in: canvasSize, bounds: bounds))
                         }
                     }
                     .frame(width: canvasSize.width, height: canvasSize.height)
                 }
+                .gesture(
+                    MagnificationGesture()
+                        .onChanged { value in
+                            magnification = value
+                        }
+                        .onEnded { value in
+                            zoomLevel *= magnification
+                            magnification = 1.0
+                        }
+                )
                 
                 // Controls
                 VStack(alignment: .trailing, spacing: 10) {
@@ -306,8 +356,10 @@ struct SchematicRailwayView: View {
                 }
 
                 Menu {
-                    Button(action: { editMode = .addStation }) {
-                        Label("Aggiungi Stazione", systemImage: "building.2.crop.circle.badge.plus")
+                    Button(action: {
+                        editMode = .addStation
+                    }) {
+                        Label("Aggiungi Stazione", systemImage: "building.2.fill")
                     }
                     Button(action: { editMode = .addTrack }) {
                         Label("Crea Binari", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
@@ -358,14 +410,17 @@ struct SchematicRailwayView: View {
             guard let n1 = network.nodes.first(where: { $0.id == edge.from }),
                   let n2 = network.nodes.first(where: { $0.id == edge.to }) else { continue }
             
-            let p1 = schematicPoint(for: n1, in: size)
-            let p2 = schematicPoint(for: n2, in: size)
+            let p1 = schematicPoint(for: n1, in: size, bounds: self.mapBounds)
+            let p2 = schematicPoint(for: n2, in: size, bounds: self.mapBounds)
             
             let dist = distanceToSegment(p: location, v: p1, w: p2)
             if dist < closestDist {
                 closestDist = dist
-                // ERROR FIX: Convert UUID to String
-                foundEdgeId = edge.id.uuidString 
+                if let uid = edge.id as? UUID {
+                    foundEdgeId = uid.uuidString
+                } else {
+                    foundEdgeId = "\(edge.id)"
+                }
             }
         }
         
@@ -410,27 +465,15 @@ struct SchematicRailwayView: View {
         network.nodes.append(newNode)
     }
 
-    private func schematicPoint(for node: Node, in size: CGSize, network: RailwayNetwork? = nil) -> CGPoint {
-        let net = network ?? self.network
-        let lats = net.nodes.compactMap { $0.latitude }
-        let lons = net.nodes.compactMap { $0.longitude }
-        let minLat = lats.min() ?? 0
-        let maxLat = lats.max() ?? 100
-        let minLon = lons.min() ?? 0
-        let maxLon = lons.max() ?? 100
-        
-        let xRange = maxLon - minLon
-        let yRange = maxLat - minLat
-        let safeXRange = xRange == 0 ? 1.0 : xRange
-        let safeYRange = yRange == 0 ? 1.0 : yRange
-        
-        let x = (node.longitude ?? 0 - minLon) / safeXRange * (size.width - 100) + 50
-        let y = (1.0 - (node.latitude ?? 0 - minLat) / safeYRange) * (size.height - 100) + 50
-        
+    private func schematicPoint(for node: Node, in size: CGSize, bounds: MapBounds) -> CGPoint {
+        let lon = node.longitude ?? 0
+        let lat = node.latitude ?? 0
+        let x = (lon - bounds.minLon) / bounds.xRange * (size.width - 100) + 50
+        let y = (1.0 - (lat - bounds.minLat) / bounds.yRange) * (size.height - 100) + 50
         return CGPoint(x: x, y: y)
     }
 
-    private func currentSchematicTrainPos(for schedule: TrainSchedule, in size: CGSize, now: Date) -> CGPoint? {
+    private func currentSchematicTrainPos(for schedule: TrainSchedule, in size: CGSize, now: Date, bounds: MapBounds) -> CGPoint? {
         for i in 0..<(schedule.stops.count - 1) {
             let s1 = schedule.stops[i]
             let s2 = schedule.stops[i+1]
@@ -444,8 +487,8 @@ struct SchematicRailwayView: View {
                 guard let n1 = network.nodes.first(where: { $0.id == s1.stationId }),
                       let n2 = network.nodes.first(where: { $0.id == s2.stationId }) else { return nil }
                 
-                let p1 = schematicPoint(for: n1, in: size)
-                let p2 = schematicPoint(for: n2, in: size)
+                let p1 = schematicPoint(for: n1, in: size, bounds: bounds)
+                let p2 = schematicPoint(for: n2, in: size, bounds: bounds)
                 
                 return CGPoint(
                     x: p1.x + (p2.x - p1.x) * progress,
@@ -468,7 +511,8 @@ struct StationNodeView: View {
     var canvasSize: CGSize
     var isSelected: Bool
     var snapToGrid: Bool
-    var gridSize: CGFloat
+    var gridUnit: Double
+    var bounds: SchematicRailwayView.MapBounds
     var onTap: () -> Void
     @State private var dragOffset: CGSize = .zero
     
@@ -504,36 +548,16 @@ struct StationNodeView: View {
                         let deltaY = val.translation.height - dragOffset.height
                         dragOffset = val.translation
                         
-                        let lats = network.nodes.compactMap { $0.latitude }
-                        let lons = network.nodes.compactMap { $0.longitude }
-                        let minLon = lons.min() ?? 0
-                        let maxLon = lons.max() ?? 100
-                        let minLat = lats.min() ?? 0
-                        let maxLat = lats.max() ?? 100
-                        
-                        let xRange = maxLon - minLon
-                        let yRange = maxLat - minLat
-                        let safeXRange = xRange == 0 ? 1.0 : xRange
-                        let safeYRange = yRange == 0 ? 1.0 : yRange
-                        
                         let drawWidth = canvasSize.width - 100
                         let drawHeight = canvasSize.height - 100
                         let safeDrawWidth = drawWidth > 0 ? drawWidth : 1
                         let safeDrawHeight = drawHeight > 0 ? drawHeight : 1
                         
-                        var dLon = (deltaX / safeDrawWidth) * safeXRange
-                        var dLat = -(deltaY / safeDrawHeight) * safeYRange
+                        let dLon = (deltaX / safeDrawWidth) * bounds.xRange
+                        let dLat = -(deltaY / safeDrawHeight) * bounds.yRange
                         
                         node.latitude = (node.latitude ?? 0) + dLat
                         node.longitude = (node.longitude ?? 0) + dLon
-                        
-                        // Note: Real-time snapping in coordinates is hard because of projection. 
-                        // Instead, we snap the DISPLAY position by updating lat/lon to match snapped screen points?
-                        // Actually, better to just let it drift and snap on END, or snap delta?
-                        // Simplest: update lat/lon normally, but if snapToGrid, round lat/lon to resemble grid?
-                        // No, snapping usually happens on screen coordinates.
-                        // Let's implement visual snap here is tricky due to circular dependency (lat->point->lat).
-                        // Better approach: Calculate current Point, Snap Point, Convert Point->Lat/Lon.
                     }
                     .onEnded { val in
                         dragOffset = .zero
@@ -544,38 +568,11 @@ struct StationNodeView: View {
             )
     }
     
-    // Helper to snap ACTUAL lat/lon based on screen grid
+    // Helper to snap ACTUAL lat/lon based on coordinate units
     private func snapNodeToGrid() {
-        // 1. Convert current Lat/Lon to Screen Point
-        let lats = network.nodes.compactMap { $0.latitude }
-        let lons = network.nodes.compactMap { $0.longitude }
-        let minLon = lons.min() ?? 0
-        let maxLon = lons.max() ?? 100
-        let minLat = lats.min() ?? 0
-        let maxLat = lats.max() ?? 100
-        
-        let xRange = maxLon - minLon
-        let yRange = maxLat - minLat
-        let safeXRange = xRange == 0 ? 1.0 : xRange
-        let safeYRange = yRange == 0 ? 1.0 : yRange
-        
-        let drawWidth = canvasSize.width - 100
-        let drawHeight = canvasSize.height - 100
-        
-        // Current Screen Pos
-        let curX = (node.longitude ?? 0 - minLon) / safeXRange * drawWidth + 50
-        let curY = (1.0 - (node.latitude ?? 0 - minLat) / safeYRange) * drawHeight + 50
-        
-        // Snap Screen Pos
-        let snappedX = round(curX / gridSize) * gridSize
-        let snappedY = round(curY / gridSize) * gridSize
-        
-        // Convert Snapped Point back to Lat/Lon
-        let newLon = minLon + ((snappedX - 50) / drawWidth) * safeXRange
-        let newLat = minLat + (1.0 - (snappedY - 50) / drawHeight) * safeYRange
-        
-        node.latitude = newLat
-        node.longitude = newLon
+        let unit = gridUnit
+        node.latitude = round((node.latitude ?? 0) / unit) * unit
+        node.longitude = round((node.longitude ?? 0) / unit) * unit
     }
     
     @ViewBuilder
@@ -595,20 +592,45 @@ struct StationNodeView: View {
     }
 }
 
-struct GridShape: Shape {
-    var spacing: CGFloat
+struct CoordinateGridShape: Shape {
+    var bounds: SchematicRailwayView.MapBounds
+    var unit: Double
+    var size: CGSize
     
     func path(in rect: CGRect) -> Path {
         var path = Path()
         
-        for x in stride(from: 0, to: rect.width, by: spacing) {
+        func projectX(_ lon: Double) -> CGFloat {
+            let x = (lon - bounds.minLon) / bounds.xRange * Double(size.width - 100) + 50.0
+            return CGFloat(x)
+        }
+        func projectY(_ lat: Double) -> CGFloat {
+            let y = (1.0 - (lat - bounds.minLat) / bounds.yRange) * Double(size.height - 100) + 50.0
+            return CGFloat(y)
+        }
+
+        // Vertical lines (constant Longitude)
+        let minL = floor(bounds.minLon / unit) * unit
+        let maxL = ceil(bounds.maxLon / unit) * unit
+        
+        var currentLon = minL
+        while currentLon <= maxL {
+            let x = projectX(currentLon)
             path.move(to: CGPoint(x: x, y: 0))
-            path.addLine(to: CGPoint(x: x, y: rect.height))
+            path.addLine(to: CGPoint(x: x, y: size.height))
+            currentLon += unit
         }
         
-        for y in stride(from: 0, to: rect.height, by: spacing) {
+        // Horizontal lines (constant Latitude)
+        let minA = floor(bounds.minLat / unit) * unit
+        let maxA = ceil(bounds.maxLat / unit) * unit
+        
+        var currentLat = minA
+        while currentLat <= maxA {
+            let y = projectY(currentLat)
             path.move(to: CGPoint(x: 0, y: y))
-            path.addLine(to: CGPoint(x: rect.width, y: y))
+            path.addLine(to: CGPoint(x: size.width, y: y))
+            currentLat += unit
         }
         
         return path

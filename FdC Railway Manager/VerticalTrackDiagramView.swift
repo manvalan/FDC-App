@@ -12,13 +12,13 @@ struct VerticalTrackDiagramView: View {
         let lineColor = Color(hex: line.color ?? "") ?? .black
         
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: -20) {
+            VStack(spacing: -12) {
                 ForEach(Array(line.stations.enumerated()), id: \.offset) { index, stationId in
                     let isLast = index == line.stations.count - 1
                     
                     HStack(alignment: .top, spacing: 20) {
                         // Left: Diagram Column
-                        VStack(spacing: -20) {
+                        VStack(spacing: -12) {
                             // Station Node
                             stationNodeButton(id: stationId)
                                 .zIndex(1)
@@ -30,7 +30,7 @@ struct VerticalTrackDiagramView: View {
                                     .frame(height: 80) // Increased height for overlap
                             }
                         }
-                        .frame(width: 60)
+                        .frame(width: 40)
                         
                         // Right: Info Column
                         infoColumn(stationId: stationId, index: index, isLast: isLast)
@@ -74,7 +74,7 @@ struct VerticalTrackDiagramView: View {
                     selectedStationID = stationId
                 }) {
                     Text(node.name)
-                        .font(.system(size: 14, weight: .semibold)) // Reduced from 18 bold
+                        .font(.system(size: 12, weight: .semibold)) 
                         .fixedSize(horizontal: false, vertical: true)
                         .foregroundColor(.primary)
                 }
@@ -91,13 +91,13 @@ struct VerticalTrackDiagramView: View {
                     }) {
                         VStack(alignment: .leading, spacing: 1) {
                             Text("\(String(format: "%.1f", edge.distance)) km")
-                                .font(.subheadline) // Reduced from headline
+                                .font(.caption) 
                                 .foregroundColor(.blue)
                             HStack {
                                 Image(systemName: "speedometer")
                                 Text("\(edge.maxSpeed) km/h")
                             }
-                            .font(.caption2) // Reduced from caption
+                            .font(.system(size: 9)) 
                             .foregroundColor(.secondary)
                             
                             Text(edge.trackType.rawValue.capitalized)
@@ -128,9 +128,9 @@ struct VerticalTrackDiagramView: View {
                 let type = node.visualType ?? (node.type == .interchange ? .filledSquare : .filledCircle)
                 
                 ZStack {
-                    Circle().fill(Color.white).frame(width: 24, height: 24) // Reduced from 40
+                    Circle().fill(Color.white).frame(width: 16, height: 16) 
                     symbolView(type: type, color: color)
-                        .frame(width: 16, height: 16) // Reduced from 30
+                        .frame(width: 10, height: 10) 
                 }
             } else {
                 Circle().fill(Color.gray).frame(width: 12, height: 12)

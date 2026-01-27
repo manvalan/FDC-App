@@ -75,6 +75,52 @@ struct RailwayAIConflictAnalysis: Codable {
     let remaining_conflicts: Int
 }
 
+// MARK: - Admin API Models
+struct AdminUser: Codable, Identifiable {
+    let username: String
+    let is_active: Bool
+    
+    var id: String { username }
+}
+
+struct AddUserRequest: Codable {
+    let username: String
+    let password: String
+}
+
+// MARK: - Scenario & Training Models
+struct ScenarioGenerateRequest: Codable {
+    let area: String
+}
+
+struct TrainRequest: Codable {
+    let scenario_path: String
+}
+
+struct OptimizeRequestWithScenario: Codable {
+    let scenario_path: String
+}
+
+// MARK: - WebSocket Messages
+struct WSMessage: Codable {
+    let type: String
+    let level: String?
+    let message: String?
+    let scenario_path: String?
+    let training_update: TrainingUpdate?
+    
+    // Support for training_update directly in the message or nested
+    let episode: Int?
+    let reward: Double?
+    let conflicts: Int?
+}
+
+struct TrainingUpdate: Codable {
+    let episode: Int
+    let reward: Double
+    let conflicts: Int
+}
+
 // MARK: - AnyCodable for dynamic parameters
 struct AnyCodable: Codable {
     let value: Any

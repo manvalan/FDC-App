@@ -6,4 +6,6 @@ struct RailwayNetworkDTO: Codable {
     let nodes: [Node]
     let edges: [Edge]
     let lines: [RailwayLine]?
+    let relations: [TrainRelation]?
+    let trains: [Train]?
 }

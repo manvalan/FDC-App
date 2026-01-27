@@ -115,3 +115,16 @@ struct FDCStopData: Codable {
     let is_stop: Bool
     let platform: Int?
 }
+// MARK: - Topology Schema (FDC Style JSON)
+struct FDCTopology: Codable {
+    let nodes: [FDCNodeData]
+    let links: [FDCLinkData]
+}
+
+struct FDCLinkData: Codable {
+    let source: String
+    let target: String
+    let length: Double?
+    let max_speed: Double?
+    let track_type: String?
+}
