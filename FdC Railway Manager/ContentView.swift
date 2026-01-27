@@ -691,10 +691,12 @@ struct SettingsView: View {
         testResultMessage = nil
         testErrorMessage = nil
         
-        if let url = URL(string: trimmedEndpoint) {
-             RailwayAIService.shared.baseURL = url
-        }
-        RailwayAIService.shared.apiKey = trimmedApiKey
+        // Use the centralized sync logic to ensure all URL sanitization and formatting is applied
+        RailwayAIService.shared.syncCredentials(
+            endpoint: trimmedEndpoint,
+            apiKey: trimmedApiKey,
+            token: appState.aiToken
+        )
         
         RailwayAIService.shared.login(username: trimmedUsername, password: trimmedPassword)
             .sink { completion in

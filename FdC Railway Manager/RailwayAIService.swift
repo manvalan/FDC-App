@@ -59,26 +59,23 @@ class RailwayAIService: ObservableObject {
     }
     
     func login(username: String, password: String) -> AnyPublisher<String, Error> {
-        // PIGNOLO PROTOCOL: /token is at the root of the API server.
-        // We assume baseURL is like http://host:port/api/v1
-        // We attempt to find the root by stripping "api/v1" if present, otherwise we go up twice.
-        var loginURL = baseURL
-        let urlString = loginURL.absoluteString
-        if urlString.contains("/api/v1") {
-            if let root = URL(string: urlString.replacingOccurrences(of: "/api/v1", with: "")) {
-                loginURL = root
+        // ROBUST URL CONSTRUCTION: We need the root level /token endpoint.
+        // If baseURL is http://host:port/api/v1, we want http://host:port/token
+        var loginURL: URL
+        
+        let urlString = baseURL.absoluteString
+        if let components = URLComponents(string: urlString) {
+            var rootComponents = components
+            // Remove the /api/v1 (or any path) to get the root
+            rootComponents.path = "/"
+            if let rootURL = rootComponents.url {
+                 loginURL = rootURL.appendingPathComponent("token")
+            } else {
+                 loginURL = baseURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("token")
             }
         } else {
-            loginURL = loginURL.deletingLastPathComponent()
-            if loginURL.pathComponents.contains("api") {
-                loginURL = loginURL.deletingLastPathComponent()
-            }
+            loginURL = baseURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("token")
         }
-        
-        if !loginURL.absoluteString.hasSuffix("/") {
-            loginURL = loginURL.appendingPathComponent("")
-        }
-        loginURL = loginURL.appendingPathComponent("token")
         
         var request = URLRequest(url: loginURL)
         request.httpMethod = "POST"
@@ -93,15 +90,20 @@ class RailwayAIService: ObservableObject {
         let bodyString = "username=\(encode(username))&password=\(encode(password))&grant_type=password"
         request.httpBody = bodyString.data(using: .utf8)
         
-        print("[Auth] Requesting Token from: \(loginURL)")
+        print("[Auth] Requesting Token from: \(loginURL.absoluteString)")
+        print("[Auth] Parameters: username=\(username), grant_type=password")
         
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { output in
                 guard let httpResponse = output.response as? HTTPURLResponse else {
                     throw URLError(.badServerResponse)
                 }
+                
+                let body = String(data: output.data, encoding: .utf8) ?? ""
+                print("[Auth] Login Response Code: \(httpResponse.statusCode)")
+                if !body.isEmpty { print("[Auth] Login Response Body: \(body)") }
+                
                 if httpResponse.statusCode != 200 {
-                    let body = String(data: output.data, encoding: .utf8) ?? ""
                     if httpResponse.statusCode == 403 && body.contains("inactive") {
                         throw NSError(domain: "Account inattivo. Contatta l'amministratore per l'attivazione.", code: 403)
                     }
@@ -111,6 +113,7 @@ class RailwayAIService: ObservableObject {
             }
             .decode(type: TokenResponse.self, decoder: JSONDecoder())
             .map { response in
+                print("[Auth] Token received successfully.")
                 self.token = response.access_token
                 return response.access_token
             }

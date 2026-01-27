@@ -296,7 +296,7 @@ struct RailwayAISchedulerView: View {
     
     private func runOptimization() {
         isLoading = true
-        let request = service.createRequest(network: network, trains: trainManager.trains)
+        let request = service.createRequest(network: network, trains: trainManager.trains, conflicts: trainManager.conflictManager.conflicts)
         
         // Simulating some network delay for the UX feel
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
