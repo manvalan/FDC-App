@@ -959,11 +959,21 @@ struct RailwayAIView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("Ottimizzatore Avanzato (v1)")) {
+                Section(header: Text("Ottimizzatore FDC (v1/v2)")) {
+                    Button(action: runStandardOptimization) {
+                        HStack {
+                            Image(systemName: "sparkles")
+                            Text("Risolvi Conflitti (FDC JSON)")
+                        }
+                    }
+                    .disabled(isLoading || trainManager.trains.isEmpty || trainManager.conflictManager.conflicts.isEmpty)
+                }
+
+                Section(header: Text("Ottimizzatore Avanzato (GA C++)")) {
                     Button(action: runAdvancedOptimization) {
                         HStack {
                             Image(systemName: "cpu.fill")
-                            Text("Avvia Ottimizzazione Matematica")
+                            Text("Ottimizzazione Globale (Pignolo)")
                         }
                     }
                     .disabled(isLoading || trainManager.trains.isEmpty)
@@ -1116,6 +1126,35 @@ struct RailwayAIView: View {
         } else {
             self.performOptimizationCall()
         }
+    }
+
+    private func runStandardOptimization() {
+        isLoading = true
+        aiResult = "Analisi conflitti in corso..."
+        errorMessage = nil
+        
+        let reporter = trainManager.conflictManager
+        let request = RailwayAIService.shared.createRequest(
+            network: network,
+            trains: trainManager.trains,
+            conflicts: reporter.conflicts
+        )
+        
+        RailwayAIService.shared.optimize(request: request, useV2: false)
+            .sink { completion in
+                isLoading = false
+                if case .failure(let error) = completion {
+                    errorMessage = "Standard Optimizer Error: \(error.localizedDescription)"
+                }
+            } receiveValue: { response in
+                if response.success {
+                    self.aiResult = "Analisi completata. \(response.modifications?.count ?? 0) suggerimenti ricevuti."
+                    // Handle modifications if applicable (v2 schema)
+                } else {
+                    errorMessage = response.error_message ?? "L'AI ha riportato un fallimento."
+                }
+            }
+            .store(in: &cancellables)
     }
 
     private func performOptimizationCall() {

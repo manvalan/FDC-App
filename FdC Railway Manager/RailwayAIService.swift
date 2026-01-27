@@ -191,26 +191,54 @@ class RailwayAIService: ObservableObject {
             .eraseToAnyPublisher()
     }
     
-    func optimize(request: RailwayAIRequest) -> AnyPublisher<RailwayAIResponse, Error> {
-        var urlRequest = URLRequest(url: baseURL.appendingPathComponent("optimize"))
+    func optimize(request: RailwayAIRequest, useV2: Bool = false) -> AnyPublisher<RailwayAIResponse, Error> {
+        let endpoint = useV2 ? "v2/optimize" : "optimize"
+        // Ensure we don't double path components if baseURL already has v1
+        var finalURL = baseURL.deletingLastPathComponent().appendingPathComponent(endpoint)
+        if !baseURL.absoluteString.contains("/api/") {
+             finalURL = baseURL.appendingPathComponent(endpoint)
+        }
+        
+        var urlRequest = URLRequest(url: finalURL)
         urlRequest.httpMethod = "POST"
-        urlRequest.timeoutInterval = 120.0 // Extended timeout for legacy optimization
+        urlRequest.timeoutInterval = 120.0
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         if let token = self.token {
             urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        } else if let key = self.apiKey {
+            urlRequest.setValue(key.hasPrefix("rw-") ? key : "rw-\(key)", forHTTPHeaderField: "X-API-Key")
         }
         
         do {
             let encoder = JSONEncoder()
+            // Date encoding strategy for FDC Style
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            encoder.dateEncodingStrategy = .formatted(formatter)
+            
             urlRequest.httpBody = try encoder.encode(request)
+            if let json = String(data: urlRequest.httpBody!, encoding: .utf8) {
+                print("[AI] Optimization Request (\(endpoint)): \(json)")
+            }
         } catch {
             return Fail(error: error).eraseToAnyPublisher()
         }
         
         return URLSession.shared.dataTaskPublisher(for: urlRequest)
-            .timeout(60, scheduler: DispatchQueue.main)
-            .map(\.data)
+            .timeout(120, scheduler: DispatchQueue.main)
+            .tryMap { output in
+                guard let httpResponse = output.response as? HTTPURLResponse else {
+                    throw URLError(.badServerResponse)
+                }
+                if httpResponse.statusCode != 200 {
+                    let body = String(data: output.data, encoding: .utf8) ?? "Nessun corpo risposta"
+                    print("[AI ERROR] \(httpResponse.statusCode): \(body)")
+                    throw NSError(domain: "Server Error \(httpResponse.statusCode): \(body)", code: httpResponse.statusCode)
+                }
+                return output.data
+            }
             .decode(type: RailwayAIResponse.self, decoder: JSONDecoder())
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
@@ -469,15 +497,12 @@ class RailwayAIService: ObservableObject {
     }
     
     /// Helper to convert current app state to RailwayAIRequest
-    func createRequest(network: RailwayNetwork, trains: [Train], currentConflicts: [String] = []) -> RailwayAIRequest {
+    func createRequest(network: RailwayNetwork, trains: [Train], conflicts: [ScheduleConflict]) -> RailwayAIRequest {
         let stations = network.nodes.map { $0.id }
         var availablePlatforms: [String: [Int]] = [:]
         for node in network.nodes {
-            if let p = node.platforms {
-                availablePlatforms[node.id] = Array(1...p)
-            } else {
-                availablePlatforms[node.id] = [1, 2] // Default
-            }
+            let p = node.platforms ?? (node.type == .interchange ? 2 : 1)
+            availablePlatforms[node.id] = Array(1...p)
         }
         
         var maxSpeeds: [String: Double] = [:]
@@ -492,30 +517,41 @@ class RailwayAIService: ObservableObject {
             max_speeds: maxSpeeds
         )
         
-        let trainInfos = trains.map { train in
-            RailwayAITrainInfo(
-                train_id: train.id.uuidString,
-                arrival: nil, // To be filled if available in schedule
-                departure: nil,
-                platform: nil,
-                current_speed_kmh: Double(train.maxSpeed),
-                priority: 5 // Default
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+        
+        let aiConflicts = conflicts.map { c in
+            let trainA = trains.first(where: { $0.id == c.trainAId })
+            let trainB = trains.first(where: { $0.id == c.trainBId })
+            
+            func mapTrain(_ t: Train?, arrival: Date?, departure: Date?) -> RailwayAITrainInfo {
+                return RailwayAITrainInfo(
+                    train_id: t?.id.uuidString ?? UUID().uuidString,
+                    arrival: arrival.map { dateFormatter.string(from: $0) },
+                    departure: departure.map { dateFormatter.string(from: $0) },
+                    platform: nil,
+                    current_speed_kmh: Double(t?.maxSpeed ?? 100),
+                    priority: t?.priority ?? 5
+                )
+            }
+            
+            // Approximate arrival/departure for these trains at this location from the schedules
+            // For simplicity, we use the conflict window
+            let tInfoA = mapTrain(trainA, arrival: c.timeStart, departure: c.timeEnd)
+            let tInfoB = mapTrain(trainB, arrival: c.timeStart, departure: c.timeEnd)
+            
+            return RailwayAIConflictInput(
+                conflict_type: c.locationType == .station ? "platform_conflict" : "line_conflict",
+                location: c.locationId.replacingOccurrences(of: "STATION::", with: "").replacingOccurrences(of: "LINE::", with: ""),
+                trains: [tInfoA, tInfoB],
+                severity: "high",
+                time_overlap_seconds: Int(c.timeEnd.timeIntervalSince(c.timeStart))
             )
         }
         
-        // Mocking a conflict if none provided but trains exist
-        let conflicts = currentConflicts.isEmpty && !trains.isEmpty ? [
-            RailwayAIConflictInput(
-                conflict_type: "platform_conflict",
-                location: stations.first ?? "UNKNOWN",
-                trains: Array(trainInfos.prefix(2)),
-                severity: "medium",
-                time_overlap_seconds: 60
-            )
-        ] : [] // In a real app, this would be computed from the schedule
-        
         return RailwayAIRequest(
-            conflicts: conflicts,
+            conflicts: aiConflicts,
             network: networkInfo,
             preferences: nil
         )
