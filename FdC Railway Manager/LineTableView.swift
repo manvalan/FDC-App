@@ -126,61 +126,27 @@ struct LineTableView: View {
     private func formatTime(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
+        formatter.timeZone = TimeZone(secondsFromGMT: 0) // SYNC UTC
         return formatter.string(from: date)
     }
     
     private func calculateScheduleTable() {
         // 1. Find all trains for this line
-        let lineTrainIds = manager.trains.filter { train in
-            guard let rId = train.relationId, let rel = network.relations.first(where: { $0.id == rId }) else { return false }
-            return rel.lineId == line.id
-        }
+        let lineTrains = manager.trains.filter { $0.lineId == line.id }
         
         // 2. Sort them by departure time
-        self.sortedTrains = lineTrainIds.sorted { t1, t2 in
+        self.sortedTrains = lineTrains.sorted { t1, t2 in
             (t1.departureTime ?? Date.distantPast) < (t2.departureTime ?? Date.distantPast)
         }
         
-        // 3. Compute Schedule for each train
+        // 3. Compute Schedule for each train - USE PRE-CALCULATED STOP DATA
         var data: [UUID: [String: (Date?, Date?, String?)]] = [:]
         
         for train in sortedTrains {
-            guard let depTime = train.departureTime,
-                  let relId = train.relationId,
-                  let rel = network.relations.first(where: { $0.id == relId }) else { continue }
-            
             var trainSchedule: [String: (Date?, Date?, String?)] = [:]
             
-            var currentTime = depTime
-            var prevId = rel.originId
-            
-            // Origin
-            // Dep only. Track? Origin isn't in stops usually, but we might want to infer it or just leave nil if not set.
-            // Actually RelationStop doesn't include origin. So no track data for origin unless we add it to Relation struct.
-            trainSchedule[prevId] = (nil, currentTime, nil)
-            
-            for stop in rel.stops {
-                guard let distInfo = network.findShortestPath(from: prevId, to: stop.stationId) else { continue }
-                let hours = distInfo.1 / (Double(train.maxSpeed) * 0.9)
-                let arrivalDate = currentTime.addingTimeInterval(hours * 3600)
-                
-                let dwell = stop.isSkipped ? 0 : Double(stop.minDwellTime)
-                let depDate = arrivalDate.addingTimeInterval(dwell * 60)
-                
-                // Store Arrival, Departure, Track
-                trainSchedule[stop.stationId] = (arrivalDate, dwell > 0 ? depDate : nil, stop.track)
-                
-                currentTime = depDate
-                prevId = stop.stationId
-            }
-            
-            // Terminus
-            if prevId != rel.destinationId {
-                if let distInfo = network.findShortestPath(from: prevId, to: rel.destinationId) {
-                    let hours = distInfo.1 / (Double(train.maxSpeed) * 0.9)
-                    let arrivalDate = currentTime.addingTimeInterval(hours * 3600)
-                    trainSchedule[rel.destinationId] = (arrivalDate, nil, nil) // Destination track?
-                }
+            for stop in train.stops {
+                trainSchedule[stop.stationId] = (stop.arrival, stop.departure, stop.track)
             }
             
             data[train.id] = trainSchedule

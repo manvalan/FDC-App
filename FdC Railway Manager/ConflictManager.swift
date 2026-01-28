@@ -67,74 +67,80 @@ class ConflictManager: ObservableObject {
         
         func normalizeToRefDate(_ date: Date) -> Date {
             let components = calendar.dateComponents([.hour, .minute, .second], from: date)
-            return calendar.date(from: DateComponents(year: 2000, month: 1, day: 1, hour: components.hour, minute: components.minute, second: components.second)) ?? date
+            let dateAt2000 = calendar.date(from: DateComponents(year: 2000, month: 1, day: 1, hour: components.hour, minute: components.minute, second: components.second)) ?? date
+            
+            // PIGNOLO PROTOCOL: MUST round to nearest minute for absolute sync with manager & AI
+            let roundedSeconds = floor((dateAt2000.timeIntervalSinceReferenceDate + 30) / 60) * 60
+            return Date(timeIntervalSinceReferenceDate: roundedSeconds)
         }
         
-        // 1. Generate all occupations
+        // 1. Generate all occupations using PRE-CALCULATED times from Train objects
         for train in trains {
-            guard let depTime = train.departureTime,
-                  let relId = train.relationId,
-                  let rel = network.relations.first(where: { $0.id == relId }) else { continue }
+            guard !train.stops.isEmpty else { continue }
             
-            var currentTime = normalizeToRefDate(depTime)
-            var prevId = rel.originId
+            var prevId: String? = nil
             
-            for (index, stop) in train.stops.enumerated() {
-                let isOrigin = (index == 0)
+            for stop in train.stops {
+                // Station Occupation window (NORMALIZED and ROUNDED)
+                if let arrival = stop.arrival, let departure = stop.departure {
+                    let resId = "STATION::" + stop.stationId
+                    resourceOccupations[resId, default: []].append(Occupation(
+                        trainId: train.id, 
+                        trainName: train.name, 
+                        entry: normalizeToRefDate(arrival), 
+                        exit: normalizeToRefDate(departure))
+                    )
+                    
+                    if let node = network.nodes.first(where: { $0.id == stop.stationId }) {
+                        let cap = node.platforms ?? (node.type == .interchange ? 2 : 1)
+                        resourceCapacities[resId] = cap
+                    }
+                } else if let departure = stop.departure, stop.arrival == nil {
+                    // Origin Station: define a preparation window (e.g., 3 mins before departure)
+                    let entry = departure.addingTimeInterval(-180) 
+                    let resId = "STATION::" + stop.stationId
+                    resourceOccupations[resId, default: []].append(Occupation(
+                        trainId: train.id, 
+                        trainName: train.name, 
+                        entry: normalizeToRefDate(entry), 
+                        exit: normalizeToRefDate(departure))
+                    )
+                    resourceCapacities[resId] = network.nodes.first(where: { $0.id == stop.stationId })?.platforms ?? 1
+                } else if let arrival = stop.arrival, stop.departure == nil {
+                    // Destination Station: define a clear-out window (e.g., 3 mins after arrival)
+                    let exit = arrival.addingTimeInterval(180)
+                    let resId = "STATION::" + stop.stationId
+                    resourceOccupations[resId, default: []].append(Occupation(
+                        trainId: train.id, 
+                        trainName: train.name, 
+                        entry: normalizeToRefDate(arrival), 
+                        exit: normalizeToRefDate(exit))
+                    )
+                    resourceCapacities[resId] = network.nodes.first(where: { $0.id == stop.stationId })?.platforms ?? 1
+                }
                 
-                // Track Leg (Macro-Resource matching AI)
-                if !isOrigin {
-                    if let path = network.findPathEdges(from: prevId, to: stop.stationId) {
-                        let totalDuration = path.reduce(0.0) { acc, edge in
-                            let speed = min(Double(train.maxSpeed), Double(edge.maxSpeed))
-                            return acc + (edge.distance / speed) * 3600
+                // Line Segment Occupation (between this and previous station)
+                if let pId = prevId, let arrival = stop.arrival {
+                    // A train occupies the segment from when it departs the previous station until it arrives here
+                    if let prevStop = train.stops.first(where: { $0.stationId == pId }), let departure = prevStop.departure {
+                        let resId = "LINE::" + [pId, stop.stationId].sorted().joined(separator: "-")
+                        resourceOccupations[resId, default: []].append(Occupation(
+                            trainId: train.id, 
+                            trainName: train.name, 
+                            entry: normalizeToRefDate(departure), 
+                            exit: normalizeToRefDate(arrival))
+                        )
+                        
+                        // Capacity check for segment
+                        if let path = network.findPathEdges(from: pId, to: stop.stationId) {
+                            let minCap = path.map { ($0.trackType == .single || $0.trackType == .regional) ? 1 : ($0.capacity ?? 2) }.min() ?? 1
+                            resourceCapacities[resId] = minCap
+                        } else {
+                            resourceCapacities[resId] = 1
                         }
-                        
-                        let entry = currentTime
-                        let exit = currentTime.addingTimeInterval(totalDuration)
-                        
-                        // PHYSICAL RESOURCE ID: Matches AI station-to-station leg
-                        let resId = "LINE::" + [prevId, stop.stationId].sorted().joined(separator: "-")
-                        resourceOccupations[resId, default: []].append(Occupation(trainId: train.id, trainName: train.name, entry: entry, exit: exit))
-                        
-                        // Capacity: Minimum capacity along the path (bottleneck)
-                        let minCap = path.map { ($0.trackType == .single || $0.trackType == .regional) ? 1 : ($0.capacity ?? 2) }.min() ?? 1
-                        resourceCapacities[resId] = minCap
-                        
-                        currentTime = exit
                     }
                 }
                 
-                // Station Platforms
-                let dwell = stop.isSkipped ? 0 : (Double(stop.minDwellTime) + (stop.extraDwellTime))
-                let preparationTime = 3.0 // PIGNOLO PROTOCOL: Hardcoded 3.0m base dwell
-                
-                // CRITICAL TIMING SYNC:
-                // For the AI, 'scheduled_departure_time' is the moment the train leaves the station.
-                // The train occupies the station BEFORE that moment for 3.0 minutes (Sosta Tecnica Base).
-                
-                var entry = currentTime
-                var exit = currentTime.addingTimeInterval(max(0.5, dwell) * 60)
-                
-                if isOrigin {
-                    // Train is at the platform BEFORE it starts moving
-                    entry = currentTime.addingTimeInterval(-preparationTime * 60)
-                    exit = currentTime
-                }
-                
-                let resId = "STATION::" + stop.stationId
-                resourceOccupations[resId, default: []].append(Occupation(trainId: train.id, trainName: train.name, entry: entry, exit: exit))
-                
-                if let node = network.nodes.first(where: { $0.id == stop.stationId }) {
-                    // SYNC with AI Station capacity logic: 2 for interchange, 1 otherwise
-                    let cap = node.platforms ?? (node.type == Node.NodeType.interchange ? 2 : 1)
-                    resourceCapacities[resId] = cap
-                } else {
-                    resourceCapacities[resId] = 1
-                }
-                
-                // For next leg, currentTime starts after dwelling at this station (unless origin)
-                if !isOrigin { currentTime = exit }
                 prevId = stop.stationId
             }
         }

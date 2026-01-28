@@ -16,12 +16,9 @@ class FDCParser {
             return mapTopology(topology)
         }
         
-        // 2. Try Legacy JSON format (as implemented in old parser)
-        if let legacyObj = try? JSONSerialization.jsonObject(with: data, options: []),
-           let dict = legacyObj as? [String: Any],
-           (dict["nodes"] != nil || dict["network"] != nil) {
-            // Re-wrap and retry with heuristics if needed, but let's try direct mapping if possible
-            // For now, let's keep the old heuristic logic as a fallback if official fails
+        // 2. Try Legacy JSON format (Dictionary based)
+        if let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+            return mapLegacyDictionary(json)
         }
         
         // 3. Fallback to line-based text parsing (Heuristics)
@@ -43,8 +40,15 @@ class FDCParser {
         
         let rawSchedules = root.schedules ?? []
         
-        let lines = root.lines?.map {
-            RailwayLine(id: $0.id, name: $0.name, color: $0.color, stations: $0.stations)
+        let lines = root.lines?.map { lineDTO in
+            RailwayLine(
+                id: lineDTO.id,
+                name: lineDTO.name,
+                color: lineDTO.color,
+                originId: lineDTO.stations.first ?? "",
+                destinationId: lineDTO.stations.last ?? "",
+                stops: lineDTO.stations.map { RelationStop(stationId: $0, minDwellTime: 3) }
+            )
         } ?? []
         
         return FDCNetworkParsed(
@@ -57,6 +61,43 @@ class FDCParser {
         )
     }
     
+    private static func mapLegacyDictionary(_ dict: [String: Any]) -> FDCNetworkParsed {
+        var stations: [FDCStation] = []
+        var edges: [FDCEdge] = []
+        
+        // Extract Nodes
+        if let nodes = dict["nodes"] as? [[String: Any]] {
+            for n in nodes {
+                let id = (n["id"] as? String) ?? (n["name"] as? String) ?? UUID().uuidString
+                let name = (n["name"] as? String) ?? id
+                stations.append(FDCStation(id: id, name: name, type: n["type"] as? String))
+            }
+        }
+        
+        // Extract Edges / Links
+        let edgeKeys = ["edges", "links", "connections"]
+        for key in edgeKeys {
+            if let eArr = dict[key] as? [[String: Any]] {
+                for e in eArr {
+                    let from = (e["from"] as? String) ?? (e["from_node"] as? String) ?? (e["source"] as? String) ?? ""
+                    let to = (e["to"] as? String) ?? (e["to_node"] as? String) ?? (e["target"] as? String) ?? ""
+                    if !from.isEmpty && !to.isEmpty {
+                        edges.append(FDCEdge(from: from, to: to, distance: e["distance"] as? Double ?? e["length"] as? Double ?? 1.0))
+                    }
+                }
+            }
+        }
+        
+        return FDCNetworkParsed(
+            name: (dict["name"] as? String) ?? "Legacy Import",
+            stations: stations,
+            edges: edges,
+            trains: [],
+            rawSchedules: [],
+            lines: []
+        )
+    }
+
     private static func mapTopology(_ topology: FDCTopology) -> FDCNetworkParsed {
         let stations = topology.nodes.map { 
             FDCStation(id: $0.id, name: $0.name, type: $0.type, latitude: $0.latitude, longitude: $0.longitude, capacity: $0.capacity, platformCount: $0.platform_count ?? $0.platforms)

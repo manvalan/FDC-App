@@ -167,95 +167,61 @@ struct LineGraphView: View {
     
     private func drawTrains(width: CGFloat) -> some View {
         Canvas { context, size in
-            // Filter trains relevant to this line
+            // Filter trains that touch ANY station of this line (for true platform/segment occupancy)
+            let lineStationIds = Set(orderedStations.map { $0.id })
             let lineTrainIds = manager.trains.filter { train in
-                guard let rId = train.relationId, let rel = network.relations.first(where: { $0.id == rId }) else { return false }
-                return rel.lineId == line.id
+                train.stops.contains { lineStationIds.contains($0.stationId) }
             }
             
             for train in lineTrainIds {
-                guard let depTime = train.departureTime, 
-                      let relId = train.relationId, 
-                      let rel = network.relations.first(where: { $0.id == relId }) else { continue }
-                
-                let calendar = Calendar.current
-                let startHour = calendar.component(.hour, from: depTime)
-                let startMin = calendar.component(.minute, from: depTime)
-                let startOffsetHours = Double(startHour) + Double(startMin)/60.0
-                
                 var points: [CGPoint] = []
-                var currentTime = depTime
-                var prevId = rel.originId
                 
-                // Origin Point
-                if let idx = orderedStations.firstIndex(where: { $0.id == prevId }) {
-                    let y = stationDistances[idx] * pixelsPerKm + 50
-                    let x = startOffsetHours * timeScale
-                    points.append(CGPoint(x: x, y: y))
-                }
-                
-                // Traverse stops
-                for stop in rel.stops {
-                     guard let distInfo = network.findShortestPath(from: prevId, to: stop.stationId) else { continue }
-                     let distKm = distInfo.1
-                     let hours = distKm / (Double(train.maxSpeed) * 0.9)
-                     let arrivalDate = currentTime.addingTimeInterval(hours * 3600)
-                     
-                     if let idx = orderedStations.firstIndex(where: { $0.id == stop.stationId }) {
-                         let y = stationDistances[idx] * pixelsPerKm + 50
-                         let arrH = calendar.component(.hour, from: arrivalDate)
-                         let arrM = calendar.component(.minute, from: arrivalDate)
-                         let x = (Double(arrH) + Double(arrM)/60.0) * timeScale
-                         points.append(CGPoint(x: x, y: y))
-                     }
-                     
-                     let dwell = stop.isSkipped ? 0 : Double(stop.minDwellTime)
-                     let depDate = arrivalDate.addingTimeInterval(dwell * 60)
-                     if dwell > 0 {
-                          if let idx = orderedStations.firstIndex(where: { $0.id == stop.stationId }) {
-                             let y = stationDistances[idx] * pixelsPerKm + 50
-                             let depH = calendar.component(.hour, from: depDate)
-                             let depM = calendar.component(.minute, from: depDate)
-                             let x = (Double(depH) + Double(depM)/60.0) * timeScale
-                             points.append(CGPoint(x: x, y: y))
-                         }
-                     }
-                     
-                     currentTime = depDate
-                     prevId = stop.stationId
-                }
-                
-                // Terminus
-                if prevId != rel.destinationId {
-                     guard let distInfo = network.findShortestPath(from: prevId, to: rel.destinationId) else { continue }
-                     let distKm = distInfo.1
-                     let hours = distKm / (Double(train.maxSpeed) * 0.9)
-                     let arrivalDate = currentTime.addingTimeInterval(hours * 3600)
-                     
-                     if let idx = orderedStations.firstIndex(where: { $0.id == rel.destinationId }) {
-                         let y = stationDistances[idx] * pixelsPerKm + 50
-                         let arrH = calendar.component(.hour, from: arrivalDate)
-                         let arrM = calendar.component(.minute, from: arrivalDate)
-                         let x = (Double(arrH) + Double(arrM)/60.0) * timeScale
-                         points.append(CGPoint(x: x, y: y))
-                     }
-                }
-                
-                // Draw Path
-                if !points.isEmpty {
-                    let path = Path {
-                        $0.move(to: points[0])
-                        for p in points.dropFirst() {
-                            $0.addLine(to: p)
+                // Plot using actual pre-calculated stop times from Train objects
+                for stop in train.stops {
+                    if let idx = orderedStations.firstIndex(where: { $0.id == stop.stationId }) {
+                        // MATH: Add small Y offset based on track (platform) to distinguish occupancy
+                        let trackNum = Double(stop.track.flatMap { Int($0) } ?? 1)
+                        let trackOffset = (trackNum - 1) * 3.0 // 3px per platform to avoid overlap
+                        let y = CGFloat(stationDistances[idx]) * pixelsPerKm + 50.0 + CGFloat(trackOffset)
+                        
+                        if let arrival = stop.arrival {
+                            points.append(CGPoint(x: xFor(arrival), y: y))
                         }
+                        
+                        if let departure = stop.departure {
+                            points.append(CGPoint(x: xFor(departure), y: y))
+                        }
+                    } else {
+                        // Train is leaving the visible line area - draw what we collected and reset
+                        if points.count >= 2 {
+                            drawTrainPath(points, for: train, in: context)
+                        }
+                        points = []
                     }
-                    context.stroke(path, with: .color(.primary), lineWidth: 2)
-                    
-                    if let first = points.first {
-                        context.draw(Text(train.type + " " + train.name).font(.caption2).foregroundColor(.primary), at: CGPoint(x: first.x, y: first.y - 10))
-                    }
+                }
+                
+                // Draw remaining/final path
+                if points.count >= 2 {
+                    drawTrainPath(points, for: train, in: context)
                 }
             }
+        }
+    }
+    
+    private func drawTrainPath(_ points: [CGPoint], for train: Train, in context: GraphicsContext) {
+        let path = Path {
+            $0.move(to: points[0])
+            for p in points.dropFirst() {
+                $0.addLine(to: p)
+            }
+        }
+        
+        // PIGNOLO PROTOCOL: Contrast colors based on priority
+        let color: Color = train.priority > 7 ? .red : .primary
+        context.stroke(path, with: .color(color), lineWidth: 2)
+        
+        if let first = points.first {
+            context.draw(Text(train.type + " " + train.name).font(.caption2).foregroundColor(color), at: CGPoint(x: first.x, y: first.y - 12))
         }
     }
 }

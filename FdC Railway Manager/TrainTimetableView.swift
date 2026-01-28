@@ -65,6 +65,7 @@ struct TrainTimetableView: View {
         guard let date = date else { return "---" }
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
+        formatter.timeZone = TimeZone(secondsFromGMT: 0) // SYNC UTC
         return formatter.string(from: date)
     }
     

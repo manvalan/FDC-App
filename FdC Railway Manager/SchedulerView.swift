@@ -202,16 +202,18 @@ struct SchedulerView: View {
             var newSchedules: [TrainSchedule] = []
             
             // For each line in the network, try to assign a train and build a schedule
-            for (index, line) in network.lines.enumerated() {
-                // Pick a train for this line (simple mapping)
-                guard index < trainManager.trains.count else { break }
-                let train = trainManager.trains[index]
+            for (index, train) in trainManager.trains.enumerated() {
+                // Use the train's own stored stops and departure time
+                let route = train.stops.map { $0.stationId }
+                let startTime = train.departureTime ?? Date()
                 
-                // Build schedule starting today at 08:00 + index * 10 mins
-                let baseTime = Calendar.current.date(bySettingHour: 8, minute: index * 15, second: 0, of: Date()) ?? Date()
-                
-                if let schedule = FDCSchedulerEngine.buildSchedule(train: train, network: network, route: line.stations, startTime: baseTime) {
+                if let schedule = FDCSchedulerEngine.buildSchedule(train: train, network: network, route: route, startTime: startTime) {
                     newSchedules.append(schedule)
+                }
+                
+                // Ensure train has a number for simulation if it doesn't
+                if trainManager.trains[index].number == 0 {
+                    trainManager.trains[index].number = 100 + index
                 }
             }
             
@@ -287,15 +289,17 @@ struct TimetableChart: View {
                     }
                     
                     // Connecting lines between stations
-                    ForEach(0..<schedule.stops.count-1, id: \.self) { i in
-                        let start = schedule.stops[i]
-                        let end = schedule.stops[i+1]
-                        if let t1 = start.departureTime ?? start.arrivalTime,
-                           let t2 = end.arrivalTime ?? end.departureTime {
-                            LineMark(x: .value("T", t1), y: .value("S", start.stationName))
-                                .foregroundStyle(by: .value("Treno", schedule.trainName))
-                            LineMark(x: .value("T", t2), y: .value("S", end.stationName))
-                                .foregroundStyle(by: .value("Treno", schedule.trainName))
+                    if schedule.stops.count > 1 {
+                        ForEach(0..<schedule.stops.count-1, id: \.self) { i in
+                            let start = schedule.stops[i]
+                            let end = schedule.stops[i+1]
+                            if let t1 = start.departureTime ?? start.arrivalTime,
+                               let t2 = end.arrivalTime ?? end.departureTime {
+                                LineMark(x: .value("T", t1), y: .value("S", start.stationName))
+                                    .foregroundStyle(by: .value("Treno", schedule.trainName))
+                                LineMark(x: .value("T", t2), y: .value("S", end.stationName))
+                                    .foregroundStyle(by: .value("Treno", schedule.trainName))
+                            }
                         }
                     }
                 }
@@ -444,8 +448,8 @@ struct TrainsDetailView: View {
                         ToolbarItem(placement: .confirmationAction) {
                             Button("Aggiungi") {
                                 guard !newName.isEmpty else { return }
-                                 manager.trains.append(Train(id: UUID(), name: newName, type: newType, maxSpeed: newMaxSpeed, priority: 5, acceleration: 0.5, deceleration: 0.5))
-                                newName = ""
+                                 manager.trains.append(Train(id: UUID(), number: 100 + manager.trains.count, name: newName, type: newType, maxSpeed: newMaxSpeed, priority: 5, acceleration: 0.5, deceleration: 0.5))
+                                 newName = ""
                                 newType = "Regionale"
                                 newMaxSpeed = 120
                                 showAdd = false
@@ -499,10 +503,24 @@ struct FDCFileDocument: FileDocument {
 // Funzione per chiamare il backend FDC_Scheduler
 @MainActor
 func sendToScheduler(network: RailwayNetwork, trains: [Train], completion: @escaping (Result<String, Error>) -> Void) {
-    guard let url = URL(string: "http://82.165.138.64:8080/scheduler") else {
+    // 1. Usa la baseURL corretta dal Service (che è http :8080)
+    let baseURL = RailwayAIService.shared.baseURL
+    // Se baseURL finisce con /api/v1, torniamo indietro al root o appendiamo scheduler se esposto lì.
+    // Assumiamo che /scheduler sia un endpoint valido sullo stesso host/port.
+    // Costruiamo l'URL sostituendo path o appendendo.
+    // Quick fix: prendiamo lo schema + host + port e appendiamo /scheduler
+    // O meglio: usiamo RailwayAIService.shared.baseURL (che è .../api/v1) -> .../api/v1/scheduler ?
+    // Proviamo a mantenere la coerenza con le altre chiamate (senza HTTPS).
+    
+    // Costruzione robusta URL http 8080
+    var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+    components?.path = "/scheduler" // o /api/v1/scheduler se è lì. Proviamo root /scheduler come prima ma su porta 8080.
+    
+    guard let url = components?.url else {
         completion(.failure(NSError(domain: "URL non valida", code: 0)))
         return
     }
+    
     struct Payload: Codable {
         let network: RailwayNetworkDTO
         let trains: [Train]
@@ -518,6 +536,10 @@ func sendToScheduler(network: RailwayNetwork, trains: [Train], completion: @esca
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    
+    // 2. Aggiungi Autenticazione (Token o Key)
+    AuthenticationManager.shared.attachAuthHeaders(to: &request)
+    
     request.httpBody = data
     let task = URLSession.shared.dataTask(with: request) { data, response, error in
         if let error = error {

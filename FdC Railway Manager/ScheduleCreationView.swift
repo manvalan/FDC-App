@@ -5,7 +5,7 @@ struct ScheduleCreationView: View {
     @EnvironmentObject var network: RailwayNetwork
     @EnvironmentObject var manager: TrainManager
     
-    let relation: TrainRelation
+    let line: RailwayLine
     
     // Scheduling Mode
     enum ScheduleMode: String, CaseIterable, Identifiable {
@@ -18,11 +18,12 @@ struct ScheduleCreationView: View {
     @State private var startTime: Date = Date()
     @State private var endTime: Date = Date().addingTimeInterval(3600 * 4)
     @State private var intervalMinutes: Int = 60
-    @State private var selectedTrainType: String = "Regionale" // New State
+    @State private var selectedTrainType: String = "Regionale"
+    @State private var startNumber: Int = 1000
     
     // Paired Return
     @State private var scheduleReturn: Bool = false
-    @State private var returnRelation: TrainRelation? = nil
+    @State private var returnLine: RailwayLine? = nil
     @State private var returnDelayMinutes: Int = 15 // Turnaround time
     
     // Preview
@@ -43,6 +44,7 @@ struct ScheduleCreationView: View {
                         Text("Diretto").tag("Diretto")
                         Text("Alta Velocità").tag("Alta Velocità")
                         Text("Merci").tag("Merci")
+                        Text("Supporto").tag("Supporto")
                     }
                     
                     DatePicker("Ora Inizio", selection: $startTime, displayedComponents: .hourAndMinute)
@@ -51,18 +53,26 @@ struct ScheduleCreationView: View {
                         DatePicker("Ora Fine", selection: $endTime, displayedComponents: .hourAndMinute)
                         Stepper("Intervallo: \(intervalMinutes) min", value: $intervalMinutes, in: 10...360, step: 10)
                     }
+                    
+                    HStack {
+                        Text("Numero Iniziale")
+                        Spacer()
+                        TextField("1000", value: $startNumber, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 80)
+                    }
                 }
                 
                 Section(header: Text("Ritorno (Coppia)")) {
-                    if let retRel = returnRelation {
+                    if let retLine = returnLine {
                         Toggle("Pianifica Ritorno (B -> A)", isOn: $scheduleReturn)
                         if scheduleReturn {
-                            Text("Relazione: \(retRel.name)")
+                            Text("Linea Ritorno: \(retLine.name)")
                             Stepper("Tempo di giro: \(returnDelayMinutes) min", value: $returnDelayMinutes, in: 5...120, step: 5)
                             Text("Il treno ripartirà \(returnDelayMinutes) minuti dopo l'arrivo.").font(.caption).foregroundColor(.secondary)
                         }
                     } else {
-                        Text("Nessuna relazione di ritorno trovata.").foregroundColor(.secondary)
+                        Text("Nessuna linea di ritorno trovata.").foregroundColor(.secondary)
                     }
                 }
                 
@@ -85,7 +95,7 @@ struct ScheduleCreationView: View {
                 }
             }
             .onAppear {
-                findReturnRelation()
+                findReturnLine()
                 updatePreview()
             }
             .onChange(of: mode) { _ in updatePreview() }
@@ -96,14 +106,10 @@ struct ScheduleCreationView: View {
         }
     }
     
-    // ... (Helpers remain same until generateSchedule)
-    
-    private func findReturnRelation() {
-        // Look for relation on same line with swapped origin/dest
-        returnRelation = network.relations.first(where: { 
-            $0.lineId == relation.lineId && 
-            $0.originId == relation.destinationId && 
-            $0.destinationId == relation.originId 
+    private func findReturnLine() {
+        returnLine = network.lines.first(where: { 
+            $0.originId == line.destinationId && 
+            $0.destinationId == line.originId 
         })
     }
     
@@ -114,21 +120,20 @@ struct ScheduleCreationView: View {
         } else {
             let start = startTime
             let end = endTime
-            // Calculate components
             let calendar = Calendar.current
             let startComp = calendar.dateComponents([.hour, .minute], from: start)
             let endComp = calendar.dateComponents([.hour, .minute], from: end)
             
             let startMinutes = (startComp.hour ?? 0) * 60 + (startComp.minute ?? 0)
             var endMinutes = (endComp.hour ?? 0) * 60 + (endComp.minute ?? 0)
-            if endMinutes < startMinutes { endMinutes += 24 * 60 } // Next day
+            if endMinutes < startMinutes { endMinutes += 24 * 60 }
             
             if intervalMinutes > 0 {
                 count = (endMinutes - startMinutes) / intervalMinutes + 1
             }
         }
         
-        if scheduleReturn && returnRelation != nil {
+        if scheduleReturn && returnLine != nil {
             count *= 2
         }
         previewCount = max(0, count)
@@ -150,46 +155,45 @@ struct ScheduleCreationView: View {
         for i in 0..<iterations {
             let departureTime = calendar.date(byAdding: .minute, value: i * intervalMinutes, to: startTime) ?? startTime
             
-            // 1. Create Train for OUTWARD
-            let trainId = UUID()
+            // 1. OUTWARD
             let timeStr = formatTime(departureTime)
-            let trainName = "\(relation.name) \(timeStr)"
-            
+            let trainName = "\(line.name) \(timeStr)"
             let maxSpeed: Int = selectedTrainType == "Alta Velocità" ? 300 : (selectedTrainType == "Merci" ? 100 : 160)
             
-            let train = Train(
-                id: trainId,
+            let outwardNumber = startNumber + (i * 2)
+            let outwardTrain = Train(
+                id: UUID(),
+                number: outwardNumber,
                 name: trainName,
                 type: selectedTrainType,
                 maxSpeed: maxSpeed,
-                relationId: relation.id,
+                lineId: line.id,
                 departureTime: departureTime,
-                stops: relation.stops
+                stops: line.stops
             )
+            manager.trains.append(outwardTrain)
             
-            manager.trains.append(train)
-            
-            // 2. Create Train for RETURN
-            if scheduleReturn, let retRel = returnRelation {
-                 let travelMinutes = estimateTravelTime(relation)
+            // 2. RETURN
+            if scheduleReturn, let retLine = returnLine {
+                 let travelMinutes = estimateTravelTime(line)
                  let returnDep = calendar.date(byAdding: .minute, value: travelMinutes + returnDelayMinutes, to: departureTime) ?? departureTime
-                 
                  let retTimeStr = formatTime(returnDep)
-                 let retName = "\(retRel.name) \(retTimeStr)"
+                 let retName = "\(retLine.name) \(retTimeStr)"
                  
+                 let returnNumber = outwardNumber + 1
                  let retTrain = Train(
                     id: UUID(),
+                    number: returnNumber,
                     name: retName,
                     type: selectedTrainType,
                     maxSpeed: maxSpeed,
-                    relationId: retRel.id,
+                    lineId: retLine.id,
                     departureTime: returnDep,
-                    stops: retRel.stops
+                    stops: retLine.stops
                  )
                  manager.trains.append(retTrain)
             }
         }
-        
         dismiss()
     }
     
@@ -199,8 +203,8 @@ struct ScheduleCreationView: View {
         return f.string(from: date)
     }
     
-    private func estimateTravelTime(_ rel: TrainRelation) -> Int {
+    private func estimateTravelTime(_ line: RailwayLine) -> Int {
         // Simple heuristic: 3 mins per stop + 5 mins travel
-        return rel.stops.count * 8 + 10 
+        return line.stops.count * 8 + 10 
     }
 }

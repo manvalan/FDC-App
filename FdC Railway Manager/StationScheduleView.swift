@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct StationScheduleView: View {
     let station: Node
@@ -86,6 +87,9 @@ struct StationScheduleView: View {
             .listStyle(.plain)
         }
         .onAppear(perform: calculateArrivals)
+        .onReceive(manager.objectWillChange) { _ in
+            calculateArrivals()
+        }
     }
     
     var availableTracks: [String] {
@@ -118,6 +122,7 @@ struct StationScheduleView: View {
         guard let date = date else { return "--:--" }
         let f = DateFormatter()
         f.dateFormat = "HH:mm"
+        f.timeZone = TimeZone(secondsFromGMT: 0) // SYNC with manager and AI
         return f.string(from: date)
     }
     
@@ -126,79 +131,45 @@ struct StationScheduleView: View {
         
         // Scan all trains
         for train in manager.trains {
-            guard let startTime = train.departureTime,
-                  let relId = train.relationId,
-                  let relation = network.relations.first(where: { $0.id == relId }) else { continue }
+            // Check if departures/arrivals are populated. If not, trigger a refresh.
+            let hasTimes = train.stops.contains { $0.arrival != nil || $0.departure != nil }
+            if !hasTimes && !train.stops.isEmpty {
+                // If we are here, something is desynced. 
+                // However, we shouldn't trigger a full validateSchedules on EVERY view refresh.
+                // We assume manager.refreshSchedules was called during import/optimization.
+            }
+
+            // Relation description lookup
+            let relationName: String = {
+                if let lId = train.lineId, let line = network.lines.first(where: { $0.id == lId }) {
+                    return line.name
+                }
+                return train.type
+            }()
             
-            // Calculate Schedule for this train to find time at this station
-            // Reusing logic (should be centralized, but copying for now is faster)
+            let originName = getName(train.stops.first?.stationId ?? "")
+            let destName = getName(train.stops.last?.stationId ?? "")
             
-            var currentTime = startTime
-            var prevId = relation.originId
-            
-            // Check Origin
-            if relation.originId == station.id {
+            // Check if the train stops at this station
+            if let stop = train.stops.first(where: { $0.stationId == station.id }) {
+                let isTerminus = train.stops.last?.stationId == station.id
+                let isOrigin = train.stops.first?.stationId == station.id
+                
                 results.append(StationArrival(
                     trainId: train.id,
                     trainName: train.type + " " + train.name,
-                    relationName: relation.name,
-                    origin: station.name,
-                    destination: getName(relation.destinationId),
-                    arrivalTime: nil,
-                    departureTime: currentTime,
-                    track: nil, // Origin track? Need to check relation stops logic? No, origin is not in stops.
-                    isTerminus: false
+                    relationName: relationName,
+                    origin: originName,
+                    destination: destName,
+                    arrivalTime: isOrigin ? nil : stop.arrival,
+                    departureTime: isTerminus ? nil : stop.departure,
+                    track: stop.track,
+                    isTerminus: isTerminus
                 ))
-            }
-            
-            // Traverse Stops
-            for stop in relation.stops {
-                guard let distInfo = network.findShortestPath(from: prevId, to: stop.stationId) else { continue }
-                let hours = distInfo.1 / (Double(train.maxSpeed) * 0.9)
-                let arrivalDate = currentTime.addingTimeInterval(hours * 3600)
-                
-                let dwell = stop.isSkipped ? 0 : Double(stop.minDwellTime)
-                let depDate = arrivalDate.addingTimeInterval(dwell * 60)
-                
-                if stop.stationId == station.id {
-                    results.append(StationArrival(
-                        trainId: train.id,
-                        trainName: train.type + " " + train.name,
-                        relationName: relation.name,
-                        origin: getName(relation.originId),
-                        destination: getName(relation.destinationId),
-                        arrivalTime: arrivalDate,
-                        departureTime: stop.isSkipped ? nil : depDate,
-                        track: stop.track,
-                        isTerminus: false
-                    ))
-                }
-                
-                currentTime = depDate
-                prevId = stop.stationId
-            }
-            
-            // Check Destination
-            if relation.destinationId == station.id && prevId != relation.destinationId {
-                if let distInfo = network.findShortestPath(from: prevId, to: relation.destinationId) {
-                    let hours = distInfo.1 / (Double(train.maxSpeed) * 0.9)
-                    let arrivalDate = currentTime.addingTimeInterval(hours * 3600)
-                    
-                    results.append(StationArrival(
-                        trainId: train.id,
-                        trainName: train.type + " " + train.name,
-                        relationName: relation.name,
-                        origin: getName(relation.originId),
-                        destination: getName(relation.destinationId),
-                        arrivalTime: arrivalDate,
-                        departureTime: nil,
-                        track: nil, // Destination track logic?
-                        isTerminus: true
-                    ))
-                }
             }
         }
         
+        // Sorting by time correctly handles 2000 vs current dates as long as they are consistent
         self.arrivals = results
     }
     

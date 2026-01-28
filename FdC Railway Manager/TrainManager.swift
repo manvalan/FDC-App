@@ -3,27 +3,49 @@ import Combine
 
 struct Train: Identifiable, Codable, Hashable {
     let id: UUID
-    var name: String
+    var number: Int // Numeric ID (e.g. 1234)
+    var name: String // Train Name or Relation Name
     var type: String
     var maxSpeed: Int
     var priority: Int = 5 // 1-10, 10 is max priority (AV)
     var acceleration: Double = 0.5 // m/s^2
     var deceleration: Double = 0.5 // m/s^2
-    var relationId: UUID? // Link to TrainRelation template
+    var lineId: String? // Link to RailwayLine (unified template)
     var departureTime: Date? // Scheduled Departure Time
     var stops: [RelationStop] = [] // Snapshot of stops for per-train overrides
     
-    init(id: UUID, name: String, type: String, maxSpeed: Int, priority: Int = 5, acceleration: Double = 0.5, deceleration: Double = 0.5, relationId: UUID? = nil, departureTime: Date? = nil, stops: [RelationStop] = []) {
+    enum CodingKeys: String, CodingKey {
+        case id, number, name, type, maxSpeed, priority, acceleration, deceleration, lineId, departureTime, stops
+    }
+
+    init(id: UUID, number: Int, name: String, type: String, maxSpeed: Int, priority: Int = 5, acceleration: Double = 0.5, deceleration: Double = 0.5, lineId: String? = nil, departureTime: Date? = nil, stops: [RelationStop] = []) {
         self.id = id
+        self.number = number
         self.name = name
         self.type = type
         self.maxSpeed = maxSpeed
         self.priority = priority
         self.acceleration = acceleration
         self.deceleration = deceleration
-        self.relationId = relationId
+        self.lineId = lineId
         self.departureTime = departureTime
         self.stops = stops
+    }
+
+    // PIGNOLO PROTOCOL: Resilient decoding for backward compatibility
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        number = try container.decodeIfPresent(Int.self, forKey: .number) ?? 0
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Treno senza nome"
+        type = try container.decodeIfPresent(String.self, forKey: .type) ?? "Regionale"
+        maxSpeed = try container.decodeIfPresent(Int.self, forKey: .maxSpeed) ?? 120
+        priority = try container.decodeIfPresent(Int.self, forKey: .priority) ?? 5
+        acceleration = try container.decodeIfPresent(Double.self, forKey: .acceleration) ?? 0.5
+        deceleration = try container.decodeIfPresent(Double.self, forKey: .deceleration) ?? 0.5
+        lineId = try container.decodeIfPresent(String.self, forKey: .lineId)
+        departureTime = try container.decodeIfPresent(Date.self, forKey: .departureTime)
+        stops = try container.decodeIfPresent([RelationStop].self, forKey: .stops) ?? []
     }
 }
 
@@ -46,10 +68,29 @@ final class TrainManager: ObservableObject {
             .store(in: &cancellables)
     }
     
-    // Trigger validation
     func validateSchedules(with network: RailwayNetwork) {
         refreshSchedules(with: network)
         conflictManager.detectConflicts(network: network, trains: trains)
+    }
+
+    /// Generates full schedules for all trains for visualization/simulation
+    func generateSchedules(with network: RailwayNetwork) -> [TrainSchedule] {
+        var schedules: [TrainSchedule] = []
+        for train in trains {
+            let scheduleStops = train.stops.map { stop in
+                ScheduleStop(
+                    stationId: stop.stationId,
+                    arrivalTime: stop.arrival,
+                    departureTime: stop.departure,
+                    platform: Int(stop.track ?? "1") ?? 1,
+                    dwellsMinutes: stop.minDwellTime,
+                    stationName: network.nodes.first(where: { $0.id == stop.stationId })?.name ?? stop.stationId
+                )
+            }
+            let sch = TrainSchedule(trainId: train.id, trainName: train.name, stops: scheduleStops)
+            schedules.append(sch)
+        }
+        return schedules
     }
     
     // MARK: - Legacy Local Solver
@@ -61,27 +102,10 @@ final class TrainManager: ObservableObject {
         var schedules: [TrainSchedule] = []
         
         for train in trains {
-            guard let relId = train.relationId,
-                  let relation = network.relations.first(where: { $0.id == relId }) else { continue }
+            guard let lineId = train.lineId,
+                  let line = network.lines.first(where: { $0.id == lineId }) else { continue }
             
-            // Reconstruct route from relation stops
-            var route: [String] = []
-            if !relation.originId.isEmpty { route.append(relation.originId) }
-            for stop in relation.stops {
-                // Determine if we need to add intermediate stops?
-                // For simplified logic, just use the stops as the route + destination
-                if stop.stationId != relation.originId && stop.stationId != relation.destinationId {
-                     route.append(stop.stationId)
-                }
-            }
-             if !relation.destinationId.isEmpty { route.append(relation.destinationId) }
-            
-            // Build full route edges? 
-            // FDCSimulator.buildSchedule expects a list of station IDs in order.
-            // Let's assume relation.stops covers the path.
-            // Actually, we must use `relation.stops` order.
-            
-            let orderedStops = relation.stops.map { $0.stationId }
+            let orderedStops = line.stops.map { $0.stationId }
             let startTime = train.departureTime ?? Date()
             
             if let sch = FDCSchedulerEngine.buildSchedule(train: train, network: network, route: orderedStops, startTime: startTime) {
@@ -115,66 +139,74 @@ final class TrainManager: ObservableObject {
     
     // Fix-up missing stops and calculate actual times
     func refreshSchedules(with network: RailwayNetwork) {
-        var calendar = Calendar.current
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)! // Sync with AI UTC
-        
-        func normalizeToRefDate(_ date: Date) -> Date {
-            let components = calendar.dateComponents([.hour, .minute, .second], from: date)
-            return calendar.date(from: DateComponents(year: 2000, month: 1, day: 1, hour: components.hour, minute: components.minute, second: components.second)) ?? date
-        }
-        
         for i in trains.indices {
-            guard let relId = trains[i].relationId,
-                  let rel = network.relations.first(where: { $0.id == relId }) else { continue }
+            guard let depTime = trains[i].departureTime, !trains[i].stops.isEmpty else { continue }
             
-            // Fix-up: If stops snapshot is empty but relation has stops, clone them
-            if trains[i].stops.isEmpty && !rel.stops.isEmpty {
-                trains[i].stops = rel.stops
+            // Re-normalize departure time to 2000-01-01 to ensure consistency
+            var currentTime = depTime.normalized()
+            
+            // Link to line if exists for originId, otherwise use first stop
+            let originId: String
+            if let lineId = trains[i].lineId, let line = network.lines.first(where: { $0.id == lineId }) {
+                originId = line.originId
+            } else {
+                originId = trains[i].stops.first?.stationId ?? ""
             }
             
-            // Calculate Times
-            guard let depTime = trains[i].departureTime else { continue }
-            var currentTime = normalizeToRefDate(depTime)
-            
-            // Debug: Check if normalization resets day unexpectedly
-            // print("Train \(trains[i].name): Raw Dep \(depTime) -> Norm \(currentTime)")
-            
-            var prevId = rel.originId
+            var prevId = originId
             
             for j in trains[i].stops.indices {
-                // Dwell calculation for THIS stop
-                let isSkipped = trains[i].stops[j].isSkipped
-                let baseDwell = isSkipped ? 0 : 3.0 // PIGNOLO PROTOCOL: Hardcoded 3.0m base dwell
-                let extraDwell = trains[i].stops[j].extraDwellTime
+                let stop = trains[i].stops[j]
+                let isSkipped = stop.isSkipped
+                let baseDwell = isSkipped ? 0 : Double(stop.minDwellTime)
+                let extraDwell = stop.extraDwellTime
                 let dwellDuration = (baseDwell + extraDwell) * 60
                 
-                if j == 0 {
-                    // ORIGIN: Starts preparation before departure, leaves EXACTLY at depTime
-                    trains[i].stops[j].arrival = currentTime.addingTimeInterval(-dwellDuration)
-                    trains[i].stops[j].departure = currentTime
-                    // From here on, currentTime will represent the moment the train starts moving onto a leg
+                if stop.stationId == originId && j == 0 {
+                    // ORIGIN
+                    trains[i].stops[j].arrival = nil
+                    trains[i].stops[j].departure = stop.plannedDeparture?.normalized() ?? currentTime
+                    currentTime = trains[i].stops[j].departure ?? currentTime
                 } else {
-                    // LEG TRANSIT: Move from previous station to this one
-                    if let path = network.findPathEdges(from: prevId, to: trains[i].stops[j].stationId) {
+                    // LEG TRANSIT - Using Physics Engine
+                    var transitDuration: TimeInterval = 0
+                    if let path = network.findPathEdges(from: prevId, to: stop.stationId) {
                         for edge in path {
-                            let speed = min(Double(trains[i].maxSpeed), Double(edge.maxSpeed))
-                            let hours = edge.distance / speed
-                            currentTime = currentTime.addingTimeInterval(hours * 3600)
+                            // High Fidelity Physics call
+                            let hours = FDCSchedulerEngine.calculateTravelTime(
+                                distanceKm: edge.distance,
+                                maxSpeedKmh: Double(edge.maxSpeed),
+                                train: trains[i],
+                                initialSpeedKmh: 0, // Simplified: assume stop-to-stop for now or refine if needed
+                                finalSpeedKmh: 0
+                            )
+                            transitDuration += hours * 3600
                         }
                     }
                     
-                    // ARRIVAL: After leg transit
-                    trains[i].stops[j].arrival = currentTime
+                    // Safety padding (35s margin for station entry/exit)
+                    let realTransitDuration = max(transitDuration + 35.0, 60.0)
+                    currentTime = currentTime.addingTimeInterval(realTransitDuration)
                     
-                    // DEPARTURE: After dwelling
-                    let dep = currentTime.addingTimeInterval(dwellDuration)
-                    trains[i].stops[j].departure = (j < trains[i].stops.count - 1) ? dep : nil
+                    // ROUNDING
+                    let roundedArrivalSeconds = floor((currentTime.timeIntervalSinceReferenceDate + 30) / 60) * 60
+                    let roundedArrival = Date(timeIntervalSinceReferenceDate: roundedArrivalSeconds)
                     
-                    // Advance currentTime for the START of the next leg
-                    currentTime = dep
+                    let actualArrival = stop.plannedArrival?.normalized() ?? roundedArrival
+                    trains[i].stops[j].arrival = actualArrival
+                    
+                    let earliestDeparture = actualArrival.addingTimeInterval(dwellDuration)
+                    let targetDeparture = stop.plannedDeparture?.normalized() ?? earliestDeparture
+                    
+                    let finalDep = max(earliestDeparture, targetDeparture)
+                    let roundedDepSeconds = floor((finalDep.timeIntervalSinceReferenceDate + 30) / 60) * 60
+                    let roundedDep = Date(timeIntervalSinceReferenceDate: roundedDepSeconds)
+                    
+                    trains[i].stops[j].departure = (j < trains[i].stops.count - 1) ? roundedDep : nil
+                    currentTime = roundedDep
                 }
                 
-                prevId = trains[i].stops[j].stationId
+                prevId = stop.stationId
             }
         }
     }
@@ -258,55 +290,38 @@ extension TrainManager {
         }
     }
 
-    func applyAdvancedResolutions(_ resolutions: [OptimizerResolution], network: RailwayNetwork) {
-        objectWillChange.send() // Ensure UI starts reflecting changes
+
+    /// Applica i risultati dell'ottimizzatore V2 (Resolutions)
+    func applyResolutions(_ resolutions: [RailwayAIResolution], network: RailwayNetwork, trainMapping: [UUID: Int]) {
+        objectWillChange.send()
         
-        // CRITICAL: Reset ALL trains extra dwells to baseline before applying the new global solution
-        for i in trains.indices {
-            for k in trains[i].stops.indices {
-                trains[i].stops[k].extraDwellTime = 0
-            }
-        }
+        // Invert mapping for fast lookup
+        let idToUUID = Dictionary(uniqueKeysWithValues: trainMapping.map { ($1, $0) })
         
         for res in resolutions {
-            // Translate Integer ID back to UUID
-            if let trainUUID = RailwayAIService.shared.getTrainId(optimizerId: res.trainId),
-               let idx = trains.firstIndex(where: { $0.id == trainUUID }) {
-                
-                // IMPORTANT: res.timeAdjustmentMin is relative to the time originally sent in the request.
-                // To avoid stacking delays, we apply the shift to the departureTime.
-                // Since we reset everything except departureTime, if we run again, we send the SHIFTED time.
-                // AI then says 0 shift if it's already optimal.
-                // So adding res.timeAdjustmentMin is correct for cumulative tracking IF the AI works with snapshots.
-                
-                let currentDeparture = trains[idx].departureTime ?? Date()
-                let newDeparture = currentDeparture.addingTimeInterval(res.timeAdjustmentMin * 60)
-                
-                // 1. Update Departure Time
-                trains[idx].departureTime = newDeparture
-                
-                // 2. Apply Intermediate Dwell Delays
-                if let delays = res.dwellDelays, !delays.isEmpty {
-                    // Map intermediate delays
-                    let originId = network.relations.first(where: { $0.id == trains[idx].relationId })?.originId ?? trains[idx].stops.first?.stationId
-                    let originIndex = trains[idx].stops.firstIndex(where: { $0.stationId == originId }) ?? 0
-                    
-                    for (k, extra) in delays.enumerated() {
-                        let stopIdx = originIndex + k + 1 
-                        if stopIdx < trains[idx].stops.count - 1 {
-                            trains[idx].stops[stopIdx].extraDwellTime = extra
-                        }
+            guard let uuid = idToUUID[res.train_id],
+                  let idx = trains.firstIndex(where: { $0.id == uuid }) else { continue }
+            
+            // 1. Apply initial departure delay
+            if res.time_adjustment_min != 0 {
+                if let currentDep = trains[idx].departureTime {
+                    trains[idx].departureTime = currentDep.addingTimeInterval(res.time_adjustment_min * 60)
+                }
+            }
+            
+            // 2. Apply dwell delays to individual stops
+            if let dwells = res.dwell_delays {
+                for (stopIdx, delayMin) in dwells.enumerated() {
+                    if stopIdx < trains[idx].stops.count {
+                        // We add to the existing extra dwell
+                        trains[idx].stops[stopIdx].extraDwellTime += delayMin
                     }
                 }
-                
-                print("[Optimizer] Applied Resolution: \(trains[idx].name) +\(res.timeAdjustmentMin)m -> \(formatTime(newDeparture))")
             }
         }
         
-        // Recalculate everything
         refreshSchedules(with: network)
-        
-        // Final notification to observers
+        conflictManager.detectConflicts(network: network, trains: trains)
         objectWillChange.send()
     }
 }

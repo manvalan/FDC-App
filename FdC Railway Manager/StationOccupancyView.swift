@@ -125,55 +125,27 @@ struct StationOccupancyView: View {
         var foundTracks: Set<String> = []
         
         for train in manager.trains {
-            guard let startTime = train.departureTime,
-                  let relId = train.relationId,
-                  let relation = network.relations.first(where: { $0.id == relId }) else { continue }
-            
-            // Re-calculate times (Central logic needed!)
-            var currentTime = startTime
-            var prevId = relation.originId
-            
-            // Check Stops
-            for stop in relation.stops {
-                guard let distInfo = network.findShortestPath(from: prevId, to: stop.stationId) else { continue }
-                let hours = distInfo.1 / (Double(train.maxSpeed) * 0.9)
-                let arrivalDate = currentTime.addingTimeInterval(hours * 3600)
+            // Find if this train stops/passes at this station
+            if let stop = train.stops.first(where: { $0.stationId == station.id }) {
+                // We need arrival OR departure to show something
+                let arrival = stop.arrival ?? stop.departure ?? Date()
+                let departure = stop.departure ?? stop.arrival ?? Date().addingTimeInterval(300)
                 
-                let dwell = stop.isSkipped ? 0 : Double(stop.minDwellTime)
-                let depDate = arrivalDate.addingTimeInterval(dwell * 60) // Even if skipped, it takes time to pass through? No, dwell 0.
+                let track = stop.track ?? "1"
+                foundTracks.insert(track)
                 
-                // If this is our station
-                if stop.stationId == station.id {
-                    let track = stop.track ?? "Provisional"
-                    foundTracks.insert(track)
-                    
-                    results.append(OccupationBlock(
-                        trainName: train.name,
-                        track: track,
-                        arrival: arrivalDate,
-                        departure: stop.isSkipped ? arrivalDate.addingTimeInterval(60) : depDate, // Give at least 1 min visual width for pass-through
-                        type: stop.isSkipped ? "Passaggio" : "Fermata"
-                    ))
-                }
-                
-                currentTime = depDate
-                prevId = stop.stationId
-            }
-            // Terminus logic (no departure) - treat as long stop?
-             if relation.destinationId == station.id && prevId != relation.destinationId {
-                guard let distInfo = network.findShortestPath(from: prevId, to: relation.destinationId) else { continue }
-                let hours = distInfo.1 / (Double(train.maxSpeed) * 0.9)
-                let arrivalDate = currentTime.addingTimeInterval(hours * 3600)
-                 
-                 // Destination usually implies sitting there or shunting. 
-                 // We don't have track info for destination yet in Relation Model (unless added).
-                 // Use "Arrivo" as track or ?
-                 // For now skip destination unless we infer track.
+                results.append(OccupationBlock(
+                    trainName: train.name,
+                    track: track,
+                    arrival: arrival,
+                    departure: stop.isSkipped ? arrival.addingTimeInterval(120) : departure,
+                    type: stop.isSkipped ? "Passaggio" : "Fermata"
+                ))
             }
         }
         
         self.tracks = Array(foundTracks).sorted()
-        if self.tracks.isEmpty { self.tracks = ["1", "2"] } // Default
+        if self.tracks.isEmpty { self.tracks = ["1", "2"] }
         self.blocks = results
     }
 }

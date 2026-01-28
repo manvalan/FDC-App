@@ -295,24 +295,29 @@ struct RailwayAISchedulerView: View {
     // MARK: - Helpers
     
     private func runOptimization() {
-        isLoading = true
-        let request = service.createRequest(network: network, trains: trainManager.trains, conflicts: trainManager.conflictManager.conflicts)
-        
-        // Simulating some network delay for the UX feel
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            service.optimize(request: request)
-                .sink { completion in
-                    isLoading = false
-                    if case .failure(let error) = completion {
-                        errorMessage = error.localizedDescription
-                    }
-                } receiveValue: { response in
-                    withAnimation(.spring()) {
-                        optimizationResponse = response
-                    }
-                }
-                .store(in: &cancellables) // Need to add cancellables set
+        guard let request = try? service.createRequest(network: network, trains: trainManager.trains, conflicts: trainManager.conflictManager.conflicts) else {
+            errorMessage = "Errore creazione richiesta"
+            return
         }
+        
+        isLoading = true
+        errorMessage = nil
+        
+        // PIGNOLO PROTOCOL: Direct execution, no artificial delay.
+        service.optimize(request: request)
+            .receive(on: DispatchQueue.main)
+            .sink { completion in
+                self.isLoading = false
+                if case .failure(let error) = completion {
+                    self.errorMessage = error.localizedDescription
+                    print("❌ AI Optimization Error: \(error)")
+                }
+            } receiveValue: { response in
+                withAnimation(.spring()) {
+                    self.optimizationResponse = response
+                }
+            }
+            .store(in: &cancellables)
     }
     
     @State private var cancellables = Set<AnyCancellable>()

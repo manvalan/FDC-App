@@ -124,8 +124,8 @@ struct VerticalTrackDiagramView: View {
             selectedStationID = id
         }) {
             if let node = network.nodes.first(where: { $0.id == id }) {
-                let color = Color(hex: node.customColor ?? "") ?? (node.type == .interchange ? .red : .black)
-                let type = node.visualType ?? (node.type == .interchange ? .filledSquare : .filledCircle)
+                let color = Color(hex: node.customColor ?? node.defaultColor) ?? .black
+                let type = node.visualType ?? node.defaultVisualType
                 
                 ZStack {
                     Circle().fill(Color.white).frame(width: 16, height: 16) 

@@ -1,46 +1,102 @@
 import Foundation
 
-// MARK: - RailwayAI V2 API Models
+// MARK: - RailwayAI V2 API Models (PIGNOLO PROTOCOL SYNC)
 
-/// Request for optimization
+/// Request for optimization (Standard & Advanced unified to V2 Scheduled Schema)
 struct RailwayAIRequest: Codable {
-    let conflicts: [RailwayAIConflictInput]
-    let network: RailwayAINetworkInfo
-    let preferences: [String: AnyCodable]?
+    let trains: [RailwayAITrainInfo]
+    let tracks: [RailwayAITrackInfo]
+    let stations: [RailwayAIStationInfo]
+    let max_iterations: Int
+    let ga_max_iterations: Int?
+    let ga_population_size: Int?
+    
+    enum CodingKeys: String, CodingKey {
+        case trains, tracks, stations
+        case max_iterations = "max_iterations"
+        case ga_max_iterations = "ga_max_iterations"
+        case ga_population_size = "ga_population_size"
+    }
 }
 
-struct RailwayAIConflictInput: Codable {
-    let conflict_type: String
-    let location: String
-    let trains: [RailwayAITrainInfo]
-    let severity: String
-    let time_overlap_seconds: Int?
+struct RailwayAIStationInfo: Codable {
+    let id: Int
+    let name: String
+    let num_platforms: Int
+}
+
+struct RailwayAITrackInfo: Codable {
+    let id: Int
+    let station_ids: [Int]
+    let length_km: Double
+    let is_single_track: Bool
+    let capacity: Int
 }
 
 struct RailwayAITrainInfo: Codable {
-    let train_id: String
-    let arrival: String?
-    let departure: String?
-    let platform: Int?
-    let current_speed_kmh: Double?
+    let id: Int
     let priority: Int
-}
-
-struct RailwayAINetworkInfo: Codable {
-    let stations: [String]
-    let available_platforms: [String: [Int]]
-    let max_speeds: [String: Double]
+    let position_km: Double
+    let velocity_kmh: Double
+    let current_track: Int
+    let destination_station: Int
+    let delay_minutes: Int
+    let is_delayed: Bool
+    
+    // New fields for scheduled optimization
+    let origin_station: Int
+    let scheduled_departure_time: String
+    let planned_route: [Int]
+    let min_dwell_minutes: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case id, priority, position_km, velocity_kmh, current_track, destination_station, delay_minutes, is_delayed
+        case origin_station, scheduled_departure_time
+        case planned_route = "planned_route"
+        case min_dwell_minutes
+    }
 }
 
 /// Response from optimization
 struct RailwayAIResponse: Codable {
     let success: Bool
-    let total_impact_minutes: Double?
+    let total_delay_minutes: Double?
+    let resolutions: [RailwayAIResolution]?
+    let inference_time_ms: Double?
+    let conflicts_detected: Int?
+    let conflicts_resolved: Int?
+    let error_message: String?
+    
+    // Legacy support for V1 UI components
     let ml_confidence: Double?
     let modifications: [RailwayAIModification]?
     let conflict_analysis: RailwayAIConflictAnalysis?
-    let error_message: String?
+    let total_impact_minutes: Double?
+    
+    enum CodingKeys: String, CodingKey {
+        case success
+        case total_delay_minutes = "total_delay_minutes"
+        case resolutions
+        case inference_time_ms = "inference_time_ms"
+        case conflicts_detected = "conflicts_detected"
+        case conflicts_resolved = "conflicts_resolved"
+        case error_message = "error_message"
+        case ml_confidence = "ml_confidence"
+        case modifications
+        case conflict_analysis = "conflict_analysis"
+        case total_impact_minutes = "total_impact_minutes"
+    }
 }
+
+struct RailwayAIResolution: Codable {
+    let train_id: Int
+    let time_adjustment_min: Double
+    let track_assignment: Int?
+    let dwell_delays: [Double]?
+}
+
+// MARK: - Legacy V1 Models (Keeping for compatibility during transition if needed)
+// These might be removed later if we fully commit to V2 Scheduled
 
 struct RailwayAIModification: Codable, Identifiable {
     let id = UUID()
@@ -109,7 +165,6 @@ struct WSMessage: Codable {
     let scenario_path: String?
     let training_update: TrainingUpdate?
     
-    // Support for training_update directly in the message or nested
     let episode: Int?
     let reward: Double?
     let conflicts: Int?
@@ -163,7 +218,6 @@ struct AnyCodable: Codable {
         } else if let x = value as? [Any] {
             try container.encode(x.map { AnyCodable($0) })
         } else {
-            // Nil or unknown
             try container.encodeNil()
         }
     }

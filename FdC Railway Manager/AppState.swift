@@ -3,6 +3,7 @@ import Combine
 
 @MainActor
 final class AppState: ObservableObject {
+    static let shared = AppState()
     @Published var showAI: Bool = false
     var aiNetwork: RailwayNetwork? = nil
     @Published var didAutoImport: Bool = false
@@ -32,9 +33,15 @@ final class AppState: ObservableObject {
     }
     
     init() {
-        let endpoint = UserDefaults.standard.string(forKey: "ai_endpoint") ?? "http://82.165.138.64:8080/api/v1"
-        let username = UserDefaults.standard.string(forKey: "ai_username") ?? "admin"
+        var endpoint = UserDefaults.standard.string(forKey: "ai_endpoint") ?? "http://railway-ai.michelebigi.it:8080"
         
+        // MIGRATION FIX: Force update if old IP or broken HTTPS is found
+        if endpoint.contains("82.165.138.64") || endpoint.contains("localhost") || endpoint.hasPrefix("https://") {
+            endpoint = "http://railway-ai.michelebigi.it:8080"
+            UserDefaults.standard.set(endpoint, forKey: "ai_endpoint") // Persist correction
+        }
+
+        let username = UserDefaults.standard.string(forKey: "ai_username") ?? "admin"
         let password = KeychainHelper.shared.read(service: "it.fdc.railway", account: "ai_password") ?? ""
         let apiKey = KeychainHelper.shared.read(service: "it.fdc.railway", account: "ai_api_key") ?? ""
         let token = KeychainHelper.shared.read(service: "it.fdc.railway", account: "ai_token")

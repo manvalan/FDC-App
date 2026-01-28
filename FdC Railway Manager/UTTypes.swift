@@ -10,4 +10,9 @@ extension UTType {
     static var railml: UTType {
         UTType(importedAs: "org.railml")
     }
+
+    /// New FDC V2 Qualified Format
+    static var rail: UTType {
+        UTType(importedAs: "it.fdc.railv2")
+    }
 }

@@ -2,25 +2,17 @@ import SwiftUI
 
 struct StationEditView: View {
     @Binding var station: Node
+    @EnvironmentObject var network: RailwayNetwork
     @Environment(\.dismiss) var dismiss
-    
-    // We bind to a local copy to allow cancellation, or bind directly if "live edit" is preferred.
-    // Given the request for "live update" or simple edit, direct binding is easiest, 
-    // but a local state + save is safer. Let's do direct for "real-time" feel on colors, 
-    // but usually Sheet needs a button to commit or is just a detail view.
-    // The previous StationBoardView was just a board.
-    // Let's make this a real editor.
-    
-    // Direct binding for live updates
-    // Remove local state to avoid sync issues
     
     var onDelete: (() -> Void)? = nil
     @State private var showDeleteConfirmation = false
     
-    // Direct binding for live updates
-    // Remove local state to avoid sync issues
-    
     var body: some View {
+        let availableHubs = network.nodes
+            .filter { $0.id != station.id }
+            .sorted(by: { $0.name < $1.name })
+        
         Form {
             Section("Anagrafica") {
                 TextField("Nome Stazione", text: $station.name)
@@ -31,18 +23,45 @@ struct StationEditView: View {
                 }
                 .onChange(of: station.type) { newValue in
                     // Auto-update visual style when functional type changes
-                    station.visualType = defaultVisualType(for: newValue)
-                    let newColor = defaultColor(for: newValue)
-                    if let hex = newColor.toHex() {
-                        station.customColor = hex
+                    station.visualType = station.defaultVisualType
+                    station.customColor = station.defaultColor
+                }
+            }
+            
+            Section("Hub e Interscambi") {
+                Picker("Appartiene a HUB", selection: $station.parentHubId) {
+                    Text("Nessun HUB (Indipendente)").tag(String?.none)
+                    Divider()
+                    ForEach(availableHubs) { node in
+                        Text(node.name).tag(String?.some(node.id))
                     }
+                }
+                .onChange(of: station.parentHubId) { newHubId in
+                    // Auto-apply interchange look if it's part of a hub
+                    station.visualType = station.defaultVisualType
+                    station.customColor = station.defaultColor
+                    
+                    // Auto-position near parent hub
+                    if let hubId = newHubId,
+                       let parentHub = network.nodes.first(where: { $0.id == hubId }),
+                       let parentLat = parentHub.latitude,
+                       let parentLon = parentHub.longitude {
+                        // Position at bottom-left (like lower-left vertex of a square)
+                        station.latitude = parentLat - 0.01  // ~1km south
+                        station.longitude = parentLon - 0.01 // ~1km west
+                    }
+                }
+                
+                if station.parentHubId != nil {
+                    Text("Questa stazione è legata logicamente a un'altra. Verrà trattata come punto di interscambio rapido.")
+                        .font(.caption).foregroundColor(.blue)
                 }
             }
             
             Section("Aspetto Grafico") {
                 // Custom Binding for Visual Type to handle Optional
                 let visualTypeBinding = Binding<Node.StationVisualType>(
-                    get: { station.visualType ?? defaultVisualType(for: station.type) },
+                    get: { station.visualType ?? station.defaultVisualType },
                     set: { station.visualType = $0 }
                 )
                 
@@ -59,7 +78,7 @@ struct StationEditView: View {
                 
                 // Custom Binding for Color
                 let colorBinding = Binding<Color>(
-                    get: { Color(hex: station.customColor ?? "") ?? .black },
+                    get: { Color(hex: station.customColor ?? station.defaultColor) ?? .black },
                     set: { if let hex = $0.toHex() { station.customColor = hex } }
                 )
                 ColorPicker("Colore Personalizzato", selection: colorBinding)
@@ -112,23 +131,6 @@ struct StationEditView: View {
             }
         } message: {
             Text("Sei sicuro di voler eliminare questa stazione? L'azione non può essere annullata.")
-        }
-    }
-    
-    
-    private func defaultVisualType(for type: Node.NodeType) -> Node.StationVisualType {
-        switch type {
-        case .interchange: return .filledSquare
-        case .depot: return .filledSquare
-        default: return .filledCircle
-        }
-    }
-    
-    private func defaultColor(for type: Node.NodeType) -> Color {
-        switch type {
-        case .interchange: return .red
-        case .depot: return .orange
-        default: return .black
         }
     }
     

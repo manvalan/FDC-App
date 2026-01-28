@@ -40,6 +40,14 @@ struct FdC_Railway_ManagerApp: App {
                     .environmentObject(network)
                     .environmentObject(trainManager)
                     .environmentObject(appState)
+                    .environmentObject(loader)
+                    .task {
+                        // Periodic autosave every 30 seconds
+                        while true {
+                            try? await Task.sleep(nanoseconds: 30 * 1_000_000_000)
+                            await loader.saveCurrentState()
+                        }
+                    }
             }
         }
     }

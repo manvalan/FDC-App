@@ -28,9 +28,60 @@ struct Node: Identifiable, Codable, Hashable {
     var capacity: Int?
     var platforms: Int?
 
+    var parentHubId: String? // Groups multiple stations into one hub (e.g. MI Centrale + MI Centrale AV)
+    
+    enum CodingKeys: String, CodingKey {
+        case id, name, type, visualType, customColor, latitude, longitude, capacity, platforms, parentHubId
+    }
+
+    init(id: String, name: String, type: NodeType = .station, visualType: StationVisualType? = nil, customColor: String? = nil, latitude: Double? = nil, longitude: Double? = nil, capacity: Int? = nil, platforms: Int? = 2, parentHubId: String? = nil) {
+        self.id = id
+        self.name = name
+        self.type = type
+        self.visualType = visualType
+        self.customColor = customColor
+        self.latitude = latitude
+        self.longitude = longitude
+        self.capacity = capacity
+        self.platforms = platforms
+        self.parentHubId = parentHubId
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? id
+        type = try container.decodeIfPresent(NodeType.self, forKey: .type) ?? .station
+        visualType = try container.decodeIfPresent(StationVisualType.self, forKey: .visualType)
+        customColor = try container.decodeIfPresent(String.self, forKey: .customColor)
+        latitude = try container.decodeIfPresent(Double.self, forKey: .latitude)
+        longitude = try container.decodeIfPresent(Double.self, forKey: .longitude)
+        capacity = try container.decodeIfPresent(Int.self, forKey: .capacity)
+        platforms = try container.decodeIfPresent(Int.self, forKey: .platforms) ?? 2
+        parentHubId = try container.decodeIfPresent(String.self, forKey: .parentHubId)
+    }
+
     var coordinate: CLLocationCoordinate2D? {
         guard let lat = latitude, let lon = longitude else { return nil }
         return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+    }
+    
+    // UI Helpers for consistent defaults
+    var defaultVisualType: StationVisualType {
+        if parentHubId != nil { return .filledSquare } // Hub is always a square
+        switch type {
+        case .interchange, .depot: return .filledSquare
+        default: return .filledCircle
+        }
+    }
+    
+    var defaultColor: String {
+        if parentHubId != nil { return "#FF3B30" } // Hub is always red
+        switch type {
+        case .interchange: return "#FF3B30" // Red
+        case .depot: return "#FF9500" // Orange
+        default: return "#000000" // Black
+        }
     }
 }
 
@@ -46,40 +97,122 @@ struct Edge: Identifiable, Codable, Hashable {
     var trackType: TrackType
     var maxSpeed: Int
     var capacity: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, from, to, distance, trackType, maxSpeed, capacity
+    }
+
+    init(id: UUID = UUID(), from: String, to: String, distance: Double, trackType: TrackType, maxSpeed: Int, capacity: Int? = nil) {
+        self.id = id
+        self.from = from
+        self.to = to
+        self.distance = distance
+        self.trackType = trackType
+        self.maxSpeed = maxSpeed
+        self.capacity = capacity
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        from = try container.decode(String.self, forKey: .from)
+        to = try container.decode(String.self, forKey: .to)
+        distance = try container.decodeIfPresent(Double.self, forKey: .distance) ?? 1.0
+        trackType = try container.decodeIfPresent(TrackType.self, forKey: .trackType) ?? .regional
+        maxSpeed = try container.decodeIfPresent(Int.self, forKey: .maxSpeed) ?? 120
+        capacity = try container.decodeIfPresent(Int.self, forKey: .capacity)
+    }
 }
 
-// Linea ferroviaria (insieme di stazioni)
+// Linea ferroviaria (insieme di stazioni con tempi di sosta) - Unificata con Relazione
 struct RailwayLine: Identifiable, Codable, Hashable {
     let id: String
     var name: String
     var color: String? // ex: "#ff0000"
     var width: Double? // Line thickness in schematic view
-    var stations: [String] // IDs delle stazioni
+    var originId: String = ""
+    var destinationId: String = ""
+    var stops: [RelationStop] = [] 
+    
+    var stations: [String] {
+        stops.map { $0.stationId }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, color, width, originId, destinationId, stops
+    }
+
+    init(id: String, name: String, color: String? = nil, width: Double? = nil, originId: String = "", destinationId: String = "", stops: [RelationStop] = []) {
+        self.id = id
+        self.name = name
+        self.color = color
+        self.width = width
+        self.originId = originId
+        self.destinationId = destinationId
+        self.stops = stops
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Linea Senza Nome"
+        color = try container.decodeIfPresent(String.self, forKey: .color)
+        width = try container.decodeIfPresent(Double.self, forKey: .width)
+        originId = try container.decodeIfPresent(String.self, forKey: .originId) ?? ""
+        destinationId = try container.decodeIfPresent(String.self, forKey: .destinationId) ?? ""
+        stops = try container.decodeIfPresent([RelationStop].self, forKey: .stops) ?? []
+    }
 }
 
 // Fermata in una relazione (con tempo di sosta)
 struct RelationStop: Identifiable, Codable, Hashable {
     var id: UUID = UUID()
     var stationId: String
-    var minDwellTime: Int = 3 // Minuti di sosta (default 3)
-    var extraDwellTime: Double = 0 // Extra delay from AI (minutes)
+    var minDwellTime: Int = 3 // Minuit di sosta base (default 3)
+    var extraDwellTime: Double = 0 // Ritardo extra da AI (minuti)
     var isSkipped: Bool = false // Se true, il treno non ferma (transito)
-    var track: String? // Binario programmato (es: "1", "2", "1 Tronco")
+    var track: String? // Binario programmato (es: "1")
     
-    // Cached calculation for persistence/display
+    // Per treni specifici: orari pianificati (opzionali, sovrascrivono il calcolo)
+    var plannedArrival: Date?
+    var plannedDeparture: Date?
+    
+    // Campi calcolati per visualizzazione/validazione corrente
     var arrival: Date?
     var departure: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, stationId, minDwellTime, extraDwellTime, isSkipped, track, plannedArrival, plannedDeparture, arrival, departure
+    }
+
+    init(id: UUID = UUID(), stationId: String, minDwellTime: Int = 3, extraDwellTime: Double = 0, isSkipped: Bool = false, track: String? = nil, plannedArrival: Date? = nil, plannedDeparture: Date? = nil, arrival: Date? = nil, departure: Date? = nil) {
+        self.id = id
+        self.stationId = stationId
+        self.minDwellTime = minDwellTime
+        self.extraDwellTime = extraDwellTime
+        self.isSkipped = isSkipped
+        self.track = track
+        self.plannedArrival = plannedArrival
+        self.plannedDeparture = plannedDeparture
+        self.arrival = arrival
+        self.departure = departure
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        stationId = try container.decode(String.self, forKey: .stationId)
+        minDwellTime = try container.decodeIfPresent(Int.self, forKey: .minDwellTime) ?? 3
+        extraDwellTime = try container.decodeIfPresent(Double.self, forKey: .extraDwellTime) ?? 0
+        isSkipped = try container.decodeIfPresent(Bool.self, forKey: .isSkipped) ?? false
+        track = try container.decodeIfPresent(String.self, forKey: .track)
+        plannedArrival = try container.decodeIfPresent(Date.self, forKey: .plannedArrival)
+        plannedDeparture = try container.decodeIfPresent(Date.self, forKey: .plannedDeparture)
+        arrival = try container.decodeIfPresent(Date.self, forKey: .arrival)
+        departure = try container.decodeIfPresent(Date.self, forKey: .departure)
+    }
 }
 
-// Relazione Treno (Template di itinerario)
-struct TrainRelation: Identifiable, Codable, Hashable {
-    let id: UUID
-    var lineId: String
-    var name: String
-    var originId: String
-    var destinationId: String
-    var stops: [RelationStop] // Updated from [String]
-}
 
 // Rete ferroviaria (grafo)
 @MainActor
@@ -88,14 +221,12 @@ class RailwayNetwork: ObservableObject {
     @Published var nodes: [Node]
     @Published var edges: [Edge]
     @Published var lines: [RailwayLine]
-    @Published var relations: [TrainRelation]
 
-    init(name: String, nodes: [Node] = [], edges: [Edge] = [], lines: [RailwayLine] = [], relations: [TrainRelation] = []) {
+    init(name: String, nodes: [Node] = [], edges: [Edge] = [], lines: [RailwayLine] = []) {
         self.name = name
         self.nodes = nodes
         self.edges = edges
         self.lines = lines
-        self.relations = relations
     }
 
     // MARK: - Gestione nodi e archi
@@ -196,12 +327,29 @@ class RailwayNetwork: ObservableObject {
     
     // Support for per-edge travel logic
     func findPathEdges(from startId: String, to endId: String) -> [Edge]? {
-        var queue: [(id: String, path: [Edge])] = [(startId, [])]
+        guard startId != endId else { return [] }
+        
+        var queue: [String] = [startId]
+        var predecessors: [String: (String, Edge)] = [:]
         var visited: Set<String> = [startId]
         
-        while !queue.isEmpty {
-            let (curr, path) = queue.removeFirst()
-            if curr == endId { return path }
+        var head = 0
+        while head < queue.count {
+            let curr = queue[head]
+            head += 1
+            
+            if curr == endId {
+                // Reconstruct path
+                var path: [Edge] = []
+                var temp = curr
+                while temp != startId {
+                    if let (prev, edge) = predecessors[temp] {
+                        path.insert(edge, at: 0)
+                        temp = prev
+                    } else { break }
+                }
+                return path
+            }
             
             let outgoing = edges.filter { edge in
                 if edge.from == curr { return true }
@@ -213,9 +361,8 @@ class RailwayNetwork: ObservableObject {
                 let nextId = (edge.from == curr) ? edge.to : edge.from
                 if !visited.contains(nextId) {
                     visited.insert(nextId)
-                    var newPath = path
-                    newPath.append(edge)
-                    queue.append((nextId, newPath))
+                    predecessors[nextId] = (curr, edge)
+                    queue.append(nextId)
                 }
             }
         }

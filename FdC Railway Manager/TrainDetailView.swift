@@ -29,14 +29,23 @@ struct TrainDetailView: View {
                     Image(systemName: "train.side.front.car")
                         .font(.largeTitle)
                         .foregroundColor(.blue)
-                    VStack(alignment: .leading) {
-                        TextField("Nome Treno", text: train.name)
-                            .font(.title2).bold()
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            TextField("Numero", value: train.number, format: .number)
+                                .font(.title2).bold()
+                                .frame(width: 80)
+                                .textFieldStyle(.roundedBorder)
+                            
+                            TextField("Nome Treno", text: train.name)
+                                .font(.title2).bold()
+                        }
+                        
                         Picker("Tipo", selection: train.type) {
                             Text("Regionale").tag("Regionale")
                             Text("Diretto").tag("Diretto")
                             Text("Alta Velocità").tag("Alta Velocità")
                             Text("Merci").tag("Merci")
+                            Text("Supporto").tag("Supporto")
                         }
                         .labelsHidden()
                         .pickerStyle(.menu)
@@ -52,15 +61,15 @@ struct TrainDetailView: View {
                         set: { train.wrappedValue.departureTime = $0 }
                     ), displayedComponents: .hourAndMinute)
                     
-                    if let relId = train.wrappedValue.relationId, 
-                       let relIndex = network.relations.firstIndex(where: { $0.id == relId }) {
+                    if let lineId = train.wrappedValue.lineId, 
+                       let lineIndex = network.lines.firstIndex(where: { $0.id == lineId }) {
                         
-                        Text("Relazione: \(network.relations[relIndex].name)").font(.headline)
+                        Text("Linea: \(network.lines[lineIndex].name)").font(.headline)
                         
                         // Schedule Table with Binding to Train's Own Stops
-                        ScheduleView(train: train, relation: network.relations[relIndex], network: network)
+                        ScheduleView(train: train, line: network.lines[lineIndex], network: network)
                     } else {
-                        Text("Nessuna relazione assegnata").italic().foregroundColor(.secondary)
+                        Text("Nessuna linea assegnata").italic().foregroundColor(.secondary)
                     }
                 }
                 
@@ -93,7 +102,7 @@ struct TrainDetailView: View {
 // Subview for Schedule Calculation
 struct ScheduleView: View {
     @Binding var train: Train
-    let relation: TrainRelation // Now reference only
+    let line: RailwayLine // Now reference only
     @ObservedObject var network: RailwayNetwork
     
     struct ScheduleRow: Identifiable {
@@ -111,64 +120,26 @@ struct ScheduleView: View {
     @State private var editingStopIndex: Int? = nil
     @State private var editTrack: String = ""
     @State private var editDwell: Int = 3
+    @State private var editPlannedArr: Date? = nil
+    @State private var editPlannedDep: Date? = nil
     
     var schedule: [ScheduleRow] {
-        guard let startTime = train.departureTime else { return [] }
         var rows: [ScheduleRow] = []
-        var currentTime = startTime
         
-        // 1. Origin
-        if let originNode = network.nodes.first(where: { $0.id == relation.originId }) {
-            rows.append(ScheduleRow(index: -1, stationName: originNode.name, arrival: nil, departure: currentTime, type: "Partenza", stopIndex: nil, currentTrack: nil))
-        }
-        
-        var previousId = relation.originId
-        var destinationReached = false
-        
-        // 2. Stops (From Train Snapshot)
         for (index, stop) in train.stops.enumerated() {
-            if stop.stationId == relation.originId { continue } // Skip if origin duplicated
+            let isOrigin = (index == 0)
+            let isDestination = (index == train.stops.count - 1)
+            let nodeName = network.nodes.first(where: { $0.id == stop.stationId })?.name ?? stop.stationId
             
-            // Calc travel
-            guard let distInfo = network.findShortestPath(from: previousId, to: stop.stationId) else { continue }
-            let hours = distInfo.1 / (Double(train.maxSpeed) * 0.9)
-            let arrivalTime = currentTime.addingTimeInterval(hours * 3600)
-            
-            let isDestination = (stop.stationId == relation.destinationId)
-            if isDestination { destinationReached = true }
-             
-            let dwellMinutes = stop.isSkipped ? 0 : Double(stop.minDwellTime)
-            let departureTime = isDestination ? nil : arrivalTime.addingTimeInterval(dwellMinutes * 60)
-            
-            if let node = network.nodes.first(where: { $0.id == stop.stationId }) {
-                rows.append(ScheduleRow(
-                    index: index,
-                    stationName: node.name,
-                    arrival: arrivalTime,
-                    departure: stop.isSkipped ? nil : departureTime,
-                    type: isDestination ? "Arrivo" : (stop.isSkipped ? "Transito" : "Fermata"),
-                    stopIndex: index,
-                    currentTrack: stop.track
-                ))
-            }
-            
-            if let dep = departureTime {
-                currentTime = dep
-            } else {
-                currentTime = arrivalTime
-            }
-            previousId = stop.stationId
-        }
-        
-        // 3. Destination (if separate)
-        if !destinationReached && previousId != relation.destinationId {
-             guard let distInfo = network.findShortestPath(from: previousId, to: relation.destinationId) else { return rows }
-             let hours = distInfo.1 / (Double(train.maxSpeed) * 0.9)
-             let arrivalTime = currentTime.addingTimeInterval(hours * 3600)
-             
-             if let dest = network.nodes.first(where: { $0.id == relation.destinationId }) {
-                 rows.append(ScheduleRow(index: -99, stationName: dest.name, arrival: arrivalTime, departure: nil, type: "Arrivo", stopIndex: nil, currentTrack: nil))
-             }
+            rows.append(ScheduleRow(
+                index: index,
+                stationName: nodeName,
+                arrival: stop.arrival,
+                departure: stop.departure,
+                type: isOrigin ? "Partenza" : (isDestination ? "Arrivo" : (stop.isSkipped ? "Transito" : "Fermata")),
+                stopIndex: index,
+                currentTrack: stop.track
+            ))
         }
         
         return rows
@@ -179,6 +150,7 @@ struct ScheduleView: View {
             GridRow {
                 Text("Stazione").bold()
                 Text("Arr").bold()
+                Text("Sos").bold()
                 Text("Par").bold()
                 Text("Bin").bold()
             }
@@ -193,31 +165,47 @@ struct ScheduleView: View {
                         Text(row.stationName)
                     }
                     
-                    Text(format(row.arrival))
+                    // Arrival
+                    if let arr = row.arrival, let idx = row.stopIndex {
+                        Button(action: { prepareEdit(idx) }) {
+                            HStack(spacing: 2) {
+                                if train.stops[idx].plannedArrival != nil { Image(systemName: "clock.fill").font(.system(size: 8)) }
+                                Text(format(arr))
+                                    .underline(train.stops[idx].plannedArrival != nil)
+                            }
+                        }
+                    } else {
+                        Text(format(row.arrival))
+                    }
                     
-                    // Editable Departure
+                    // Sosta (Dwell)
+                    if let idx = row.stopIndex {
+                        let stop = train.stops[idx]
+                        if !stop.isSkipped && idx > 0 && idx < train.stops.count - 1 {
+                            Text("\(stop.minDwellTime)m")
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("-").foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    // Departure
                     if let dep = row.departure, let idx = row.stopIndex {
-                         Button(action: {
-                             // Open Edit Sheet
-                             self.editDwell = train.stops[idx].minDwellTime
-                             self.editTrack = train.stops[idx].track ?? ""
-                             self.editingStopIndex = idx
-                         }) {
-                             Text(format(dep))
-                                 .underline()
-                                 .foregroundColor(.blue)
+                         Button(action: { prepareEdit(idx) }) {
+                             HStack(spacing: 2) {
+                                if train.stops[idx].plannedDeparture != nil { Image(systemName: "clock.fill").font(.system(size: 8)) }
+                                Text(format(dep))
+                                    .underline()
+                                    .foregroundColor(.blue)
+                             }
                          }
                     } else {
                         Text(format(row.departure))
                     }
                     
-                    // Editable Track
+                    // Track
                     if let idx = row.stopIndex {
-                         Button(action: {
-                             self.editDwell = train.stops[idx].minDwellTime
-                             self.editTrack = train.stops[idx].track ?? ""
-                             self.editingStopIndex = idx
-                         }) {
+                         Button(action: { prepareEdit(idx) }) {
                              if let t = row.currentTrack, !t.isEmpty {
                                  Text(t).padding(4).background(Color.orange.opacity(0.2)).cornerRadius(4)
                              } else {
@@ -239,29 +227,60 @@ struct ScheduleView: View {
                 Form {
                     Section("Modifica Fermata") {
                         TextField("Binario", text: $editTrack)
-                        Stepper("Sosta: \(editDwell) min", value: $editDwell, in: 0...120)
+                        Stepper("Sosta Minima: \(editDwell) min", value: $editDwell, in: 0...120)
+                    }
+                    
+                    Section("Orari Pianificati (Vincoli)") {
+                        Toggle("Arrivo Pianificato", isOn: Binding(
+                            get: { editPlannedArr != nil },
+                            set: { if $0 { editPlannedArr = train.stops[stopIdx].arrival ?? Date() } else { editPlannedArr = nil } }
+                        ))
+                        if let arr = editPlannedArr {
+                            DatePicker("Ora Arrivo", selection: Binding(get: { arr }, set: { editPlannedArr = $0 }), displayedComponents: .hourAndMinute)
+                        }
+                        
+                        Toggle("Partenza Pianificata", isOn: Binding(
+                            get: { editPlannedDep != nil },
+                            set: { if $0 { editPlannedDep = train.stops[stopIdx].departure ?? Date() } else { editPlannedDep = nil } }
+                        ))
+                        if let dep = editPlannedDep {
+                            DatePicker("Ora Partenza", selection: Binding(get: { dep }, set: { editPlannedDep = $0 }), displayedComponents: .hourAndMinute)
+                        }
                     }
                 }
-                .navigationTitle("Modifica")
+                .navigationTitle("Modifica Fermata")
                 .toolbar {
-                    Button("Salva") {
-                        // Update Train Snapshot
-                        if stopIdx < train.stops.count {
-                            train.stops[stopIdx].minDwellTime = editDwell
-                            train.stops[stopIdx].track = editTrack.isEmpty ? nil : editTrack
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Salva") {
+                            if stopIdx < train.stops.count {
+                                train.stops[stopIdx].minDwellTime = editDwell
+                                train.stops[stopIdx].track = editTrack.isEmpty ? nil : editTrack
+                                train.stops[stopIdx].plannedArrival = editPlannedArr
+                                train.stops[stopIdx].plannedDeparture = editPlannedDep
+                            }
+                            editingStopIndex = nil
                         }
-                        editingStopIndex = nil
                     }
                 }
             }
-            .presentationDetents([.fraction(0.3)])
+            .presentationDetents([.medium])
         }
+    }
+    
+    private func prepareEdit(_ idx: Int) {
+        let stop = train.stops[idx]
+        self.editDwell = stop.minDwellTime
+        self.editTrack = stop.track ?? ""
+        self.editPlannedArr = stop.plannedArrival
+        self.editPlannedDep = stop.plannedDeparture
+        self.editingStopIndex = idx
     }
     
     func format(_ date: Date?) -> String {
         guard let date = date else { return "-" }
         let f = DateFormatter()
         f.dateFormat = "HH:mm"
+        f.timeZone = TimeZone(secondsFromGMT: 0) // SYNC UTC
         return f.string(from: date)
     }
 }

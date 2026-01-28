@@ -36,7 +36,7 @@ struct ContentView: View {
             case .lines: return "point.topleft.down.to.point.bottomright.curvepath"
             case .trains: return "train.side.front.car"
             case .ai: return "sparkles"
-            case .io: return "arrow.up.doc.on.arrow.down.doc"
+            case .io: return "doc.badge.arrow.up"
             case .settings: return "gear"
             }
         }
@@ -141,6 +141,7 @@ struct ContentView: View {
                 }
             }
         }
+        .environmentObject(network) // Ensure network is available for Hub Picker
         .onChange(of: selectedLine) { newVal in 
             if newVal != nil { 
                 selectedNode = nil
@@ -173,8 +174,12 @@ struct ContentView: View {
                 inspectorVisible = true
             }
         }
-        .onChange(of: network.relations) { _ in
+        .onChange(of: network.lines) { _ in
             trainManager.validateSchedules(with: network)
+        }
+        .onChange(of: trainManager.trains) { _ in
+            trainManager.validateSchedules(with: network)
+            appState.simulator.schedules = trainManager.generateSchedules(with: network)
         }
     }
     
@@ -279,22 +284,19 @@ struct LinesListView: View {
         }
     }
 }
-
 struct TrainsListView: View {
-    @EnvironmentObject var manager: TrainManager
     @EnvironmentObject var network: RailwayNetwork
+    @EnvironmentObject var manager: TrainManager
     @EnvironmentObject var appState: AppState
     
-    @State private var showAddRelationForLine: RailwayLine? = nil
-    @State private var showScheduleForLine: RailwayLine? = nil // New State
-    
-    @State private var selectedRelation: TrainRelation? = nil // For editing
-    @State private var scheduleRelation: TrainRelation? = nil // For scheduling
-    @Binding var selectedTrains: Set<UUID> // Multi-selection support (Lifted to parent)
+    @State private var scheduleLine: RailwayLine? = nil
+    @State private var customTrainLine: RailwayLine? = nil
+    @State private var showScheduleForLine: RailwayLine? = nil
+    @Binding var selectedTrains: Set<UUID>
     @State private var showAddTrain = false
     
     // AI State
-    @State private var suggestingForRelation: TrainRelation? = nil
+    @State private var suggestingForLine: RailwayLine? = nil
     @State private var aiSuggestion: String? = nil
     @State private var isAiLoading = false
     
@@ -303,69 +305,39 @@ struct TrainsListView: View {
             ForEach(network.lines) { line in
                 Section(header: LineHeader(
                     line: line,
-                    onAddRelation: { showAddRelationForLine = line },
+                    onAddTrain: { customTrainLine = line },
+                    onAddTrainCadenced: { scheduleLine = line },
                     onShowSchedule: { showScheduleForLine = line }
                 )) {
-                    // Relations for this line
-                    let lineRelations = network.relations.filter { $0.lineId == line.id }
+                    let lineTrains = manager.trains.filter { $0.lineId == line.id }
                     
-                    if lineRelations.isEmpty {
-                        Text("Nessuna relazione definita.").font(.caption).foregroundColor(.secondary)
+                    if lineTrains.isEmpty {
+                        Text("Nessun treno assegnato a questa linea.").font(.caption).foregroundColor(.secondary)
                     }
                     
-                    ForEach(lineRelations) { relation in
-                        RelationRow(
-                            relation: relation,
-                            trains: manager.trains.filter { $0.relationId == relation.id },
+                    ForEach(lineTrains) { train in
+                        TrainRow(
+                            train: train,
                             selectedIds: selectedTrains,
-                            onSelectTrain: { train in
-                                // Exclusive Selection (Inspect)
-                                selectedTrains = [train.id]
-                            },
-                            onToggleSelection: { train in
-                                // Multi-Selection Toggle
-                                if selectedTrains.contains(train.id) {
-                                    selectedTrains.remove(train.id)
-                                } else {
-                                    selectedTrains.insert(train.id)
-                                }
-                            },
-                            onSuggest: { suggestFrequency(for: relation) },
-                            onEdit: { selectedRelation = relation },
-                            onSchedule: { scheduleRelation = relation }
+                            onSelectTrain: { t in selectedTrains = [t.id] },
+                            onToggleSelection: { t in
+                                if selectedTrains.contains(t.id) { selectedTrains.remove(t.id) }
+                                else { selectedTrains.insert(t.id) }
+                            }
                         )
                     }
                     .onDelete { idx in
-                        // Delete relation logic
-                        let toDelete = idx.map { lineRelations[$0] }
-                        for rel in toDelete {
-                            if let index = network.relations.firstIndex(where: { $0.id == rel.id }) {
-                                network.relations.remove(at: index)
-                            }
-                            // Unassign trains?
-                             for i in manager.trains.indices {
-                                if manager.trains[i].relationId == rel.id {
-                                    manager.trains[i].relationId = nil
-                                }
-                            }
-                        }
+                        let toDel = idx.map { lineTrains[$0] }
+                        manager.trains.removeAll { t in toDel.contains(where: { t.id == $0.id }) }
                     }
                 }
             }
             
             Section("Treni Non Assegnati") {
-                let unassigned = manager.trains.filter { $0.relationId == nil }
+                let unassigned = manager.trains.filter { $0.lineId == nil }
                 ForEach(unassigned) { train in
                     Button(action: {
-                        if selectedTrains.contains(train.id) {
-                             selectedTrains.remove(train.id)
-                        } else {
-                             // Exclusive select?
-                             // selectedTrains = [train.id]
-                             // Let's stick to additive logic/toggle or exclusive?
-                             // Consistent with RelationRow:
-                             selectedTrains = [train.id]
-                        }
+                        selectedTrains = [train.id]
                     }) {
                         HStack {
                             Image(systemName: "exclamationmark.triangle").foregroundColor(.orange)
@@ -385,23 +357,11 @@ struct TrainsListView: View {
             }
         }
         .navigationTitle("Gestione Orari")
-        .sheet(item: $showAddRelationForLine) { line in
-            TrainRelationView(line: line) { newRel in
-                network.relations.append(newRel)
-            }
+        .sheet(item: $scheduleLine) { line in
+            ScheduleCreationView(line: line)
         }
-        .sheet(item: $selectedRelation) { relation in
-            // Find line
-            if let line = network.lines.first(where: { $0.id == relation.lineId }) {
-                TrainRelationView(line: line, relation: relation) { updatedRel in
-                    if let idx = network.relations.firstIndex(where: { $0.id == relation.id }) {
-                        network.relations[idx] = updatedRel
-                    }
-                }
-            }
-        }
-        .sheet(item: $scheduleRelation) { relation in
-            ScheduleCreationView(relation: relation)
+        .sheet(item: $customTrainLine) { line in
+            TrainCreationView(line: line)
         }
         .fullScreenCover(item: $showScheduleForLine) { line in
             NavigationStack {
@@ -423,22 +383,17 @@ struct TrainsListView: View {
         }
     }
     
-    private func suggestFrequency(for relation: TrainRelation) {
-        // Construct prompt
-        guard let line = network.lines.first(where: { $0.id == relation.lineId }) else { return }
-        
-        let stopNames = relation.stops.compactMap { s in 
+    private func suggestFrequency(for line: RailwayLine) {
+        let stopNames = line.stops.compactMap { s in 
             if let name = network.nodes.first(where: { $0.id == s.stationId })?.name {
                 return s.isSkipped ? "\(name) (Transito)" : name
             }
             return nil
         }.joined(separator: ", ")
 
-        // Improved Prompt
         let prompt = """
-        Sto pianificando l'orario ferroviario per la relazione "\(relation.name)".
-        Linea di appartenenza: \(line.name). 
-        Fermate (\(relation.stops.count)): \(stopNames).
+        Sto pianificando l'orario ferroviario per la linea "\(line.name)".
+        Fermate (\(line.stops.count)): \(stopNames).
         Tempo di sosta medio per fermata: 3 minuti.
         
         Suggerisci una frequenza oraria ottimale (es. ogni 30 min, ogni ora) basandoti sulla lunghezza del percorso e sul tipo di servizio (Regionale/Diretto). Fornisci una risposta concisa con la frequenza e una breve motivazione.
@@ -462,8 +417,9 @@ struct TrainsListView: View {
 // Helpers
 struct LineHeader: View {
     let line: RailwayLine
-    let onAddRelation: () -> Void
-    let onShowSchedule: () -> Void // New closure
+    let onAddTrain: () -> Void
+    let onAddTrainCadenced: () -> Void
+    let onShowSchedule: () -> Void
     
     var body: some View {
         HStack {
@@ -480,94 +436,58 @@ struct LineHeader: View {
             .buttonStyle(.plain)
             .padding(.trailing, 8)
             
-            Button(action: onAddRelation) {
-                Label("Nuova Relazione", systemImage: "plus.circle")
-                    .labelStyle(.iconOnly)
+            Menu {
+                Button(action: onAddTrain) {
+                    Label("Nuova Corsa Singola", systemImage: "train.side.front.car")
+                }
+                Button(action: onAddTrainCadenced) {
+                    Label("Genera Orario Cadenzato", systemImage: "calendar.badge.plus")
+                }
+            } label: {
+                Image(systemName: "plus.circle")
+                    .foregroundColor(.accentColor)
+                    .imageScale(.large)
             }
             .buttonStyle(.plain)
         }
     }
 }
 
-struct RelationRow: View {
-    let relation: TrainRelation
-    let trains: [Train]
+struct TrainRow: View {
+    let train: Train
     let selectedIds: Set<UUID>
     let onSelectTrain: (Train) -> Void
-    let onToggleSelection: (Train) -> Void // New closure
-    let onSuggest: () -> Void
-    let onEdit: () -> Void
-    let onSchedule: () -> Void
-    
-    @State private var isExpanded = true
+    let onToggleSelection: (Train) -> Void
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Relation Header
+        Button(action: { onSelectTrain(train) }) {
             HStack {
-                Button(action: { withAnimation { isExpanded.toggle() } }) {
+                Image(systemName: selectedIds.contains(train.id) ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(selectedIds.contains(train.id) ? .blue : .secondary)
+                    .onTapGesture { onToggleSelection(train) }
+                
+                VStack(alignment: .leading) {
                     HStack {
-                        Image(systemName: "arrow.triangle.swap")
-                        Text(relation.name).font(.subheadline).bold()
+                        Text("\(train.number)").font(.subheadline).bold().foregroundColor(.blue)
+                        Text(train.name).font(.subheadline)
+                    }
+                    if let dep = train.departureTime {
+                        Text("Partenza: \(formatTime(dep))").font(.caption2).foregroundColor(.secondary)
                     }
                 }
-                .buttonStyle(.plain)
-                
                 Spacer()
-                
-                Button(action: onSchedule) {
-                    Image(systemName: "calendar.badge.plus").foregroundColor(.green)
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 4)
-                
-                Button(action: onSuggest) {
-                    Image(systemName: "sparkles").foregroundColor(.purple)
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 4)
-                
-                Button(action: onEdit) {
-                    Image(systemName: "pencil").foregroundColor(.blue)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.vertical, 8)
-            
-            if isExpanded {
-                if trains.isEmpty {
-                    Text("Nessun treno assegnato.").font(.caption2).padding(.leading)
-                } else {
-                    ForEach(trains) { train in
-                        HStack(spacing: 0) {
-                            // Checkbox for Multi-Selection
-                            Button(action: { onToggleSelection(train) }) {
-                                Image(systemName: selectedIds.contains(train.id) ? "checkmark.square.fill" : "square")
-                                    .foregroundColor(selectedIds.contains(train.id) ? .blue : .secondary)
-                                    .padding(.trailing, 8)
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.leading, 8)
-
-                            // Main Row for Inspection (Exclusive Select)
-                            Button(action: { onSelectTrain(train) }) {
-                                HStack {
-                                    Image(systemName: "train.side.front.car").font(.caption)
-                                    Text(train.name).font(.callout)
-                                    Spacer()
-                                    Text(train.type).font(.caption2).foregroundColor(.secondary)
-                                }
-                            .buttonStyle(.plain)
-                        }
-                        .background(selectedIds.contains(train.id) ? Color.accentColor.opacity(0.1) : Color.clear)
-                        .cornerRadius(4)
-                        Divider().padding(.leading, 32)
-                    }
-                }
+                Text(train.type).font(.caption2).padding(4).background(Color.blue.opacity(0.1)).cornerRadius(4)
             }
         }
+        .buttonStyle(.plain)
     }
-}
+    
+    private func formatTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        return f.string(from: date)
+    }
 }
 
 struct LineDetailView: View {
@@ -599,17 +519,41 @@ struct LineDetailView: View {
                  VerticalTrackDiagramView(line: line, network: network)
                      .frame(minHeight: 300)
              }
+             
+             Section("Tempi di Sosta e Binari") {
+                 ForEach($line.stops) { $stop in
+                     HStack {
+                         Text(stopName(stop.stationId))
+                             .font(.caption)
+                             .frame(width: 100, alignment: .leading)
+                         
+                         TextField("Binario", text: Binding(
+                             get: { stop.track ?? "" },
+                             set: { stop.track = $0.isEmpty ? nil : $0 }
+                         ))
+                         .textFieldStyle(.roundedBorder)
+                         .frame(width: 60)
+                         
+                         Stepper("\(stop.minDwellTime)m", value: $stop.minDwellTime, in: 0...120)
+                             .font(.caption)
+                     }
+                 }
+             }
          }
          .navigationTitle("Modifica Linea")
      }
-}
+     
+     private func stopName(_ id: String) -> String {
+         network.nodes.first(where: { $0.id == id })?.name ?? id
+     }
+ }
 
 
 // ... (Subviews)
 
 // MARK: - Document Support
 struct RailwayNetworkDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [UTType.json, UTType.fdc, UTType.railml] }
+    static var readableContentTypes: [UTType] { [UTType.json, UTType.fdc, UTType.railml, UTType.rail] }
     var dto: RailwayNetworkDTO
     
     @MainActor
@@ -621,11 +565,20 @@ struct RailwayNetworkDocument: FileDocument {
     init(configuration: ReadConfiguration) throws {
         guard let data = configuration.file.regularFileContents else { throw CocoaError(.fileReadCorruptFile) }
         let decoder = JSONDecoder()
+        
+        // 1. Try new Container format
+        if let container = try? decoder.decode(RailFileContainer.self, from: data) {
+            self.dto = container.network
+            return
+        }
+        
+        // 2. Try Standard DTO (Legacy JSON)
         if let dto = try? decoder.decode(RailwayNetworkDTO.self, from: data) {
             self.dto = dto
             return
         }
-        // Fallback for FDC Legacy / RailML
+        
+        // 3. Fallback / Validation Error
         throw CocoaError(.fileReadCorruptFile)
     }
     
@@ -634,8 +587,27 @@ struct RailwayNetworkDocument: FileDocument {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
         encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(dto)
-        return .init(regularFileWithContents: data)
+        
+        // PIGNOLO PROTOCOL: If saving as .rail, wrap in RailFileContainer with qualifier
+        if configuration.contentType == .rail {
+            let container = RailFileContainer(
+                formatVersion: "2.0",
+                qualifier: "FDC_RAIL_V2_QUALIFIED",
+                network: dto,
+                metadata: RailMetadata(
+                    createdBy: "FdC Manager App",
+                    createdAt: Date(),
+                    lastModified: Date(),
+                    description: "Qualified output for AI Pignolo Protocol"
+                )
+            )
+            let data = try encoder.encode(container)
+            return .init(regularFileWithContents: data)
+        } else {
+            // Legacy/Standard JSON export
+            let data = try encoder.encode(dto)
+            return .init(regularFileWithContents: data)
+        }
     }
 }
 
@@ -680,37 +652,45 @@ struct SettingsView: View {
         let trimmedEndpoint = appState.aiEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedUsername = appState.aiUsername.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedPassword = appState.aiPassword.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedApiKey = appState.aiApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         
+        // Save cleaned values
         appState.aiEndpoint = trimmedEndpoint
         appState.aiUsername = trimmedUsername
         appState.aiPassword = trimmedPassword
-        appState.aiApiKey = trimmedApiKey
         
         isTestLoading = true
         testResultMessage = nil
         testErrorMessage = nil
         
-        // Use the centralized sync logic to ensure all URL sanitization and formatting is applied
-        RailwayAIService.shared.syncCredentials(
-            endpoint: trimmedEndpoint,
-            apiKey: trimmedApiKey,
-            token: appState.aiToken
-        )
-        
-        RailwayAIService.shared.login(username: trimmedUsername, password: trimmedPassword)
-            .sink { completion in
-                isTestLoading = false
-                if case .failure(let error) = completion {
-                    testErrorMessage = "Test Fallito: \(error.localizedDescription)"
+        // 1. Use AuthenticationManager for the official login flow
+        AuthenticationManager.shared.login(username: trimmedUsername, password: trimmedPassword) { result in
+            DispatchQueue.main.async {
+                self.isTestLoading = false
+                
+                switch result {
+                case .success(let token):
+                    // 2. Persist the token
+                    self.appState.aiToken = token
+                    self.testResultMessage = "Login OK! Token ottenuto."
+                    
+                    // 3. Sync everything to RailwayAIService for the rest of the app
+                    RailwayAIService.shared.syncCredentials(
+                        endpoint: trimmedEndpoint,
+                        apiKey: self.appState.aiApiKey,
+                        token: token
+                    )
+                    RailwayAIService.shared.verifyConnection()
+                    
+                case .failure(let error):
+                    switch error {
+                    case .inactiveAccount:
+                        self.testErrorMessage = "Account Inattivo. Contatta l'amministratore."
+                    default:
+                        self.testErrorMessage = "Errore Login: \(error.localizedDescription)"
+                    }
                 }
-            } receiveValue: { token in
-                isTestLoading = false
-                appState.aiToken = token // Persist the token!
-                testResultMessage = "Test Riuscito! Token JWT ottenuto e salvato."
-                RailwayAIService.shared.verifyConnection() // Refresh status
             }
-            .store(in: &cancellables)
+        }
     }
     
     private func generateKey() {
@@ -718,24 +698,28 @@ struct SettingsView: View {
         testResultMessage = "Generazione API Key..."
         testErrorMessage = nil
         
-        RailwayAIService.shared.generateApiKey()
-            .sink { completion in
-                isTestLoading = false
-                if case .failure(let error) = completion {
-                    testErrorMessage = "Errore generazione: \(error.localizedDescription)"
+        // 1. Use AuthenticationManager to generate the key
+        AuthenticationManager.shared.generatePermanentKey { result in
+            DispatchQueue.main.async {
+                self.isTestLoading = false
+                
+                switch result {
+                case .success(let key):
+                    self.appState.aiApiKey = key
+                    self.testResultMessage = "API Key Generata e Salvata!"
+                    
+                    // Sync immediately
+                    RailwayAIService.shared.syncCredentials(
+                        endpoint: self.appState.aiEndpoint,
+                        apiKey: key,
+                        token: self.appState.aiToken
+                    )
+                    
+                case .failure(let error):
+                    self.testErrorMessage = "Errore Generazione Key: \(error.localizedDescription)"
                 }
-            } receiveValue: { key in
-                isTestLoading = false
-                appState.aiApiKey = key
-                // Sync to the service instance immediately
-                RailwayAIService.shared.syncCredentials(
-                    endpoint: appState.aiEndpoint,
-                    apiKey: key,
-                    token: appState.aiToken
-                )
-                testResultMessage = "API Key generata e salvata con successo!"
             }
-            .store(in: &cancellables)
+        }
     }
     
     var body: some View {
@@ -746,9 +730,20 @@ struct SettingsView: View {
                 }
 
                 Section(header: Text("Intelligenza Artificiale")) {
-                    TextField("Server API Base URL", text: $appState.aiEndpoint)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
+                    HStack {
+                        TextField("Server API Base URL", text: $appState.aiEndpoint)
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                        
+                        Button(action: {
+                            appState.aiEndpoint = "http://railway-ai.michelebigi.it:8080"
+                        }) {
+                            Image(systemName: "arrow.counterclockwise")
+                                .foregroundColor(.blue)
+                        }
+                        .buttonStyle(BorderlessButtonStyle())
+                        .help("Ripristina URL di default")
+                    }
                     
                     TextField("Username", text: $appState.aiUsername)
                         .autocapitalization(.none)
@@ -806,9 +801,9 @@ struct SettingsView: View {
                 
                 Section("Debug Dati (JSON)") {
                     Button(action: {
-                        showJsonInspector(for: network.relations, title: "Relazioni (\(network.relations.count))")
+                        showJsonInspector(for: network.lines, title: "Linee (\(network.lines.count))")
                     }) {
-                        Label("Mostra JSON Relazioni", systemImage: "curlybraces")
+                        Label("Mostra JSON Linee", systemImage: "curlybraces")
                     }
                     Button(action: {
                         showJsonInspector(for: trainManager.trains, title: "Treni (\(trainManager.trains.count))")
@@ -847,6 +842,7 @@ struct RailwayIOView: View {
     @EnvironmentObject var network: RailwayNetwork
     @EnvironmentObject var trainManager: TrainManager
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var loader: AppLoaderService
     @Binding var showGrid: Bool
     
     @State private var showExporter = false
@@ -856,12 +852,39 @@ struct RailwayIOView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("Salvataggio/Caricamento")) {
+                Section("Gestione File") {
                     Button(action: { showExporter = true }) {
-                        Label("Salva rete su file", systemImage: "square.and.arrow.up")
+                        Label {
+                            Text("Salva Progetto")
+                                .foregroundColor(.primary)
+                        } icon: {
+                            Image(systemName: "square.and.arrow.up")
+                                .foregroundColor(.accentColor)
+                        }
                     }
+                    
                     Button(action: { showImporter = true }) {
-                        Label("Carica rete da file", systemImage: "square.and.arrow.down")
+                        Label {
+                            Text("Apri Progetto")
+                            Text("Supporta .rail, .fdc, .json")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } icon: {
+                            Image(systemName: "folder")
+                                .foregroundColor(.accentColor)
+                        }
+                    }
+                }
+                
+                Section(header: Text("Integrazione Legacy"), footer: Text("Importa file creati con versioni precedenti (FDC 1.x) per convertirli automaticamente al nuovo protocollo Pignolo.")) {
+                    Button(action: { showImporter = true }) {
+                        Label("Importa Vecchio FDC (.fdc)", systemImage: "arrow.triangle.2.circlepath")
+                            .foregroundColor(.orange)
+                    }
+                    
+                    Button(action: { showExporter = true }) {
+                        Label("Esporta Pignolo V2 (.rail)", systemImage: "arrow.up.doc")
+                            .foregroundColor(.blue)
                     }
                 }
                 
@@ -872,10 +895,13 @@ struct RailwayIOView: View {
                 }
             }
             .navigationTitle("I/O Dati")
-            .fileExporter(isPresented: $showExporter, document: RailwayNetworkDocument(network: network, trains: trainManager.trains), contentType: .json, defaultFilename: "rete-ferroviaria") { _ in }
-            .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json, .fdc, .railml]) { result in
+            .fileExporter(isPresented: $showExporter, document: RailwayNetworkDocument(network: network, trains: trainManager.trains), contentType: .rail, defaultFilename: "rete-ferroviaria") { _ in }
+            .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json, .fdc, .railml, .rail]) { result in
                 do {
                     let url = try result.get()
+                    
+                    // Store the URL for future reference
+                    UserDefaults.standard.set(url.absoluteString, forKey: "lastOpenedURL")
                     
                     // PIGNOLO PROTOCOL: On iOS/iPadOS, we MUST startAccessingSecurityScopedResource for external files
                     guard url.startAccessingSecurityScopedResource() else {
@@ -883,7 +909,13 @@ struct RailwayIOView: View {
                         return
                     }
                     
-                    defer { url.stopAccessingSecurityScopedResource() }
+                    defer { 
+                        url.stopAccessingSecurityScopedResource()
+                        // Save the imported state as the new "last session"
+                        Task {
+                            await loader.saveCurrentState()
+                        }
+                    }
                     
                     let data = try Data(contentsOf: url)
                     if url.pathExtension.lowercased() == "fdc" {
@@ -901,10 +933,44 @@ struct RailwayIOView: View {
                         let edges = parsed.edges.map { fdc in
                             Edge(from: fdc.from, to: fdc.to, distance: fdc.distance ?? 1.0, trackType: .regional, maxSpeed: Int(fdc.maxSpeed ?? 120), capacity: fdc.capacity)
                         }
-                        let newTrains = parsed.trains.map { fdc in
-                            Train(id: UUID(), name: fdc.name, type: fdc.type ?? "Regionale", maxSpeed: fdc.maxSpeed ?? 120, priority: fdc.priority ?? 5, acceleration: fdc.acceleration ?? 0.5, deceleration: fdc.deceleration ?? 0.5, stops: [])
+                        var trainIdMap: [String: UUID] = [:]
+                        let newTrains = parsed.trains.enumerated().map { (idx, fdc) -> Train in
+                            let mid = UUID()
+                            trainIdMap[fdc.id] = mid
+                            
+                            // Parse number from name or use sequence
+                            let components = fdc.name.components(separatedBy: .whitespaces)
+                            let number = components.compactMap { Int($0) }.first ?? (1000 + idx)
+                            
+                            return Train(id: mid, 
+                                        number: number,
+                                        name: fdc.name, 
+                                        type: fdc.type ?? "Regionale", 
+                                        maxSpeed: fdc.maxSpeed ?? 120, 
+                                        priority: fdc.priority ?? 5, 
+                                        acceleration: fdc.acceleration ?? 0.5, 
+                                        deceleration: fdc.deceleration ?? 0.5, 
+                                        stops: [])
                         }
-                        if !newTrains.isEmpty { trainManager.trains = newTrains }
+                        
+                        // Map schedules into trains
+                        let df = ISO8601DateFormatter()
+                        var tFinal = newTrains
+                        
+                        for sch in parsed.rawSchedules {
+                            if let mid = trainIdMap[sch.train_id], let tIdx = tFinal.firstIndex(where: { $0.id == mid }) {
+                                tFinal[tIdx].departureTime = sch.stops.first.flatMap { df.date(from: $0.departure) }
+                                tFinal[tIdx].stops = sch.stops.map { stop in
+                                    RelationStop(stationId: stop.node_id, 
+                                                 minDwellTime: 2, 
+                                                 track: stop.platform.map { "\($0)" }, 
+                                                 arrival: df.date(from: stop.arrival), 
+                                                 departure: df.date(from: stop.departure))
+                                }
+                            }
+                        }
+                        
+                        trainManager.trains = tFinal
                         network.name = parsed.name
                         network.nodes = nodes
                         network.edges = edges
@@ -923,22 +989,43 @@ struct RailwayIOView: View {
                         }
                         trainManager.validateSchedules(with: network)
                     } else {
+                        // JSON / RAIL Handler
                         let decoder = JSONDecoder()
                         decoder.dateDecodingStrategy = .iso8601
-                        if let dto = try? decoder.decode(RailwayNetworkDTO.self, from: data) {
-                            network.apply(dto: dto)
-                            if let trains = dto.trains {
-                                trainManager.trains = trains
-                            }
-                            trainManager.validateSchedules(with: network)
-                        } else {
-                            let legacyDecoder = JSONDecoder()
-                            if let dto = try? legacyDecoder.decode(RailwayNetworkDTO.self, from: data) {
+                        
+                        // 1. Try Container (RAIL)
+                        if let container = try? decoder.decode(RailFileContainer.self, from: data) {
+                             network.apply(dto: container.network)
+                             if let trains = container.network.trains {
+                                 trainManager.trains = trains
+                             }
+                             print("✅ Loaded .rail file: \(container.qualifier)")
+                             trainManager.validateSchedules(with: network)
+                        }
+                        // 2. Fallback to Simple DTO (JSON)
+                        do {
+                            if let container = try? decoder.decode(RailFileContainer.self, from: data) {
+                                network.apply(dto: container.network)
+                                if let trains = container.network.trains {
+                                    trainManager.trains = trains
+                                }
+                                trainManager.validateSchedules(with: network)
+                            } else if let dto = try? decoder.decode(RailwayNetworkDTO.self, from: data) {
                                 network.apply(dto: dto)
-                                if let trains = dto.trains { trainManager.trains = trains }
+                                if let trains = dto.trains {
+                                    trainManager.trains = trains
+                                }
                                 trainManager.validateSchedules(with: network)
                             } else {
-                                importError = "Formato file non supportato o corrotto"
+                                // Try without ISO8601 if it was just a simple DTO
+                                let simpleDecoder = JSONDecoder()
+                                if let dto = try? simpleDecoder.decode(RailwayNetworkDTO.self, from: data) {
+                                    network.apply(dto: dto)
+                                    if let trains = dto.trains { trainManager.trains = trains }
+                                    trainManager.validateSchedules(with: network)
+                                } else {
+                                    importError = "Impossibile decodificare il file. Formato non riconosciuto."
+                                }
                             }
                         }
                     }
@@ -960,9 +1047,14 @@ struct RailwayAIView: View {
     @State private var userPrompt: String = ""
     @State private var errorMessage: String? = nil
     
+    // Proposer State
+    @State private var proposedLines: [ProposedLine] = []
+    @State private var schedulePreview: String = ""
+    @State private var targetLines: Int = 6
+    
     // Solver State
     @State private var solutions: [AIScheduleSuggestion] = []
-    @State private var resolutions: [OptimizerResolution] = []
+    @State private var resolutions: [RailwayAIResolution] = []
     @State private var optimizerStats: (delay: Double, conflicts: Int)? = nil
     
     var body: some View {
@@ -975,7 +1067,7 @@ struct RailwayAIView: View {
                             Text("Risolvi Conflitti (FDC JSON)")
                         }
                     }
-                    .disabled(isLoading || trainManager.trains.isEmpty || trainManager.conflictManager.conflicts.isEmpty)
+                    .disabled(isLoading || trainManager.trains.isEmpty)
                 }
 
                 Section(header: Text("Ottimizzatore Avanzato (GA C++)")) {
@@ -997,42 +1089,69 @@ struct RailwayAIView: View {
                     }
                 }
 
+                Section(header: Text("Assistente Pianificazione (Fast Proposer)")) {
+                    Stepper("Target Linee: \(targetLines)", value: $targetLines, in: 1...20)
+                    
+                    Button(action: runFastProposer) {
+                        HStack {
+                            Image(systemName: "wand.and.stars")
+                            Text("Genera Proposta Orario")
+                        }
+                    }
+                    .disabled(isLoading || network.nodes.count < 2)
+                    
+                    if !schedulePreview.isEmpty {
+                        ScrollView {
+                            Text(schedulePreview)
+                                .font(.system(.caption, design: .monospaced))
+                                .padding(8)
+                                .background(Color.blue.opacity(0.05))
+                                .cornerRadius(8)
+                        }
+                        .frame(maxHeight: 150)
+                        
+                        Button("Applica Proposta (\(proposedLines.count) linee)") {
+                            applyProposal()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.blue)
+                    }
+                }
+
+                // Unified V2 resolutions are shown below
+                
                 if !resolutions.isEmpty {
-                    Section(header: Text("Analisi Ottimizzazione")) {
-                        ForEach(resolutions, id: \.trainId) { res in
-                            if let uuid = RailwayAIService.shared.getTrainId(optimizerId: res.trainId),
+                    Section(header: Text("Soluzioni Ottimizzate")) {
+                        ForEach(resolutions, id: \.train_id) { res in
+                            if let uuid = RailwayAIService.shared.getTrainUUID(optimizerId: res.train_id),
                                let train = trainManager.trains.first(where: { $0.id == uuid }) {
-                                HStack {
-                                    VStack(alignment: .leading) {
-                                        Text(train.name).font(.headline)
-                                        Text("Aggiustamento: \(String(format: "%.1f", res.timeAdjustmentMin)) min")
-                                            .font(.caption)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(train.name).font(.headline)
+                                    HStack {
+                                        let sign = res.time_adjustment_min > 0 ? "+" : ""
+                                        Text("Partenza: \(sign)\(String(format: "%.1f", res.time_adjustment_min)) min")
+                                        
+                                        if let dwells = res.dwell_delays, !dwells.isEmpty {
+                                            Divider().frame(height: 10)
+                                            Text("\(dwells.count) soste allungate")
+                                        }
                                     }
-                                    Spacer()
-                                    if res.timeAdjustmentMin > 0 {
-                                        Image(systemName: "clock.badge.exclamationmark")
-                                            .foregroundColor(.orange)
-                                    } else {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundColor(.green)
-                                    }
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
                                 }
+                                .padding(.vertical, 2)
                             }
                         }
                         
-                        Button("Applica Piani di Viaggio") {
-                            for res in resolutions {
-                                if let uuid = RailwayAIService.shared.getTrainId(optimizerId: res.trainId) {
-                                    trainManager.applyAdvancedResolutions([res], network: network)
-                                }
-                            }
-                            // Force complete refresh
-                            trainManager.validateSchedules(with: network)
-                            trainManager.objectWillChange.send()
-                            
+                        Button(action: {
+                            trainManager.applyResolutions(resolutions, network: network, trainMapping: RailwayAIService.shared.getTrainMapping())
                             resolutions = []
-                            optimizerStats = nil
-                            aiResult = "Piani di viaggio aggiornati. Conflitti rilevati: \(trainManager.conflictManager.conflicts.count)"
+                            aiResult = "Piani di viaggio aggiornati correttamente."
+                        }) {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                Text("Applica Cambio Orario")
+                            }
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.green)
@@ -1053,9 +1172,9 @@ struct RailwayAIView: View {
                             }
                         }
                         Button("Applica Modifiche") {
-                            trainManager.applyAdvancedResolutions(resolutions, network: network)
+                            trainManager.applyAISuggestions(solutions)
                             trainManager.validateSchedules(with: network)
-                            resolutions = []
+                            solutions = []
                             aiResult = "Modifiche applicate con successo."
                         }
                         .foregroundColor(.green)
@@ -1065,6 +1184,12 @@ struct RailwayAIView: View {
                 if !aiResult.isEmpty {
                     Section(header: Text("Risultato Ultima Operazione")) {
                         Text(aiResult).font(.body).foregroundColor(.blue)
+                        
+                        Button(action: { showJSONInspector = true }) {
+                            Label("Ispezione JSON Richiesta", systemImage: "doc.text.magnifyingglass")
+                        }
+                        .font(.caption)
+                        .padding(.top, 4)
                     }
                 }
                 
@@ -1085,8 +1210,36 @@ struct RailwayAIView: View {
                 }
             }
             .navigationTitle("Railway AI")
+            .sheet(isPresented: $showJSONInspector) {
+                NavigationStack {
+                    VStack {
+                        Text("Questo è il pacchetto dati inviato all'IA. Utile per il debug dei '0 suggerimenti'.")
+                            .font(.caption)
+                            .padding()
+                        
+                        TextEditor(text: .constant(RailwayAIService.shared.lastRequestJSON))
+                            .font(.system(.caption, design: .monospaced))
+                            .background(Color(UIColor.secondarySystemBackground))
+                            .cornerRadius(8)
+                            .padding()
+                    }
+                    .navigationTitle("Dettaglio JSON")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Chiudi") { showJSONInspector = false }
+                        }
+                        ToolbarItem(placement: .primaryAction) {
+                            Button(action: { UIPasteboard.general.string = RailwayAIService.shared.lastRequestJSON }) {
+                                Image(systemName: "doc.on.doc")
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
+    
+    @State private var showJSONInspector = false
     
     private func runAdvancedOptimization() {
         // ROBUST INPUT LOGIC: Trim accidental spaces or newlines
@@ -1149,16 +1302,17 @@ struct RailwayAIView: View {
             conflicts: reporter.conflicts
         )
         
-        RailwayAIService.shared.optimize(request: request, useV2: false)
+        RailwayAIService.shared.optimize(request: request)
             .sink { completion in
                 isLoading = false
                 if case .failure(let error) = completion {
-                    errorMessage = "Standard Optimizer Error: \(error.localizedDescription)"
+                    errorMessage = "Optimizer Error: \(error.localizedDescription)"
                 }
             } receiveValue: { response in
                 if response.success {
-                    self.aiResult = "Analisi completata. \(response.modifications?.count ?? 0) suggerimenti ricevuti."
-                    // Handle modifications if applicable (v2 schema)
+                    self.resolutions = response.resolutions ?? []
+                    self.optimizerStats = (response.total_delay_minutes ?? 0, response.conflicts_detected ?? 0)
+                    self.aiResult = "Analisi completata! \(response.resolutions?.count ?? 0) modifiche proposte."
                 } else {
                     errorMessage = response.error_message ?? "L'AI ha riportato un fallimento."
                 }
@@ -1170,7 +1324,7 @@ struct RailwayAIView: View {
         aiResult = "Ottimizzazione matematica in corso..."
         print("[AI] Starting Advanced Optimization Call...")
         
-        RailwayAIService.shared.advancedOptimize(network: network, trains: trainManager.trains)
+        RailwayAIService.shared.optimize(request: RailwayAIService.shared.createRequest(network: network, trains: trainManager.trains, conflicts: []))
             .sink { completion in
                 isLoading = false
                 if case .failure(let error) = completion {
@@ -1180,22 +1334,113 @@ struct RailwayAIView: View {
             } receiveValue: { response in
                 print("[AI] Received Response. Success: \(response.success)")
                 if response.success {
-                    self.resolutions = response.resolutions
-                    self.optimizerStats = (response.total_delay_minutes, response.conflicts_detected)
+                    self.resolutions = response.resolutions ?? []
+                    self.optimizerStats = (response.total_delay_minutes ?? 0, response.conflicts_detected ?? 0)
                     
-                    print("[Optimizer] Received \(response.resolutions.count) resolutions.")
-                    print("[Optimizer] API Stats: Conflicts Before: \(response.conflicts_detected), Resolved: \(response.conflicts_resolved)")
-                    
-                    if response.resolutions.isEmpty {
+                    if (response.resolutions ?? []).isEmpty {
                         self.aiResult = "Nessuna soluzione trovata dall'AI."
                     } else {
-                        self.aiResult = "Ottimizzazione completata! \(response.resolutions.count) modifiche proposte."
+                        self.aiResult = "Ottimizzazione completata! \(response.resolutions?.count ?? 0) modifiche proposte."
                     }
                 } else {
                     errorMessage = "L'ottimizzatore ha riportato un fallimento."
                 }
             }
             .store(in: &cancellables)
+    }
+
+    private func runFastProposer() {
+        isLoading = true
+        errorMessage = nil
+        proposedLines = []
+        schedulePreview = ""
+        
+        // Ensure credentials are synced
+        RailwayAIService.shared.syncCredentials(
+            endpoint: appState.aiEndpoint,
+            apiKey: appState.aiApiKey,
+            token: appState.aiToken
+        )
+        
+        let graph = RailwayGraphManager.shared
+        ScheduleProposer.shared.requestProposal(using: graph, network: network, targetLines: targetLines) { result in
+            isLoading = false
+            switch result {
+            case .success(let proposal):
+                self.proposedLines = proposal.proposedLines
+                
+                // Format the preview items into a single string for the UI
+                if let items = proposal.schedulePreviewItems {
+                    let text = items.map { item -> String in
+                        let nameA = RailwayGraphManager.shared.getOriginalStationId(fromNumericId: item.origin) ?? String(item.origin)
+                        let nameB = RailwayGraphManager.shared.getOriginalStationId(fromNumericId: item.destination) ?? String(item.destination)
+                        return "\(item.departure) | \(item.line): \(nameA) -> \(nameB)"
+                    }.joined(separator: "\n")
+                    self.schedulePreview = text
+                } else {
+                    self.schedulePreview = "Nessun dettaglio disponibile."
+                }
+                
+                self.aiResult = "L'IA ha proposto \(proposal.proposedLines.count) nuove linee!"
+            case .failure(let error):
+                self.errorMessage = "Errore Proposta: \(error.localizedDescription)"
+            }
+        }
+    }
+    
+    private func applyProposal() {
+        for pline in proposedLines {
+            // 1. Create Line
+            let lineId = UUID().uuidString
+            let stops = pline.stationSequence.map { sid -> RelationStop in
+                let node = network.nodes.first(where: { $0.id == sid })
+                let dwell = (node?.type == .interchange) ? 5 : 3
+                return RelationStop(stationId: sid, minDwellTime: dwell)
+            }
+            
+            let newLine = RailwayLine(
+                id: lineId,
+                name: pline.name,
+                color: pline.color ?? "#007AFF",
+                originId: pline.stationSequence.first ?? "",
+                destinationId: pline.stationSequence.last ?? "",
+                stops: stops
+            )
+            network.lines.append(newLine)
+            
+            // 2. Create sample trains for this line (Cadenced)
+            let freq = pline.frequencyMinutes > 0 ? pline.frequencyMinutes : 60
+            let startHour = 6
+            let endHour = 22
+            
+            let calendar = Calendar.current
+            let baseDate = calendar.startOfDay(for: Date())
+            
+            for hour in stride(from: startHour, to: endHour, by: 1) {
+                for min in stride(from: 0, to: 60, by: freq) {
+                    let departureTime = calendar.date(bySettingHour: hour, minute: min, second: 0, of: baseDate)
+                    let trainNum = 1000 + network.lines.count * 100 + (hour * 10) + (min / 10)
+                    
+                    let newTrain = Train(
+                        id: UUID(),
+                        number: trainNum,
+                        name: "\(pline.name) - \(trainNum)",
+                        type: "Regionale",
+                        maxSpeed: 120,
+                        priority: 5,
+                        lineId: lineId,
+                        departureTime: departureTime,
+                        stops: stops
+                    )
+                    trainManager.trains.append(newTrain)
+                }
+            }
+        }
+        
+        proposedLines = []
+        schedulePreview = ""
+        aiResult = "Sistema aggiornato con la nuova pianificazione."
+        trainManager.validateSchedules(with: network)
     }
 
     @State private var cancellables = Set<AnyCancellable>()

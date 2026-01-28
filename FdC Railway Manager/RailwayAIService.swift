@@ -4,9 +4,13 @@ import Combine
 class RailwayAIService: ObservableObject {
     static let shared = RailwayAIService()
     
-    var baseURL = URL(string: "http://82.165.138.64:8080/api/v1")!
+    var baseURL = URL(string: "https://railway-ai.michelebigi.it/api/v1")!
     var token: String? = nil
     var apiKey: String? = nil
+    
+    private var stationMapping: [String: Int] = [:]
+    private var trackMapping: [String: Int] = [:]
+    private var trainMapping: [UUID: Int] = [:]
     
     enum ConnectionStatus {
         case disconnected
@@ -16,7 +20,15 @@ class RailwayAIService: ObservableObject {
         case error(String)
     }
     
-    @Published var connectionStatus: ConnectionStatus = .disconnected
+    @Published var connectionStatus: ConnectionStatus = .disconnected {
+        didSet {
+            DispatchQueue.main.async {
+                self.objectWillChange.send()
+            }
+        }
+    }
+    
+    @Published var lastRequestJSON: String = "" // Per ispezione da iPad
     
     func syncCredentials(endpoint: String, apiKey: String, token: String? = nil) {
         var cleanEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -34,6 +46,10 @@ class RailwayAIService: ObservableObject {
         
         if let url = URL(string: cleanEndpoint), !cleanEndpoint.isEmpty {
             self.baseURL = url
+            // Update AuthManager with the base server URL (stripping /api/v1 if present)
+            var baseServer = cleanEndpoint.replacingOccurrences(of: "/api/v1", with: "")
+            if baseServer.hasSuffix("/") { baseServer.removeLast() }
+            AuthenticationManager.shared.updateBaseURL(baseServer)
         }
         
         // Use API Key exactly as provided - only trim whitespace
@@ -44,6 +60,10 @@ class RailwayAIService: ObservableObject {
             self.token = t
         }
         
+        // Update AuthManager as well
+        if let key = self.apiKey { AuthenticationManager.shared.setAPIKey(key) }
+        if let t = self.token { AuthenticationManager.shared.setToken(t) }
+        
         RailwayAILogger.shared.log("Sync Complete. Endpoint: \(self.baseURL)", type: .info)
         RailwayAILogger.shared.log("API Key: \(self.apiKey != nil ? "Presente" : "Assente"), Token: \(self.token != nil ? "Presente" : "Assente")", type: .info)
     }
@@ -52,36 +72,14 @@ class RailwayAIService: ObservableObject {
         let access_token: String
         let token_type: String
     }
-    
     struct APIKeyResponse: Codable {
         let api_key: String
     }
     
     func login(username: String, password: String) -> AnyPublisher<String, Error> {
-        // ROBUST URL CONSTRUCTION: We need the root level /token endpoint.
-        var loginURL: URL
-        
-        let urlString = baseURL.absoluteString
-        if let components = URLComponents(string: urlString) {
-            var rootComponents = components
-            // If the path contains api/v1, we strip it to get the root.
-            if rootComponents.path.contains("/api") {
-                rootComponents.path = "/token"
-            } else if rootComponents.path == "/" || rootComponents.path.isEmpty {
-                rootComponents.path = "/token"
-            } else if !rootComponents.path.hasSuffix("/token") {
-                // If it's something else, maybe it's already the root or a custom path
-                rootComponents.path = (rootComponents.path as NSString).appendingPathComponent("token")
-            }
-            
-            if let rootURL = rootComponents.url {
-                loginURL = rootURL
-            } else {
-                loginURL = baseURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("token")
-            }
-        } else {
-            loginURL = baseURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("token")
-        }
+        // PIGNOLO PROTOCOL: With the new domain structure, the token endpoint is likely under /api/v1/token
+        // We removed the aggressive logic that stripped /api/v1.
+        let loginURL = baseURL.appendingPathComponent("token")
         
         var request = URLRequest(url: loginURL)
         request.httpMethod = "POST"
@@ -134,7 +132,9 @@ class RailwayAIService: ObservableObject {
         self.connectionStatus = .connecting
         
         // Use a more generic endpoint for connection health check
-        var request = URLRequest(url: baseURL)
+        // PIGNOLO PROTOCOL: Use /health for simple ping, or /users/me if authenticated?
+        // Let's use /health or just root path if that fails. For now, appending /health is safer for Python APIs.
+        var request = URLRequest(url: baseURL.appendingPathComponent("health"))
         request.httpMethod = "GET"
         request.timeoutInterval = 10.0
         
@@ -170,11 +170,13 @@ class RailwayAIService: ObservableObject {
             return Fail(error: NSError(domain: "Nessun token attivo. Effettua il login prima.", code: 401)).eraseToAnyPublisher()
         }
         
-        var request = URLRequest(url: baseURL.appendingPathComponent("generate-key"))
+        // PIGNOLO PROTOCOL: API Key generation
+        let requestURL = baseURL.appendingPathComponent("generate-key")
+        var request = URLRequest(url: requestURL)
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
-        print("[Auth] Generating Permanent API Key...")
+        print("[Auth] Generating Permanent API Key at \(requestURL.absoluteString)...")
         
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { output in
@@ -187,45 +189,61 @@ class RailwayAIService: ObservableObject {
                 }
                 return output.data
             }
-            .decode(type: APIKeyResponse.self, decoder: JSONDecoder())
-            .map { response in
-                self.apiKey = response.api_key
-                return response.api_key
+            .tryMap { data in
+                // Robust parsing: Try object, then try string
+                if let keyObj = try? JSONDecoder().decode(APIKeyResponse.self, from: data) {
+                    return keyObj.api_key
+                } else if let rawString = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !rawString.isEmpty {
+                    if rawString.hasPrefix("\"") && rawString.hasSuffix("\"") {
+                        return String(rawString.dropFirst().dropLast())
+                    }
+                    return rawString
+                }
+                throw NSError(domain: "Impossibile decodificare API Key dal server", code: 0)
+            }
+            .map { key in
+                var finalKey = key
+                if !finalKey.hasPrefix("rw-") && finalKey.count > 5 {
+                    finalKey = "rw-\(key)"
+                }
+                self.apiKey = finalKey
+                return finalKey
             }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
     
-    func optimize(request: RailwayAIRequest, useV2: Bool = false) -> AnyPublisher<RailwayAIResponse, Error> {
-        let endpoint = useV2 ? "v2/optimize" : "optimize"
-        // Ensure we don't double path components if baseURL already has v1
-        var finalURL = baseURL.deletingLastPathComponent().appendingPathComponent(endpoint)
-        if !baseURL.absoluteString.contains("/api/") {
-             finalURL = baseURL.appendingPathComponent(endpoint)
-        }
+    func optimize(request: RailwayAIRequest) -> AnyPublisher<RailwayAIResponse, Error> {
+        // PIGNOLO PROTOCOL: Switching to the robust 'optimize_scheduled' endpoint as per technical specs.
+        let finalURL = baseURL.appendingPathComponent("optimize_scheduled")
         
         var urlRequest = URLRequest(url: finalURL)
         urlRequest.httpMethod = "POST"
         urlRequest.timeoutInterval = 120.0
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue("application/json", forHTTPHeaderField: "accept")
         
         if let token = self.token {
             urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        } else if let key = self.apiKey {
-            urlRequest.setValue(key.hasPrefix("rw-") ? key : "rw-\(key)", forHTTPHeaderField: "X-API-Key")
+        } else if let key = self.apiKey, !key.isEmpty {
+            let finalKey = key.hasPrefix("rw-") ? key : "rw-\(key)"
+            urlRequest.setValue(finalKey, forHTTPHeaderField: "X-API-Key")
+            urlRequest.setValue("Bearer \(finalKey)", forHTTPHeaderField: "Authorization")
         }
         
         do {
             let encoder = JSONEncoder()
-            // Date encoding strategy for FDC Style
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-            formatter.timeZone = TimeZone(secondsFromGMT: 0)
-            encoder.dateEncodingStrategy = .formatted(formatter)
+            encoder.outputFormatting = .prettyPrinted
+            // PIGNOLO PROTOCOL: Dates are already formatted as "HH:mm:ss" in the Request object.
             
             urlRequest.httpBody = try encoder.encode(request)
             if let json = String(data: urlRequest.httpBody!, encoding: .utf8) {
-                print("[AI] Optimization Request (\(endpoint)): \(json)")
+                print("[AI] Optimization Request (Scheduled): \(json)")
+                self.lastRequestJSON = json // Salva per ispezione UI
+                
+                // Salva anche su file per persistenza debug
+                let path = "/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/last_ai_request.json"
+                try? json.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
             }
         } catch {
             return Fail(error: error).eraseToAnyPublisher()
@@ -237,11 +255,68 @@ class RailwayAIService: ObservableObject {
                 guard let httpResponse = output.response as? HTTPURLResponse else {
                     throw URLError(.badServerResponse)
                 }
+                
+                if httpResponse.statusCode == 401 {
+                    self.token = nil
+                }
+                
                 if httpResponse.statusCode != 200 {
                     let body = String(data: output.data, encoding: .utf8) ?? "Nessun corpo risposta"
-                    print("[AI ERROR] \(httpResponse.statusCode): \(body)")
+                    print("❌ [AI ERROR] \(httpResponse.statusCode) at \(finalURL.absoluteString): \(body)")
                     throw NSError(domain: "Server Error \(httpResponse.statusCode): \(body)", code: httpResponse.statusCode)
                 }
+                print("✅ [AI SUCCESS] \(httpResponse.statusCode) from \(finalURL.absoluteString)")
+                return output.data
+            }
+            .decode(type: RailwayAIResponse.self, decoder: JSONDecoder())
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
+    }
+    
+    // PIGNOLO PROTOCOL: Overload for pre-formatted JSON from RailwayGraphManager
+    func optimize(jsonString: String) -> AnyPublisher<RailwayAIResponse, Error> {
+        let finalURL = baseURL.appendingPathComponent("optimize_scheduled")
+        
+        var urlRequest = URLRequest(url: finalURL)
+        urlRequest.httpMethod = "POST"
+        urlRequest.timeoutInterval = 120.0
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue("application/json", forHTTPHeaderField: "accept")
+        
+        if let token = self.token {
+            urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        } else if let key = self.apiKey, !key.isEmpty {
+            let finalKey = key.hasPrefix("rw-") ? key : "rw-\(key)"
+            urlRequest.setValue(finalKey, forHTTPHeaderField: "X-API-Key")
+            urlRequest.setValue("Bearer \(finalKey)", forHTTPHeaderField: "Authorization")
+        }
+        
+        urlRequest.httpBody = jsonString.data(using: .utf8)
+        
+        // Debug & Logging
+        print("[AI] Optimization Request (Raw JSON): \(jsonString)")
+        self.lastRequestJSON = jsonString
+        
+        let path = "/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/last_ai_request.json"
+        try? jsonString.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+        
+        return URLSession.shared.dataTaskPublisher(for: urlRequest)
+            .timeout(120, scheduler: DispatchQueue.main)
+            .tryMap { output in
+                guard let httpResponse = output.response as? HTTPURLResponse else {
+                    throw URLError(.badServerResponse)
+                }
+                
+                if httpResponse.statusCode == 401 {
+                    self.token = nil
+                }
+                
+                if httpResponse.statusCode != 200 {
+                    let body = String(data: output.data, encoding: .utf8) ?? "Nessun corpo risposta"
+                    print("❌ [AI ERROR] \(httpResponse.statusCode) at \(finalURL.absoluteString): \(body)")
+                    throw NSError(domain: "Server Error \(httpResponse.statusCode): \(body)", code: httpResponse.statusCode)
+                }
+                print("✅ [AI SUCCESS] \(httpResponse.statusCode) from \(finalURL.absoluteString)")
                 return output.data
             }
             .decode(type: RailwayAIResponse.self, decoder: JSONDecoder())
@@ -503,250 +578,143 @@ class RailwayAIService: ObservableObject {
     
     /// Helper to convert current app state to RailwayAIRequest
     func createRequest(network: RailwayNetwork, trains: [Train], conflicts: [ScheduleConflict]) -> RailwayAIRequest {
-        let stations = network.nodes.map { $0.id }
-        var availablePlatforms: [String: [Int]] = [:]
-        for node in network.nodes {
-            let p = node.platforms ?? (node.type == .interchange ? 2 : 1)
-            availablePlatforms[node.id] = Array(1...p)
-        }
-        
-        var maxSpeeds: [String: Double] = [:]
-        for edge in network.edges {
-            let sectionID = "\(edge.from)_\(edge.to)"
-            maxSpeeds[sectionID] = Double(edge.maxSpeed)
-        }
-        
-        let networkInfo = RailwayAINetworkInfo(
-            stations: stations,
-            available_platforms: availablePlatforms,
-            max_speeds: maxSpeeds
-        )
-        
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-        dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-        
-        let aiConflicts = conflicts.map { c in
-            let trainA = trains.first(where: { $0.id == c.trainAId })
-            let trainB = trains.first(where: { $0.id == c.trainBId })
-            
-            func mapTrain(_ t: Train?, arrival: Date?, departure: Date?) -> RailwayAITrainInfo {
-                return RailwayAITrainInfo(
-                    train_id: t?.id.uuidString ?? UUID().uuidString,
-                    arrival: arrival.map { dateFormatter.string(from: $0) },
-                    departure: departure.map { dateFormatter.string(from: $0) },
-                    platform: nil,
-                    current_speed_kmh: Double(t?.maxSpeed ?? 100),
-                    priority: t?.priority ?? 5
-                )
-            }
-            
-            // Approximate arrival/departure for these trains at this location from the schedules
-            // For simplicity, we use the conflict window
-            let tInfoA = mapTrain(trainA, arrival: c.timeStart, departure: c.timeEnd)
-            let tInfoB = mapTrain(trainB, arrival: c.timeStart, departure: c.timeEnd)
-            
-            return RailwayAIConflictInput(
-                conflict_type: c.locationType == .station ? "platform_conflict" : "line_conflict",
-                location: c.locationId.replacingOccurrences(of: "STATION::", with: "").replacingOccurrences(of: "LINE::", with: ""),
-                trains: [tInfoA, tInfoB],
-                severity: "high",
-                time_overlap_seconds: Int(c.timeEnd.timeIntervalSince(c.timeStart))
-            )
-        }
-        
-        return RailwayAIRequest(
-            conflicts: aiConflicts,
-            network: networkInfo,
-            preferences: nil
-        )
-    }
-    
-    // MARK: - Advanced Optimizer (Integer Schema)
-    
-    private var stationMapping: [String: Int] = [:]
-    private var trackMapping: [UUID: Int] = [:]
-    private var trainMapping: [UUID: Int] = [:]
-    
-    func advancedOptimize(network: RailwayNetwork, trains: [Train]) -> AnyPublisher<OptimizerResponse, Error> {
-        let request = createAdvancedRequest(network: network, trains: trains)
-        
-        var urlRequest = URLRequest(url: baseURL.appendingPathComponent("optimize_scheduled"))
-        urlRequest.httpMethod = "POST"
-        urlRequest.timeoutInterval = 180.0 // Extended timeout for deep GA optimization
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.setValue("application/json", forHTTPHeaderField: "accept")
-        
-        if let apiKey = self.apiKey, !apiKey.isEmpty {
-            // PIGNOLO PROTOCOL: API Keys should have the "rw-" prefix
-            let finalKey = apiKey.hasPrefix("rw-") ? apiKey : "rw-\(apiKey)"
-            
-            // DUAL-HEADER STRATEGY: Send in both common headers for maximum compatibility
-            urlRequest.setValue(finalKey, forHTTPHeaderField: "X-API-Key")
-            urlRequest.setValue("Bearer \(finalKey)", forHTTPHeaderField: "Authorization")
-            
-            print("[Auth] Using API Key (Safe Mode): \(finalKey.prefix(7))...")
-        } else if let token = self.token {
-            urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            print("[Auth] Using JWT Token: \(token.prefix(10))...")
-        }
-        
-        do {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = .prettyPrinted
-            urlRequest.httpBody = try encoder.encode(request)
-            
-            if let jsonString = String(data: urlRequest.httpBody!, encoding: .utf8) {
-                print("--------------------------------------------------")
-                print("[OPTIMIZER DEBUG] REQUEST JSON:")
-                print(jsonString)
-                print("--------------------------------------------------")
-            }
-        } catch {
-            return Fail(error: error).eraseToAnyPublisher()
-        }
-        
-        return URLSession.shared.dataTaskPublisher(for: urlRequest)
-            .timeout(180, scheduler: DispatchQueue.main)
-            .tryMap { output in
-                guard let httpResponse = output.response as? HTTPURLResponse else {
-                    throw URLError(.badServerResponse)
-                }
-                
-                if httpResponse.statusCode != 200 {
-                    let body = String(data: output.data, encoding: .utf8) ?? "Nessun corpo risposta"
-                    print("[OPTIMIZER ERROR] Status: \(httpResponse.statusCode)")
-                    print("[OPTIMIZER ERROR] Body: \(body)")
-                    
-                    let errorMsg = "Errore Server (\(httpResponse.statusCode)): \(body)"
-                    throw NSError(domain: errorMsg, code: httpResponse.statusCode)
-                }
-                return output.data
-            }
-            .decode(type: OptimizerResponse.self, decoder: JSONDecoder())
-            .receive(on: DispatchQueue.main)
-            .eraseToAnyPublisher()
-    }
-    
-    private func createAdvancedRequest(network: RailwayNetwork, trains: [Train]) -> OptimizerRequest {
         stationMapping.removeAll()
-        trackMapping.removeAll()
         trainMapping.removeAll()
+        trackMapping.removeAll()
         
-        // 1. Map only REAL stations (non-junctions)
-        let stations = network.nodes.filter { $0.type != .junction }
-        let sortedStations = stations.sorted(by: { $0.id < $1.id })
-        let optimizerStations = sortedStations.enumerated().map { index, node in
+        // 1. Map STATIONS (ID string -> Int)
+        let sortedNodes = network.nodes.sorted(by: { $0.id < $1.id })
+        let aiStations = sortedNodes.enumerated().map { index, node in
             stationMapping[node.id] = index
-            let platforms = node.platforms ?? (node.type == Node.NodeType.interchange ? 2 : 1)
-            return OptimizerStation(id: index, name: node.name, num_platforms: platforms)
+            let platforms = node.platforms ?? (node.type == .interchange ? 2 : 1)
+            return RailwayAIStationInfo(id: index, name: node.name, num_platforms: platforms)
         }
         
-        print("[AI Mapping] Macro-Stations mapped: \(optimizerStations.count)")
+        // 2. Map UNIQUE TRACKS (Group edges between same stations)
+        var uniqueTracks: [RailwayAITrackInfo] = []
+        var segmentToTrackId: [String: Int] = [:] // Key: "minId-maxId"
         
-        // 2. Identify and create Macro-Tracks (Legs between stations)
-        var macroTracks: [Set<String>: (index: Int, distance: Double, speed: Int, capacity: Int)] = [:]
-        var optimizerTracks: [OptimizerTrack] = []
-        
-        func getMacroTrack(from: String, to: String) -> Int? {
-            let pair = Set([from, to])
-            if let existing = macroTracks[pair] { return existing.index }
+        for edge in network.edges {
+            let s1 = stationMapping[edge.from] ?? 0
+            let s2 = stationMapping[edge.to] ?? 0
+            let key = [s1, s2].sorted().map{String($0)}.joined(separator: "-")
             
-            // Find full path to calculate mathematically precise macro-metrics
-            guard let path = network.findPathEdges(from: from, to: to) else { return nil }
-            
-            let totalDist = path.reduce(0.0) { $0 + $1.distance }
-            
-            // MATH SYNC: Calculate total hours to traverse all small segments at their respective speeds
-            let totalHours = path.reduce(0.0) { acc, edge in
-                let segSpeed = Double(edge.maxSpeed)
-                return acc + (edge.distance / segSpeed)
+            if let trackId = segmentToTrackId[key] {
+                // Link this edge UUID to the existing track ID
+                trackMapping[edge.id.uuidString] = trackId
+            } else {
+                let trackId = 1000 + uniqueTracks.count
+                segmentToTrackId[key] = trackId
+                trackMapping[edge.id.uuidString] = trackId
+                
+                let isSingle = edge.trackType == .single || edge.trackType == .regional
+                let capacity = isSingle ? 1 : 2
+                
+                let track = RailwayAITrackInfo(
+                    id: trackId,
+                    station_ids: [s1, s2],
+                    length_km: edge.distance,
+                    is_single_track: isSingle,
+                    capacity: capacity
+                )
+                uniqueTracks.append(track)
             }
-            
-            // Derive Effective Speed so that (totalDist / effectiveSpeed) == sum(dist_i / speed_i)
-            // This ensures the AI sees the EXACT same travel time as the App's detailed simulation.
-            let effectiveSpeed = totalHours > 0 ? (totalDist / totalHours) : 60.0
-            
-            // Capacity Bottleneck: If any segment is single track, the whole leg is single track
-            let minCap = path.map { 
-                ($0.trackType == .single || $0.trackType == .regional) ? 1 : ($0.capacity ?? 2)
-            }.min() ?? 1
-            
-            let isSingle = path.contains { $0.trackType == .single || $0.trackType == .regional }
-            
-            let index = optimizerTracks.count
-            macroTracks[pair] = (index, totalDist, Int(effectiveSpeed), minCap)
-            
-            let s1 = stationMapping[from] ?? 0
-            let s2 = stationMapping[to] ?? 0
-            
-            let track = OptimizerTrack(id: index,
-                                      length_km: totalDist,
-                                      is_single_track: isSingle,
-                                      capacity: minCap,
-                                      station_ids: [s1, s2],
-                                      max_speed: Int(effectiveSpeed))
-            optimizerTracks.append(track)
-            return index
         }
         
-        // 3. Map Trains using Macro-Tracks
-        let optimizerTrains = trains.enumerated().map { index, train in
+        // Formatter for "HH:mm:ss"
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm:ss"
+        timeFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+        
+        func normalize(_ date: Date?) -> Date? {
+            guard let date = date else { return nil }
+            let comps = Calendar.current.dateComponents([.hour, .minute, .second], from: date)
+            let d = Calendar.current.date(from: DateComponents(year: 2000, month: 1, day: 1, hour: comps.hour, minute: comps.minute, second: comps.second)) ?? date
+            let roundedSeconds = floor((d.timeIntervalSinceReferenceDate + 30) / 60) * 60
+            return Date(timeIntervalSinceReferenceDate: roundedSeconds)
+        }
+        
+        // 3. Map TRAINS
+        let aiTrains = trains.enumerated().map { index, train in
             trainMapping[train.id] = index
             
-            let stationIds = train.stops.map { $0.stationId }
-            let routeStationIndices = stationIds.compactMap { stationMapping[$0] }
-            let originId = routeStationIndices.first ?? 0
-            let destinationId = routeStationIndices.last ?? 0
+            let originId = train.stops.first?.stationId ?? ""
+            let destId = train.stops.last?.stationId ?? ""
             
-            // Format departure in UTC
-            var scheduledDepartureTime: String? = nil
-            if let depTime = train.departureTime {
-                let formatter = DateFormatter()
-                formatter.dateFormat = "HH:mm:ss"
-                formatter.timeZone = TimeZone(secondsFromGMT: 0)
-                scheduledDepartureTime = formatter.string(from: depTime)
-            }
-            
-            // MATH SYNC: Build the route using TRACK IDs (Macro-tracks), not station IDs
-            var trackIds: [Int] = []
-            if stationIds.count >= 2 {
-                for i in 0..<(stationIds.count - 1) {
-                    if let trackIndex = getMacroTrack(from: stationIds[i], to: stationIds[i+1]) {
-                        trackIds.append(trackIndex)
+            // Build planned_route as a list of track IDs
+            var routeIds: [Int] = []
+            for i in 0..<(train.stops.count - 1) {
+                let s1 = train.stops[i].stationId
+                let s2 = train.stops[i+1].stationId
+                if let edge = network.edges.first(where: { ($0.from == s1 && $0.to == s2) || ($0.from == s2 && $0.to == s1) }) {
+                    if let tId = trackMapping[edge.id.uuidString] {
+                        routeIds.append(tId)
                     }
                 }
             }
             
-            let currentTrack = trackIds.first ?? 0
-            let minDwell = 3 // PIGNOLO PROTOCOL: Hardcoded 3.0m base dwell
+            let depTime = normalize(train.departureTime) ?? Date()
+            let currentTrackId = routeIds.first ?? 0
             
-            return OptimizerTrain(
+            return RailwayAITrainInfo(
                 id: index,
+                priority: train.priority,
                 position_km: 0.0,
                 velocity_kmh: Double(train.maxSpeed),
-                current_track: currentTrack,
-                destination_station: destinationId,
+                current_track: currentTrackId,
+                destination_station: stationMapping[destId] ?? 0,
                 delay_minutes: 0,
-                priority: train.priority,
                 is_delayed: false,
-                origin_station: originId,
-                scheduled_departure_time: scheduledDepartureTime,
-                route: trackIds, // FIXED: Now sending track indices
-                min_dwell_minutes: minDwell
+                origin_station: stationMapping[originId] ?? 0,
+                scheduled_departure_time: timeFormatter.string(from: depTime),
+                planned_route: routeIds,
+                min_dwell_minutes: train.stops.map { $0.minDwellTime }.max() ?? 3
             )
         }
         
-        return OptimizerRequest(trains: optimizerTrains, 
-                                tracks: optimizerTracks, 
-                                stations: optimizerStations, 
-                                max_iterations: 600, // 10 hours is sufficient for the network scale
-                                ga_max_iterations: 300, // PIGNOLO PROTOCOL: Recommended for 59 stations
-                                ga_population_size: 100) // PIGNOLO PROTOCOL: High precision
+        let finalRequest = RailwayAIRequest(
+            trains: aiTrains,
+            tracks: uniqueTracks,
+            stations: aiStations,
+            max_iterations: 1000,
+            ga_max_iterations: 150,
+            ga_population_size: 50
+        )
+        
+        self.lastRequestJSON = (try? String(data: JSONEncoder().encode(finalRequest), encoding: .utf8)) ?? ""
+        
+        return finalRequest
+    }
+    
+    private func saveRequestToFile(_ request: RailwayAIRequest) {
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            encoder.dateEncodingStrategy = .formatted(formatter)
+            
+            let data = try encoder.encode(request)
+            let path = "/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/last_ai_request.json"
+            try data.write(to: URL(fileURLWithPath: path))
+            print("[PIGNOLO] Request salvata in: \(path)")
+        } catch {
+            print("[PIGNOLO] Errore salvataggio file: \(error)")
+        }
     }
     
     /// Translates integer results back to original UUIDs
+    func getTrainUUID(optimizerId: Int) -> UUID? {
+        return trainMapping.first(where: { $0.value == optimizerId })?.key
+    }
+    
+    // Alias for compatibility
     func getTrainId(optimizerId: Int) -> UUID? {
-        return trainMapping.first(where: { $1 == optimizerId })?.key
+        return getTrainUUID(optimizerId: optimizerId)
+    }
+    
+    func getTrainMapping() -> [UUID: Int] {
+        return trainMapping
     }
 }

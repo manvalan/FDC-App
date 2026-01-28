@@ -89,10 +89,16 @@ class FDCImportViewModel: ObservableObject {
             var trainIdMap: [String: UUID] = [:]
             
             // Map trains
-            let trains = parsed.trains.map { fdcTrain -> Train in
+            let trains = parsed.trains.enumerated().map { (idx, fdcTrain) -> Train in
                 let newId = UUID()
                 trainIdMap[fdcTrain.id] = newId
+                
+                // Heuristic: try to extract numeric ID from name if it's like "R 1234"
+                let components = fdcTrain.name.components(separatedBy: .whitespaces)
+                let number = components.compactMap { Int($0) }.first ?? (1000 + idx)
+                
                 return Train(id: newId, 
+                      number: number,
                       name: fdcTrain.name, 
                       type: fdcTrain.type ?? "Regionale", 
                       maxSpeed: fdcTrain.maxSpeed ?? 120, 
@@ -103,7 +109,11 @@ class FDCImportViewModel: ObservableObject {
 
             // Map schedules with correct UUIDs and Names
             let df = ISO8601DateFormatter()
+            var tCopy = trains
             let mappedSchedules = parsed.rawSchedules.map { sch -> TrainSchedule in
+                let swiftTrainId = trainIdMap[sch.train_id] ?? UUID()
+                let trainName = tCopy.first(where: { $0.id == swiftTrainId })?.name ?? sch.train_id
+                
                 let stops = sch.stops.map { stop -> ScheduleStop in
                     let stationName = nodes.first(where: { $0.id == stop.node_id })?.name ?? stop.node_id
                     return ScheduleStop(stationId: stop.node_id, 
@@ -113,10 +123,22 @@ class FDCImportViewModel: ObservableObject {
                                        dwellsMinutes: 2,
                                        stationName: stationName)
                 }
-                let swiftTrainId = trainIdMap[sch.train_id] ?? UUID()
-                let trainName = trains.first(where: { $0.id == swiftTrainId })?.name ?? sch.train_id
+                
+                // POPOLAMENTO TRENO: Importante per l'ottimizzatore
+                if let tIdx = tCopy.firstIndex(where: { $0.id == swiftTrainId }) {
+                    tCopy[tIdx].departureTime = stops.first?.departureTime
+                    tCopy[tIdx].stops = stops.map { s in
+                        RelationStop(stationId: s.stationId, 
+                                     minDwellTime: s.dwellsMinutes, 
+                                     track: s.platform.map { "\($0)" }, 
+                                     arrival: s.arrivalTime, 
+                                     departure: s.departureTime)
+                    }
+                }
+                
                 return TrainSchedule(trainId: swiftTrainId, trainName: trainName, stops: stops)
             }
+            let updatedTrains = tCopy
 
             if let network = self.network {
                 network.name = parsed.name
@@ -127,8 +149,8 @@ class FDCImportViewModel: ObservableObject {
             }
             
             if let trainManager = self.trainManager {
-                trainManager.trains = trains
-                print("[FDCImportViewModel] Applied \(trains.count) trains to TrainManager")
+                trainManager.trains = updatedTrains
+                print("[FDCImportViewModel] Applied \(updatedTrains.count) trains to TrainManager")
             }
             
             // Populate simulator

@@ -54,6 +54,16 @@
                 <string>org.railml</string>
             </array>
         </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>FdC Rail V2</string>
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>it.fdc.railv2</string>
+            </array>
+        </dict>
     </array>
     <key>UTExportedTypeDeclarations</key>
     <array>
@@ -89,6 +99,23 @@
                 <array>
                     <string>railml</string>
                     <string>xml</string>
+                </array>
+            </dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>it.fdc.railv2</string>
+            <key>UTTypeDescription</key>
+            <string>FdC Rail V2 Container</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.json</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>rail</string>
                 </array>
             </dict>
         </dict>

@@ -34,3 +34,12 @@ extension Color {
         self.init(red: Double(r), green: Double(g), blue: Double(b), opacity: Double(a))
     }
 }
+
+extension Date {
+    /// Returns a date with the SAME time but fixed to 2000-01-01 (PIGNOLO PROTOCOL)
+    func normalized() -> Date {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.hour, .minute, .second], from: self)
+        return calendar.date(from: DateComponents(year: 2000, month: 1, day: 1, hour: components.hour, minute: components.minute, second: components.second)) ?? self
+    }
+}
