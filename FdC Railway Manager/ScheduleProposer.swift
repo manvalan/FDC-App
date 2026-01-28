@@ -4,13 +4,14 @@ struct ProposedLine: Codable {
     let id: String
     let origin: Int
     let destination: Int
+    let stops: [Int]  // Complete route with all intermediate stations
     let frequency: String
     let firstDepartureMinute: Int
 
     let color: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, origin, destination, frequency, color
+        case id, origin, destination, stops, frequency, color
         case firstDepartureMinute = "first_departure_minute"
     }
 
@@ -26,10 +27,18 @@ struct ProposedLine: Codable {
     
     var stationSequence: [String] {
         let graph = RailwayGraphManager.shared
+        
+        // Use the complete stops array if available
+        if !stops.isEmpty {
+            return stops.compactMap { graph.getOriginalStationId(fromNumericId: $0) }
+        }
+        
+        // Fallback to origin/destination only
         let sA = graph.getOriginalStationId(fromNumericId: origin) ?? String(origin)
         let sB = graph.getOriginalStationId(fromNumericId: destination) ?? String(destination)
         return [sA, sB]
     }
+    
     var frequencyMinutes: Int {
         // Extract number from "Every 30 min"
         let digits = frequency.filter { "0123456789".contains($0) }
@@ -42,6 +51,7 @@ struct SchedulePreviewItem: Codable {
     let departure: String
     let origin: Int
     let destination: Int
+    let stops: [Int]  // Complete route with all intermediate stations
 }
 
 struct ProposalResponse: Codable {
