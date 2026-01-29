@@ -207,27 +207,52 @@ struct SchematicRailwayView: View {
                             }
 
                             // 0. Hub & Interchange Visualization (Tube Style Corridor)
-                            // We visualize both explicitly grouped Hubs (parentHubId) AND standalone Interchanges
-                            var visualGroups: [String: [Node]] = [:]
+                            // We visualize explicit Hubs AND automatically cluster nearby orphan Interchanges
+                            var visualGroups: [[Node]] = []
+                            var processedNodeIds: Set<String> = []
                             
-                            // Group 1: Explicit Hubs
-                            let explicitHubs = Dictionary(grouping: network.nodes.filter { $0.parentHubId != nil }, by: { $0.parentHubId! })
-                            visualGroups.merge(explicitHubs) { current, _ in current }
+                            // 1. Explicit Hubs (Data-defined)
+                            let explicitGroups = Dictionary(grouping: network.nodes.filter { $0.parentHubId != nil }, by: { $0.parentHubId! })
+                            for (_, nodes) in explicitGroups {
+                                visualGroups.append(nodes)
+                                nodes.forEach { processedNodeIds.insert($0.id) }
+                            }
                             
-                            // Group 2: Standalone Interchanges
-                            let orphanInterchanges = network.nodes.filter { $0.type == .interchange && $0.parentHubId == nil }
-                            for node in orphanInterchanges {
-                                visualGroups[node.id] = [node]
+                            // 2. Orphan Interchanges Clustering (Proximity-based)
+                            // If user hasn't set parentHubId, we visually group them if they are close on screen.
+                            let orphanInterchanges = network.nodes.filter { $0.type == .interchange && !processedNodeIds.contains($0.id) }
+                            
+                            // Simple visual clustering
+                            var orphansToCheck = orphanInterchanges
+                            while let node = orphansToCheck.first {
+                                orphansToCheck.removeFirst()
+                                var cluster = [node]
+                                let p1 = finalPosition(for: node, in: size, bounds: bounds)
+                                
+                                // Find neighbors
+                                var i = 0
+                                while i < orphansToCheck.count {
+                                    let other = orphansToCheck[i]
+                                    let p2 = finalPosition(for: other, in: size, bounds: bounds)
+                                    let dist = hypot(p1.x - p2.x, p1.y - p2.y)
+                                    
+                                    // Threshold: 50 points (approx 2x node size)
+                                    if dist < 50 {
+                                        cluster.append(other)
+                                        orphansToCheck.remove(at: i)
+                                    } else {
+                                        i += 1
+                                    }
+                                }
+                                visualGroups.append(cluster)
                             }
 
-                            for (groupId, nodes) in visualGroups {
+                            for nodes in visualGroups {
                                 let positions = nodes.map { finalPosition(for: $0, in: size, bounds: bounds) }
                                 
-                                // Draw Tube-style Connection (Corridor) for groups
-                                // Black outline, White center.
-                                
+                                // Draw Tube-style Connection (Corridor)
+                                // Only if >1 node in the visual cluster
                                 if nodes.count > 1 {
-                                    // Connected components (pairwise)
                                     for i in 0..<nodes.count {
                                         for j in (i+1)..<nodes.count {
                                             let p1 = positions[i]
@@ -235,37 +260,77 @@ struct SchematicRailwayView: View {
                                             
                                             let hPath = Path { p in p.move(to: p1); p.addLine(to: p2) }
                                             
-                                            // Black Border (Connector)
-                                            context.stroke(hPath, with: .color(.black), style: StrokeStyle(lineWidth: 18, lineCap: .round))
-                                            // White Interior (Passage)
-                                            context.stroke(hPath, with: .color(.white), style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                                            // Black Border (Connector) - Width 22 to match node border (14+5+5ish)
+                                            context.stroke(hPath, with: .color(.black), style: StrokeStyle(lineWidth: 22, lineCap: .round))
+                                            // White Interior (Passage) - Width 14 to match inner node
+                                            context.stroke(hPath, with: .color(.white), style: StrokeStyle(lineWidth: 14, lineCap: .round))
                                         }
                                     }
-                                }
-                                
-                                // Unified Name
-                                if let parentNode = network.nodes.first(where: { $0.id == groupId }) ?? nodes.first {
-                                    // Position: "Sotto a tutto" (Below highest Y value, which is lowest on screen)
-                                    // Find max Y among nodes
-                                    let maxY = positions.map { $0.y }.max() ?? positions[0].y
-                                    let labelY = maxY + 35 // Offset below the lowest station
                                     
-                                    // Center X of the group
+                                    // Unified Name (for the cluster)
+                                    // Position: Below lowest node
+                                    let maxY = positions.map { $0.y }.max() ?? positions[0].y
+                                    let labelY = maxY + 35
+                                    
+                                    // Center X
                                     let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
                                     
-                                    let text = Text(parentNode.name)
+                                    // Name source: First node name (simplified)
+                                    // If explicit hub, use parent name. If implicit, use first node's name.
+                                    var nameToDisplay = nodes.first?.name ?? ""
+                                    if let parentId = nodes.first?.parentHubId,
+                                       let parent = network.nodes.first(where: { $0.id == parentId }) {
+                                        nameToDisplay = parent.name
+                                    }
+                                    
+                                    let text = Text(nameToDisplay)
                                         .font(.system(size: 14, weight: .bold))
-                                        .foregroundColor(.red) // User requested RED
+                                        .foregroundColor(.red)
                                     
-                                    // Draw text shadow (white glow)
-                                    var solvedText = context.resolve(text.foregroundColor(.white))
-                                    context.draw(solvedText, at: CGPoint(x: centerX, y: labelY + 1))
-                                    context.draw(solvedText, at: CGPoint(x: centerX - 1, y: labelY))
-                                    context.draw(solvedText, at: CGPoint(x: centerX + 1, y: labelY))
+                                    let resolvedText = context.resolve(text)
+                                    let textSize = resolvedText.measure(in: CGSize(width: 200, height: 50))
                                     
-                                    // Draw main text in RED
-                                    solvedText = context.resolve(text.foregroundColor(.red))
-                                    context.draw(solvedText, at: CGPoint(x: centerX, y: labelY))
+                                    // Background Pill (Cleaner than shadow)
+                                    let textRect = CGRect(
+                                        x: centerX - textSize.width/2 - 4,
+                                        y: labelY - textSize.height/2 - 2,
+                                        width: textSize.width + 8,
+                                        height: textSize.height + 4
+                                    )
+                                    let pill = Path(roundedRect: textRect, cornerRadius: 4)
+                                    context.fill(pill, with: .color(.white.opacity(0.8)))
+                                    
+                                    // Draw Text
+                                    context.draw(resolvedText, at: CGPoint(x: centerX, y: labelY))
+                                }
+                                // Single nodes (count == 1) are handled by StationNodeView (White circle + black border),
+                                // but their name is HIDDEN by StationNodeView logic.
+                                // We MUST draw the name for single orphan interchanges too!
+                                else if let node = nodes.first {
+                                     // It's a single orphan visual group.
+                                     // StationNodeView logic hides name if type == .interchange.
+                                     // So we must draw it here.
+                                     
+                                     let p = positions[0]
+                                     let labelY = p.y + 35
+                                     
+                                     let text = Text(node.name)
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(.red)
+                                     
+                                     let resolvedText = context.resolve(text)
+                                     let textSize = resolvedText.measure(in: CGSize(width: 200, height: 50))
+                                     
+                                     let textRect = CGRect(
+                                         x: p.x - textSize.width/2 - 4,
+                                         y: labelY - textSize.height/2 - 2,
+                                         width: textSize.width + 8,
+                                         height: textSize.height + 4
+                                     )
+                                     let pill = Path(roundedRect: textRect, cornerRadius: 4)
+                                     context.fill(pill, with: .color(.white.opacity(0.8)))
+                                     
+                                     context.draw(resolvedText, at: CGPoint(x: p.x, y: labelY))
                                 }
                             }
                             
