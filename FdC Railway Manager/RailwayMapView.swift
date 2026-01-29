@@ -206,16 +206,15 @@ struct SchematicRailwayView: View {
                                 }
                             }
 
-                            // 0. Hub & Interchange Visualization (Diagonal Rings)
-                            // We visualize both explicitly grouped Hubs (parentHubId) AND standalone Interchanges (orphans)
-                            // NOTE: If stations are not grouped by ID, they will appear as separate rings even if overlapping.
+                            // 0. Hub & Interchange Visualization (Tube Style Corridor)
+                            // We visualize both explicitly grouped Hubs (parentHubId) AND standalone Interchanges
                             var visualGroups: [String: [Node]] = [:]
                             
-                            // Group 1: Explicit Hubs (set in Data)
+                            // Group 1: Explicit Hubs
                             let explicitHubs = Dictionary(grouping: network.nodes.filter { $0.parentHubId != nil }, by: { $0.parentHubId! })
                             visualGroups.merge(explicitHubs) { current, _ in current }
                             
-                            // Group 2: Standalone Interchanges (as single-node visual hubs)
+                            // Group 2: Standalone Interchanges
                             let orphanInterchanges = network.nodes.filter { $0.type == .interchange && $0.parentHubId == nil }
                             for node in orphanInterchanges {
                                 visualGroups[node.id] = [node]
@@ -224,21 +223,10 @@ struct SchematicRailwayView: View {
                             for (groupId, nodes) in visualGroups {
                                 let positions = nodes.map { finalPosition(for: $0, in: size, bounds: bounds) }
                                 
-                                // Draw Ring (Pill Shape)
-                                // If 1 node: Draws a circle (lineCap round on zero path)
-                                // If >1 node: Draws connected pill
+                                // Draw Tube-style Connection (Corridor) for groups
+                                // Black outline, White center.
                                 
-                                if nodes.count == 1 {
-                                    // Single Node Hub/Interchange
-                                    let p = positions[0]
-                                    let hPath = Path { path in
-                                        path.move(to: p)
-                                        path.addLine(to: p) // Minimal path to creating a dot/circle with cap
-                                    }
-                                    // Use same style
-                                    context.stroke(hPath, with: .color(Color(hex: "#8E8E93") ?? .gray), style: StrokeStyle(lineWidth: 54, lineCap: .round))
-                                    context.stroke(hPath, with: .color(.white), style: StrokeStyle(lineWidth: 46, lineCap: .round))
-                                } else {
+                                if nodes.count > 1 {
                                     // Connected components (pairwise)
                                     for i in 0..<nodes.count {
                                         for j in (i+1)..<nodes.count {
@@ -247,31 +235,43 @@ struct SchematicRailwayView: View {
                                             
                                             let hPath = Path { p in p.move(to: p1); p.addLine(to: p2) }
                                             
-                                            context.stroke(hPath, with: .color(Color(hex: "#8E8E93") ?? .gray), style: StrokeStyle(lineWidth: 54, lineCap: .round))
-                                            context.stroke(hPath, with: .color(.white), style: StrokeStyle(lineWidth: 46, lineCap: .round))
+                                            // Black Border (Connector)
+                                            context.stroke(hPath, with: .color(.black), style: StrokeStyle(lineWidth: 18, lineCap: .round))
+                                            // White Interior (Passage)
+                                            context.stroke(hPath, with: .color(.white), style: StrokeStyle(lineWidth: 12, lineCap: .round))
                                         }
                                     }
+                                }
+                                
+                                // Unified Name
+                                if let parentNode = network.nodes.first(where: { $0.id == groupId }) ?? nodes.first {
+                                    // Position: "Sotto a tutto" (Below highest Y value, which is lowest on screen)
+                                    // Find max Y among nodes
+                                    let maxY = positions.map { $0.y }.max() ?? positions[0].y
+                                    let labelY = maxY + 35 // Offset below the lowest station
                                     
-                                    // Unified Name (only for groups)
-                                    // For single nodes, existing StationNodeView handles the name
+                                    // Center X of the group
                                     let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
-                                    let centerY = positions.reduce(0) { $0 + $1.y } / CGFloat(positions.count)
-                                    let center = CGPoint(x: centerX, y: centerY)
                                     
-                                    if let parentNode = network.nodes.first(where: { $0.id == groupId }) ?? nodes.first {
-                                        let text = Text(parentNode.name).font(.system(size: 15, weight: .heavy))
-                                        let solvedWhite = context.resolve(text.foregroundColor(.white))
-                                        let solvedBlack = context.resolve(text.foregroundColor(.black))
-                                        
-                                        context.draw(solvedWhite, at: CGPoint(x: center.x, y: center.y + 40))
-                                        context.draw(solvedBlack, at: CGPoint(x: center.x, y: center.y + 39))
-                                    }
+                                    let text = Text(parentNode.name)
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(.red) // User requested RED
+                                    
+                                    // Draw text shadow (white glow)
+                                    var solvedText = context.resolve(text.foregroundColor(.white))
+                                    context.draw(solvedText, at: CGPoint(x: centerX, y: labelY + 1))
+                                    context.draw(solvedText, at: CGPoint(x: centerX - 1, y: labelY))
+                                    context.draw(solvedText, at: CGPoint(x: centerX + 1, y: labelY))
+                                    
+                                    // Draw main text in RED
+                                    solvedText = context.resolve(text.foregroundColor(.red))
+                                    context.draw(solvedText, at: CGPoint(x: centerX, y: labelY))
                                 }
                             }
                             
                             if mode == .lines {
                                 // Draw Commercial Lines with London Underground-style rounded corners
-                                for (key, lines) in segmentLineMap {
+                                for (key, lines) in segmentLineMap) {
                                     guard let n1 = network.nodes.first(where: { $0.id == key.from }),
                                           let n2 = network.nodes.first(where: { $0.id == key.to }) else { continue }
                                     
@@ -694,37 +694,59 @@ struct StationNodeView: View {
     @State private var dragOffset: CGSize = .zero
     
     var body: some View {
-        let color = Color(hex: node.customColor ?? node.defaultColor) ?? .black
-        let visualType = node.visualType ?? node.defaultVisualType
+        let isHubOrInterchange = node.type == .interchange || node.parentHubId != nil
         
-        symbolView(type: visualType, color: color)
-            .frame(width: 44, height: 44) // Larger interactive area (Standard Apple tap target)
-            .contentShape(Rectangle())
-            .background(Circle().fill(Color.white).opacity(0.001)) // Make the transparent area tappable
-            .overlay(symbolView(type: visualType, color: color).frame(width: 24, height: 24))
-            .background(Circle().fill(Color.white).scaleEffect(0.5))
-            .overlay(
-                Group {
-                    if isSelected {
-                        Circle().stroke(Color.blue, lineWidth: 2).scaleEffect(1.4)
-                    }
+        Group {
+            if isHubOrInterchange {
+                // Tube Style: White Circle with Thick Black Border
+                ZStack {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 14, height: 14)
+                    Circle()
+                        .stroke(Color.black, lineWidth: 5)
+                        .frame(width: 19, height: 19)
                 }
-            )
-            .overlay(alignment: .top) {
-                // Only show name if station is NOT part of a hub (to avoid clutter)
-                if node.parentHubId == nil {
-                    Text(node.name)
-                        .font(.system(size: 14, weight: .black))
-                        .fixedSize()
-                        .foregroundColor(.black)
-                        .shadow(color: .white, radius: 2)
-                        .offset(y: 28)
-                        .allowsHitTesting(false)
+            } else {
+                let color = Color(hex: node.customColor ?? node.defaultColor) ?? .black
+                let visualType = node.visualType ?? node.defaultVisualType
+                
+                ZStack {
+                    // White backing to cover track lines
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 20, height: 20)
+                    
+                    symbolView(type: visualType, color: color)
+                        .frame(width: 24, height: 24)
                 }
             }
-            .onTapGesture {
-                onTap()
+        }
+        .frame(width: 44, height: 44) // Larger interactive area
+        .contentShape(Circle())
+        .background(Circle().fill(Color.white).opacity(0.001))
+        .overlay(
+            Group {
+                if isSelected {
+                    Circle().stroke(Color.blue, lineWidth: 2).scaleEffect(1.4)
+                }
             }
+        )
+        .overlay(alignment: .top) {
+            // Hide label if it's a Hub or Interchange (Canvas handles Red Label)
+            if !isHubOrInterchange {
+                Text(node.name)
+                    .font(.system(size: 14, weight: .black))
+                    .fixedSize()
+                    .foregroundColor(.black)
+                    .shadow(color: .white, radius: 2)
+                    .offset(y: 28)
+                    .allowsHitTesting(false)
+            }
+        }
+        .onTapGesture {
+            onTap()
+        }
             .gesture(
                 DragGesture(minimumDistance: 5)
                     .onChanged { val in
