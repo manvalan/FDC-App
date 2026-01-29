@@ -349,7 +349,6 @@ struct SchematicRailwayView: View {
                             }
                             
                             if mode == .lines {
-                                // Draw Commercial Lines with London Underground-style rounded corners
                                 // Draw Commercial Lines following Schematic Path
                                 for (key, lines) in segmentLineMap {
                                     guard let n1 = network.nodes.first(where: { $0.id == key.from }),
@@ -358,7 +357,33 @@ struct SchematicRailwayView: View {
                                     let p1 = finalPosition(for: n1, in: size, bounds: bounds)
                                     let p2 = finalPosition(for: n2, in: size, bounds: bounds)
                                     
-                                            context.stroke(linePath, with: .color(color.opacity(0.3)), style: StrokeStyle(lineWidth: thickness + 4, lineCap: .round, lineJoin: .round))
+                                    // 1. Generate Schematic Path (0, 45, 90)
+                                    let points = generateSchematicPoints(from: p1, to: p2)
+                                    
+                                    // 2. Iterate segments
+                                    for j in 0..<(points.count - 1) {
+                                        let sp1 = points[j]
+                                        let sp2 = points[j+1]
+                                        let angle = atan2(sp2.y - sp1.y, sp2.x - sp1.x)
+                                        let offsetBase: CGFloat = 4.0
+                                        
+                                        for (i, line) in lines.enumerated() {
+                                            let offset = CGFloat(i) * offsetBase - (CGFloat(lines.count - 1) * offsetBase / 2.0)
+                                            let offX = -sin(angle) * offset
+                                            let offY = cos(angle) * offset
+                                            
+                                            let lp1 = CGPoint(x: sp1.x + offX, y: sp1.y + offY)
+                                            let lp2 = CGPoint(x: sp2.x + offX, y: sp2.y + offY)
+                                            
+                                            let segPath = Path { p in p.move(to: lp1); p.addLine(to: lp2) }
+                                            let lineColor = Color(hex: line.color ?? "#000000") ?? .black
+                                            let isSelected = (line.id == selectedLine?.id)
+                                            let lineWidth: CGFloat = isSelected ? 4.0 : 3.0
+                                            
+                                            if isSelected {
+                                                context.stroke(segPath, with: .color(lineColor.opacity(0.3)), style: StrokeStyle(lineWidth: lineWidth + 4, lineCap: .round))
+                                            }
+                                            context.stroke(segPath, with: .color(lineColor), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                                         }
                                     }
                                 }
