@@ -1227,8 +1227,8 @@ struct RailwayAIView: View {
                 LineProposalView(
                     network: network,
                     proposals: proposedLines,
-                    onApply: { selectedProposals in
-                        applySelectedProposals(selectedProposals)
+                    onApply: { selectedProposals, createTrains in
+                        applySelectedProposals(selectedProposals, createTrains: createTrains)
                     }
                 )
                 .environmentObject(trainManager)
