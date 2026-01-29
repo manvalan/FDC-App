@@ -352,6 +352,10 @@ struct TrainsListView: View {
                 }
                 .onDelete { idx in
                     let toDel = idx.map { unassigned[$0] }
+                    manager.trains.removeAll { t in toDel.contains(where: { $0.id == t.id }) }
+                }
+            }
+        }
         .navigationTitle("Gestione Orari")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
