@@ -155,9 +155,7 @@ struct RailwayMapView: View {
                 showGrid: .constant(false),
                 mode: mode
             )
-            )
             .background(Color.white)
-        }
         }
     }
 
