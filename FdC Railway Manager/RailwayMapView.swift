@@ -206,19 +206,40 @@ struct SchematicRailwayView: View {
                                 }
                             }
 
-                            // 0. Hub Visualization (Diagonal Rings) - Now Drawn AFTER Tracks (Layering fix)
-                            let hubs = Dictionary(grouping: network.nodes.filter { $0.parentHubId != nil }, by: { $0.parentHubId! })
-                            for (hubId, nodes) in hubs {
-                                // We need at least 2 nodes to draw a connection, but we might want to draw name anyway?
-                                // Assuming pairs for the visual ring
-                                if nodes.count >= 2 {
-                                    let positions = nodes.map { finalPosition(for: $0, in: size, bounds: bounds) }
-                                    
-                                    // Calculate center for text
-                                    let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
-                                    let centerY = positions.reduce(0) { $0 + $1.y } / CGFloat(positions.count)
-                                    let center = CGPoint(x: centerX, y: centerY)
-                                    
+                            // 0. Hub & Interchange Visualization (Diagonal Rings)
+                            // We visualize both explicitly grouped Hubs (parentHubId) AND standalone Interchanges (orphans)
+                            // NOTE: If stations are not grouped by ID, they will appear as separate rings even if overlapping.
+                            var visualGroups: [String: [Node]] = [:]
+                            
+                            // Group 1: Explicit Hubs (set in Data)
+                            let explicitHubs = Dictionary(grouping: network.nodes.filter { $0.parentHubId != nil }, by: { $0.parentHubId! })
+                            visualGroups.merge(explicitHubs) { current, _ in current }
+                            
+                            // Group 2: Standalone Interchanges (as single-node visual hubs)
+                            let orphanInterchanges = network.nodes.filter { $0.type == .interchange && $0.parentHubId == nil }
+                            for node in orphanInterchanges {
+                                visualGroups[node.id] = [node]
+                            }
+
+                            for (groupId, nodes) in visualGroups {
+                                let positions = nodes.map { finalPosition(for: $0, in: size, bounds: bounds) }
+                                
+                                // Draw Ring (Pill Shape)
+                                // If 1 node: Draws a circle (lineCap round on zero path)
+                                // If >1 node: Draws connected pill
+                                
+                                if nodes.count == 1 {
+                                    // Single Node Hub/Interchange
+                                    let p = positions[0]
+                                    let hPath = Path { path in
+                                        path.move(to: p)
+                                        path.addLine(to: p) // Minimal path to creating a dot/circle with cap
+                                    }
+                                    // Use same style
+                                    context.stroke(hPath, with: .color(Color(hex: "#8E8E93") ?? .gray), style: StrokeStyle(lineWidth: 54, lineCap: .round))
+                                    context.stroke(hPath, with: .color(.white), style: StrokeStyle(lineWidth: 46, lineCap: .round))
+                                } else {
+                                    // Connected components (pairwise)
                                     for i in 0..<nodes.count {
                                         for j in (i+1)..<nodes.count {
                                             let p1 = positions[i]
@@ -226,28 +247,24 @@ struct SchematicRailwayView: View {
                                             
                                             let hPath = Path { p in p.move(to: p1); p.addLine(to: p2) }
                                             
-                                            // Connected Ring Style (Pill shape) - "Anello diagonale"
-                                            // Increased size/contrast for visibility
-                                            // Outer Dark Gray
                                             context.stroke(hPath, with: .color(Color(hex: "#8E8E93") ?? .gray), style: StrokeStyle(lineWidth: 54, lineCap: .round))
-                                            // Inner White (hollow)
                                             context.stroke(hPath, with: .color(.white), style: StrokeStyle(lineWidth: 46, lineCap: .round))
                                         }
                                     }
                                     
-                                    // Draw Hub Name under the group
-                                    // Get name from parent node (hubId)
-                                    if let parentNode = network.nodes.first(where: { $0.id == hubId }) ?? nodes.first {
-                                        let text = Text(parentNode.name)
-                                            .font(.system(size: 15, weight: .heavy))
+                                    // Unified Name (only for groups)
+                                    // For single nodes, existing StationNodeView handles the name
+                                    let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
+                                    let centerY = positions.reduce(0) { $0 + $1.y } / CGFloat(positions.count)
+                                    let center = CGPoint(x: centerX, y: centerY)
+                                    
+                                    if let parentNode = network.nodes.first(where: { $0.id == groupId }) ?? nodes.first {
+                                        let text = Text(parentNode.name).font(.system(size: 15, weight: .heavy))
+                                        let solvedWhite = context.resolve(text.foregroundColor(.white))
+                                        let solvedBlack = context.resolve(text.foregroundColor(.black))
                                         
-                                        // Draw text shadow for readability
-                                        var solvedText = context.resolve(text.foregroundColor(.white))
-                                        context.draw(solvedText, at: CGPoint(x: center.x, y: center.y + 40)) // Shadow slightly offset/same pos but white bg
-                                        
-                                        // Draw main text
-                                        solvedText = context.resolve(text.foregroundColor(.black))
-                                        context.draw(solvedText, at: CGPoint(x: center.x, y: center.y + 39))
+                                        context.draw(solvedWhite, at: CGPoint(x: center.x, y: center.y + 40))
+                                        context.draw(solvedBlack, at: CGPoint(x: center.x, y: center.y + 39))
                                     }
                                 }
                             }
