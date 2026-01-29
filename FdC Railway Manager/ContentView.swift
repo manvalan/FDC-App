@@ -1051,6 +1051,7 @@ struct RailwayAIView: View {
     @State private var proposedLines: [ProposedLine] = []
     @State private var schedulePreview: String = ""
     @State private var targetLines: Int = 6
+    @State private var showLineProposalSheet = false
     
     // Solver State
     @State private var solutions: [AIScheduleSuggestion] = []
@@ -1100,18 +1101,9 @@ struct RailwayAIView: View {
                     }
                     .disabled(isLoading || network.nodes.count < 2)
                     
-                    if !schedulePreview.isEmpty {
-                        ScrollView {
-                            Text(schedulePreview)
-                                .font(.system(.caption, design: .monospaced))
-                                .padding(8)
-                                .background(Color.blue.opacity(0.05))
-                                .cornerRadius(8)
-                        }
-                        .frame(maxHeight: 150)
-                        
-                        Button("Applica Proposta (\(proposedLines.count) linee)") {
-                            applyProposal()
+                    if !proposedLines.isEmpty {
+                        Button("Rivedi Proposte (\(proposedLines.count) linee)") {
+                            showLineProposalSheet = true
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.blue)
@@ -1228,13 +1220,18 @@ struct RailwayAIView: View {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("Chiudi") { showJSONInspector = false }
                         }
-                        ToolbarItem(placement: .primaryAction) {
-                            Button(action: { UIPasteboard.general.string = RailwayAIService.shared.lastRequestJSON }) {
-                                Image(systemName: "doc.on.doc")
-                            }
-                        }
                     }
                 }
+            }
+            .sheet(isPresented: $showLineProposalSheet) {
+                LineProposalView(
+                    network: network,
+                    proposals: proposedLines,
+                    onApply: { selectedProposals in
+                        applySelectedProposals(selectedProposals)
+                    }
+                )
+                .environmentObject(trainManager)
             }
         }
     }
