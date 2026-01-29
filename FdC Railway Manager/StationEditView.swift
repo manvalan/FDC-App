@@ -134,18 +134,26 @@ struct StationEditView: View {
         }
             .navigationTitle("Modifica Stazione")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Annulla") {
-                        // Revert changes
-                        if let initial = initialStation {
+                // Show Save/Cancel only if changes exist
+                if let initial = initialStation, station != initial {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Annulla") {
+                            // Revert changes
                             station = initial
+                            dismiss()
                         }
-                        dismiss()
                     }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("OK") {
-                        dismiss()
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Salva") {
+                            dismiss()
+                        }
+                    }
+                } else {
+                    // Default Close button when no changes
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Chiudi") {
+                            dismiss()
+                        }
                     }
                 }
             }
