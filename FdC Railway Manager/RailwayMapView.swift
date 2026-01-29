@@ -715,9 +715,12 @@ struct SchematicRailwayView: View {
         }
     }
     
-    private func handleCanvasTap(at location: CGPoint, in size: CGSize) {
         if editMode == .addStation {
-            createStation(at: location, in: size)
+            let newNode = createStation(at: location, in: size)
+            // Select the new node immediately to open the Inspector
+            selectedNode = newNode
+            // Auto-switch back to explore mode
+            editMode = .explore 
             return
         }
         
@@ -804,7 +807,8 @@ struct SchematicRailwayView: View {
         return hypot(p.x - proj.x, p.y - proj.y)
     }
     
-    private func createStation(at location: CGPoint, in size: CGSize) {
+    @discardableResult
+    private func createStation(at location: CGPoint, in size: CGSize) -> Node {
         let lats = network.nodes.compactMap { $0.latitude }
         let lons = network.nodes.compactMap { $0.longitude }
         let minLon = lons.min() ?? 0
@@ -831,6 +835,7 @@ struct SchematicRailwayView: View {
         let newNode = Node(id: UUID().uuidString, name: name, type: .station, latitude: lat, longitude: lon, capacity: 10, platforms: 2)
         network.nodes.append(newNode)
         print("📍 Nuova stazione creata: \(name) a [\(lat), \(lon)]")
+        return newNode
     }
 
     private func schematicPoint(for node: Node, in size: CGSize, bounds: MapBounds) -> CGPoint {
