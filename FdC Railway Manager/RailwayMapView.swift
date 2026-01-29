@@ -415,7 +415,7 @@ struct SchematicRailwayView: View {
                     Label("Modifica", systemImage: "pencil.circle")
                 }
             }
-        }
+        })
     }
     
     // MARK: - Interaction Handlers
