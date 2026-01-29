@@ -55,27 +55,46 @@ struct RailwayMapView: View {
     
     @MainActor
     private func exportMap(as format: ExportFormat) {
-        let renderer = ImageRenderer(content: SnapshotWrapper(network: network, mode: mode))
-        renderer.scale = 2.0
+        // Robust Snapshot Logic using UIHostingController
+        // This avoids 'White/Blank' images common with ImageRenderer on complex off-screen views
+        let view = SnapshotWrapper(network: network, mode: mode).edgesIgnoringSafeArea(.all)
+        let controller = UIHostingController(rootView: view)
+        
+        // Define High-Res Target Size (4:3 Aspect Ratio)
+        let targetSize = CGSize(width: 2048, height: 1536)
+        controller.view.bounds = CGRect(origin: .zero, size: targetSize)
+        controller.view.backgroundColor = .white
+
+        // Force Layout
+        // We create a temporary window to ensure SwiftUI layout engine fully engages (hack helper for some cases)
+        // But often just layoutIfNeeded works if bounds are set.
+        controller.view.layoutIfNeeded()
+
+        // Render to Image
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        let image = renderer.image { ctx in
+             // Fill white background explicitly
+             UIColor.white.setFill()
+             ctx.fill(CGRect(origin: .zero, size: targetSize))
+             
+             // Render the layer
+             // Note: layer.render sometimes misses loose SwiftUI content, but usually works for Canvas/Shapes.
+             // If this fails, we might need drawHierarchy, but that requires being on-screen keyWindow.
+             controller.view.layer.render(in: ctx.cgContext)
+        }
         
         if format == .jpeg {
-            if let image = renderer.uiImage {
-                shareItem(image)
-            }
+             shareItem(image)
         } else {
-            // PDF Export via Renderer
-            let pdfUrl = FileManager.default.temporaryDirectory.appendingPathComponent("MappaFerroviaria.pdf")
-            renderer.render { size, context in
-                var box = CGRect(origin: .zero, size: size)
-                guard let consumer = CGDataConsumer(url: pdfUrl as CFURL),
-                      let pdfContext = CGContext(consumer: consumer, mediaBox: &box, nil) else { return }
-                
-                pdfContext.beginPDFPage(nil)
-                context(pdfContext)
-                pdfContext.endPDFPage()
-                pdfContext.closePDF()
-            }
-            shareItem(pdfUrl)
+             // Create PDF containing the captured image (Raster PDF)
+             // This guarantees the PDF matches the image and isn't blank.
+             let pdfUrl = FileManager.default.temporaryDirectory.appendingPathComponent("MappaFerroviaria.pdf")
+             let pdfRenderer = UIGraphicsPDFRenderer(bounds: CGRect(origin: .zero, size: targetSize))
+             try? pdfRenderer.writePDF(to: pdfUrl) { ctx in
+                 ctx.beginPage()
+                 image.draw(at: .zero)
+             }
+             shareItem(pdfUrl)
         }
     }
     
@@ -90,17 +109,30 @@ struct RailwayMapView: View {
     }
     
     private func printMap() {
-        let renderer = ImageRenderer(content: SnapshotWrapper(network: network, mode: mode))
-        if let image = renderer.uiImage {
-             let printInfo = UIPrintInfo(dictionary: nil)
-             printInfo.outputType = .general
-             printInfo.jobName = "Mappa Ferroviaria"
-             
-             let controller = UIPrintInteractionController.shared
-             controller.printInfo = printInfo
-             controller.printingItem = image
-             controller.present(animated: true, completionHandler: nil)
+        // Print Logic re-using Generate Snapshot
+        // We generate the image first to ensure WYSIWYG printing
+        let view = SnapshotWrapper(network: network, mode: mode).edgesIgnoringSafeArea(.all)
+        let controller = UIHostingController(rootView: view)
+        let targetSize = CGSize(width: 2048, height: 1536)
+        controller.view.bounds = CGRect(origin: .zero, size: targetSize)
+        controller.view.backgroundColor = .white
+        controller.view.layoutIfNeeded()
+        
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        let image = renderer.image { ctx in
+             UIColor.white.setFill()
+             ctx.fill(CGRect(origin: .zero, size: targetSize))
+             controller.view.layer.render(in: ctx.cgContext)
         }
+
+        let printInfo = UIPrintInfo(dictionary: nil)
+        printInfo.outputType = .general
+        printInfo.jobName = "Mappa Ferroviaria"
+        
+        let interactionController = UIPrintInteractionController.shared
+        interactionController.printInfo = printInfo
+        interactionController.printingItem = image
+        interactionController.present(animated: true, completionHandler: nil)
     }
     
     // Minimal wrapper for export without interactive elements
@@ -123,8 +155,9 @@ struct RailwayMapView: View {
                 showGrid: .constant(false),
                 mode: mode
             )
-            .frame(width: 1024, height: 768) // Fixed export size for now
+            )
             .background(Color.white)
+        }
         }
     }
 
