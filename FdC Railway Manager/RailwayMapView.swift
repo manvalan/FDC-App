@@ -169,19 +169,46 @@ struct SchematicRailwayView: View {
 
                             // 0. Hub Visualization (Diagonal Rings)
                             let hubs = Dictionary(grouping: network.nodes.filter { $0.parentHubId != nil }, by: { $0.parentHubId! })
-                            for (_, nodes) in hubs {
-                                for i in 0..<nodes.count {
-                                    for j in (i+1)..<nodes.count {
-                                        let p1 = finalPosition(for: nodes[i], in: size, bounds: bounds)
-                                        let p2 = finalPosition(for: nodes[j], in: size, bounds: bounds)
+                            for (hubId, nodes) in hubs {
+                                // We need at least 2 nodes to draw a connection, but we might want to draw name anyway?
+                                // Assuming pairs for the visual ring
+                                if nodes.count >= 2 {
+                                    let positions = nodes.map { finalPosition(for: $0, in: size, bounds: bounds) }
+                                    
+                                    // Calculate center for text
+                                    let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
+                                    let centerY = positions.reduce(0) { $0 + $1.y } / CGFloat(positions.count)
+                                    let center = CGPoint(x: centerX, y: centerY)
+                                    
+                                    for i in 0..<nodes.count {
+                                        for j in (i+1)..<nodes.count {
+                                            let p1 = positions[i]
+                                            let p2 = positions[j]
+                                            
+                                            let hPath = Path { p in p.move(to: p1); p.addLine(to: p2) }
+                                            
+                                            // Connected Ring Style (Pill shape) - "Anello diagonale"
+                                            // Increased size to properly surround the 24x24/44x44 stations
+                                            // Outer Gray
+                                            context.stroke(hPath, with: .color(Color(hex: "#AEAEB2") ?? .gray), style: StrokeStyle(lineWidth: 50, lineCap: .round))
+                                            // Inner White (hollow)
+                                            context.stroke(hPath, with: .color(.white), style: StrokeStyle(lineWidth: 42, lineCap: .round))
+                                        }
+                                    }
+                                    
+                                    // Draw Hub Name under the group
+                                    // Get name from parent node (hubId)
+                                    if let parentNode = network.nodes.first(where: { $0.id == hubId }) ?? nodes.first {
+                                        let text = Text(parentNode.name)
+                                            .font(.system(size: 14, weight: .black))
                                         
-                                        let hPath = Path { p in p.move(to: p1); p.addLine(to: p2) }
+                                        // Draw text shadow for readability
+                                        var solvedText = context.resolve(text.foregroundColor(.white))
+                                        context.draw(solvedText, at: CGPoint(x: center.x, y: center.y + 36)) // Shadow slightly offset/same pos but white bg
                                         
-                                        // Connected Ring Style (Pill shape) - "Anello diagonale"
-                                        // Outer Gray
-                                        context.stroke(hPath, with: .color(Color(hex: "#AEAEB2") ?? .gray), style: StrokeStyle(lineWidth: 34, lineCap: .round))
-                                        // Inner White (hollow)
-                                        context.stroke(hPath, with: .color(.white), style: StrokeStyle(lineWidth: 28, lineCap: .round))
+                                        // Draw main text
+                                        solvedText = context.resolve(text.foregroundColor(.black))
+                                        context.draw(solvedText, at: CGPoint(x: center.x, y: center.y + 35))
                                     }
                                 }
                             }
@@ -200,10 +227,6 @@ struct SchematicRailwayView: View {
                                     p.move(to: p1)
                                     p.addLine(to: p2)
                                 }
-                                
-                                // A. Sleepers (Traversine) - Visual Splitting
-                                // Draw dashed line underneath to simulate ties/sleepers ("spezzare il binario")
-                                context.stroke(path, with: .color(.gray.opacity(0.5)), style: StrokeStyle(lineWidth: 6, lineCap: .butt, dash: [1, 5]))
                                 
                                 // Styles based on physical properties
                                 let baseColor: Color = (mode == .network) ? .gray : .gray.opacity(0.3)
