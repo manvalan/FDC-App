@@ -18,6 +18,16 @@ struct Node: Identifiable, Codable, Hashable {
         
         var id: String { self.rawValue }
     }
+    
+    enum HubOffsetDirection: String, Codable, CaseIterable, Identifiable {
+        case bottomLeft = "In Basso a Sx"
+        case bottomRight = "In Basso a Dx"
+        case topLeft = "In Alto a Sx"
+        case topRight = "In Alto a Dx"
+        
+        var id: String { self.rawValue }
+    }
+
     let id: String // es: "MI"
     var name: String
     var type: NodeType
@@ -29,12 +39,13 @@ struct Node: Identifiable, Codable, Hashable {
     var platforms: Int?
 
     var parentHubId: String? // Groups multiple stations into one hub (e.g. MI Centrale + MI Centrale AV)
+    var hubOffsetDirection: HubOffsetDirection? // Defines where this station sits relative to the hub center (default bottomLeft)
     
     enum CodingKeys: String, CodingKey {
-        case id, name, type, visualType, customColor, latitude, longitude, capacity, platforms, parentHubId
+        case id, name, type, visualType, customColor, latitude, longitude, capacity, platforms, parentHubId, hubOffsetDirection
     }
 
-    init(id: String, name: String, type: NodeType = .station, visualType: StationVisualType? = nil, customColor: String? = nil, latitude: Double? = nil, longitude: Double? = nil, capacity: Int? = nil, platforms: Int? = 2, parentHubId: String? = nil) {
+    init(id: String, name: String, type: NodeType = .station, visualType: StationVisualType? = nil, customColor: String? = nil, latitude: Double? = nil, longitude: Double? = nil, capacity: Int? = nil, platforms: Int? = 2, parentHubId: String? = nil, hubOffsetDirection: HubOffsetDirection? = nil) {
         self.id = id
         self.name = name
         self.type = type
@@ -45,6 +56,7 @@ struct Node: Identifiable, Codable, Hashable {
         self.capacity = capacity
         self.platforms = platforms
         self.parentHubId = parentHubId
+        self.hubOffsetDirection = hubOffsetDirection
     }
 
     init(from decoder: Decoder) throws {
@@ -59,6 +71,7 @@ struct Node: Identifiable, Codable, Hashable {
         capacity = try container.decodeIfPresent(Int.self, forKey: .capacity)
         platforms = try container.decodeIfPresent(Int.self, forKey: .platforms) ?? 2
         parentHubId = try container.decodeIfPresent(String.self, forKey: .parentHubId)
+        hubOffsetDirection = try container.decodeIfPresent(HubOffsetDirection.self, forKey: .hubOffsetDirection)
     }
 
     var coordinate: CLLocationCoordinate2D? {

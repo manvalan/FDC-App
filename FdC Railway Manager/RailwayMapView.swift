@@ -350,6 +350,7 @@ struct SchematicRailwayView: View {
                             
                             if mode == .lines {
                                 // Draw Commercial Lines with London Underground-style rounded corners
+                                // Draw Commercial Lines following Schematic Path
                                 for (key, lines) in segmentLineMap {
                                     guard let n1 = network.nodes.first(where: { $0.id == key.from }),
                                           let n2 = network.nodes.first(where: { $0.id == key.to }) else { continue }
@@ -357,31 +358,6 @@ struct SchematicRailwayView: View {
                                     let p1 = finalPosition(for: n1, in: size, bounds: bounds)
                                     let p2 = finalPosition(for: n2, in: size, bounds: bounds)
                                     
-                                    let angle = atan2(p2.y - p1.y, p2.x - p1.x)
-                                    let offsetBase: CGFloat = 3.0
-                                    
-                                    for (i, line) in lines.enumerated() {
-                                        let offset = CGFloat(i) * offsetBase - (CGFloat(lines.count - 1) * offsetBase / 2.0)
-                                        
-                                        // Offset perpendicular to segment
-                                        let offsetVector = CGPoint(
-                                            x: -sin(angle) * offset,
-                                            y: cos(angle) * offset
-                                        )
-                                        
-                                        let start = CGPoint(x: p1.x + offsetVector.x, y: p1.y + offsetVector.y)
-                                        let end = CGPoint(x: p2.x + offsetVector.x, y: p2.y + offsetVector.y)
-                                        
-                                        // Create path with rounded corners (London Underground style)
-                                        let linePath = createRoundedPath(from: start, to: end, cornerRadius: 12)
-                                        
-                                        let color = Color(hex: line.color ?? "") ?? .blue
-                                        let thickness = (line.id == selectedLine?.id) ? 3.0 : 1.2
-                                        
-                                        context.stroke(linePath, with: .color(color), style: StrokeStyle(lineWidth: thickness, lineCap: .round, lineJoin: .round))
-                                        
-                                        // Highlight selected line
-                                        if line.id == selectedLine?.id {
                                             context.stroke(linePath, with: .color(color.opacity(0.3)), style: StrokeStyle(lineWidth: thickness + 4, lineCap: .round, lineJoin: .round))
                                         }
                                     }
@@ -718,7 +694,20 @@ struct SchematicRailwayView: View {
         
         // Apply fixed visual offset for hub-linked stations
         if node.parentHubId != nil {
-            return CGPoint(x: basePosition.x - 30, y: basePosition.y + 30)
+            let offset: CGFloat = 30
+            // Enable positioning in any of the 4 corners
+            let direction = node.hubOffsetDirection ?? .bottomLeft // Legacy default
+            
+            switch direction {
+            case .bottomLeft:
+                return CGPoint(x: basePosition.x - offset, y: basePosition.y + offset)
+            case .bottomRight:
+                return CGPoint(x: basePosition.x + offset, y: basePosition.y + offset)
+            case .topLeft:
+                return CGPoint(x: basePosition.x - offset, y: basePosition.y - offset)
+            case .topRight:
+                return CGPoint(x: basePosition.x + offset, y: basePosition.y - offset)
+            }
         }
         return basePosition
     }

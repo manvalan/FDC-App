@@ -53,6 +53,13 @@ struct StationEditView: View {
                 }
                 
                 if station.parentHubId != nil {
+                    Picker("Posizione nell'Hub", selection: $station.hubOffsetDirection) {
+                        Text("Standard (In Basso a Sx)").tag(Node.HubOffsetDirection?.none)
+                        ForEach(Node.HubOffsetDirection.allCases) { dir in
+                            Text(dir.rawValue).tag(Node.HubOffsetDirection?.some(dir))
+                        }
+                    }
+                    
                     Text("Questa stazione è legata logicamente a un'altra. Verrà trattata come punto di interscambio rapido.")
                         .font(.caption).foregroundColor(.blue)
                 }
