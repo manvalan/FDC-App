@@ -271,7 +271,7 @@ struct SchematicRailwayView: View {
                             
                             if mode == .lines {
                                 // Draw Commercial Lines with London Underground-style rounded corners
-                                for (key, lines) in segmentLineMap) {
+                                for (key, lines) in segmentLineMap {
                                     guard let n1 = network.nodes.first(where: { $0.id == key.from }),
                                           let n2 = network.nodes.first(where: { $0.id == key.to }) else { continue }
                                     
