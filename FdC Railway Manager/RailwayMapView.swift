@@ -715,6 +715,7 @@ struct SchematicRailwayView: View {
         }
     }
     
+    private func handleCanvasTap(at location: CGPoint, in size: CGSize) {
         if editMode == .addStation {
             let newNode = createStation(at: location, in: size)
             // Select the new node immediately to open the Inspector
