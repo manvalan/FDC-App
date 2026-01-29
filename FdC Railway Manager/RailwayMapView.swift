@@ -167,6 +167,25 @@ struct SchematicRailwayView: View {
                                 }
                             }
 
+                            // 0. Hub Visualization (Diagonal Rings)
+                            let hubs = Dictionary(grouping: network.nodes.filter { $0.parentHubId != nil }, by: { $0.parentHubId! })
+                            for (_, nodes) in hubs {
+                                for i in 0..<nodes.count {
+                                    for j in (i+1)..<nodes.count {
+                                        let p1 = finalPosition(for: nodes[i], in: size, bounds: bounds)
+                                        let p2 = finalPosition(for: nodes[j], in: size, bounds: bounds)
+                                        
+                                        let hPath = Path { p in p.move(to: p1); p.addLine(to: p2) }
+                                        
+                                        // Connected Ring Style (Pill shape) - "Anello diagonale"
+                                        // Outer Gray
+                                        context.stroke(hPath, with: .color(Color(hex: "#AEAEB2") ?? .gray), style: StrokeStyle(lineWidth: 34, lineCap: .round))
+                                        // Inner White (hollow)
+                                        context.stroke(hPath, with: .color(.white), style: StrokeStyle(lineWidth: 28, lineCap: .round))
+                                    }
+                                }
+                            }
+
                             // 1. Draw RAW Infrastructure (Edges)
                             // We draw these even in .lines mode but fainter if needed, or with borders as requested
                             for edge in network.edges {
@@ -181,6 +200,10 @@ struct SchematicRailwayView: View {
                                     p.move(to: p1)
                                     p.addLine(to: p2)
                                 }
+                                
+                                // A. Sleepers (Traversine) - Visual Splitting
+                                // Draw dashed line underneath to simulate ties/sleepers ("spezzare il binario")
+                                context.stroke(path, with: .color(.gray.opacity(0.5)), style: StrokeStyle(lineWidth: 6, lineCap: .butt, dash: [1, 5]))
                                 
                                 // Styles based on physical properties
                                 let baseColor: Color = (mode == .network) ? .gray : .gray.opacity(0.3)
