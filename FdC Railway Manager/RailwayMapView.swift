@@ -270,8 +270,8 @@ struct SchematicRailwayView: View {
                                             
                                             let hPath = Path { p in p.move(to: p1); p.addLine(to: p2) }
                                             
-                                            // Black Border (Connector) - Width 22 to match node border (14+5+5ish)
-                                            context.stroke(hPath, with: .color(.black), style: StrokeStyle(lineWidth: 22, lineCap: .round))
+                                            // Red Border (Connector) - Matches user request
+                                            context.stroke(hPath, with: .color(.red), style: StrokeStyle(lineWidth: 22, lineCap: .round))
                                             // White Interior (Passage) - Width 14 to match inner node
                                             context.stroke(hPath, with: .color(.white), style: StrokeStyle(lineWidth: 14, lineCap: .round))
                                         }
@@ -773,13 +773,13 @@ struct StationNodeView: View {
         
         Group {
             if isHubOrInterchange {
-                // Tube Style: White Circle with Thick Black Border
+                // Tube Style: White Circle with Thick Red Border
                 ZStack {
                     Circle()
                         .fill(Color.white)
                         .frame(width: 14, height: 14)
                     Circle()
-                        .stroke(Color.black, lineWidth: 5)
+                        .stroke(Color.red, lineWidth: 5)
                         .frame(width: 19, height: 19)
                 }
             } else {
