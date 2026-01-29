@@ -1,6 +1,6 @@
 import SwiftUI
 import MapKit
-import AppKit
+import UIKit
 
 struct RailwayMapView: View {
     enum MapVisualizationMode {
@@ -55,56 +55,52 @@ struct RailwayMapView: View {
     
     @MainActor
     private func exportMap(as format: ExportFormat) {
-        // Fallback to NSHostingView for robust snapshotting on macOS
-        let view = SnapshotWrapper(network: network, mode: mode)
-        let hostingView = NSHostingView(rootView: view)
-        hostingView.frame = CGRect(x: 0, y: 0, width: 2048, height: 1536) // 2x Resolution
+        let renderer = ImageRenderer(content: SnapshotWrapper(network: network, mode: mode))
+        renderer.scale = 2.0
         
         if format == .jpeg {
-            if let bitmapRep = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds) {
-                hostingView.cacheDisplay(in: hostingView.bounds, to: bitmapRep)
-                let image = NSImage(size: hostingView.bounds.size)
-                image.addRepresentation(bitmapRep)
-                saveImage(image)
+            if let image = renderer.uiImage {
+                shareItem(image)
             }
         } else {
-            // PDF Export
-            let pdfData = hostingView.dataWithPDF(inside: hostingView.bounds)
-            let panel = NSSavePanel()
-            panel.nameFieldStringValue = "MappaFerroviaria.pdf"
-            panel.allowedContentTypes = [.pdf]
-            panel.begin { response in
-                if response == .OK, let url = panel.url {
-                    try? pdfData.write(to: url)
-                }
+            // PDF Export via Renderer
+            let pdfUrl = FileManager.default.temporaryDirectory.appendingPathComponent("MappaFerroviaria.pdf")
+            renderer.render { size, context in
+                var box = CGRect(origin: .zero, size: size)
+                guard let consumer = CGDataConsumer(url: pdfUrl as CFURL),
+                      let pdfContext = CGContext(consumer: consumer, mediaBox: &box, nil) else { return }
+                
+                pdfContext.beginPDFPage(nil)
+                context(pdfContext)
+                pdfContext.endPDFPage()
+                pdfContext.closePDF()
             }
+            shareItem(pdfUrl)
         }
     }
     
-    private func saveImage(_ image: NSImage) {
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = "MappaFerroviaria.jpg"
-        panel.allowedContentTypes = [.jpeg]
-        panel.begin { response in
-            if response == .OK, let url = panel.url {
-                if let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff) {
-                    let data = bitmap.representation(using: .jpeg, properties: [:])
-                    try? data?.write(to: url)
-                }
-            }
+    private func shareItem(_ item: Any) {
+        let av = UIActivityViewController(activityItems: [item], applicationActivities: nil)
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let root = windowScene.windows.first?.rootViewController {
+            av.popoverPresentationController?.sourceView = root.view
+            av.popoverPresentationController?.sourceRect = CGRect(x: 100, y: 100, width: 0, height: 0) // Anchor for iPad
+            root.present(av, animated: true, completion: nil)
         }
     }
     
     private func printMap() {
-        // Print Logic
-        let view = NSHostingView(rootView: SnapshotWrapper(network: network, mode: mode))
-        view.frame = CGRect(x: 0, y: 0, width: 800, height: 600) // Default sizing
-        let printInfo = NSPrintInfo.shared
-        printInfo.horizontalPagination = .fit
-        printInfo.verticalPagination = .fit
-        
-        let op = NSPrintOperation(view: view, printInfo: printInfo)
-        op.run()
+        let renderer = ImageRenderer(content: SnapshotWrapper(network: network, mode: mode))
+        if let image = renderer.uiImage {
+             let printInfo = UIPrintInfo(dictionary: nil)
+             printInfo.outputType = .general
+             printInfo.jobName = "Mappa Ferroviaria"
+             
+             let controller = UIPrintInteractionController.shared
+             controller.printInfo = printInfo
+             controller.printingItem = image
+             controller.present(animated: true, completionHandler: nil)
+        }
     }
     
     // Minimal wrapper for export without interactive elements
