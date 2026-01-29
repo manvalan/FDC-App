@@ -250,26 +250,29 @@ struct SchematicRailwayView: View {
                         .allowsHitTesting(false)
                         
                         // 2. Draw Active Trains (Animated Overlay)
-                        TimelineView(.animation) { timelineContext in
-                            Canvas { context, size in
-                                let bounds = mapBounds
-                                let now = timelineContext.date.normalized()
-                                
-                                for schedule in appState.simulator.schedules {
-                                    if let pos = currentSchematicTrainPos(for: schedule, in: size, now: now, bounds: bounds) {
-                                        let trainDot = Path(ellipseIn: CGRect(x: pos.x - 6, y: pos.y - 6, width: 12, height: 12))
-                                        context.fill(trainDot, with: .color(.yellow))
-                                        context.stroke(trainDot, with: .color(.black), lineWidth: 1)
-                                        // Label? Only on high zoom
-                                        if totalZoom > 2.0 {
-                                            let label = Text(schedule.trainName).font(.caption2).bold()
-                                            context.draw(label, at: CGPoint(x: pos.x, y: pos.y - 15))
+                        // Only show trains if there are active schedules
+                        if !appState.simulator.schedules.isEmpty {
+                            TimelineView(.animation) { timelineContext in
+                                Canvas { context, size in
+                                    let bounds = mapBounds
+                                    let now = timelineContext.date.normalized()
+                                    
+                                    for schedule in appState.simulator.schedules {
+                                        if let pos = currentSchematicTrainPos(for: schedule, in: size, now: now, bounds: bounds) {
+                                            let trainDot = Path(ellipseIn: CGRect(x: pos.x - 6, y: pos.y - 6, width: 12, height: 12))
+                                            context.fill(trainDot, with: .color(.yellow))
+                                            context.stroke(trainDot, with: .color(.black), lineWidth: 1)
+                                            // Label? Only on high zoom
+                                            if totalZoom > 2.0 {
+                                                let label = Text(schedule.trainName).font(.caption2).bold()
+                                                context.draw(label, at: CGPoint(x: pos.x, y: pos.y - 15))
+                                            }
                                         }
                                     }
                                 }
+                                .frame(width: canvasSize.width, height: canvasSize.height)
+                                .allowsHitTesting(false)
                             }
-                            .frame(width: canvasSize.width, height: canvasSize.height)
-                            .allowsHitTesting(false)
                         }
                         
                         // 2. Interactive Nodes
