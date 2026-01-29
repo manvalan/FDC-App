@@ -7,13 +7,15 @@ struct StationEditView: View {
     
     var onDelete: (() -> Void)? = nil
     @State private var showDeleteConfirmation = false
+    @State private var initialStation: Node? // For Undo logic
     
     var body: some View {
         let availableHubs = network.nodes
             .filter { $0.id != station.id }
             .sorted(by: { $0.name < $1.name })
         
-        Form {
+        NavigationStack {
+            Form {
             Section("Anagrafica") {
                 TextField("Nome Stazione", text: $station.name)
                 Picker("Tipo Funzionale", selection: $station.type) {
@@ -130,14 +132,36 @@ struct StationEditView: View {
                 }
             }
         }
-        .navigationTitle("Modifica Stazione")
-        .alert("Elimina Stazione", isPresented: $showDeleteConfirmation) {
-            Button("Annulla", role: .cancel) { }
-            Button("Elimina", role: .destructive) {
-                onDelete?()
+            .navigationTitle("Modifica Stazione")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Annulla") {
+                        // Revert changes
+                        if let initial = initialStation {
+                            station = initial
+                        }
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("OK") {
+                        dismiss()
+                    }
+                }
             }
-        } message: {
-            Text("Sei sicuro di voler eliminare questa stazione? L'azione non può essere annullata.")
+            .onAppear {
+                if initialStation == nil {
+                    initialStation = station
+                }
+            }
+            .alert("Elimina Stazione", isPresented: $showDeleteConfirmation) {
+                Button("Annulla", role: .cancel) { }
+                Button("Elimina", role: .destructive) {
+                    onDelete?()
+                }
+            } message: {
+                Text("Sei sicuro di voler eliminare questa stazione? L'azione non può essere annullata.")
+            }
         }
     }
     
