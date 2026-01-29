@@ -141,30 +141,93 @@ struct RailwayMapView: View {
                     }
                 }
                 
-                // 2. Draw Nodes (Simplified for Export)
+                // 2. Hub & Interchange Visualization (Clusters & Corridors)
+                var visualGroups: [[Node]] = []
+                var processedNodeIds: Set<String> = []
+                
+                // 2a. Explicit Hubs
+                let explicitGroups = Dictionary(grouping: network.nodes.filter { $0.parentHubId != nil }, by: { $0.parentHubId! })
+                for (_, nodes) in explicitGroups {
+                    if nodes.count > 1 {
+                        visualGroups.append(nodes)
+                        nodes.forEach { processedNodeIds.insert($0.id) }
+                    }
+                }
+                
+                // 2b. Implicit/Proximity Hubs (Orphans)
+                var orphans = network.nodes.filter {
+                    ($0.type == .interchange || $0.parentHubId != nil) && !processedNodeIds.contains($0.id)
+                }
+                while let node = orphans.first {
+                    orphans.removeFirst()
+                    var cluster = [node]
+                    let p1 = finalPosition(for: node, in: size, bounds: bounds)
+                    var i = 0
+                    while i < orphans.count {
+                        let other = orphans[i]
+                        let p2 = finalPosition(for: other, in: size, bounds: bounds)
+                        if hypot(p1.x - p2.x, p1.y - p2.y) < 50 {
+                            cluster.append(other)
+                            orphans.remove(at: i)
+                        } else { i += 1 }
+                    }
+                    visualGroups.append(cluster)
+                }
+                
+                // 2c. Draw Corridors & Labels
+                for nodes in visualGroups {
+                    let positions = nodes.map { finalPosition(for: $0, in: size, bounds: bounds) }
+                    
+                    if nodes.count > 1 {
+                        // Draw Corridor
+                        for i in 0..<nodes.count {
+                            for j in (i+1)..<nodes.count {
+                                let path = Path { p in p.move(to: positions[i]); p.addLine(to: positions[j]) }
+                                context.stroke(path, with: .color(.red), style: StrokeStyle(lineWidth: 22, lineCap: .round))
+                                context.stroke(path, with: .color(.white), style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                            }
+                        }
+                        
+                        // Draw Hub Label
+                        let centerY = positions.map { $0.y }.max() ?? 0
+                        let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
+                        let labelY = centerY + 35
+                        
+                        var nameToDisplay = nodes.first?.name ?? ""
+                        if let parentId = nodes.first?.parentHubId, let parent = network.nodes.first(where: { $0.id == parentId }) {
+                            nameToDisplay = parent.name
+                        }
+                        
+                        let text = Text(nameToDisplay).font(.system(size: 14, weight: .bold)).foregroundColor(.red)
+                        let resolved = context.resolve(text)
+                        let sz = resolved.measure(in: CGSize(width: 200, height: 50))
+                        let bg = Path(roundedRect: CGRect(x: centerX - sz.width/2 - 4, y: labelY - sz.height/2 - 2, width: sz.width + 8, height: sz.height + 4), cornerRadius: 4)
+                        context.fill(bg, with: .color(.white.opacity(0.8)))
+                        context.draw(resolved, at: CGPoint(x: centerX, y: labelY))
+                    } else if let node = nodes.first {
+                         // Single Orphan - needs red label
+                         let p = positions[0]
+                         let text = Text(node.name).font(.system(size: 14, weight: .bold)).foregroundColor(.red)
+                         context.draw(text, at: CGPoint(x: p.x, y: p.y + 35))
+                    }
+                }
+                
+                // 3. Draw Nodes (Content)
                 for node in network.nodes {
                     let pos = finalPosition(for: node, in: size, bounds: bounds)
                     let isHub = node.type == .interchange || node.parentHubId != nil
                     
                     if isHub {
-                         // Hub: White circle, Red border
+                         // Hub Node: Small White Circle + Red Border
+                         // The corridor is already drawn below
                          let p1 = Path(ellipseIn: CGRect(x: pos.x - 7, y: pos.y - 7, width: 14, height: 14))
                          context.fill(p1, with: .color(.white))
-                         
                          let p2 = Path(ellipseIn: CGRect(x: pos.x - 9.5, y: pos.y - 9.5, width: 19, height: 19))
                          context.stroke(p2, with: .color(.red), lineWidth: 5)
-                         
-                         // Label (Red Pill)
-                         let text = Text(node.name).font(.system(size: 16, weight: .bold)).foregroundColor(.red)
-                         var bgPath = Path(roundedRect: CGRect(x: pos.x - 40, y: pos.y + 15, width: 80, height: 20), cornerRadius: 4)
-                         context.fill(bgPath, with: .color(.white.opacity(0.8)))
-                         context.draw(text, at: CGPoint(x: pos.x, y: pos.y + 25))
-
                     } else {
-                         // Station
+                         // Station Node
                          let p = Path(ellipseIn: CGRect(x: pos.x - 10, y: pos.y - 10, width: 20, height: 20))
                          context.fill(p, with: .color(.white))
-                         // Symbol would go here, simplistic for now
                          let inner = Path(ellipseIn: CGRect(x: pos.x - 12, y: pos.y - 12, width: 24, height: 24))
                          context.stroke(inner, with: .color(.black), lineWidth: 2)
                          
