@@ -214,16 +214,26 @@ struct SchematicRailwayView: View {
                             // 1. Explicit Hubs (Data-defined)
                             let explicitGroups = Dictionary(grouping: network.nodes.filter { $0.parentHubId != nil }, by: { $0.parentHubId! })
                             for (_, nodes) in explicitGroups {
-                                visualGroups.append(nodes)
-                                nodes.forEach { processedNodeIds.insert($0.id) }
+                                if nodes.count > 1 {
+                                    // Only trust explicit grouping if it actually connects 2+ nodes
+                                    visualGroups.append(nodes)
+                                    nodes.forEach { processedNodeIds.insert($0.id) }
+                                }
+                                // If nodes.count == 1, we ignore it here (don't mark as processed).
+                                // It will fall through to step 2, allowing it to clustered by proximity.
+                                // This fixes the case where User defined "Hubs" but gave them unique IDs (so they didn't group).
                             }
                             
-                            // 2. Orphan Interchanges Clustering (Proximity-based)
-                            // If user hasn't set parentHubId, we visually group them if they are close on screen.
-                            let orphanInterchanges = network.nodes.filter { $0.type == .interchange && !processedNodeIds.contains($0.id) }
+                            // 2. Orphan Interchanges & Singleton Hubs (Proximity-based)
+                            // We capture:
+                            // - Nodes with type .interchange (orphans)
+                            // - Nodes with parentHubId that were alone in their group (singletons)
+                            let potentialOrphans = network.nodes.filter { 
+                                ($0.type == .interchange || $0.parentHubId != nil) && !processedNodeIds.contains($0.id)
+                            }
                             
                             // Simple visual clustering
-                            var orphansToCheck = orphanInterchanges
+                            var orphansToCheck = potentialOrphans
                             while let node = orphansToCheck.first {
                                 orphansToCheck.removeFirst()
                                 var cluster = [node]
