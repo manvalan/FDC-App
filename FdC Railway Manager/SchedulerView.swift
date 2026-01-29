@@ -244,11 +244,13 @@ struct TimetableChartView: View {
 
 struct TimetableChart: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var trainManager: TrainManager
     let data: [TimetableChartData] // Fallback for remote results
     
     var body: some View {
         Chart {
-            if !appState.simulator.schedules.isEmpty {
+            // Only show simulator data if there are actual trains
+            if !appState.simulator.schedules.isEmpty && !trainManager.trains.isEmpty {
                 // Professional view from simulator data
                 ForEach(appState.simulator.schedules) { schedule in
                     ForEach(schedule.stops) { stop in
