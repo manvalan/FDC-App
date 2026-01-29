@@ -60,7 +60,7 @@ struct ContentView: View {
             if let selection = sidebarSelection {
                 switch selection {
                 case .network:
-                   NetworkListView(network: network, selectedNode: $selectedNode)
+                   NetworkListView(network: network, selectedNode: $selectedNode, selectedEdgeId: $selectedEdgeId)
                 case .lines:
                     LinesListView(network: network, selectedLine: $selectedLine)
                 case .trains:
@@ -206,36 +206,72 @@ struct ContentView: View {
 struct NetworkListView: View {
     @ObservedObject var network: RailwayNetwork
     @Binding var selectedNode: Node?
+    @Binding var selectedEdgeId: String?
+    
+    @State private var mode: NetworkListMode = .stations
+    
+    enum NetworkListMode: String, CaseIterable, Identifiable {
+        case stations = "Stazioni"
+        case tracks = "Binari"
+        var id: String { rawValue }
+    }
     
     private func stationName(for id: String) -> String {
         network.nodes.first(where: { $0.id == id })?.name ?? "Unknown (\(id.prefix(4)))"
     }
     
     var body: some View {
-        List {
-            Section("Stazioni (\(network.nodes.count))") {
-                ForEach(network.nodes) { node in
-                    HStack {
-                        Text(node.name)
-                            .foregroundColor(node.id == selectedNode?.id ? .blue : .primary)
-                        Spacer()
-                        if node.type == .interchange {
-                            Image(systemName: "star.fill").foregroundColor(.yellow)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        selectedNode = node
-                    }
+        VStack(spacing: 0) {
+            Picker("Visualizza", selection: $mode) {
+                ForEach(NetworkListMode.allCases) { m in
+                    Text(m.rawValue).tag(m)
                 }
             }
-            Section("Binari (\(network.edges.count))") {
-                ForEach(network.edges) { edge in
-                    VStack(alignment: .leading) {
-                         Text("\(stationName(for: edge.from)) → \(stationName(for: edge.to))")
-                         Text("\(Int(edge.distance)) km - \(edge.trackType.rawValue)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+            .pickerStyle(.segmented)
+            .padding()
+            
+            List {
+                if mode == .stations {
+                    Section("Stazioni (\(network.nodes.count))") {
+                        ForEach(network.nodes) { node in
+                            HStack {
+                                Text(node.name)
+                                    .foregroundColor(node.id == selectedNode?.id ? .blue : .primary)
+                                Spacer()
+                                if node.type == .interchange {
+                                    Image(systemName: "star.fill").foregroundColor(.yellow)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selectedNode = node
+                            }
+                            .listRowBackground(node.id == selectedNode?.id ? Color.accentColor.opacity(0.1) : Color.clear)
+                        }
+                    }
+                } else {
+                    Section("Binari (\(network.edges.count))") {
+                        ForEach(network.edges) { edge in
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text("\(stationName(for: edge.from)) → \(stationName(for: edge.to))")
+                                        .fontWeight(selectedEdgeId == edge.id.uuidString ? .bold : .regular)
+                                        .foregroundColor(selectedEdgeId == edge.id.uuidString ? .blue : .primary)
+                                    Text("\(Int(edge.distance)) km - \(edge.trackType.rawValue)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                if selectedEdgeId == edge.id.uuidString {
+                                    Image(systemName: "checkmark").foregroundColor(.blue)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selectedEdgeId = edge.id.uuidString
+                            }
+                            .listRowBackground(selectedEdgeId == edge.id.uuidString ? Color.accentColor.opacity(0.1) : Color.clear)
+                        }
                     }
                 }
             }
