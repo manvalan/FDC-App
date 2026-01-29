@@ -364,7 +364,7 @@ struct SchematicRailwayView: View {
                 }
             }
         }
-        .toolbar {
+        .toolbar(content: {
             ToolbarItemGroup(placement: .primaryAction) {
                 // ... (Keep existing toolbar items)
                 

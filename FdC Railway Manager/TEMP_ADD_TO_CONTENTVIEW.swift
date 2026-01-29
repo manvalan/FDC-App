@@ -1,3 +1,5 @@
+import Foundation
+
 // Helper function to apply selected proposals
 private func applySelectedProposals(_ selectedProposals: [ProposedLine]) {
     for pline in selectedProposals {
