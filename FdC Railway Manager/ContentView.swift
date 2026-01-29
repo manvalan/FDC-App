@@ -352,11 +352,20 @@ struct TrainsListView: View {
                 }
                 .onDelete { idx in
                     let toDel = idx.map { unassigned[$0] }
-                    manager.trains.removeAll { t in toDel.contains(where: { $0.id == t.id }) }
+        .navigationTitle("Gestione Orari")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: {
+                    manager.trains.removeAll()
+                    appState.simulator.schedules.removeAll()
+                    selectedTrains.removeAll()
+                }) {
+                    Label("Elimina Tutti i Treni", systemImage: "trash.fill")
                 }
+                .foregroundColor(.red)
+                .help("Elimina tutti i treni dal sistema (inclusi i fantasmi)")
             }
         }
-        .navigationTitle("Gestione Orari")
         .sheet(item: $scheduleLine) { line in
             ScheduleCreationView(line: line)
         }
