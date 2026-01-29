@@ -257,8 +257,8 @@ struct SchematicRailwayView: View {
                                     let bounds = mapBounds
                                     let now = timelineContext.date.normalized()
                                     
-                                    // Only show trains if there are actual trains in TrainManager
-                                    if !trainManager.trains.isEmpty {
+                                    // Only show trains if there are schedules
+                                    if !appState.simulator.schedules.isEmpty {
                                         for schedule in appState.simulator.schedules {
                                             if let pos = currentSchematicTrainPos(for: schedule, in: size, now: now, bounds: bounds) {
                                                 let trainDot = Path(ellipseIn: CGRect(x: pos.x - 6, y: pos.y - 6, width: 12, height: 12))
