@@ -249,14 +249,7 @@ struct SchematicRailwayView: View {
     
     @State private var zoomLevel: CGFloat = 2.0
     @State private var editMode: EditMode = .explore
-    // States for Track Creation
-    @State private var newTrackFrom: Node? = nil
-    @State private var newTrackTo: Node? = nil
-    @State private var newTrackType: Edge.TrackType = .regional
-    
-    // Legacy selection state (replaced by explicit from/to above for tracks)
-    @State private var firstStationId: String? = nil
-    
+
     // Grid State: managed by parent binding now
     // Track Creation State
     @State private var newTrackFrom: Node? = nil
