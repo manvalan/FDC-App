@@ -54,27 +54,29 @@ struct RailwayMapView: View {
     
     @MainActor
     private func exportMap(as format: ExportFormat) {
-        // Implementation for snapshotting
-        let renderer = ImageRenderer(content: SnapshotWrapper(network: network, mode: mode))
-        renderer.scale = 2.0 // High res
+        // Fallback to NSHostingView for robust snapshotting on macOS
+        let view = SnapshotWrapper(network: network, mode: mode)
+        let hostingView = NSHostingView(rootView: view)
+        hostingView.frame = CGRect(x: 0, y: 0, width: 2048, height: 1536) // 2x Resolution
         
         if format == .jpeg {
-            if let nsImage = renderer.nsImage {
-                saveImage(nsImage)
+            if let bitmapRep = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds) {
+                hostingView.cacheDisplay(in: hostingView.bounds, to: bitmapRep)
+                let image = NSImage(size: hostingView.bounds.size)
+                image.addRepresentation(bitmapRep)
+                saveImage(image)
             }
         } else {
-            renderer.render { size, context in
-                var box = CGRect(origin: .zero, size: size)
-                guard let consumer = CGDataConsumer(url: FileManager.default.temporaryDirectory.appendingPathComponent("map_export.pdf") as CFURL),
-                      let pdfContext = CGContext(consumer: consumer, mediaBox: &box, nil) else { return }
-                
-                pdfContext.beginPDFPage(nil)
-                context(pdfContext)
-                pdfContext.endPDFPage()
-                pdfContext.closePDF()
-                // Open file?
+            // PDF Export
+            let pdfData = hostingView.dataWithPDF(inside: hostingView.bounds)
+            let panel = NSSavePanel()
+            panel.nameFieldStringValue = "MappaFerroviaria.pdf"
+            panel.allowedContentTypes = [.pdf]
+            panel.begin { response in
+                if response == .OK, let url = panel.url {
+                    try? pdfData.write(to: url)
+                }
             }
-            // Simplified for now: just basic render capability placeholder
         }
     }
     
