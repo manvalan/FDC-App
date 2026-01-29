@@ -6,9 +6,10 @@ struct LineProposalView: View {
     @Environment(\.dismiss) var dismiss
     
     let proposals: [ProposedLine]
-    let onApply: ([ProposedLine]) -> Void
+    let onApply: ([ProposedLine], Bool) -> Void  // Bool = createTrains
     
     @State private var selectedLineIds: Set<String> = []
+    @State private var createSampleTrains = false  // Default: NO trains
     
     var body: some View {
         NavigationView {
@@ -73,6 +74,23 @@ struct LineProposalView: View {
                 
                 Divider()
                 
+                // Train creation option
+                VStack(spacing: 8) {
+                    Toggle(isOn: $createSampleTrains) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Crea anche treni di esempio")
+                                .font(.subheadline.bold())
+                            Text("Genera automaticamente treni cadenzati per ogni linea (6:00-22:00)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                }
+                
+                Divider()
+                
                 // Bottom actions
                 HStack(spacing: 16) {
                     Button("Annulla") {
@@ -84,7 +102,7 @@ struct LineProposalView: View {
                     
                     Button("Crea \(selectedLineIds.count) Linee") {
                         let selectedProposals = proposals.filter { selectedLineIds.contains($0.id) }
-                        onApply(selectedProposals)
+                        onApply(selectedProposals, createSampleTrains)
                         dismiss()
                     }
                     .buttonStyle(.borderedProminent)
