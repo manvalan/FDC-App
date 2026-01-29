@@ -55,44 +55,26 @@ struct RailwayMapView: View {
     
     @MainActor
     private func exportMap(as format: ExportFormat) {
-        // Robust Snapshot Logic using UIHostingController
-        // This avoids 'White/Blank' images common with ImageRenderer on complex off-screen views
-        let view = SnapshotWrapper(network: network, mode: mode).edgesIgnoringSafeArea(.all)
-        let controller = UIHostingController(rootView: view)
-        
-        // Define High-Res Target Size (4:3 Aspect Ratio)
-        let targetSize = CGSize(width: 2048, height: 1536)
-        controller.view.bounds = CGRect(origin: .zero, size: targetSize)
-        controller.view.backgroundColor = .white
-
-        // Force Layout
-        // We create a temporary window to ensure SwiftUI layout engine fully engages (hack helper for some cases)
-        // But often just layoutIfNeeded works if bounds are set.
-        controller.view.layoutIfNeeded()
-
-        // Render to Image
-        let renderer = UIGraphicsImageRenderer(size: targetSize)
-        let image = renderer.image { ctx in
-             // Fill white background explicitly
-             UIColor.white.setFill()
-             ctx.fill(CGRect(origin: .zero, size: targetSize))
-             
-             // Render the layer
-             // Note: layer.render sometimes misses loose SwiftUI content, but usually works for Canvas/Shapes.
-             // If this fails, we might need drawHierarchy, but that requires being on-screen keyWindow.
-             controller.view.layer.render(in: ctx.cgContext)
-        }
+        let snapshot = RailwayMapSnapshot(network: network, mode: mode)
+        let renderer = ImageRenderer(content: snapshot)
+        renderer.scale = 2.0
         
         if format == .jpeg {
-             shareItem(image)
+            if let image = renderer.uiImage {
+                shareItem(image)
+            }
         } else {
-             // Create PDF containing the captured image (Raster PDF)
-             // This guarantees the PDF matches the image and isn't blank.
+            // PDF Export
              let pdfUrl = FileManager.default.temporaryDirectory.appendingPathComponent("MappaFerroviaria.pdf")
-             let pdfRenderer = UIGraphicsPDFRenderer(bounds: CGRect(origin: .zero, size: targetSize))
-             try? pdfRenderer.writePDF(to: pdfUrl) { ctx in
-                 ctx.beginPage()
-                 image.draw(at: .zero)
+             renderer.render { size, context in
+                 var box = CGRect(origin: .zero, size: size)
+                 guard let consumer = CGDataConsumer(url: pdfUrl as CFURL),
+                       let pdfContext = CGContext(consumer: consumer, mediaBox: &box, nil) else { return }
+                 
+                 pdfContext.beginPDFPage(nil)
+                 context(pdfContext)
+                 pdfContext.endPDFPage()
+                 pdfContext.closePDF()
              }
              shareItem(pdfUrl)
         }
@@ -103,59 +85,152 @@ struct RailwayMapView: View {
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let root = windowScene.windows.first?.rootViewController {
             av.popoverPresentationController?.sourceView = root.view
-            av.popoverPresentationController?.sourceRect = CGRect(x: 100, y: 100, width: 0, height: 0) // Anchor for iPad
+            av.popoverPresentationController?.sourceRect = CGRect(x: 100, y: 100, width: 0, height: 0)
             root.present(av, animated: true, completion: nil)
         }
     }
     
     private func printMap() {
-        // Print Logic re-using Generate Snapshot
-        // We generate the image first to ensure WYSIWYG printing
-        let view = SnapshotWrapper(network: network, mode: mode).edgesIgnoringSafeArea(.all)
-        let controller = UIHostingController(rootView: view)
-        let targetSize = CGSize(width: 2048, height: 1536)
-        controller.view.bounds = CGRect(origin: .zero, size: targetSize)
-        controller.view.backgroundColor = .white
-        controller.view.layoutIfNeeded()
-        
-        let renderer = UIGraphicsImageRenderer(size: targetSize)
-        let image = renderer.image { ctx in
-             UIColor.white.setFill()
-             ctx.fill(CGRect(origin: .zero, size: targetSize))
-             controller.view.layer.render(in: ctx.cgContext)
+        let snapshot = RailwayMapSnapshot(network: network, mode: mode)
+        let renderer = ImageRenderer(content: snapshot)
+        if let image = renderer.uiImage {
+             let printInfo = UIPrintInfo(dictionary: nil)
+             printInfo.outputType = .general
+             printInfo.jobName = "Mappa Ferroviaria"
+             
+             let controller = UIPrintInteractionController.shared
+             controller.printInfo = printInfo
+             controller.printingItem = image
+             controller.present(animated: true, completionHandler: nil)
         }
-
-        let printInfo = UIPrintInfo(dictionary: nil)
-        printInfo.outputType = .general
-        printInfo.jobName = "Mappa Ferroviaria"
-        
-        let interactionController = UIPrintInteractionController.shared
-        interactionController.printInfo = printInfo
-        interactionController.printingItem = image
-        interactionController.present(animated: true, completionHandler: nil)
     }
-    
-    // Minimal wrapper for export without interactive elements
-    struct SnapshotWrapper: View {
-        @ObservedObject var network: RailwayNetwork
-        var mode: MapVisualizationMode
+
+    // Dedicated Snapshot View using direct Canvas drawing (No GeometryReader/ScrollView complications)
+    struct RailwayMapSnapshot: View {
+        let network: RailwayNetwork
+        let mode: MapVisualizationMode
         
         var body: some View {
-            // Simplified Schematic View (Static)
-            // Reusing SchematicRailwayView logic would be best but requires mocking bindings.
-            // For now, we render a placeholder or a static version.
-            // To do it properly, we need to extract the Canvas logic.
-            // Using actual SchematicRailwayView with constant bindings:
-            SchematicRailwayView(
-                network: network,
-                appState: AppState(), // Dummy
-                selectedNode: .constant(nil),
-                selectedLine: .constant(nil),
-                selectedEdgeId: .constant(nil),
-                showGrid: .constant(false),
-                mode: mode
-            )
+            Canvas { context, size in
+                let bounds = calculateBounds()
+                
+                // 1. Draw Edges
+                for edge in network.edges {
+                    guard let n1 = network.nodes.first(where: { $0.id == edge.from }),
+                          let n2 = network.nodes.first(where: { $0.id == edge.to }) else { continue }
+                    
+                    let p1 = finalPosition(for: n1, in: size, bounds: bounds)
+                    let p2 = finalPosition(for: n2, in: size, bounds: bounds)
+                    let points = generateSchematicPoints(from: p1, to: p2)
+                    
+                    let path = Path { p in
+                        guard let first = points.first else { return }
+                        p.move(to: first)
+                        for pt in points.dropFirst() { p.addLine(to: pt) }
+                    }
+                    
+                    let baseColor: Color = (mode == .network) ? .gray : .gray.opacity(0.3)
+                    if edge.trackType == .highSpeed {
+                        context.stroke(path, with: .color(.red), style: StrokeStyle(lineWidth: 4, lineCap: .square))
+                        context.stroke(path, with: .color(.white.opacity(0.6)), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [5, 5]))
+                    } else if edge.trackType == .double {
+                        context.stroke(path, with: .color(.black), style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
+                        context.stroke(path, with: .color(baseColor), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    } else {
+                        context.stroke(path, with: .color(baseColor), style: StrokeStyle(lineWidth: 2.0, lineCap: .round))
+                    }
+                }
+                
+                // 2. Draw Nodes (Simplified for Export)
+                for node in network.nodes {
+                    let pos = finalPosition(for: node, in: size, bounds: bounds)
+                    let isHub = node.type == .interchange || node.parentHubId != nil
+                    
+                    if isHub {
+                         // Hub: White circle, Red border
+                         let p1 = Path(ellipseIn: CGRect(x: pos.x - 7, y: pos.y - 7, width: 14, height: 14))
+                         context.fill(p1, with: .color(.white))
+                         
+                         let p2 = Path(ellipseIn: CGRect(x: pos.x - 9.5, y: pos.y - 9.5, width: 19, height: 19))
+                         context.stroke(p2, with: .color(.red), lineWidth: 5)
+                         
+                         // Label (Red Pill)
+                         let text = Text(node.name).font(.system(size: 16, weight: .bold)).foregroundColor(.red)
+                         var bgPath = Path(roundedRect: CGRect(x: pos.x - 40, y: pos.y + 15, width: 80, height: 20), cornerRadius: 4)
+                         context.fill(bgPath, with: .color(.white.opacity(0.8)))
+                         context.draw(text, at: CGPoint(x: pos.x, y: pos.y + 25))
+
+                    } else {
+                         // Station
+                         let p = Path(ellipseIn: CGRect(x: pos.x - 10, y: pos.y - 10, width: 20, height: 20))
+                         context.fill(p, with: .color(.white))
+                         // Symbol would go here, simplistic for now
+                         let inner = Path(ellipseIn: CGRect(x: pos.x - 12, y: pos.y - 12, width: 24, height: 24))
+                         context.stroke(inner, with: .color(.black), lineWidth: 2)
+                         
+                         let label = Text(node.name).font(.system(size: 14, weight: .bold)).foregroundColor(.black)
+                         context.draw(label, at: CGPoint(x: pos.x, y: pos.y + 20))
+                    }
+                }
+            }
+            .frame(width: 2048, height: 1536)
             .background(Color.white)
+        }
+        
+        // --- Helpers Copied for Snapshot ---
+        struct MapBounds {
+            let minLat, maxLat, minLon, maxLon, xRange, yRange: Double
+        }
+        
+        func calculateBounds() -> MapBounds {
+            let lats = network.nodes.compactMap { $0.latitude }
+            let lons = network.nodes.compactMap { $0.longitude }
+            let minLat = lats.min() ?? 38.0
+            let maxLat = lats.max() ?? 48.0
+            let minLon = lons.min() ?? 7.0
+            let maxLon = lons.max() ?? 19.0
+            let xr = maxLon - minLon; let yr = maxLat - minLat
+            let padX = xr == 0 ? 0.5 : xr * 0.1
+            let padY = yr == 0 ? 0.5 : yr * 0.1
+            return MapBounds(minLat: minLat - padY, maxLat: maxLat + padY, minLon: minLon - padX, maxLon: maxLon + padX, xRange: (maxLon - minLon) + 2*padX, yRange: (maxLat - minLat) + 2*padY)
+        }
+        
+        func schematicPoint(for node: Node, in size: CGSize, bounds: MapBounds) -> CGPoint {
+             let lon = node.longitude ?? 0; let lat = node.latitude ?? 0
+             let x = (lon - bounds.minLon) / bounds.xRange * (size.width - 100) + 50
+             let y = (1.0 - (lat - bounds.minLat) / bounds.yRange) * (size.height - 100) + 50
+             return CGPoint(x: x, y: y)
+        }
+        
+        func finalPosition(for node: Node, in size: CGSize, bounds: MapBounds) -> CGPoint {
+            let base = schematicPoint(for: node, in: size, bounds: bounds)
+            if node.parentHubId != nil {
+                let off: CGFloat = 30
+                switch node.hubOffsetDirection ?? .bottomLeft {
+                case .bottomLeft: return CGPoint(x: base.x - off, y: base.y + off)
+                case .bottomRight: return CGPoint(x: base.x + off, y: base.y + off)
+                case .topLeft: return CGPoint(x: base.x - off, y: base.y - off)
+                case .topRight: return CGPoint(x: base.x + off, y: base.y - off)
+                }
+            }
+            return base
+        }
+        
+        func generateSchematicPoints(from p1: CGPoint, to p2: CGPoint) -> [CGPoint] {
+            let dx = p2.x - p1.x; let dy = p2.y - p1.y
+            let adx = abs(dx); let ady = abs(dy)
+            let minDiff = min(adx, ady)
+            if minDiff < 5 || abs(adx - ady) < 5 { return [p1, p2] }
+            let sx: CGFloat = dx > 0 ? 1 : -1; let sy: CGFloat = dy > 0 ? 1 : -1
+            if adx > ady {
+                let m1 = CGPoint(x: p1.x + sx * (max(adx,ady)-minDiff)/2, y: p1.y)
+                let m2 = CGPoint(x: m1.x + sx*minDiff, y: m1.y + sy*minDiff)
+                return [p1, m1, m2, p2]
+            } else {
+                let m1 = CGPoint(x: p1.x, y: p1.y + sy * (max(adx,ady)-minDiff)/2)
+                let m2 = CGPoint(x: m1.x + sx*minDiff, y: m1.y + sy*minDiff)
+                return [p1, m1, m2, p2]
+            }
         }
     }
 
@@ -174,9 +249,21 @@ struct SchematicRailwayView: View {
     
     @State private var zoomLevel: CGFloat = 2.0
     @State private var editMode: EditMode = .explore
+    // States for Track Creation
+    @State private var newTrackFrom: Node? = nil
+    @State private var newTrackTo: Node? = nil
+    @State private var newTrackType: Edge.TrackType = .regional
+    
+    // Legacy selection state (replaced by explicit from/to above for tracks)
     @State private var firstStationId: String? = nil
     
     // Grid State: managed by parent binding now
+    // Track Creation State
+    @State private var newTrackFrom: Node? = nil
+    @State private var newTrackTo: Node? = nil
+    @State private var newTrackType: Edge.TrackType = .regional
+    @State private var newTrackDistance: Double = 10.0
+    
     private let gridSize: CGFloat = 50.0
     
     // New state for line filtering
@@ -579,23 +666,7 @@ struct SchematicRailwayView: View {
                 
                 // Controls
                 VStack(alignment: .trailing, spacing: 10) {
-                    if editMode != .explore {
-                        HStack {
-                            Text(editMode.rawValue)
-                                .font(.headline)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(.yellow)
-                                .cornerRadius(8)
-                            
-                            Button(action: { editMode = .explore }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.title2)
-                                    .foregroundColor(.gray)
-                            }
-                        }
-                        .padding(.trailing)
-                    }
+
                     
                     VStack(spacing: 8) {
                         // Grid toggle moved to Settings
@@ -635,6 +706,81 @@ struct SchematicRailwayView: View {
                         }
                     }
                     .padding()
+                }
+                
+                // Track Creation Box Overlay
+                if editMode == .addTrack {
+                    VStack {
+                        Spacer()
+                        VStack(spacing: 12) {
+                            Text("Nuovo Binario")
+                                .font(.headline)
+                            
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text("Da:")
+                                        .font(.caption).foregroundColor(.secondary)
+                                    Text(newTrackFrom?.name ?? "Seleziona Stazione")
+                                        .fontWeight(.bold)
+                                        .foregroundColor(newTrackFrom == nil ? .gray : .primary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                
+                                Image(systemName: "arrow.right")
+                                
+                                VStack(alignment: .trailing) {
+                                    Text("A:")
+                                        .font(.caption).foregroundColor(.secondary)
+                                    Text(newTrackTo?.name ?? "Seleziona Stazione")
+                                        .fontWeight(.bold)
+                                        .foregroundColor(newTrackTo == nil ? .gray : .primary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                            }
+                            .padding(.horizontal)
+                            
+                            HStack {
+                                Text("Distanza:").font(.caption).foregroundColor(.secondary)
+                                TextField("km", value: $newTrackDistance, format: .number)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 80)
+                                Text("km")
+                            }
+                            
+                            Picker("Tipo Binario", selection: $newTrackType) {
+                                Text("Regionale").tag(Edge.TrackType.regional)
+                                Text("Alta Velocità").tag(Edge.TrackType.highSpeed)
+                                Text("Singolo").tag(Edge.TrackType.single)
+                                Text("Doppio").tag(Edge.TrackType.double)
+                            }
+                            .pickerStyle(.segmented)
+                            
+                            HStack {
+                                Button("Annulla") {
+                                    newTrackFrom = nil
+                                    newTrackTo = nil
+                                }
+                                .foregroundColor(.red)
+                                .padding(.horizontal)
+                                
+                                Button(action: createTrack) {
+                                    Text("Crea Binario")
+                                        .bold()
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 8)
+                                        .background((newTrackFrom != nil && newTrackTo != nil) ? Color.blue : Color.gray)
+                                        .foregroundColor(.white)
+                                        .cornerRadius(8)
+                                }
+                                .disabled(newTrackFrom == nil || newTrackTo == nil)
+                            }
+                        }
+                        .padding()
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white).shadow(radius: 5))
+                        .padding()
+                        .frame(maxWidth: 400)
+                    }
+                    .transition(.move(edge: .bottom))
                 }
             }
         }
@@ -695,24 +841,39 @@ struct SchematicRailwayView: View {
     // MARK: - Interaction Handlers
     private func handleStationTap(_ node: Node) {
         if editMode == .addTrack {
-            if let first = firstStationId {
-                if first != node.id {
-                    // Create Edge
-                    // Note: Edge likely needs an ID if we want to select it by ID.
-                    // If Edge struct doesn't have ID in constructor, we might need to change Edge struct or rely on internal generating.
-                    // Assuming Edge has default init, let's try standard.
-                    // If Edge has `id`, we should use it. 
-                    // Let's check `Edge` definition if possible, but for now assuming it exists.
-                    let newEdge = Edge(from: first, to: node.id, distance: 10, trackType: .regional, maxSpeed: 120, capacity: 10)
-                    network.edges.append(newEdge)
-                    firstStationId = nil
-                }
+            // New Logic: Populate Box
+            if newTrackFrom == nil {
+                newTrackFrom = node
+                // Reset distance default? Keep previous? Let's reset to geo-calc if To is selected later.
+            } else if newTrackFrom?.id == node.id {
+                // Deselect if tapping same
+                newTrackFrom = nil
             } else {
-                firstStationId = node.id
+                newTrackTo = node
+                // Auto-calc distance
+                if let n1 = newTrackFrom {
+                    let lat1 = n1.latitude ?? 0; let lon1 = n1.longitude ?? 0
+                    let lat2 = node.latitude ?? 0; let lon2 = node.longitude ?? 0
+                    let dLat = lat1 - lat2
+                    let dLon = lon1 - lon2
+                    let distKm = sqrt(dLat*dLat + dLon*dLon) * 111.0
+                    newTrackDistance = max(1.0, round(distKm * 10) / 10.0)
+                }
             }
         } else {
             selectedNode = node
         }
+    }
+    
+    private func createTrack() {
+        guard let n1 = newTrackFrom, let n2 = newTrackTo else { return }
+        
+        let newEdge = Edge(from: n1.id, to: n2.id, distance: newTrackDistance, trackType: newTrackType, maxSpeed: newTrackType == .highSpeed ? 300 : 160, capacity: 10)
+        network.edges.append(newEdge)
+        
+        // Reset selection (keep type?)
+        newTrackFrom = nil
+        newTrackTo = nil
     }
     
     private func handleCanvasTap(at location: CGPoint, in size: CGSize) {
