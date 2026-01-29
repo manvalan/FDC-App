@@ -176,10 +176,14 @@ struct SchematicRailwayView: View {
                                 let p1 = finalPosition(for: n1, in: size, bounds: bounds)
                                 let p2 = finalPosition(for: n2, in: size, bounds: bounds)
                                 
-                                // Base Track Path
+                                // Base Track Path (Schematic 0-45-90)
+                                let points = generateSchematicPoints(from: p1, to: p2)
                                 let path = Path { p in
-                                    p.move(to: p1)
-                                    p.addLine(to: p2)
+                                    guard let first = points.first else { return }
+                                    p.move(to: first)
+                                    for pt in points.dropFirst() {
+                                        p.addLine(to: pt)
+                                    }
                                 }
                                 
                                 // Styles based on physical properties
@@ -729,6 +733,52 @@ struct SchematicRailwayView: View {
         }
     }
 
+    // Helper: Generate Octilinear Path (0, 45, 90 degrees)
+    // Tries to use "Centered Diagonal" approach: Horizontal/Vertical -> Diagonal -> Horizontal/Vertical
+    private func generateSchematicPoints(from p1: CGPoint, to p2: CGPoint) -> [CGPoint] {
+        let dx = p2.x - p1.x
+        let dy = p2.y - p1.y
+        let adx = abs(dx)
+        let ady = abs(dy)
+        
+        let minDiff = min(adx, ady)
+        
+        // Tolerance for straight lines/perfect 45
+        if minDiff < 5 || abs(adx - ady) < 5 {
+             return [p1, p2]
+        }
+        
+        // Centered Diagonal Strategy:
+        // Use Diagonal to cover the 'minDiff' length.
+        // Use Horizontal/Vertical to cover the rest.
+        // Split the straight part into two halves to center the diagonal.
+        
+        let sx: CGFloat = dx > 0 ? 1 : -1
+        let sy: CGFloat = dy > 0 ? 1 : -1
+        
+        let diagLen = minDiff
+        let straightLen = max(adx, ady) - diagLen
+        
+        if adx > ady {
+            // Horizontal Dominant: H -> D -> H
+            let hSeg = straightLen / 2.0
+            
+            let m1 = CGPoint(x: p1.x + sx * hSeg, y: p1.y) // 1. Horizontal half
+            let m2 = CGPoint(x: m1.x + sx * diagLen, y: m1.y + sy * diagLen) // 2. Diagonal
+            // m2 should now be vertically aligned with p2
+            
+            return [p1, m1, m2, p2]
+        } else {
+            // Vertical Dominant: V -> D -> V
+            let vSeg = straightLen / 2.0
+            
+            let m1 = CGPoint(x: p1.x, y: p1.y + sy * vSeg) // 1. Vertical half
+            let m2 = CGPoint(x: m1.x + sx * diagLen, y: m1.y + sy * diagLen) // 2. Diagonal
+            
+            return [p1, m1, m2, p2]
+        }
+    }
+
     private func currentSchematicTrainPos(for schedule: TrainSchedule, in size: CGSize, now: Date, bounds: MapBounds) -> CGPoint? {
         for i in 0..<(schedule.stops.count - 1) {
             let s1 = schedule.stops[i]
@@ -743,13 +793,42 @@ struct SchematicRailwayView: View {
                 guard let n1 = network.nodes.first(where: { $0.id == s1.stationId }),
                       let n2 = network.nodes.first(where: { $0.id == s2.stationId }) else { return nil }
                 
+                // Use same schematic path as tracks
                 let p1 = schematicPoint(for: n1, in: size, bounds: bounds)
                 let p2 = schematicPoint(for: n2, in: size, bounds: bounds)
+                let points = generateSchematicPoints(from: p1, to: p2)
                 
-                return CGPoint(
-                    x: p1.x + (p2.x - p1.x) * progress,
-                    y: p1.y + (p2.y - p1.y) * progress
-                )
+                // Walk the polyline to find the point at 'progress'
+                // 1. Calculate total length
+                var totalLen: CGFloat = 0
+                var segmentLens: [CGFloat] = []
+                for j in 0..<(points.count - 1) {
+                    let d = hypot(points[j+1].x - points[j].x, points[j+1].y - points[j].y)
+                    totalLen += d
+                    segmentLens.append(d)
+                }
+                
+                if totalLen == 0 { return p1 }
+                
+                // 2. Find segment
+                let targetDist = totalLen * CGFloat(progress)
+                var currentDist: CGFloat = 0
+                
+                for j in 0..<(points.count - 1) {
+                    let sl = segmentLens[j]
+                    if currentDist + sl >= targetDist {
+                        // In this segment
+                        let localProg = (targetDist - currentDist) / (sl > 0 ? sl : 1)
+                        let sp1 = points[j]
+                        let sp2 = points[j+1]
+                        return CGPoint(
+                            x: sp1.x + (sp2.x - sp1.x) * localProg,
+                            y: sp1.y + (sp2.y - sp1.y) * localProg
+                        )
+                    }
+                    currentDist += sl
+                }
+                return points.last
             }
         }
         return nil
