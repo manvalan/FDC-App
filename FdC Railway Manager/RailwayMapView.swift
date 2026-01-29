@@ -752,6 +752,7 @@ struct SchematicRailwayView: View {
                                 Button("Annulla") {
                                     newTrackFrom = nil
                                     newTrackTo = nil
+                                    editMode = .explore // Exit mode
                                 }
                                 .foregroundColor(.red)
                                 .padding(.horizontal)
@@ -867,6 +868,9 @@ struct SchematicRailwayView: View {
         // Reset selection (keep type?)
         newTrackFrom = nil
         newTrackTo = nil
+        
+        // Auto-exit mode
+        editMode = .explore
     }
     
     private func handleCanvasTap(at location: CGPoint, in size: CGSize) {
