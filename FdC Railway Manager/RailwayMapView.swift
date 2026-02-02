@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import MapKit
 import UIKit
 
@@ -15,7 +16,15 @@ struct RailwayMapView: View {
     @Binding var selectedLine: RailwayLine?
     @Binding var selectedEdgeId: String? // Added binding
     @Binding var showGrid: Bool // Added binding
+    @Binding var isMoveModeEnabled: Bool // Added binding
+    @Binding var highlightedConflictLocation: String? // Added binding for conflict highlighting
     var mode: MapVisualizationMode // Added mode
+    
+    @State private var isExporting = false
+
+    struct MapBounds: Sendable {
+        let minLat, maxLat, minLon, maxLon, xRange, yRange: Double
+    }
 
     var body: some View {
         ZStack {
@@ -26,22 +35,44 @@ struct RailwayMapView: View {
                 selectedLine: $selectedLine,
                 selectedEdgeId: $selectedEdgeId,
                 showGrid: $showGrid,
-                mode: mode
+                isMoveModeEnabled: $isMoveModeEnabled,
+                highlightedConflictLocation: $highlightedConflictLocation,
+                mode: mode,
+                onExport: { exportMap(as: $0) },
+                onPrint: { printMap() }
             )
+            
+            if isExporting {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                
+                VStack(spacing: 15) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                    Text("generating_map".localized)
+                        .font(.headline)
+                    Text("generation_desc".localized)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(30)
+                .background(RoundedRectangle(cornerRadius: 15).fill(Color(.systemBackground)))
+                .shadow(radius: 10)
+            }
         }
-        .navigationTitle("Schema Rete")
+        .navigationTitle("network_schema".localized)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Button(action: { exportMap(as: .jpeg) }) {
-                        Label("Esporta Immagine (JPEG)", systemImage: "photo")
+                        Label("export_jpeg".localized, systemImage: "photo")
                     }
                     Button(action: { exportMap(as: .pdf) }) {
-                        Label("Esporta PDF", systemImage: "doc.text")
+                        Label("export_pdf".localized, systemImage: "doc.text")
                     }
                     Divider()
                     Button(action: { printMap() }) {
-                        Label("Stampa", systemImage: "printer")
+                        Label("print".localized, systemImage: "printer")
                     }
                 } label: {
                     Image(systemName: "square.and.arrow.up")
@@ -55,28 +86,49 @@ struct RailwayMapView: View {
     
     @MainActor
     private func exportMap(as format: ExportFormat) {
-        let snapshot = RailwayMapSnapshot(network: network, mode: mode)
-        let renderer = ImageRenderer(content: snapshot)
-        renderer.scale = 2.0
+        isExporting = true
         
-        if format == .jpeg {
-            if let image = renderer.uiImage {
-                shareItem(image)
+        let nodes = network.nodes
+        let edges = network.edges
+        let m = mode
+        let gSize = appState.globalFontSize
+        let gWidth = appState.globalLineWidth
+        
+        let lns = network.lines
+        let schs = appState.simulator.schedules
+        
+        Task {
+            // 1. Prepare data in background
+            let snapshotData = await Task.detached(priority: .userInitiated) {
+                return MapSnapshotData.prepare(nodes: nodes, edges: edges, lines: lns, schedules: schs, mode: m, globalFontSize: gSize, globalLineWidth: gWidth)
+            }.value
+            
+            // 2. Render on main thread
+            await MainActor.run {
+                let snapshot = RailwayMapSnapshot(data: snapshotData)
+                    .environmentObject(appState)
+                let renderer = ImageRenderer(content: snapshot)
+                renderer.scale = 2.0
+                
+                if format == .jpeg {
+                    if let image = renderer.uiImage {
+                        shareItem(image)
+                    }
+                } else {
+                    let pdfUrl = FileManager.default.temporaryDirectory.appendingPathComponent("MappaFerroviaria.pdf")
+                    renderer.render { size, context in
+                        var box = CGRect(origin: .zero, size: size)
+                        guard let consumer = CGDataConsumer(url: pdfUrl as CFURL),
+                              let pdfContext = CGContext(consumer: consumer, mediaBox: &box, nil) else { return }
+                        pdfContext.beginPDFPage(nil)
+                        context(pdfContext)
+                        pdfContext.endPDFPage()
+                        pdfContext.closePDF()
+                    }
+                    shareItem(pdfUrl)
+                }
+                isExporting = false
             }
-        } else {
-            // PDF Export
-             let pdfUrl = FileManager.default.temporaryDirectory.appendingPathComponent("MappaFerroviaria.pdf")
-             renderer.render { size, context in
-                 var box = CGRect(origin: .zero, size: size)
-                 guard let consumer = CGDataConsumer(url: pdfUrl as CFURL),
-                       let pdfContext = CGContext(consumer: consumer, mediaBox: &box, nil) else { return }
-                 
-                 pdfContext.beginPDFPage(nil)
-                 context(pdfContext)
-                 pdfContext.endPDFPage()
-                 pdfContext.closePDF()
-             }
-             shareItem(pdfUrl)
         }
     }
     
@@ -85,215 +137,418 @@ struct RailwayMapView: View {
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let root = windowScene.windows.first?.rootViewController {
             av.popoverPresentationController?.sourceView = root.view
-            av.popoverPresentationController?.sourceRect = CGRect(x: 100, y: 100, width: 0, height: 0)
+            av.popoverPresentationController?.sourceRect = CGRect(x: UIScreen.main.bounds.midX, y: UIScreen.main.bounds.midY, width: 0, height: 0)
             root.present(av, animated: true, completion: nil)
         }
     }
     
     private func printMap() {
-        let snapshot = RailwayMapSnapshot(network: network, mode: mode)
-        let renderer = ImageRenderer(content: snapshot)
-        if let image = renderer.uiImage {
-             let printInfo = UIPrintInfo(dictionary: nil)
-             printInfo.outputType = .general
-             printInfo.jobName = "Mappa Ferroviaria"
-             
-             let controller = UIPrintInteractionController.shared
-             controller.printInfo = printInfo
-             controller.printingItem = image
-             controller.present(animated: true, completionHandler: nil)
+        isExporting = true
+        let nodes = network.nodes
+        let edges = network.edges
+        let m = mode
+        let gSize = appState.globalFontSize
+        let gWidth = appState.globalLineWidth
+        
+        let lns = network.lines
+        let schs = appState.simulator.schedules
+        
+        Task {
+            let snapshotData = await Task.detached(priority: .userInitiated) {
+                return MapSnapshotData.prepare(nodes: nodes, edges: edges, lines: lns, schedules: schs, mode: m, globalFontSize: gSize, globalLineWidth: gWidth)
+            }.value
+            
+            await MainActor.run {
+                let snapshot = RailwayMapSnapshot(data: snapshotData)
+                    .environmentObject(appState)
+                let renderer = ImageRenderer(content: snapshot)
+                if let image = renderer.uiImage {
+                     let printInfo = UIPrintInfo(dictionary: nil)
+                     printInfo.outputType = .general
+                     printInfo.jobName = "network_map".localized
+                     
+                     let controller = UIPrintInteractionController.shared
+                     controller.printInfo = printInfo
+                     controller.printingItem = image
+                     controller.present(animated: true, completionHandler: nil)
+                }
+                isExporting = false
+            }
         }
     }
 
-    // Dedicated Snapshot View using direct Canvas drawing (No GeometryReader/ScrollView complications)
-    struct RailwayMapSnapshot: View {
-        let network: RailwayNetwork
+    // Pre-calculated data structure for non-blocking rendering
+    struct MapSnapshotData: Sendable {
+        struct LineDraw: Sendable {
+            let path: Path
+            let color: Color
+            let name: String
+        }
+        
+        struct TrainDraw: Sendable {
+            let pos: CGPoint
+            let name: String
+            let color: Color
+        }
+        
+        struct EdgeDraw: Sendable {
+            let path: Path
+            let color: Color
+            let type: Edge.TrackType
+            let baseColor: Color
+        }
+        
+        struct GroupDraw: Sendable {
+            let positions: [CGPoint]
+            let label: String
+            let center: CGPoint
+            let bottomY: CGFloat
+            let isSingle: Bool
+        }
+        
+        struct NodeDraw: Sendable {
+            let pos: CGPoint
+            let name: String
+            let isHub: Bool
+        }
+        
+        let bounds: MapBounds
+        let edges: [EdgeDraw]
+        let groups: [GroupDraw]
+        let nodes: [NodeDraw]
+        let lines: [LineDraw]
+        let trains: [TrainDraw]
         let mode: MapVisualizationMode
+        let globalFontSize: Double
+        let globalLineWidth: Double
+        
+        static func prepare(
+            nodes: [Node], 
+            edges: [Edge], 
+            lines: [RailwayLine], 
+            schedules: [TrainSchedule],
+            mode: MapVisualizationMode, 
+            globalFontSize: Double, 
+            globalLineWidth: Double
+        ) -> MapSnapshotData {
+            let snapshotSize = CGSize(width: 2048, height: 1536)
+            let bounds = calculateBounds(for: nodes)
+            
+            func finalPosition(for node: Node) -> CGPoint {
+                let lon = node.longitude ?? 0
+                let lat = node.latitude ?? 0
+                let baseX = (lon - bounds.minLon) / bounds.xRange * (snapshotSize.width - 100) + 50
+                let baseY = (1.0 - (lat - bounds.minLat) / bounds.yRange) * (snapshotSize.height - 100) + 50
+                let pPos = CGPoint(x: baseX, y: baseY)
+                
+                if let parentId = node.parentHubId,
+                   let parent = nodes.first(where: { $0.id == parentId }) {
+                    let parentLon = parent.longitude ?? 0
+                    let parentLat = parent.latitude ?? 0
+                    let px = (parentLon - bounds.minLon) / bounds.xRange * (snapshotSize.width - 100) + 50
+                    let py = (1.0 - (parentLat - bounds.minLat) / bounds.yRange) * (snapshotSize.height - 100) + 50
+                    let parentP = CGPoint(x: px, y: py)
+                    
+                    let offset: CGFloat = 25.0
+                    let direction = node.hubOffsetDirection ?? .bottomRight
+                    switch direction {
+                    case .topLeft: return CGPoint(x: parentP.x - offset, y: parentP.y - offset)
+                    case .topRight: return CGPoint(x: parentP.x + offset, y: parentP.y - offset)
+                    case .bottomLeft: return CGPoint(x: parentP.x - offset, y: parentP.y + offset)
+                    case .bottomRight: return CGPoint(x: parentP.x + offset, y: parentP.y + offset)
+                    }
+                }
+                return pPos
+            }
+            
+            func generateLineDraws() -> [LineDraw] {
+                var drawings: [LineDraw] = []
+                struct SegmentKey: Hashable {
+                    let from: String; let to: String
+                    init(_ a: String, _ b: String) { if a < b { from = a; to = b } else { from = b; to = a } }
+                }
+                var segmentLineMap: [SegmentKey: [RailwayLine]] = [:]
+                for line in lines {
+                    let count = line.stations.count
+                    if count > 1 {
+                        for i in 0..<(count - 1) {
+                            let key = SegmentKey(line.stations[i], line.stations[i+1])
+                            segmentLineMap[key, default: []].append(line)
+                        }
+                    }
+                }
+                
+                for (key, segLines) in segmentLineMap {
+                    guard let n1 = nodes.first(where: { $0.id == key.from }),
+                          let n2 = nodes.first(where: { $0.id == key.to }) else { continue }
+                    let p1 = finalPosition(for: n1); let p2 = finalPosition(for: n2)
+                    let points = generateSchematicPoints(from: p1, to: p2)
+                    
+                    for j in 0..<(points.count - 1) {
+                        let sp1 = points[j]; let sp2 = points[j+1]
+                        let angle = atan2(sp2.y - sp1.y, sp2.x - sp1.x)
+                        let offsetBase: CGFloat = 8.0 // Larger for snapshot
+                        
+                        for (i, line) in segLines.enumerated() {
+                            let offset = CGFloat(i) * offsetBase - (CGFloat(segLines.count - 1) * offsetBase / 2.0)
+                            let lp1 = CGPoint(x: sp1.x - sin(angle) * offset, y: sp1.y + cos(angle) * offset)
+                            let lp2 = CGPoint(x: sp2.x - sin(angle) * offset, y: sp2.y + cos(angle) * offset)
+                            let path = Path { p in p.move(to: lp1); p.addLine(to: lp2) }
+                            drawings.append(LineDraw(path: path, color: Color(hex: line.color ?? "#000000") ?? .black, name: line.name))
+                        }
+                    }
+                }
+                return drawings
+            }
+            
+            func generateTrainDraws() -> [TrainDraw] {
+                var drawings: [TrainDraw] = []
+                let now = Date().normalized()
+                for sch in schedules {
+                    if let pos = calculateTrainPosition(schedule: sch, now: now, nodes: nodes, bounds: bounds, snapshotSize: snapshotSize) {
+                        drawings.append(TrainDraw(pos: pos, name: sch.trainName, color: .red))
+                    }
+                }
+                return drawings
+            }
+            
+            // 1. Edges (Deduplicated for visual clarity)
+            var deduplicatedEdges: [Edge] = []
+            var seenKeys = Set<String>()
+            
+            for edge in edges {
+                let key = edge.canonicalKey
+                if !seenKeys.contains(key) {
+                    let effectiveEdge = edge
+                    deduplicatedEdges.append(effectiveEdge)
+                    seenKeys.insert(key)
+                }
+            }
+
+            let edgesDraw = deduplicatedEdges.compactMap { edge -> EdgeDraw? in
+                guard let n1 = nodes.first(where: { $0.id == edge.from }),
+                      let n2 = nodes.first(where: { $0.id == edge.to }) else { return nil }
+                
+                let p1 = finalPosition(for: n1)
+                let p2 = finalPosition(for: n2)
+                let points = generateSchematicPoints(from: p1, to: p2)
+                
+                let path = Path { p in
+                    guard let first = points.first else { return }
+                    p.move(to: first)
+                    for pt in points.dropFirst() { p.addLine(to: pt) }
+                }
+                
+                let baseColor: Color = (mode == .network) ? .gray : .gray.opacity(0.3)
+                return EdgeDraw(path: path, color: (edge.trackType == .highSpeed ? .red.opacity(0.8) : .black.opacity(0.8)), type: edge.trackType, baseColor: baseColor)
+            }
+            
+            // 2. Hub Clusters (Explicit logic matching live view)
+            var visualGroups: [GroupDraw] = []
+            
+            let hubNodes = nodes.filter { node in
+                node.parentHubId != nil || nodes.contains(where: { $0.parentHubId == node.id })
+            }
+            
+            var hubGroupsLookup: [String: [Node]] = [:]
+            for node in hubNodes {
+                let hubId = node.parentHubId ?? node.id
+                hubGroupsLookup[hubId, default: []].append(node)
+            }
+            
+            for (hubId, gNodes) in hubGroupsLookup {
+                if gNodes.count > 1 {
+                    let positions = gNodes.map { finalPosition(for: $0) }
+                    let maxY = positions.map { $0.y }.max() ?? positions[0].y
+                    let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
+                    
+                    let rootNode = gNodes.first(where: { $0.id == hubId }) ?? gNodes.first
+                    visualGroups.append(GroupDraw(
+                        positions: positions,
+                        label: rootNode?.name ?? "",
+                        center: CGPoint(x: centerX, y: maxY + 35),
+                        bottomY: maxY,
+                        isSingle: false
+                    ))
+                }
+            }
+            
+            // Handle orphan interchanges (single-node hubs)
+            let orphanInterchanges = nodes.filter { node in
+                node.type == .interchange && 
+                hubGroupsLookup[node.parentHubId ?? node.id]?.count ?? 0 <= 1
+            }
+            for node in orphanInterchanges {
+                let p = finalPosition(for: node)
+                visualGroups.append(GroupDraw(
+                    positions: [p],
+                    label: node.name,
+                    center: CGPoint(x: p.x, y: p.y + 35),
+                    bottomY: p.y,
+                    isSingle: true
+                ))
+            }
+            
+            let nodesDraw = nodes.map { node -> NodeDraw in
+                return NodeDraw(pos: finalPosition(for: node), name: node.name, isHub: node.type == .interchange)
+            }
+            
+            let linesDraw = (mode == .lines) ? generateLineDraws() : []
+            let trainsDraw = (mode == .lines) ? generateTrainDraws() : []
+            
+            return MapSnapshotData(
+                bounds: bounds, 
+                edges: edgesDraw, 
+                groups: visualGroups, 
+                nodes: nodesDraw, 
+                lines: linesDraw, 
+                trains: trainsDraw, 
+                mode: mode, 
+                globalFontSize: globalFontSize, 
+                globalLineWidth: globalLineWidth
+            )
+        }
+        
+        // Static helpers (Sendable)
+        static func calculateTrainPosition(schedule: TrainSchedule, now: Date, nodes: [Node], bounds: MapBounds, snapshotSize: CGSize) -> CGPoint? {
+            for i in 0..<(schedule.stops.count - 1) {
+                let s1 = schedule.stops[i]; let s2 = schedule.stops[i+1]
+                guard let d1 = s1.departureTime, let a2 = s2.arrivalTime else { continue }
+                if now >= d1 && now <= a2 {
+                    let progress = a2.timeIntervalSince(d1) > 0 ? now.timeIntervalSince(d1) / a2.timeIntervalSince(d1) : 0.0
+                    guard let n1 = nodes.first(where: { $0.id == s1.stationId }),
+                          let n2 = nodes.first(where: { $0.id == s2.stationId }) else { return nil }
+                    let p1 = finalPositionStatic(for: n1, bounds: bounds, snapshotSize: snapshotSize)
+                    let p2 = finalPositionStatic(for: n2, bounds: bounds, snapshotSize: snapshotSize)
+                    let points = generateSchematicPoints(from: p1, to: p2)
+                    var totalLen: CGFloat = 0; var segmentLens: [CGFloat] = []
+                    for j in 0..<(points.count - 1) {
+                        let d = hypot(points[j+1].x - points[j].x, points[j+1].y - points[j].y)
+                        totalLen += d; segmentLens.append(d)
+                    }
+                    if totalLen == 0 { return p1 }
+                    let targetDist = totalLen * CGFloat(progress)
+                    var currentDist: CGFloat = 0
+                    for (j, segLen) in segmentLens.enumerated() {
+                        if currentDist + segLen >= targetDist {
+                            let segProgress = (targetDist - currentDist) / segLen
+                            let sp1 = points[j]; let sp2 = points[j+1]
+                            return CGPoint(x: sp1.x + (sp2.x - sp1.x) * segProgress, y: sp1.y + (sp2.y - sp1.y) * segProgress)
+                        }
+                        currentDist += segLen
+                    }
+                    return points.last
+                }
+            }
+            return nil
+        }
+
+        static func finalPositionStatic(for node: Node, bounds: MapBounds, snapshotSize: CGSize) -> CGPoint {
+            let lon = node.longitude ?? 0; let lat = node.latitude ?? 0
+            return CGPoint(
+                x: (lon - bounds.minLon) / bounds.xRange * (snapshotSize.width - 100) + 50,
+                y: (1.0 - (lat - bounds.minLat) / bounds.yRange) * (snapshotSize.height - 100) + 50
+            )
+        }
+
+        static func calculateBounds(for nodes: [Node]) -> MapBounds {
+            let lats = nodes.compactMap { $0.latitude }; let lons = nodes.compactMap { $0.longitude }
+            let minLat = lats.min() ?? 38.0; let maxLat = lats.max() ?? 48.0
+            let minLon = lons.min() ?? 7.0; let maxLon = lons.max() ?? 19.0
+            let xr = maxLon - minLon; let yr = maxLat - minLat
+            let padX = xr == 0 ? 0.5 : xr * 0.1; let padY = yr == 0 ? 0.5 : yr * 0.1
+            return MapBounds(minLat: minLat - padY, maxLat: maxLat + padY, minLon: minLon - padX, maxLon: maxLon + padX, xRange: xr + 2*padX, yRange: yr + 2*padY)
+        }
+        
+        static func generateSchematicPoints(from p1: CGPoint, to p2: CGPoint) -> [CGPoint] {
+            let dx = p2.x - p1.x; let dy = p2.y - p1.y
+            if abs(dx) > abs(dy) {
+                let midX = p1.x + (dx - abs(dy) * (dx > 0 ? 1 : -1))
+                return [p1, CGPoint(x: midX, y: p1.y), p2]
+            } else {
+                let midY = p1.y + (dy - abs(dx) * (dy > 0 ? 1 : -1))
+                return [p1, CGPoint(x: p1.x, y: midY), p2]
+            }
+        }
+    }
+
+    // Dedicated Snapshot View using direct Canvas drawing 
+    struct RailwayMapSnapshot: View {
+        @EnvironmentObject var appState: AppState
+        let data: MapSnapshotData
         
         var body: some View {
             Canvas { context, size in
-                let bounds = calculateBounds()
-                
                 // 1. Draw Edges
-                for edge in network.edges {
-                    guard let n1 = network.nodes.first(where: { $0.id == edge.from }),
-                          let n2 = network.nodes.first(where: { $0.id == edge.to }) else { continue }
-                    
-                    let p1 = finalPosition(for: n1, in: size, bounds: bounds)
-                    let p2 = finalPosition(for: n2, in: size, bounds: bounds)
-                    let points = generateSchematicPoints(from: p1, to: p2)
-                    
-                    let path = Path { p in
-                        guard let first = points.first else { return }
-                        p.move(to: first)
-                        for pt in points.dropFirst() { p.addLine(to: pt) }
-                    }
-                    
-                    let baseColor: Color = (mode == .network) ? .gray : .gray.opacity(0.3)
-                    if edge.trackType == .highSpeed {
-                        context.stroke(path, with: .color(.red), style: StrokeStyle(lineWidth: 4, lineCap: .square))
-                        context.stroke(path, with: .color(.white.opacity(0.6)), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [5, 5]))
-                    } else if edge.trackType == .double {
-                        context.stroke(path, with: .color(.black), style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
-                        context.stroke(path, with: .color(baseColor), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                for edge in data.edges {
+                    if edge.type == .highSpeed {
+                        // High-Speed Style Consistency
+                        context.stroke(edge.path, with: .color(.red), style: StrokeStyle(lineWidth: appState.trackWidthHighSpeed, lineCap: .square))
+                        context.stroke(edge.path, with: .color(.white.opacity(0.8)), style: StrokeStyle(lineWidth: appState.trackWidthHighSpeed * 0.4, lineCap: .round, dash: [3, 3]))
+                    } else if edge.type == .double {
+                        context.stroke(edge.path, with: .color(.black.opacity(0.7)), style: StrokeStyle(lineWidth: appState.trackWidthDouble, lineCap: .round))
+                        context.stroke(edge.path, with: .color(.gray.opacity(0.5)), style: StrokeStyle(lineWidth: appState.trackWidthDouble - 1.5, lineCap: .round))
+                        context.stroke(edge.path, with: .color(.black.opacity(0.9)), style: StrokeStyle(lineWidth: appState.trackWidthDouble * 0.23, lineCap: .round))
+                    } else if edge.type == .regional {
+                        context.stroke(edge.path, with: .color(.blue.opacity(0.6)), style: StrokeStyle(lineWidth: appState.trackWidthRegional, lineCap: .round))
                     } else {
-                        context.stroke(path, with: .color(baseColor), style: StrokeStyle(lineWidth: 2.0, lineCap: .round))
+                        context.stroke(edge.path, with: .color(.gray.opacity(0.8)), style: StrokeStyle(lineWidth: data.globalLineWidth * 0.6, lineCap: .round))
                     }
                 }
                 
-                // 2. Hub & Interchange Visualization (Clusters & Corridors)
-                var visualGroups: [[Node]] = []
-                var processedNodeIds: Set<String> = []
-                
-                // 2a. Explicit Hubs
-                let explicitGroups = Dictionary(grouping: network.nodes.filter { $0.parentHubId != nil }, by: { $0.parentHubId! })
-                for (_, nodes) in explicitGroups {
-                    if nodes.count > 1 {
-                        visualGroups.append(nodes)
-                        nodes.forEach { processedNodeIds.insert($0.id) }
-                    }
+                // 1.5 Draw Commercial Lines
+                for l in data.lines {
+                    context.stroke(l.path, with: .color(l.color), style: StrokeStyle(lineWidth: appState.globalLineWidth, lineCap: .round))
                 }
                 
-                // 2b. Implicit/Proximity Hubs (Orphans)
-                var orphans = network.nodes.filter {
-                    ($0.type == .interchange || $0.parentHubId != nil) && !processedNodeIds.contains($0.id)
-                }
-                while let node = orphans.first {
-                    orphans.removeFirst()
-                    var cluster = [node]
-                    let p1 = finalPosition(for: node, in: size, bounds: bounds)
-                    var i = 0
-                    while i < orphans.count {
-                        let other = orphans[i]
-                        let p2 = finalPosition(for: other, in: size, bounds: bounds)
-                        if hypot(p1.x - p2.x, p1.y - p2.y) < 50 {
-                            cluster.append(other)
-                            orphans.remove(at: i)
-                        } else { i += 1 }
-                    }
-                    visualGroups.append(cluster)
-                }
-                
-                // 2c. Draw Corridors & Labels
-                for nodes in visualGroups {
-                    let positions = nodes.map { finalPosition(for: $0, in: size, bounds: bounds) }
-                    
-                    if nodes.count > 1 {
-                        // Draw Corridor
-                        for i in 0..<nodes.count {
-                            for j in (i+1)..<nodes.count {
-                                let path = Path { p in p.move(to: positions[i]); p.addLine(to: positions[j]) }
+                // 2. Hubs & Groups (Explicit logic matching live View)
+                for group in data.groups {
+                    if !group.isSingle {
+                        for i in 0..<group.positions.count {
+                            for j in (i+1)..<group.positions.count {
+                                let path = Path { p in p.move(to: group.positions[i]); p.addLine(to: group.positions[j]) }
                                 context.stroke(path, with: .color(.red), style: StrokeStyle(lineWidth: 22, lineCap: .round))
                                 context.stroke(path, with: .color(.white), style: StrokeStyle(lineWidth: 14, lineCap: .round))
                             }
                         }
-                        
-                        // Draw Hub Label
-                        let centerY = positions.map { $0.y }.max() ?? 0
-                        let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
-                        let labelY = centerY + 35
-                        
-                        var nameToDisplay = nodes.first?.name ?? ""
-                        if let parentId = nodes.first?.parentHubId, let parent = network.nodes.first(where: { $0.id == parentId }) {
-                            nameToDisplay = parent.name
-                        }
-                        
-                        let text = Text(nameToDisplay).font(.system(size: 14, weight: .bold)).foregroundColor(.red)
-                        let resolved = context.resolve(text)
-                        let sz = resolved.measure(in: CGSize(width: 200, height: 50))
-                        let bg = Path(roundedRect: CGRect(x: centerX - sz.width/2 - 4, y: labelY - sz.height/2 - 2, width: sz.width + 8, height: sz.height + 4), cornerRadius: 4)
-                        context.fill(bg, with: .color(.white.opacity(0.8)))
-                        context.draw(resolved, at: CGPoint(x: centerX, y: labelY))
-                    } else if let node = nodes.first {
-                         // Single Orphan - needs red label
-                         let p = positions[0]
-                         let text = Text(node.name).font(.system(size: 14, weight: .bold)).foregroundColor(.red)
-                         context.draw(text, at: CGPoint(x: p.x, y: p.y + 35))
+                    }
+                    
+                    let text = Text(group.label)
+                        .font(.system(size: data.globalFontSize, weight: .bold))
+                        .foregroundColor(.red)
+                    let resolved = context.resolve(text)
+                    let sz = resolved.measure(in: CGSize(width: 400, height: 100))
+                    
+                    let bg = Path(roundedRect: CGRect(x: group.center.x - sz.width/2 - 4, y: group.center.y - sz.height/2 - 2, width: sz.width + 8, height: sz.height + 4), cornerRadius: 4)
+                    context.fill(bg, with: .color(.white.opacity(0.8)))
+                    context.draw(resolved, at: group.center)
+                }
+                
+                // 3. Independent Nodes
+                for node in data.nodes {
+                    if node.isHub {
+                         context.fill(Path(ellipseIn: CGRect(x: node.pos.x - 7, y: node.pos.y - 7, width: 14, height: 14)), with: .color(.white))
+                         context.stroke(Path(ellipseIn: CGRect(x: node.pos.x - 9.5, y: node.pos.y - 9.5, width: 19, height: 19)), with: .color(.red), lineWidth: 5)
+                    } else {
+                         context.fill(Path(ellipseIn: CGRect(x: node.pos.x - 10, y: node.pos.y - 10, width: 20, height: 20)), with: .color(.white))
+                         context.stroke(Path(ellipseIn: CGRect(x: node.pos.x - 12, y: node.pos.y - 12, width: 24, height: 24)), with: .color(.black), lineWidth: 2)
+                         
+                         let label = Text(node.name).font(.system(size: data.globalFontSize, weight: .black)).foregroundColor(.black)
+                         context.draw(label, at: CGPoint(x: node.pos.x, y: node.pos.y + 28))
                     }
                 }
                 
-                // 3. Draw Nodes (Content)
-                for node in network.nodes {
-                    let pos = finalPosition(for: node, in: size, bounds: bounds)
-                    let isHub = node.type == .interchange || node.parentHubId != nil
-                    
-                    if isHub {
-                         // Hub Node: Small White Circle + Red Border
-                         // The corridor is already drawn below
-                         let p1 = Path(ellipseIn: CGRect(x: pos.x - 7, y: pos.y - 7, width: 14, height: 14))
-                         context.fill(p1, with: .color(.white))
-                         let p2 = Path(ellipseIn: CGRect(x: pos.x - 9.5, y: pos.y - 9.5, width: 19, height: 19))
-                         context.stroke(p2, with: .color(.red), lineWidth: 5)
-                    } else {
-                         // Station Node
-                         let p = Path(ellipseIn: CGRect(x: pos.x - 10, y: pos.y - 10, width: 20, height: 20))
-                         context.fill(p, with: .color(.white))
-                         let inner = Path(ellipseIn: CGRect(x: pos.x - 12, y: pos.y - 12, width: 24, height: 24))
-                         context.stroke(inner, with: .color(.black), lineWidth: 2)
-                         
-                         let label = Text(node.name).font(.system(size: 14, weight: .bold)).foregroundColor(.black)
-                         context.draw(label, at: CGPoint(x: pos.x, y: pos.y + 20))
-                    }
+                // 4. Draw Trains
+                for t in data.trains {
+                    let rect = CGRect(x: t.pos.x - 10, y: t.pos.y - 10, width: 20, height: 20)
+                    context.fill(Path(roundedRect: rect, cornerRadius: 4), with: .color(t.color))
+                    context.stroke(Path(roundedRect: rect, cornerRadius: 4), with: .color(.white), lineWidth: 2)
+                    let label = Text(t.name).font(.system(size: data.globalFontSize - 2, weight: .bold)).foregroundColor(.black)
+                    context.draw(label, at: CGPoint(x: t.pos.x, y: t.pos.y - 20))
                 }
             }
             .frame(width: 2048, height: 1536)
             .background(Color.white)
-        }
-        
-        // --- Helpers Copied for Snapshot ---
-        struct MapBounds {
-            let minLat, maxLat, minLon, maxLon, xRange, yRange: Double
-        }
-        
-        func calculateBounds() -> MapBounds {
-            let lats = network.nodes.compactMap { $0.latitude }
-            let lons = network.nodes.compactMap { $0.longitude }
-            let minLat = lats.min() ?? 38.0
-            let maxLat = lats.max() ?? 48.0
-            let minLon = lons.min() ?? 7.0
-            let maxLon = lons.max() ?? 19.0
-            let xr = maxLon - minLon; let yr = maxLat - minLat
-            let padX = xr == 0 ? 0.5 : xr * 0.1
-            let padY = yr == 0 ? 0.5 : yr * 0.1
-            return MapBounds(minLat: minLat - padY, maxLat: maxLat + padY, minLon: minLon - padX, maxLon: maxLon + padX, xRange: (maxLon - minLon) + 2*padX, yRange: (maxLat - minLat) + 2*padY)
-        }
-        
-        func schematicPoint(for node: Node, in size: CGSize, bounds: MapBounds) -> CGPoint {
-             let lon = node.longitude ?? 0; let lat = node.latitude ?? 0
-             let x = (lon - bounds.minLon) / bounds.xRange * (size.width - 100) + 50
-             let y = (1.0 - (lat - bounds.minLat) / bounds.yRange) * (size.height - 100) + 50
-             return CGPoint(x: x, y: y)
-        }
-        
-        func finalPosition(for node: Node, in size: CGSize, bounds: MapBounds) -> CGPoint {
-            let base = schematicPoint(for: node, in: size, bounds: bounds)
-            if node.parentHubId != nil {
-                let off: CGFloat = 30
-                switch node.hubOffsetDirection ?? .bottomLeft {
-                case .bottomLeft: return CGPoint(x: base.x - off, y: base.y + off)
-                case .bottomRight: return CGPoint(x: base.x + off, y: base.y + off)
-                case .topLeft: return CGPoint(x: base.x - off, y: base.y - off)
-                case .topRight: return CGPoint(x: base.x + off, y: base.y - off)
-                }
-            }
-            return base
-        }
-        
-        func generateSchematicPoints(from p1: CGPoint, to p2: CGPoint) -> [CGPoint] {
-            let dx = p2.x - p1.x; let dy = p2.y - p1.y
-            let adx = abs(dx); let ady = abs(dy)
-            let minDiff = min(adx, ady)
-            if minDiff < 5 || abs(adx - ady) < 5 { return [p1, p2] }
-            let sx: CGFloat = dx > 0 ? 1 : -1; let sy: CGFloat = dy > 0 ? 1 : -1
-            if adx > ady {
-                let m1 = CGPoint(x: p1.x + sx * (max(adx,ady)-minDiff)/2, y: p1.y)
-                let m2 = CGPoint(x: m1.x + sx*minDiff, y: m1.y + sy*minDiff)
-                return [p1, m1, m2, p2]
-            } else {
-                let m1 = CGPoint(x: p1.x, y: p1.y + sy * (max(adx,ady)-minDiff)/2)
-                let m2 = CGPoint(x: m1.x + sx*minDiff, y: m1.y + sy*minDiff)
-                return [p1, m1, m2, p2]
-            }
         }
     }
 
@@ -308,10 +563,17 @@ struct SchematicRailwayView: View {
     @Binding var selectedLine: RailwayLine?
     @Binding var selectedEdgeId: String?
     @Binding var showGrid: Bool
+    @Binding var isMoveModeEnabled: Bool
+    @Binding var highlightedConflictLocation: String?
     var mode: RailwayMapView.MapVisualizationMode
+    
+    // Export actions
+    var onExport: (RailwayMapView.ExportFormat) -> Void
+    var onPrint: () -> Void
     
     @State private var zoomLevel: CGFloat = 2.0
     @State private var editMode: EditMode = .explore
+    @State private var isEditToolbarVisible: Bool = false
 
     // Grid State: managed by parent binding now
     // Track Creation State
@@ -329,14 +591,19 @@ struct SchematicRailwayView: View {
     // Removed local state
     
     enum EditMode: String, CaseIterable, Identifiable {
-        case explore = "Esplora"
-        case addTrack = "Crea Binari"
-        case addStation = "Aggiungi Stazione"
+        case explore = "explore"
+        case addTrack = "create_tracks"
+        case addStation = "add_station"
         var id: String { rawValue }
+        
+        var localizedName: String {
+            self.rawValue.localized
+        }
     }
     
     // Pinch to Zoom state
     @State private var magnification: CGFloat = 1.0
+    @State private var showLineCreation: Bool = false
     
     private var totalZoom: CGFloat {
         zoomLevel * magnification
@@ -409,6 +676,23 @@ struct SchematicRailwayView: View {
                         .onTapGesture(count: 1, coordinateSpace: .local) { location in
                             handleCanvasTap(at: location, in: canvasSize)
                         }
+                        .onLongPressGesture(minimumDuration: 0.6) {
+                            UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                isEditToolbarVisible.toggle()
+                                
+                                // Reset to explore if closing toolbar
+                                if !isEditToolbarVisible {
+                                    editMode = .explore
+                                    isMoveModeEnabled = false
+                                }
+                                
+                                // In lines mode, long press can still show line creation or just show toolbar
+                                if mode == .lines && isEditToolbarVisible {
+                                    showLineCreation = true
+                                }
+                            }
+                        }
                         .contentShape(Rectangle())
                         
                         // 1. Draw Map Content
@@ -438,17 +722,46 @@ struct SchematicRailwayView: View {
                                 }
                             }
 
-                            // 1. Draw RAW Infrastructure (Edges)
-                            // We draw these even in .lines mode but fainter if needed, or with borders as requested
+                            // Pre-calculate all node positions for performance and collision avoidance
+                            var allNodePoints: [String: CGPoint] = [:]
+                            for node in network.nodes {
+                                allNodePoints[node.id] = finalPosition(for: node, in: size, bounds: bounds)
+                            }
+                            
+                            // Structure for neighbor lookup
+                            var nodeNeighbors: [String: Set<String>] = [:]
                             for edge in network.edges {
-                                guard let n1 = network.nodes.first(where: { $0.id == edge.from }),
-                                      let n2 = network.nodes.first(where: { $0.id == edge.to }) else { continue }
+                                nodeNeighbors[edge.from, default: []].insert(edge.to)
+                                nodeNeighbors[edge.to, default: []].insert(edge.from)
+                            }
+                            
+                            // 1. Draw RAW Infrastructure (Edges) - Deduplicated visually
+                            var drawnKeys = Set<String>()
+                            for edge in network.edges {
+                                let key = edge.canonicalKey
+                                if drawnKeys.contains(key) { continue }
+                                drawnKeys.insert(key)
                                 
-                                let p1 = finalPosition(for: n1, in: size, bounds: bounds)
-                                let p2 = finalPosition(for: n2, in: size, bounds: bounds)
+                                guard let p1 = allNodePoints[edge.from],
+                                      let p2 = allNodePoints[edge.to] else { continue }
+                                      
+                                // Filter out start/end nodes from obstacles
+                                let avoid = allNodePoints.values.filter { $0 != p1 && $0 != p2 }
                                 
-                                // Base Track Path (Schematic 0-45-90)
-                                let points = generateSchematicPoints(from: p1, to: p2)
+                                // Get neighbor positions for angle checks
+                                let neighborIdsStart = nodeNeighbors[edge.from]?.filter { $0 != edge.to } ?? []
+                                let neighborIdsEnd = nodeNeighbors[edge.to]?.filter { $0 != edge.from } ?? []
+                                let nPosStart = neighborIdsStart.compactMap { allNodePoints[$0] }
+                                let nPosEnd = neighborIdsEnd.compactMap { allNodePoints[$0] }
+                                
+                                // Base Track Path with Obstacle Avoidance and Angle Constraints
+                                let points = generateSchematicPoints(
+                                    from: p1, 
+                                    to: p2, 
+                                    avoidPoints: Array(avoid),
+                                    neighborsStart: nPosStart,
+                                    neighborsEnd: nPosEnd
+                                )
                                 let path = Path { p in
                                     guard let first = points.first else { return }
                                     p.move(to: first)
@@ -458,21 +771,28 @@ struct SchematicRailwayView: View {
                                 }
                                 
                                 // Styles based on physical properties
-                                let baseColor: Color = (mode == .network) ? .gray : .gray.opacity(0.3)
-                                var lineWidth: CGFloat = 1.5
+                                let effectiveType = edge.trackType
+                                var lineWidth: CGFloat = 1.0
                                 
-                                if edge.trackType == .highSpeed {
-                                    // High Speed: Bold Red with Dashed Spine
-                                    lineWidth = 4
+                                if effectiveType == .highSpeed {
+                                    // High-Speed: Bold red with white dashed spine
+                                    lineWidth = appState.trackWidthHighSpeed
                                     context.stroke(path, with: .color(.red), style: StrokeStyle(lineWidth: lineWidth, lineCap: .square))
-                                    context.stroke(path, with: .color(.white.opacity(0.6)), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [5, 5]))
-                                } else if edge.trackType == .double {
-                                    lineWidth = 3
-                                    // Double Track: Black Borders
-                                    context.stroke(path, with: .color(.black), style: StrokeStyle(lineWidth: lineWidth + 1.5, lineCap: .round))
-                                    context.stroke(path, with: .color(baseColor), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                                    context.stroke(path, with: .color(.white.opacity(0.8)), style: StrokeStyle(lineWidth: lineWidth * 0.4, lineCap: .round, dash: [3, 3]))
+                                } else if effectiveType == .double {
+                                    // Double Track: Dark gray with parallel appearance
+                                    lineWidth = appState.trackWidthDouble
+                                    context.stroke(path, with: .color(.black.opacity(0.7)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                                    context.stroke(path, with: .color(.gray.opacity(0.5)), style: StrokeStyle(lineWidth: lineWidth - 1.5, lineCap: .round))
+                                    context.stroke(path, with: .color(.black.opacity(0.9)), style: StrokeStyle(lineWidth: lineWidth * 0.23, lineCap: .round))
+                                } else if effectiveType == .regional {
+                                    // Regional: Blue-tinted medium track
+                                    lineWidth = appState.trackWidthRegional
+                                    context.stroke(path, with: .color(.blue.opacity(0.6)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                                 } else {
-                                    context.stroke(path, with: .color(baseColor), style: StrokeStyle(lineWidth: 2.0, lineCap: .round))
+                                    // Single: Simple single line (thin gray)
+                                    lineWidth = appState.trackWidthSingle
+                                    context.stroke(path, with: .color(.gray.opacity(0.6)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                                 }
                                 
                                 // If mode is network, we also draw the edges that might have been selected
@@ -481,62 +801,31 @@ struct SchematicRailwayView: View {
                                 }
                             }
 
-                            // 0. Hub & Interchange Visualization (Tube Style Corridor)
-                            // We visualize explicit Hubs AND automatically cluster nearby orphan Interchanges
-                            var visualGroups: [[Node]] = []
-                            var processedNodeIds: Set<String> = []
-                            
-                            // 1. Explicit Hubs (Data-defined)
-                            let explicitGroups = Dictionary(grouping: network.nodes.filter { $0.parentHubId != nil }, by: { $0.parentHubId! })
-                            for (_, nodes) in explicitGroups {
-                                if nodes.count > 1 {
-                                    // Only trust explicit grouping if it actually connects 2+ nodes
-                                    visualGroups.append(nodes)
-                                    nodes.forEach { processedNodeIds.insert($0.id) }
-                                }
-                                // If nodes.count == 1, we ignore it here (don't mark as processed).
-                                // It will fall through to step 2, allowing it to clustered by proximity.
-                                // This fixes the case where User defined "Hubs" but gave them unique IDs (so they didn't group).
+                            // 1. Interchange Visualization (Explicit Hubs)
+                            // We group nodes by their parentHubId.
+                            // A node is part of a hub if:
+                            // a) it has a parentHubId
+                            // b) its ID is used as a parentHubId by others
+                            let hubNodes = network.nodes.filter { node in
+                                node.parentHubId != nil || network.nodes.contains(where: { $0.parentHubId == node.id })
                             }
                             
-                            // 2. Orphan Interchanges & Singleton Hubs (Proximity-based)
-                            // We capture:
-                            // - Nodes with type .interchange (orphans)
-                            // - Nodes with parentHubId that were alone in their group (singletons)
-                            let potentialOrphans = network.nodes.filter { 
-                                ($0.type == .interchange || $0.parentHubId != nil) && !processedNodeIds.contains($0.id)
+                            // Group nodes by their "Effective Hub ID" (the ID of the parent/root)
+                            var hubGroups: [String: [Node]] = [:]
+                            for node in hubNodes {
+                                let hubId = node.parentHubId ?? node.id
+                                hubGroups[hubId, default: []].append(node)
                             }
                             
-                            // Simple visual clustering
-                            var orphansToCheck = potentialOrphans
-                            while let node = orphansToCheck.first {
-                                orphansToCheck.removeFirst()
-                                var cluster = [node]
-                                let p1 = finalPosition(for: node, in: size, bounds: bounds)
-                                
-                                // Find neighbors
-                                var i = 0
-                                while i < orphansToCheck.count {
-                                    let other = orphansToCheck[i]
-                                    let p2 = finalPosition(for: other, in: size, bounds: bounds)
-                                    let dist = hypot(p1.x - p2.x, p1.y - p2.y)
-                                    
-                                    // Threshold: 50 points (approx 2x node size)
-                                    if dist < 50 {
-                                        cluster.append(other)
-                                        orphansToCheck.remove(at: i)
-                                    } else {
-                                        i += 1
-                                    }
-                                }
-                                visualGroups.append(cluster)
+                            // Sort each group to ensure drawing order (parent first usually better)
+                            for key in hubGroups.keys {
+                                hubGroups[key]?.sort { ($0.parentHubId == nil) && ($1.parentHubId != nil) }
                             }
 
-                            for nodes in visualGroups {
+                            for (hubId, nodes) in hubGroups {
                                 let positions = nodes.map { finalPosition(for: $0, in: size, bounds: bounds) }
                                 
-                                // Draw Tube-style Connection (Corridor)
-                                // Only if >1 node in the visual cluster
+                                // Draw Tube-style Connection (Corridor) ONLY for multi-node hubs
                                 if nodes.count > 1 {
                                     for i in 0..<nodes.count {
                                         for j in (i+1)..<nodes.count {
@@ -545,37 +834,27 @@ struct SchematicRailwayView: View {
                                             
                                             let hPath = Path { p in p.move(to: p1); p.addLine(to: p2) }
                                             
-                                            // Red Border (Connector) - Matches user request
                                             context.stroke(hPath, with: .color(.red), style: StrokeStyle(lineWidth: 22, lineCap: .round))
-                                            // White Interior (Passage) - Width 14 to match inner node
                                             context.stroke(hPath, with: .color(.white), style: StrokeStyle(lineWidth: 14, lineCap: .round))
                                         }
                                     }
                                     
-                                    // Unified Name (for the cluster)
-                                    // Position: Below lowest node
+                                    // Unified Name for the hub
                                     let maxY = positions.map { $0.y }.max() ?? positions[0].y
                                     let labelY = maxY + 35
-                                    
-                                    // Center X
                                     let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
                                     
-                                    // Name source: First node name (simplified)
-                                    // If explicit hub, use parent name. If implicit, use first node's name.
-                                    var nameToDisplay = nodes.first?.name ?? ""
-                                    if let parentId = nodes.first?.parentHubId,
-                                       let parent = network.nodes.first(where: { $0.id == parentId }) {
-                                        nameToDisplay = parent.name
-                                    }
+                                    // Name source: Use the parent node name if available, otherwise first node
+                                    let parentNode = nodes.first(where: { $0.id == hubId }) ?? nodes.first
+                                    let nameToDisplay = parentNode?.name ?? ""
                                     
                                     let text = Text(nameToDisplay)
-                                        .font(.system(size: 14, weight: .bold))
+                                        .font(.system(size: appState.globalFontSize, weight: .bold))
                                         .foregroundColor(.red)
                                     
                                     let resolvedText = context.resolve(text)
                                     let textSize = resolvedText.measure(in: CGSize(width: 200, height: 50))
                                     
-                                    // Background Pill (Cleaner than shadow)
                                     let textRect = CGRect(
                                         x: centerX - textSize.width/2 - 4,
                                         y: labelY - textSize.height/2 - 2,
@@ -584,39 +863,36 @@ struct SchematicRailwayView: View {
                                     )
                                     let pill = Path(roundedRect: textRect, cornerRadius: 4)
                                     context.fill(pill, with: .color(.white.opacity(0.8)))
-                                    
-                                    // Draw Text
                                     context.draw(resolvedText, at: CGPoint(x: centerX, y: labelY))
                                 }
-                                // Single nodes (count == 1) are handled by StationNodeView (White circle + black border),
-                                // but their name is HIDDEN by StationNodeView logic.
-                                // We MUST draw the name for single orphan interchanges too!
-                                else if let node = nodes.first {
-                                     // It's a single orphan visual group.
-                                     // StationNodeView logic hides name if type == .interchange.
-                                     // So we must draw it here.
-                                     
-                                     let p = positions[0]
-                                     let labelY = p.y + 35
-                                     
-                                     let text = Text(node.name)
-                                        .font(.system(size: 14, weight: .bold))
-                                        .foregroundColor(.red)
-                                     
-                                     let resolvedText = context.resolve(text)
-                                     let textSize = resolvedText.measure(in: CGSize(width: 200, height: 50))
-                                     
-                                     let textRect = CGRect(
-                                         x: p.x - textSize.width/2 - 4,
-                                         y: labelY - textSize.height/2 - 2,
-                                         width: textSize.width + 8,
-                                         height: textSize.height + 4
-                                     )
-                                     let pill = Path(roundedRect: textRect, cornerRadius: 4)
-                                     context.fill(pill, with: .color(.white.opacity(0.8)))
-                                     
-                                     context.draw(resolvedText, at: CGPoint(x: p.x, y: labelY))
-                                }
+                            }
+                            
+                            // 1.1 Handle labels for interchange nodes that are NOT in a multi-node hub
+                            let orphanInterchanges = network.nodes.filter { node in
+                                node.type == .interchange && 
+                                hubGroups[node.parentHubId ?? node.id]?.count ?? 0 <= 1
+                            }
+                            
+                            for node in orphanInterchanges {
+                                let p = finalPosition(for: node, in: size, bounds: bounds)
+                                let labelY = p.y + 35
+                                
+                                let text = Text(node.name)
+                                   .font(.system(size: appState.globalFontSize, weight: .bold))
+                                   .foregroundColor(.red)
+                                
+                                let resolvedText = context.resolve(text)
+                                let textSize = resolvedText.measure(in: CGSize(width: 200, height: 50))
+                                
+                                let textRect = CGRect(
+                                    x: p.x - textSize.width/2 - 4,
+                                    y: labelY - textSize.height/2 - 2,
+                                    width: textSize.width + 8,
+                                    height: textSize.height + 4
+                                )
+                                let pill = Path(roundedRect: textRect, cornerRadius: 4)
+                                context.fill(pill, with: .color(.white.opacity(0.8)))
+                                context.draw(resolvedText, at: CGPoint(x: p.x, y: labelY))
                             }
                             
                             if mode == .lines {
@@ -649,7 +925,7 @@ struct SchematicRailwayView: View {
                                             let segPath = Path { p in p.move(to: lp1); p.addLine(to: lp2) }
                                             let lineColor = Color(hex: line.color ?? "#000000") ?? .black
                                             let isSelected = (line.id == selectedLine?.id)
-                                            let lineWidth: CGFloat = isSelected ? 4.0 : 3.0
+                                            let lineWidth: CGFloat = isSelected ? appState.globalLineWidth * 1.5 : appState.globalLineWidth
                                             
                                             if isSelected {
                                                 context.stroke(segPath, with: .color(lineColor.opacity(0.3)), style: StrokeStyle(lineWidth: lineWidth + 4, lineCap: .round))
@@ -702,7 +978,9 @@ struct SchematicRailwayView: View {
                                 snapToGrid: showGrid,
                                 gridUnit: coordinateGridStep,
                                 bounds: bounds,
-                                onTap: { handleStationTap(node) }
+                                onTap: { handleStationTap(node) },
+                                isMoveModeEnabled: $isMoveModeEnabled,
+                                onDragStarted: { network.createCheckpoint() }
                             )
                             .position(finalPosition(for: node, in: canvasSize, bounds: bounds))
                         }
@@ -720,99 +998,166 @@ struct SchematicRailwayView: View {
                         }
                 )
                 
-                // Controls
-                VStack(alignment: .trailing, spacing: 10) {
-
+                // Consolidated Controls Toolbar (Right Side)
+                VStack(alignment: .trailing, spacing: 20) {
                     
+                    // Top: Edit Tools (Only visible after long press)
+                    if isEditToolbarVisible {
+                        VStack(spacing: 8) {
+                            Button(action: { editMode = .addStation }) {
+                                InteractionIcon(systemName: "building.2.fill", isActive: editMode == .addStation, activeColor: .green)
+                            }
+                            .help("Aggiungi Stazione")
+                            
+                            Button(action: { editMode = .addTrack }) {
+                                InteractionIcon(systemName: "point.topleft.down.curvedto.point.bottomright.up", isActive: editMode == .addTrack, activeColor: .orange)
+                            }
+                            .help("Crea Binari")
+                            
+                            Button(action: { withAnimation { isMoveModeEnabled.toggle() } }) {
+                                InteractionIcon(systemName: isMoveModeEnabled ? "hand.draw.fill" : "hand.draw", isActive: isMoveModeEnabled, activeColor: .blue)
+                            }
+                            .help("Sposta Stazioni")
+                            
+                            Divider().background(Color.white.opacity(0.3)).frame(width: 30)
+                            
+                            // Undo/Redo Integrated
+                            Button(action: { network.undo() }) {
+                                InteractionIcon(systemName: "arrow.uturn.backward.circle", isActive: false, color: network.canUndo ? .primary : .secondary)
+                            }
+                            .disabled(!network.canUndo)
+                            .help("undo".localized)
+                            
+                            Button(action: { network.redo() }) {
+                                InteractionIcon(systemName: "arrow.uturn.forward.circle", isActive: false, color: network.canRedo ? .primary : .secondary)
+                            }
+                            .disabled(!network.canRedo)
+                            .help("redo".localized)
+                        }
+                        .padding(8)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 15))
+                        .shadow(radius: 4)
+                        .transition(.scale.combined(with: .opacity))
+                    }
+                    
+                    Spacer()
+                    
+                    // Middle: Export Tools (New!)
                     VStack(spacing: 8) {
-                        // Grid toggle moved to Settings
+                        Button(action: { onExport(.jpeg) }) {
+                            InteractionIcon(systemName: "photo", isActive: false, color: .primary)
+                        }
+                        .help("Esporta JPG")
+                        
+                        Button(action: { onExport(.pdf) }) {
+                            InteractionIcon(systemName: "doc.text", isActive: false, color: .primary)
+                        }
+                        .help("Esporta PDF")
+                        
+                        Button(action: { onPrint() }) {
+                            InteractionIcon(systemName: "printer", isActive: false, color: .primary)
+                        }
+                        .help("print".localized)
+                    }
+                    .padding(8)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 15))
+                    .shadow(radius: 4)
 
-                        Button(action: {
-                            withAnimation { zoomLevel = min(zoomLevel + 0.5, 5.0) }
-                        }) {
-                            Image(systemName: "plus")
-                                .font(.title2)
-                                .padding(12)
-                                .background(Color.blue)
-                                .foregroundColor(.white)
-                                .clipShape(Circle())
-                                .shadow(radius: 4)
+                    // Bottom: Zoom Tools
+                    VStack(spacing: 8) {
+                        Button(action: { withAnimation { zoomLevel = min(zoomLevel + 0.5, 5.0) } }) {
+                            InteractionIcon(systemName: "plus", isActive: false, color: .primary)
                         }
-                        Button(action: {
-                            withAnimation { zoomLevel = max(zoomLevel - 0.5, 1.0) }
-                        }) {
-                            Image(systemName: "minus")
-                                .font(.title2)
-                                .padding(12)
-                                .background(Color.gray)
-                                .foregroundColor(.white)
-                                .clipShape(Circle())
-                                .shadow(radius: 4)
+                        Button(action: { withAnimation { zoomLevel = max(zoomLevel - 0.5, 1.0) } }) {
+                            InteractionIcon(systemName: "minus", isActive: false, color: .primary)
                         }
-                        Button(action: {
-                            withAnimation { zoomLevel = 1.0 }
-                        }) {
-                            Image(systemName: "arrow.down.left.and.arrow.up.right")
-                                .font(.title2)
-                                .padding(12)
-                                .background(Color.purple)
-                                .foregroundColor(.white)
-                                .clipShape(Circle())
-                                .shadow(radius: 4)
+                        Button(action: { withAnimation { zoomLevel = 1.0 } }) {
+                            InteractionIcon(systemName: "arrow.down.left.and.arrow.up.right", isActive: false, color: .purple)
                         }
                     }
-                    .padding()
+                    .padding(8)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 15))
+                    .shadow(radius: 4)
                 }
+                .padding()
                 
                 // Track Creation Box Overlay
                 if editMode == .addTrack {
                     VStack {
                         Spacer()
                         VStack(spacing: 12) {
-                            Text("Nuovo Binario")
+                            Text("new_track".localized)
                                 .font(.headline)
                             
                             HStack {
                                 VStack(alignment: .leading) {
-                                    Text("Da:")
+                                    Text("from_label".localized)
                                         .font(.caption).foregroundColor(.secondary)
-                                    Text(newTrackFrom?.name ?? "Seleziona Stazione")
+                                    Text(newTrackFrom?.name ?? "select_station_placeholder".localized)
                                         .fontWeight(.bold)
-                                        .foregroundColor(newTrackFrom == nil ? .gray : .primary)
+                                        .foregroundColor(newTrackFrom == nil ? .gray : .black)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 
                                 Image(systemName: "arrow.right")
                                 
                                 VStack(alignment: .trailing) {
-                                    Text("A:")
+                                    Text("to_label".localized)
                                         .font(.caption).foregroundColor(.secondary)
-                                    Text(newTrackTo?.name ?? "Seleziona Stazione")
+                                    Text(newTrackTo?.name ?? "select_station_placeholder".localized)
                                         .fontWeight(.bold)
-                                        .foregroundColor(newTrackTo == nil ? .gray : .primary)
+                                        .foregroundColor(newTrackTo == nil ? .gray : .black)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                             }
                             .padding(.horizontal)
                             
                             HStack {
-                                Text("Distanza:").font(.caption).foregroundColor(.secondary)
+                                Text("distance_label".localized).font(.caption).foregroundColor(.secondary)
                                 TextField("km", value: $newTrackDistance, format: .number)
                                     .textFieldStyle(.roundedBorder)
                                     .frame(width: 80)
                                 Text("km")
                             }
                             
-                            Picker("Tipo Binario", selection: $newTrackType) {
-                                Text("Regionale").tag(Edge.TrackType.regional)
-                                Text("Alta Velocità").tag(Edge.TrackType.highSpeed)
-                                Text("Singolo").tag(Edge.TrackType.single)
-                                Text("Doppio").tag(Edge.TrackType.double)
+                            HStack(spacing: 8) {
+                                ForEach(Edge.TrackType.allCases) { type in
+                                    Button(action: { newTrackType = type }) {
+                                        VStack(spacing: 4) {
+                                            // Visual representation icon
+                                            ZStack {
+                                                if type == .double || type == .highSpeed {
+                                                    HStack(spacing: 2) {
+                                                        Capsule().fill(type.color).frame(width: 3, height: 16)
+                                                        Capsule().fill(type.color).frame(width: 3, height: 16)
+                                                    }
+                                                } else {
+                                                    Capsule().fill(type.color).frame(width: 6, height: 16)
+                                                }
+                                            }
+                                            .frame(height: 20)
+                                            
+                                            Text(type.displayName)
+                                                .font(.system(size: 10, weight: .bold))
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 8)
+                                        .background(newTrackType == type ? type.color.opacity(0.15) : Color.gray.opacity(0.05))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .stroke(newTrackType == type ? type.color : Color.clear, lineWidth: 2)
+                                        )
+                                        .cornerRadius(6)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                             }
-                            .pickerStyle(.segmented)
-                            
-                            HStack {
-                                Button("Annulla") {
+                            .padding(.vertical, 4)
+                                                        HStack {
+                                Button("cancel".localized) {
                                     newTrackFrom = nil
                                     newTrackTo = nil
                                     editMode = .explore // Exit mode
@@ -821,7 +1166,7 @@ struct SchematicRailwayView: View {
                                 .padding(.horizontal)
                                 
                                 Button(action: createTrack) {
-                                    Text("Crea Binario")
+                                    Text("create_track_button".localized)
                                         .bold()
                                         .frame(maxWidth: .infinity)
                                         .padding(.vertical, 8)
@@ -833,66 +1178,90 @@ struct SchematicRailwayView: View {
                             }
                         }
                         .padding()
-                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white).shadow(radius: 5))
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(UIColor.systemBackground))
+                                .shadow(color: Color.black.opacity(0.2), radius: 10)
+                        )
                         .padding()
                         .frame(maxWidth: 400)
                     }
                     .transition(.move(edge: .bottom))
                 }
+                
+                // Move Mode Status Overlay
+                if isMoveModeEnabled {
+                    VStack {
+                        HStack(spacing: 12) {
+                            Image(systemName: "hand.tap.fill")
+                                .symbolEffect(.bounce, value: isMoveModeEnabled)
+                            Text("station_moving_active".localized)
+                                .font(.system(size: 14, weight: .bold))
+                            
+                            Button(action: {
+                                withAnimation { isMoveModeEnabled = false }
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.leading, 16)
+                        .padding(.trailing, 8)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule().stroke(Color.blue.opacity(0.3), lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.1), radius: 8, y: 4)
+                        .padding(.top, 40)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .allowsHitTesting(true)
+                }
             }
         }
-        .toolbar(content: {
+        .sheet(isPresented: $showLineCreation) {
+            LineCreationView()
+        }
+        .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                // ... (Keep existing toolbar items)
-                
-                // 1. Zoom to Fit
+                // Zoom to Fit
                 Button(action: { withAnimation { zoomLevel = 1.0 } }) {
-                    Label("Zoom", systemImage: "arrow.down.left.and.arrow.up.right")
+                    Label("reset_zoom".localized, systemImage: "arrow.down.left.and.arrow.up.right")
                 }
                 
                 Menu {
-                     Text("Visibilità Linee")
-                     Divider()
-                     ForEach(network.lines) { line in
-                         Button(action: {
-                             // Force update workaround
-                             if hiddenLineIds.contains(line.id) {
-                                 hiddenLineIds.remove(line.id)
-                             } else {
-                                 hiddenLineIds.insert(line.id)
-                             }
-                         }) {
-                             HStack {
-                                 Text(line.name)
-                                 if !hiddenLineIds.contains(line.id) {
-                                     Image(systemName: "checkmark")
-                                 }
-                             }
-                         }
-                     }
-                     Divider()
-                     Button("Mostra Tutte") { 
-                         hiddenLineIds.removeAll()
-                         selectedLine = nil
-                     }
-                } label: {
-                     Label("Linee", systemImage: "line.3.horizontal.decrease.circle")
-                }
-
-                Menu {
-                    Button(action: {
-                        editMode = .addStation
-                    }) {
-                        Label("Aggiungi Stazione", systemImage: "building.2.fill")
+                    Text("lines_visibility".localized)
+                    Divider()
+                    ForEach(network.sortedLines) { line in
+                        Button(action: {
+                            if hiddenLineIds.contains(line.id) {
+                                hiddenLineIds.remove(line.id)
+                            } else {
+                                hiddenLineIds.insert(line.id)
+                            }
+                        }) {
+                            HStack {
+                                Text(line.name)
+                                if !hiddenLineIds.contains(line.id) {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
                     }
-                    Button(action: { editMode = .addTrack }) {
-                        Label("Crea Binari", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                    Divider()
+                    Button("show_all_button".localized) {
+                        hiddenLineIds.removeAll()
                     }
                 } label: {
-                    Label("Modifica", systemImage: "pencil.circle")
+                    Label("filter_lines".localized, systemImage: "line.3.horizontal.decrease.circle")
                 }
-            }
-        })
+        }
+    }
     }
     
     // MARK: - Interaction Handlers
@@ -918,17 +1287,42 @@ struct SchematicRailwayView: View {
                 }
             }
         } else {
-            selectedNode = node
+            // Priority selection logic
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                selectedNode = node
+                selectedLine = nil
+                selectedEdgeId = nil
+            }
         }
     }
     
     private func createTrack() {
         guard let n1 = newTrackFrom, let n2 = newTrackTo else { return }
         
-        let newEdge = Edge(from: n1.id, to: n2.id, distance: newTrackDistance, trackType: newTrackType, maxSpeed: newTrackType == .highSpeed ? 300 : 160, capacity: 10)
+        // Get speed from AppState based on track type
+        let speed: Int
+        switch newTrackType {
+        case .single:
+            speed = Int(appState.singleTrackMaxSpeed)
+        case .double:
+            speed = Int(appState.doubleTrackMaxSpeed)
+        case .regional:
+            speed = Int(appState.regionalTrackMaxSpeed)
+        case .highSpeed:
+            speed = Int(appState.highSpeedTrackMaxSpeed)
+        }
+        
+        let newEdge = Edge(from: n1.id, to: n2.id, distance: newTrackDistance, trackType: newTrackType, maxSpeed: speed, capacity: 10)
         network.edges.append(newEdge)
         
-        // Reset selection (keep type?)
+        // Solo doppio e AV creano automaticamente il ritorno
+        // Single e Regional rimangono archi singoli (bidirezionali logicamente)
+        if newTrackType == .double || newTrackType == .highSpeed {
+            let returnEdge = Edge(from: n2.id, to: n1.id, distance: newTrackDistance, trackType: newTrackType, maxSpeed: speed, capacity: 10)
+            network.edges.append(returnEdge)
+        }
+        
+        // Reset selection
         newTrackFrom = nil
         newTrackTo = nil
         
@@ -954,7 +1348,7 @@ struct SchematicRailwayView: View {
         
         // 1. Hit Test for Nodes (Stations)
         for node in network.nodes {
-            let pNode = schematicPoint(for: node, in: size, bounds: self.mapBounds)
+            let pNode = finalPosition(for: node, in: size, bounds: self.mapBounds)
             let dist = hypot(location.x - pNode.x, location.y - pNode.y)
             if dist < 30 { // Increased hit radius
                 newSelectedNode = node
@@ -972,8 +1366,8 @@ struct SchematicRailwayView: View {
                             for i in 0..<(count - 1) {
                                 guard let n1 = network.nodes.first(where: { $0.id == line.stations[i] }),
                                       let n2 = network.nodes.first(where: { $0.id == line.stations[i+1] }) else { continue }
-                                let p1 = schematicPoint(for: n1, in: size, bounds: self.mapBounds)
-                                let p2 = schematicPoint(for: n2, in: size, bounds: self.mapBounds)
+                                let p1 = finalPosition(for: n1, in: size, bounds: self.mapBounds)
+                                let p2 = finalPosition(for: n2, in: size, bounds: self.mapBounds)
                                 let dist = distanceToSegment(p: location, v: p1, w: p2)
                                 
                                 if dist < 15 { // Line hit threshold
@@ -993,8 +1387,8 @@ struct SchematicRailwayView: View {
                     guard let n1 = network.nodes.first(where: { $0.id == edge.from }),
                           let n2 = network.nodes.first(where: { $0.id == edge.to }) else { continue }
                     
-                    let p1 = schematicPoint(for: n1, in: size, bounds: self.mapBounds)
-                    let p2 = schematicPoint(for: n2, in: size, bounds: self.mapBounds)
+                    let p1 = finalPosition(for: n1, in: size, bounds: self.mapBounds)
+                    let p2 = finalPosition(for: n2, in: size, bounds: self.mapBounds)
                     
                     let dist = distanceToSegment(p: location, v: p1, w: p2)
                     if dist < bestHitDist {
@@ -1006,17 +1400,29 @@ struct SchematicRailwayView: View {
         }
         
         // Update bindings
-        if newSelectedNode != nil {
-            selectedNode = newSelectedNode
-        } else if newSelectedLine != nil {
-            selectedLine = newSelectedLine
-        } else if newSelectedEdgeId != nil {
-            selectedEdgeId = newSelectedEdgeId
-        } else {
-            // Deselect all
-            selectedNode = nil
-            selectedLine = nil
-            selectedEdgeId = nil
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            if let node = newSelectedNode {
+                selectedNode = node
+                selectedLine = nil
+                selectedEdgeId = nil
+                print("🎯 [Map] Selected Station: \(node.name)")
+            } else if let line = newSelectedLine {
+                selectedLine = line
+                selectedNode = nil
+                selectedEdgeId = nil
+                print("🎯 [Map] Selected Line: \(line.name)")
+            } else if let edgeId = newSelectedEdgeId {
+                selectedEdgeId = edgeId
+                selectedNode = nil
+                selectedLine = nil
+                print("🎯 [Map] Selected Track Segment: \(edgeId)")
+            } else if editMode == .explore {
+                // Deselect all ONLY in explore mode
+                selectedNode = nil
+                selectedLine = nil
+                selectedEdgeId = nil
+                print("🎯 [Map] Selection Cleared")
+            }
         }
     }
     
@@ -1050,7 +1456,7 @@ struct SchematicRailwayView: View {
         let lon = minLon + ((location.x - 50) / safeDrawWidth) * safeXRange
         let lat = minLat + (1.0 - (location.y - 50) / safeDrawHeight) * safeYRange
         
-        let name = "Stazione \(network.nodes.count + 1)"
+        let name = String(format: "station_default_name".localized, network.nodes.count + 1)
         // If Snap enabled, maybe optional snap here? Usually explicit drag handles snap well enough.
         // We can just add it and let user drag to snap.
         
@@ -1068,28 +1474,37 @@ struct SchematicRailwayView: View {
         return CGPoint(x: x, y: y)
     }
     
-    // Calculate final visual position including hub offset
     private func finalPosition(for node: Node, in size: CGSize, bounds: MapBounds) -> CGPoint {
-        let basePosition = schematicPoint(for: node, in: size, bounds: bounds)
-        
-        // Apply fixed visual offset for hub-linked stations
-        if node.parentHubId != nil {
-            let offset: CGFloat = 30
-            // Enable positioning in any of the 4 corners
-            let direction = node.hubOffsetDirection ?? .bottomLeft // Legacy default
+        // HUB VISUALIZATION LOGIC:
+        // If this node is a satellite (has parentHubId) and has a visual offset direction,
+        // we calculate its position relative to the PARENT HUB's position.
+        // This avoids overlapping dots when coordinates are identical.
+        if let parentId = node.parentHubId,
+           let parent = network.nodes.first(where: { $0.id == parentId }) {
+            
+            // 1. Calculate Parent's Base Position
+            let pPos = schematicPoint(for: parent, in: size, bounds: bounds)
+            
+            // 2. Apply Visual Offset based on Direction
+            // 25 pixels is a good visual distance for the "Hub Square" effect
+            let offset: CGFloat = 25.0
+            
+            // Default to BottomRight if direction is missing but parent exists (fallback)
+            let direction = node.hubOffsetDirection ?? .bottomRight
             
             switch direction {
-            case .bottomLeft:
-                return CGPoint(x: basePosition.x - offset, y: basePosition.y + offset)
-            case .bottomRight:
-                return CGPoint(x: basePosition.x + offset, y: basePosition.y + offset)
             case .topLeft:
-                return CGPoint(x: basePosition.x - offset, y: basePosition.y - offset)
+                return CGPoint(x: pPos.x - offset, y: pPos.y - offset)
             case .topRight:
-                return CGPoint(x: basePosition.x + offset, y: basePosition.y - offset)
+                return CGPoint(x: pPos.x + offset, y: pPos.y - offset)
+            case .bottomLeft:
+                return CGPoint(x: pPos.x - offset, y: pPos.y + offset)
+            case .bottomRight:
+                return CGPoint(x: pPos.x + offset, y: pPos.y + offset)
             }
         }
-        return basePosition
+        
+        return schematicPoint(for: node, in: size, bounds: bounds)
     }
     
     // Create London Underground-style path with rounded corners
@@ -1104,48 +1519,162 @@ struct SchematicRailwayView: View {
 
     // Helper: Generate Octilinear Path (0, 45, 90 degrees)
     // Tries to use "Centered Diagonal" approach: Horizontal/Vertical -> Diagonal -> Horizontal/Vertical
-    private func generateSchematicPoints(from p1: CGPoint, to p2: CGPoint) -> [CGPoint] {
+    private func generateSchematicPoints(
+        from p1: CGPoint, 
+        to p2: CGPoint, 
+        avoidPoints: [CGPoint] = [],
+        neighborsStart: [CGPoint] = [],
+        neighborsEnd: [CGPoint] = []
+    ) -> [CGPoint] {
+        let candidates = generateSchematicCandidates(from: p1, to: p2)
+        
+        // If no constraints, return the first preference (Centered)
+        if avoidPoints.isEmpty && neighborsStart.isEmpty && neighborsEnd.isEmpty {
+            return candidates.first?.points ?? [p1, p2]
+        }
+        
+        var bestCandidate: (points: [CGPoint], cost: Double)? = nil
+        
+        for cand in candidates {
+            let cost = calculatePathCost(
+                path: cand.points, 
+                avoid: avoidPoints,
+                neighborsStart: neighborsStart,
+                neighborsEnd: neighborsEnd
+            )
+            
+            if cost == 0 { return cand.points } // Found perfect path
+            
+            if bestCandidate == nil || cost < bestCandidate!.cost {
+                bestCandidate = (cand.points, cost)
+            }
+        }
+        
+        return bestCandidate?.points ?? [p1, p2]
+    }
+    
+    private struct SchematicCandidate {
+        let points: [CGPoint]
+        let type: String
+    }
+    
+    private func generateSchematicCandidates(from p1: CGPoint, to p2: CGPoint) -> [SchematicCandidate] {
+        var candidates: [SchematicCandidate] = []
+        
         let dx = p2.x - p1.x
         let dy = p2.y - p1.y
         let adx = abs(dx)
         let ady = abs(dy)
-        
         let minDiff = min(adx, ady)
-        
-        // Tolerance for straight lines/perfect 45
-        if minDiff < 5 || abs(adx - ady) < 5 {
-             return [p1, p2]
-        }
-        
-        // Centered Diagonal Strategy:
-        // Use Diagonal to cover the 'minDiff' length.
-        // Use Horizontal/Vertical to cover the rest.
-        // Split the straight part into two halves to center the diagonal.
-        
         let sx: CGFloat = dx > 0 ? 1 : -1
         let sy: CGFloat = dy > 0 ? 1 : -1
+        
+        if minDiff < 5 || abs(adx - ady) < 5 {
+             return [SchematicCandidate(points: [p1, p2], type: "Direct")]
+        }
         
         let diagLen = minDiff
         let straightLen = max(adx, ady) - diagLen
         
+        // 1. Centered Diagonal
         if adx > ady {
-            // Horizontal Dominant: H -> D -> H
             let hSeg = straightLen / 2.0
+            let m1 = CGPoint(x: p1.x + sx * hSeg, y: p1.y)
+            let m2 = CGPoint(x: m1.x + sx * diagLen, y: m1.y + sy * diagLen)
+            candidates.append(SchematicCandidate(points: [p1, m1, m2, p2], type: "Centered"))
             
-            let m1 = CGPoint(x: p1.x + sx * hSeg, y: p1.y) // 1. Horizontal half
-            let m2 = CGPoint(x: m1.x + sx * diagLen, y: m1.y + sy * diagLen) // 2. Diagonal
-            // m2 should now be vertically aligned with p2
+            // 2. Late Diagonal (Horizontal then Diagonal)
+            let m_late = CGPoint(x: p1.x + sx * straightLen, y: p1.y)
+            candidates.append(SchematicCandidate(points: [p1, m_late, p2], type: "Late"))
             
-            return [p1, m1, m2, p2]
+            // 3. Early Diagonal (Diagonal then Horizontal)
+            let m_early = CGPoint(x: p1.x + sx * diagLen, y: p1.y + sy * diagLen)
+            candidates.append(SchematicCandidate(points: [p1, m_early, p2], type: "Early"))
+            
         } else {
-            // Vertical Dominant: V -> D -> V
             let vSeg = straightLen / 2.0
+            let m1 = CGPoint(x: p1.x, y: p1.y + sy * vSeg)
+            let m2 = CGPoint(x: m1.x + sx * diagLen, y: m1.y + sy * diagLen)
+            candidates.append(SchematicCandidate(points: [p1, m1, m2, p2], type: "Centered"))
             
-            let m1 = CGPoint(x: p1.x, y: p1.y + sy * vSeg) // 1. Vertical half
-            let m2 = CGPoint(x: m1.x + sx * diagLen, y: m1.y + sy * diagLen) // 2. Diagonal
+            // Late Diagonal (Vertical then Diagonal)
+            let m_late = CGPoint(x: p1.x, y: p1.y + sy * straightLen)
+            candidates.append(SchematicCandidate(points: [p1, m_late, p2], type: "Late"))
             
-            return [p1, m1, m2, p2]
+            // Early Diagonal (Diagonal then Vertical)
+            let m_early = CGPoint(x: p1.x + sx * diagLen, y: p1.y + sy * diagLen)
+            candidates.append(SchematicCandidate(points: [p1, m_early, p2], type: "Early"))
         }
+        
+        // 4. L-Shapes (90 degrees, no diagonal) - Fallback
+        candidates.append(SchematicCandidate(points: [p1, CGPoint(x: p2.x, y: p1.y), p2], type: "L-HV"))
+        candidates.append(SchematicCandidate(points: [p1, CGPoint(x: p1.x, y: p2.y), p2], type: "L-VH"))
+        
+        return candidates
+    }
+    
+    private func calculatePathCost(path: [CGPoint], avoid: [CGPoint], neighborsStart: [CGPoint], neighborsEnd: [CGPoint]) -> Double {
+        var cost: Double = 0
+        let collisionThreshold: CGFloat = 25.0
+        
+        // 1. Collision Cost
+        for i in 0..<path.count-1 {
+            let s1 = path[i]
+            let s2 = path[i+1]
+            
+            for p in avoid {
+                 let d = distanceToSegment(p, s1, s2)
+                 if d < collisionThreshold {
+                     cost += (collisionThreshold - d) * 100
+                 }
+            }
+        }
+        
+        // 2. Angle Cost (Neighbors)
+        // Check start node angles
+        if path.count > 1 {
+            let vStart = normalize(vector: CGPoint(x: path[1].x - path[0].x, y: path[1].y - path[0].y))
+            for n in neighborsStart {
+                let vN = normalize(vector: CGPoint(x: n.x - path[0].x, y: n.y - path[0].y))
+                let dotProd = vStart.x * vN.x + vStart.y * vN.y
+                // If dotProd >= 0, angle <= 90 degrees (Acute or Right). We want > 90 (Obtuse), so dotProd < 0.
+                if dotProd > -0.01 { 
+                    cost += 500 // Penalty for angles <= 90
+                }
+            }
+        }
+        
+        // Check end node angles
+        if path.count > 1 {
+            let last = path[path.count-1]
+            let prev = path[path.count-2]
+            // Vector leaving the end node back onto the track
+            let vEnd = normalize(vector: CGPoint(x: prev.x - last.x, y: prev.y - last.y))
+            for n in neighborsEnd {
+                // Vector leaving the end node towards neighbor
+                let vN = normalize(vector: CGPoint(x: n.x - last.x, y: n.y - last.y))
+                let dotProd = vEnd.x * vN.x + vEnd.y * vN.y
+                if dotProd > -0.01 {
+                    cost += 500
+                }
+            }
+        }
+        
+        return cost
+    }
+    
+    private func normalize(vector: CGPoint) -> CGPoint {
+        let len = sqrt(vector.x*vector.x + vector.y*vector.y)
+        return len > 0 ? CGPoint(x: vector.x/len, y: vector.y/len) : CGPoint(x: 1, y: 0)
+    }
+
+    private func distanceToSegment(_ p: CGPoint, _ v: CGPoint, _ w: CGPoint) -> CGFloat {
+        let l2 = (v.x - w.x)*(v.x - w.x) + (v.y - w.y)*(v.y - w.y)
+        if l2 == 0 { return hypot(p.x - v.x, p.y - v.y) }
+        var t = ((p.x - v.x)*(w.x - v.x) + (p.y - v.y)*(w.y - v.y)) / l2
+        t = max(0, min(1, t))
+        
+        return hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)))
     }
 
     private func currentSchematicTrainPos(for schedule: TrainSchedule, in size: CGSize, now: Date, bounds: MapBounds) -> CGPoint? {
@@ -1206,6 +1735,7 @@ struct SchematicRailwayView: View {
 
 // MARK: - Station Node View
 struct StationNodeView: View {
+    @EnvironmentObject var appState: AppState
     @Binding var node: Node
     var network: RailwayNetwork
     var canvasSize: CGSize
@@ -1214,10 +1744,12 @@ struct StationNodeView: View {
     var gridUnit: Double
     var bounds: SchematicRailwayView.MapBounds
     var onTap: () -> Void
+    @Binding var isMoveModeEnabled: Bool
+    var onDragStarted: (() -> Void)? = nil // Added callback
     @State private var dragOffset: CGSize = .zero
     
     var body: some View {
-        let isHubOrInterchange = node.type == .interchange || node.parentHubId != nil
+        let isHubOrInterchange = node.type == .interchange
         
         Group {
             if isHubOrInterchange {
@@ -1253,13 +1785,23 @@ struct StationNodeView: View {
                 if isSelected {
                     Circle().stroke(Color.blue, lineWidth: 2).scaleEffect(1.4)
                 }
+                
+                if isMoveModeEnabled {
+                    Circle()
+                        .stroke(Color.blue.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [4, 2]))
+                        .scaleEffect(1.3)
+                }
             }
         )
         .overlay(alignment: .top) {
-            // Hide label if it's a Hub or Interchange (Canvas handles Red Label)
-            if !isHubOrInterchange {
+            // Hide label if it's part of a multi-node hub (Canvas handles Red Label for hubs)
+            let isPartOfMultiNodeHub = network.nodes.contains { 
+                ($0.parentHubId == node.id || (node.parentHubId != nil && $0.parentHubId == node.parentHubId && $0.id != node.id))
+            }
+            
+            if !isPartOfMultiNodeHub {
                 Text(node.name)
-                    .font(.system(size: 14, weight: .black))
+                    .font(.system(size: appState.globalFontSize, weight: .black))
                     .fixedSize()
                     .foregroundColor(.black)
                     .shadow(color: .white, radius: 2)
@@ -1267,12 +1809,22 @@ struct StationNodeView: View {
                     .allowsHitTesting(false)
             }
         }
+        .onLongPressGesture(minimumDuration: 0.6) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                isMoveModeEnabled.toggle()
+            }
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        }
         .onTapGesture {
             onTap()
         }
             .gesture(
+                isMoveModeEnabled ?
                 DragGesture(minimumDistance: 5)
                     .onChanged { val in
+                        if dragOffset == .zero {
+                            onDragStarted?()
+                        }
                         let deltaX = val.translation.width - dragOffset.width
                         let deltaY = val.translation.height - dragOffset.height
                         dragOffset = val.translation
@@ -1289,21 +1841,6 @@ struct StationNodeView: View {
                         node.latitude = (node.latitude ?? 0) + dLat
                         node.longitude = (node.longitude ?? 0) + dLon
                         
-                        // Also move linked hub stations (synchronized movement)
-                        if let parentHubId = node.parentHubId,
-                           let parentIndex = network.nodes.firstIndex(where: { $0.id == parentHubId }) {
-                            // This station is a child, move the parent too
-                            network.nodes[parentIndex].latitude = (network.nodes[parentIndex].latitude ?? 0) + dLat
-                            network.nodes[parentIndex].longitude = (network.nodes[parentIndex].longitude ?? 0) + dLon
-                        } else {
-                            // This might be a parent, move all children
-                            for i in network.nodes.indices {
-                                if network.nodes[i].parentHubId == node.id {
-                                    network.nodes[i].latitude = (network.nodes[i].latitude ?? 0) + dLat
-                                    network.nodes[i].longitude = (network.nodes[i].longitude ?? 0) + dLon
-                                }
-                            }
-                        }
                     }
                     .onEnded { val in
                         dragOffset = .zero
@@ -1311,6 +1848,7 @@ struct StationNodeView: View {
                             snapNodeToGrid()
                         }
                     }
+                : nil
             )
     }
     
@@ -1382,3 +1920,4 @@ struct CoordinateGridShape: Shape {
         return path
     }
 }
+ 

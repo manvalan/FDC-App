@@ -5,11 +5,13 @@ struct LineCreationView: View {
     @Environment(\.dismiss) var dismiss
     
     @State private var lineName: String = ""
+    @State private var codePrefix: String = "" // New
+    @State private var numberPrefix: Int = 0 // New
     @State private var lineColor: Color = .blue
     
     // Controlled by PathPickerComponent
     @State private var startStationId: String = ""
-    @State private var viaStationId: String = ""
+    @State private var viaStationIds: [String] = []
     @State private var endStationId: String = ""
     @State private var stationSequence: [String] = []
     @State private var manualAddition: Bool = false
@@ -22,49 +24,28 @@ struct LineCreationView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("Dettagli Linea")) {
-                    TextField("Nome Linea (es. Milano-Roma)", text: $lineName)
-                    ColorPicker("Colore Linea", selection: $lineColor)
+                detailsSection
+                
+                Section(header: Text("path_composition".localized)) {
+                    PathPickerComponent(
+                        startStationId: $startStationId,
+                        viaStationIds: $viaStationIds,
+                        endStationId: $endStationId,
+                        stationSequence: $stationSequence,
+                        manualAddition: $manualAddition,
+                        activePicker: $activePicker,
+                        manualStationId: $manualStationId
+                    )
                 }
                 
-                PathPickerComponent(
-                    startStationId: $startStationId,
-                    viaStationId: $viaStationId,
-                    endStationId: $endStationId,
-                    stationSequence: $stationSequence,
-                    manualAddition: $manualAddition,
-                    activePicker: $activePicker
-                )
-                
                 if !stationSequence.isEmpty {
-                    Section(header: Text("Stazioni (Sequenza)")) {
-                        ForEach(stationSequence, id: \.self) { id in
-                            if let node = network.nodes.first(where: { $0.id == id }) {
-                                HStack {
-                                    Image(systemName: "circle.fill")
-                                        .font(.caption2)
-                                        .foregroundColor(lineColor)
-                                    Text(node.name)
-                                    Spacer()
-                                    let dwell = (node.type == .interchange) ? 5 : 3
-                                    Text("\(dwell) min").font(.caption).foregroundColor(.secondary)
-                                }
-                            }
-                        }
-                        .onMove { from, to in
-                            stationSequence.move(fromOffsets: from, toOffset: to)
-                        }
-                        .onDelete { offsets in
-                            stationSequence.remove(atOffsets: offsets)
-                        }
-                        
-                        Button(action: { activePicker = .manual }) {
-                            Label("Aggiungi fermata successiva", systemImage: "plus.circle.fill")
-                                .foregroundColor(.green)
-                        }
-                        
-                        Text("Puoi modificare l'ordine o rimuovere stazioni se necessario.").font(.caption).foregroundColor(.secondary)
-                    }
+                    StationSequenceSection(
+                        stationSequence: $stationSequence,
+                        lineColor: lineColor,
+                        network: network,
+                        activePicker: $activePicker,
+                        suggestions: getSuggestions()
+                    )
                 }
                 
                 if let error = errorMessage {
@@ -73,42 +54,71 @@ struct LineCreationView: View {
                     }
                 }
             }
-            .navigationTitle("Nuova Linea")
+            .navigationTitle("new_line".localized)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Annulla") { dismiss() }
+                    Button("cancel".localized) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Salva") {
+                    Button("save".localized) {
                         saveLine()
                     }
                     .disabled(lineName.isEmpty || stationSequence.count < 2)
                 }
             }
             .onChange(of: startStationId) { old, new in
-                if !new.isEmpty && !manualAddition { stationSequence = [new] }
+                if !new.isEmpty {
+                    if stationSequence.isEmpty || !manualAddition {
+                        stationSequence = [new]
+                    }
+                }
             }
             .onChange(of: manualStationId) { old, new in
                 if !new.isEmpty {
-                    stationSequence.append(new)
-                    manualStationId = "" // Reset for next selection
-                }
-            }
-            .sheet(item: $activePicker) { item in
-                Group {
-                    switch item {
-                    case .start:
-                        StationPickerView(selectedStationId: $startStationId)
-                    case .via:
-                        StationPickerView(selectedStationId: $viaStationId)
-                    case .end:
-                        StationPickerView(selectedStationId: $endStationId)
-                    case .manual:
-                        StationPickerView(selectedStationId: $manualStationId, linkedToStationId: stationSequence.last)
+                    if !stationSequence.contains(new) {
+                        stationSequence.append(new)
                     }
-                }
-                .environmentObject(network)
+                    manualStationId = "" 
             }
+        }
+        .sheet(item: $activePicker) { item in
+            Group {
+                switch item {
+                case .start:
+                    StationPickerView(selectedStationId: $startStationId)
+                case .via(let idx):
+                    if idx >= 0 && idx < viaStationIds.count {
+                        StationPickerView(selectedStationId: Binding(
+                            get: { viaStationIds[idx] },
+                            set: { viaStationIds[idx] = $0 }
+                        ))
+                    } else {
+                        VStack {
+                            Text(String(format: "error_index_not_found_fmt".localized, idx))
+                            Button("close".localized) { activePicker = nil }
+                        }
+                        .padding()
+                    }
+                case .end:
+                    StationPickerView(selectedStationId: $endStationId)
+                case .manual:
+                    StationPickerView(selectedStationId: $manualStationId, linkedToStationId: stationSequence.last)
+                }
+            }
+            .environmentObject(network)
+        }
+    }
+    
+    
+        }
+    
+    private var detailsSection: some View {
+        Section(header: Text("line_details".localized)) {
+            TextField("line_name_example".localized, text: $lineName)
+            TextField("code_prefix_placeholder".localized, text: $codePrefix)
+            TextField("number_prefix_example".localized, value: $numberPrefix, format: .number)
+                .keyboardType(.numberPad)
+            ColorPicker("line_color".localized, selection: $lineColor)
         }
     }
     
@@ -125,9 +135,22 @@ struct LineCreationView: View {
             color: hexColor,
             originId: startStationId,
             destinationId: endStationId,
-            stops: stops
+            stops: stops,
+            codePrefix: codePrefix.isEmpty ? nil : codePrefix,
+            numberPrefix: numberPrefix == 0 ? nil : numberPrefix
         )
         network.lines.append(newLine)
         dismiss()
+    }
+    
+    private func getSuggestions() -> [Node] {
+        guard let lastId = stationSequence.last else { return [] }
+        let connectedIds = network.edges.compactMap { edge -> String? in
+            if edge.from == lastId { return edge.to }
+            if edge.to == lastId { return edge.from }
+            return nil
+        }
+        return network.nodes.filter { connectedIds.contains($0.id) && !stationSequence.contains($0.id) }
+            .sorted { $0.name < $1.name }
     }
 }
