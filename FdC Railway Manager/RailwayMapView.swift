@@ -1020,90 +1020,16 @@ struct SchematicRailwayView: View {
             } // End ScrollViewReader
                 
                 // Consolidated Controls Toolbar (Right Side)
-                VStack(alignment: .trailing, spacing: 20) {
-                    
-                    // Top: Edit Tools (Only visible after long press)
-                    if isEditToolbarVisible {
-                        VStack(spacing: 8) {
-                            Button(action: { editMode = .addStation }) {
-                                InteractionIcon(systemName: "building.2.fill", isActive: editMode == .addStation, activeColor: .green)
-                            }
-                            .help("Aggiungi Stazione")
-                            
-                            Button(action: { editMode = .addTrack }) {
-                                InteractionIcon(systemName: "point.topleft.down.curvedto.point.bottomright.up", isActive: editMode == .addTrack, activeColor: .orange)
-                            }
-                            .help("Crea Binari")
-                            
-                            Button(action: { withAnimation { isMoveModeEnabled.toggle() } }) {
-                                InteractionIcon(systemName: isMoveModeEnabled ? "hand.draw.fill" : "hand.draw", isActive: isMoveModeEnabled, activeColor: .blue)
-                            }
-                            .help("Sposta Stazioni")
-                            
-                            Divider().background(Color.white.opacity(0.3)).frame(width: 30)
-                            
-                            // Undo/Redo Integrated
-                            Button(action: { network.undo() }) {
-                                InteractionIcon(systemName: "arrow.uturn.backward.circle", isActive: false, color: network.canUndo ? .primary : .secondary)
-                            }
-                            .disabled(!network.canUndo)
-                            .help("undo".localized)
-                            
-                            Button(action: { network.redo() }) {
-                                InteractionIcon(systemName: "arrow.uturn.forward.circle", isActive: false, color: network.canRedo ? .primary : .secondary)
-                            }
-                            .disabled(!network.canRedo)
-                            .help("redo".localized)
-                        }
-                        .padding(8)
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 15))
-                        .shadow(radius: 4)
-                        .transition(.scale.combined(with: .opacity))
-                    }
-                    
-                    Spacer()
-                    
-                    // Middle: Export Tools (New!)
-                    VStack(spacing: 8) {
-                        Button(action: { onExport(.jpeg) }) {
-                            InteractionIcon(systemName: "photo", isActive: false, color: .primary)
-                        }
-                        .help("Esporta JPG")
-                        
-                        Button(action: { onExport(.pdf) }) {
-                            InteractionIcon(systemName: "doc.text", isActive: false, color: .primary)
-                        }
-                        .help("Esporta PDF")
-                        
-                        Button(action: { onPrint() }) {
-                            InteractionIcon(systemName: "printer", isActive: false, color: .primary)
-                        }
-                        .help("print".localized)
-                    }
-                    .padding(8)
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 15))
-                    .shadow(radius: 4)
-
-                    // Bottom: Zoom Tools
-                    VStack(spacing: 8) {
-                        Button(action: { withAnimation { zoomLevel = min(zoomLevel + 0.5, 5.0) } }) {
-                            InteractionIcon(systemName: "plus", isActive: false, color: .primary)
-                        }
-                        Button(action: { withAnimation { zoomLevel = max(zoomLevel - 0.5, 1.0) } }) {
-                            InteractionIcon(systemName: "minus", isActive: false, color: .primary)
-                        }
-                        Button(action: { withAnimation { zoomLevel = 1.0 } }) {
-                            InteractionIcon(systemName: "arrow.down.left.and.arrow.up.right", isActive: false, color: .purple)
-                        }
-                    }
-                    .padding(8)
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 15))
-                    .shadow(radius: 4)
-                }
-                .padding()
+                // Consolidated Controls Toolbar (Right Side)
+                MapControlsView(
+                    isEditToolbarVisible: $isEditToolbarVisible,
+                    editMode: $editMode,
+                    isMoveModeEnabled: $isMoveModeEnabled,
+                    network: network,
+                    zoomLevel: $zoomLevel,
+                    onExport: onExport,
+                    onPrint: onPrint
+                )
                 
                 // Track Creation Box Overlay
                 if editMode == .addTrack {
@@ -1938,3 +1864,101 @@ struct CoordinateGridShape: Shape {
     }
 }
  
+
+struct MapControlsView: View {
+    @Binding var isEditToolbarVisible: Bool
+    @Binding var editMode: SchematicRailwayView.EditMode
+    @Binding var isMoveModeEnabled: Bool
+    @ObservedObject var network: RailwayNetwork
+    @Binding var zoomLevel: CGFloat
+    
+    var onExport: (RailwayMapView.ExportFormat) -> Void
+    var onPrint: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 20) {
+            
+            // Top: Edit Tools (Only visible after long press)
+            if isEditToolbarVisible {
+                VStack(spacing: 8) {
+                    Button(action: { editMode = .addStation }) {
+                        InteractionIcon(systemName: "building.2.fill", isActive: editMode == .addStation, activeColor: .green)
+                    }
+                    .help("Aggiungi Stazione")
+                    
+                    Button(action: { editMode = .addTrack }) {
+                        InteractionIcon(systemName: "point.topleft.down.curvedto.point.bottomright.up", isActive: editMode == .addTrack, activeColor: .orange)
+                    }
+                    .help("Crea Binari")
+                    
+                    Button(action: { withAnimation { isMoveModeEnabled.toggle() } }) {
+                        InteractionIcon(systemName: isMoveModeEnabled ? "hand.draw.fill" : "hand.draw", isActive: isMoveModeEnabled, activeColor: .blue)
+                    }
+                    .help("Sposta Stazioni")
+                    
+                    Divider().background(Color.white.opacity(0.3)).frame(width: 30)
+                    
+                    // Undo/Redo Integrated
+                    Button(action: { network.undo() }) {
+                        InteractionIcon(systemName: "arrow.uturn.backward.circle", isActive: false, color: network.canUndo ? .primary : .secondary)
+                    }
+                    .disabled(!network.canUndo)
+                    .help("undo".localized)
+                    
+                    Button(action: { network.redo() }) {
+                        InteractionIcon(systemName: "arrow.uturn.forward.circle", isActive: false, color: network.canRedo ? .primary : .secondary)
+                    }
+                    .disabled(!network.canRedo)
+                    .help("redo".localized)
+                }
+                .padding(8)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 15))
+                .shadow(radius: 4)
+                .transition(.scale.combined(with: .opacity))
+            }
+            
+            Spacer()
+            
+            // Middle: Export Tools (New!)
+            VStack(spacing: 8) {
+                Button(action: { onExport(.jpeg) }) {
+                    InteractionIcon(systemName: "photo", isActive: false, color: .primary)
+                }
+                .help("Esporta JPG")
+                
+                Button(action: { onExport(.pdf) }) {
+                    InteractionIcon(systemName: "doc.text", isActive: false, color: .primary)
+                }
+                .help("Esporta PDF")
+                
+                Button(action: { onPrint() }) {
+                    InteractionIcon(systemName: "printer", isActive: false, color: .primary)
+                }
+                .help("print".localized)
+            }
+            .padding(8)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 15))
+            .shadow(radius: 4)
+
+            // Bottom: Zoom Tools
+            VStack(spacing: 8) {
+                Button(action: { withAnimation { zoomLevel = min(zoomLevel + 0.5, 5.0) } }) {
+                    InteractionIcon(systemName: "plus", isActive: false, color: .primary)
+                }
+                Button(action: { withAnimation { zoomLevel = max(zoomLevel - 0.5, 1.0) } }) {
+                    InteractionIcon(systemName: "minus", isActive: false, color: .primary)
+                }
+                Button(action: { withAnimation { zoomLevel = 1.0 } }) {
+                    InteractionIcon(systemName: "arrow.down.left.and.arrow.up.right", isActive: false, color: .purple)
+                }
+            }
+            .padding(8)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 15))
+            .shadow(radius: 4)
+        }
+        .padding()
+    }
+}
