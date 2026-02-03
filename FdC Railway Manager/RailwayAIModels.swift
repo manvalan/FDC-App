@@ -92,6 +92,7 @@ struct RailwayAIResolution: Codable {
     let train_id: Int
     let time_adjustment_min: Double
     let track_assignment: Int?
+    let confidence: Double?
     let dwell_delays: [Double]?
 }
 
@@ -142,6 +143,15 @@ struct AdminUser: Codable, Identifiable {
 struct AddUserRequest: Codable {
     let username: String
     let password: String
+}
+
+// MARK: - API Key Info Response
+struct KeyInfoResponse: Codable {
+    let key_prefix: String
+    let username: String
+    let privilege: String
+    let expires_at: String
+    let remaining_days: Double
 }
 
 // MARK: - Scenario & Training Models
