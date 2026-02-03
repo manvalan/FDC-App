@@ -1,0 +1,5730 @@
+{
+  "name": "Toscana",
+  "nodes": [
+    {
+      "id": "36899984",
+      "name": "Genova Brignole",
+      "type": "interchange",
+      "latitude": 44.4066928,
+      "longitude": 8.9469156,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "59841450",
+      "name": "Roccastrada",
+      "type": "station",
+      "latitude": 42.9577391,
+      "longitude": 11.1931938,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "59841572",
+      "name": "Civitella Paganico",
+      "type": "station",
+      "latitude": 42.9401556,
+      "longitude": 11.2831834,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "59841581",
+      "name": "Monte Antico",
+      "type": "station",
+      "latitude": 42.981119,
+      "longitude": 11.3598323,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "59841641",
+      "name": "Buonconvento",
+      "type": "station",
+      "latitude": 43.1355267,
+      "longitude": 11.4835677,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "82739131",
+      "name": "Rapallo",
+      "type": "station",
+      "latitude": 44.3512719,
+      "longitude": 9.2313476,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "203592307",
+      "name": "Chiavari",
+      "type": "station",
+      "latitude": 44.315059,
+      "longitude": 9.3224198,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "215643337",
+      "name": "Sticciano",
+      "type": "station",
+      "latitude": 42.9292961,
+      "longitude": 11.1187485,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "215643342",
+      "name": "Monteroni d'Arbia",
+      "type": "station",
+      "latitude": 43.230078,
+      "longitude": 11.4197973,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "246838021",
+      "name": "Pontassieve",
+      "type": "station",
+      "latitude": 43.7740719,
+      "longitude": 11.4381448,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "251904108",
+      "name": "Roma Termini",
+      "type": "station",
+      "latitude": 41.9005815,
+      "longitude": 12.5025272,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "255247257",
+      "name": "Collevecchio-Poggio Sommavilla",
+      "type": "station",
+      "latitude": 42.2975663,
+      "longitude": 12.5229418,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "256079576",
+      "name": "Schwarzach-St. Veit",
+      "type": "station",
+      "latitude": 47.3186082,
+      "longitude": 13.1547632,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "301812613",
+      "name": "Piana bella Di Montelibretti",
+      "type": "station",
+      "latitude": 42.1034383,
+      "longitude": 12.6324237,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "306836661",
+      "name": "Siena",
+      "type": "station",
+      "latitude": 43.3317525,
+      "longitude": 11.3229583,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "324248585",
+      "name": "Firenze Rovezzano",
+      "type": "interchange",
+      "latitude": 43.7688762,
+      "longitude": 11.3088448,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "354009522",
+      "name": "Civita Castellana-Magliano",
+      "type": "station",
+      "latitude": 42.3465453,
+      "longitude": 12.4539091,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "381991452",
+      "name": "Attigliano-Bomarzo",
+      "type": "station",
+      "latitude": 42.5179728,
+      "longitude": 12.2948558,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "441184820",
+      "name": "Rufina",
+      "type": "station",
+      "latitude": 43.8222682,
+      "longitude": 11.4850811,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "444581393",
+      "name": "Castiglione in Teverina",
+      "type": "station",
+      "latitude": 42.6485897,
+      "longitude": 12.2349552,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "495560462",
+      "name": "Tarvisio Boscoverde",
+      "type": "station",
+      "latitude": 46.5063916,
+      "longitude": 13.6073098,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "496122823",
+      "name": "Asciano",
+      "type": "station",
+      "latitude": 43.2356208,
+      "longitude": 11.5798534,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "504922952",
+      "name": "San Giuliano Terme",
+      "type": "station",
+      "latitude": 43.7649321,
+      "longitude": 10.436914,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "600037902",
+      "name": "San Piero a Sieve",
+      "type": "station",
+      "latitude": 43.9582805,
+      "longitude": 11.3226379,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "610236330",
+      "name": "Nuovo Salario",
+      "type": "station",
+      "latitude": 41.9554295,
+      "longitude": 12.5103343,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "703147336",
+      "name": "San Giustino",
+      "type": "station",
+      "latitude": 43.5480057,
+      "longitude": 12.17463,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "703420856",
+      "name": "Citt\u00e0 di Castello",
+      "type": "station",
+      "latitude": 43.4551232,
+      "longitude": 12.2470127,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "733941910",
+      "name": "Popolano di Marradi",
+      "type": "station",
+      "latitude": 44.0951983,
+      "longitude": 11.6379536,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "733941988",
+      "name": "San Martino in Gattara",
+      "type": "station",
+      "latitude": 44.1131819,
+      "longitude": 11.6670536,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "747752115",
+      "name": "Sansepolcro",
+      "type": "station",
+      "latitude": 43.5697614,
+      "longitude": 12.1351759,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "747961130",
+      "name": "Citt\u00e0 di Castello-Zona Industriale",
+      "type": "station",
+      "latitude": 43.4743792,
+      "longitude": 12.2269168,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "747961259",
+      "name": "Trebbio",
+      "type": "station",
+      "latitude": 43.5655703,
+      "longitude": 12.1447562,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "748065622",
+      "name": "San Secondo",
+      "type": "station",
+      "latitude": 43.400401,
+      "longitude": 12.2375238,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "748222862",
+      "name": "Trestina",
+      "type": "station",
+      "latitude": 43.3656259,
+      "longitude": 12.2377376,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "748223061",
+      "name": "Ranchi",
+      "type": "station",
+      "latitude": 43.3523269,
+      "longitude": 12.2507967,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "748801508",
+      "name": "Canoscio-Fabbrecce",
+      "type": "station",
+      "latitude": 43.3798469,
+      "longitude": 12.23897,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "748801510",
+      "name": "Montecastelli",
+      "type": "station",
+      "latitude": 43.3407514,
+      "longitude": 12.2936275,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "748801512",
+      "name": "Niccone",
+      "type": "station",
+      "latitude": 43.3210904,
+      "longitude": 12.2979217,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "748805394",
+      "name": "Villa Pitignano",
+      "type": "station",
+      "latitude": 43.145745,
+      "longitude": 12.4528606,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "748805398",
+      "name": "Pierantonio",
+      "type": "station",
+      "latitude": 43.2636307,
+      "longitude": 12.3923826,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "755794829",
+      "name": "Grosseto",
+      "type": "station",
+      "latitude": 42.7673549,
+      "longitude": 11.1067465,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "776073475",
+      "name": "Stimigliano",
+      "type": "station",
+      "latitude": 42.2898625,
+      "longitude": 12.5686754,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "776073487",
+      "name": "Gavignano Sabino",
+      "type": "station",
+      "latitude": 42.2730976,
+      "longitude": 12.6079817,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "776073651",
+      "name": "Poggio Mirteto",
+      "type": "station",
+      "latitude": 42.2421706,
+      "longitude": 12.6331458,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "879858267",
+      "name": "Alviano",
+      "type": "station",
+      "latitude": 42.5919071,
+      "longitude": 12.2596,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "880882003",
+      "name": "Fabro-Ficulle",
+      "type": "station",
+      "latitude": 42.8750889,
+      "longitude": 12.0412171,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "881535511",
+      "name": "Chiusi-Chianciano Terme",
+      "type": "station",
+      "latitude": 43.0024402,
+      "longitude": 11.9578924,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1126326012",
+      "name": "Firenze Rifredi",
+      "type": "interchange",
+      "latitude": 43.8001066,
+      "longitude": 11.2362711,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "1137140357",
+      "name": "Ramazzano",
+      "type": "station",
+      "latitude": 43.1577264,
+      "longitude": 12.4581132,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1137140415",
+      "name": "Ponte Felcino",
+      "type": "station",
+      "latitude": 43.1313408,
+      "longitude": 12.4367595,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1137140534",
+      "name": "Pretola",
+      "type": "station",
+      "latitude": 43.1146051,
+      "longitude": 12.4372331,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1262114259",
+      "name": "La Spezia Centrale",
+      "type": "interchange",
+      "latitude": 44.111564,
+      "longitude": 9.81358,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "1303122117",
+      "name": "Selci Lama",
+      "type": "station",
+      "latitude": 43.5129309,
+      "longitude": 12.2003496,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1313285466",
+      "name": "Fidene",
+      "type": "station",
+      "latitude": 41.9791773,
+      "longitude": 12.5084608,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1324082122",
+      "name": "San Cassiano",
+      "type": "station",
+      "latitude": 44.1437479,
+      "longitude": 11.6875222,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1324082151",
+      "name": "Fognano",
+      "type": "station",
+      "latitude": 44.2033039,
+      "longitude": 11.7276142,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1324082169",
+      "name": "Strada Casale",
+      "type": "station",
+      "latitude": 44.1835081,
+      "longitude": 11.6974889,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1367073561",
+      "name": "Torino Porta Susa",
+      "type": "interchange",
+      "latitude": 45.0726654,
+      "longitude": 7.6659285,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "1397057661",
+      "name": "Sieci",
+      "type": "station",
+      "latitude": 43.7908734,
+      "longitude": 11.3946819,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1406178346",
+      "name": "Solfagnano-Parlesca",
+      "type": "station",
+      "latitude": 43.2215707,
+      "longitude": 12.4097845,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1406202231",
+      "name": "Ponte Valleceppi",
+      "type": "station",
+      "latitude": 43.1052205,
+      "longitude": 12.4471325,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1406273022",
+      "name": "Perugia Sant'Anna",
+      "type": "station",
+      "latitude": 43.1060605,
+      "longitude": 12.3902748,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1409788555",
+      "name": "Fara Sabina-Montelibretti",
+      "type": "station",
+      "latitude": 42.1556138,
+      "longitude": 12.6483893,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1409789378",
+      "name": "Piana bella Di Montelibretti",
+      "type": "station",
+      "latitude": 42.103447,
+      "longitude": 12.6323797,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1409790041",
+      "name": "Gavignano Sabino",
+      "type": "station",
+      "latitude": 42.2730891,
+      "longitude": 12.6079345,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1409790301",
+      "name": "Collevecchio-Poggio Sommavilla",
+      "type": "station",
+      "latitude": 42.297532,
+      "longitude": 12.5229272,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1409790626",
+      "name": "Civita Castellana-Magliano",
+      "type": "station",
+      "latitude": 42.3465387,
+      "longitude": 12.453861,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1409790788",
+      "name": "Gallese Teverina",
+      "type": "station",
+      "latitude": 42.3808609,
+      "longitude": 12.4397802,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1420849972",
+      "name": "Civitavecchia",
+      "type": "station",
+      "latitude": 42.0880367,
+      "longitude": 11.7984304,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1449334230",
+      "name": "Tarvisio Boscoverde",
+      "type": "station",
+      "latitude": 46.5064143,
+      "longitude": 13.6072762,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1452724488",
+      "name": "M\u00fcnchen Ost",
+      "type": "station",
+      "latitude": 48.1274092,
+      "longitude": 11.6056883,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1458148478",
+      "name": "Citt\u00e0 di Castello-Fornace",
+      "type": "station",
+      "latitude": 43.4636756,
+      "longitude": 12.2395798,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1654971118",
+      "name": "M\u00fcnchen Hauptbahnhof",
+      "type": "station",
+      "latitude": 48.1398982,
+      "longitude": 11.5574067,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1682426642",
+      "name": "Rigoli",
+      "type": "station",
+      "latitude": 43.7896687,
+      "longitude": 10.4196927,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1688415708",
+      "name": "Ripafratta",
+      "type": "station",
+      "latitude": 43.8217322,
+      "longitude": 10.415748,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1757252647",
+      "name": "Baucca-Garavelle",
+      "type": "station",
+      "latitude": 43.4420058,
+      "longitude": 12.250254,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1757252648",
+      "name": "Cerbara",
+      "type": "station",
+      "latitude": 43.4977356,
+      "longitude": 12.2106817,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1757252654",
+      "name": "La Dogana",
+      "type": "station",
+      "latitude": 43.5605734,
+      "longitude": 12.1608766,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1757252656",
+      "name": "Montecastelli-Tevere",
+      "type": "station",
+      "latitude": 43.3426079,
+      "longitude": 12.2848668,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1757252660",
+      "name": "Montecorona",
+      "type": "station",
+      "latitude": 43.2876484,
+      "longitude": 12.3596976,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1757252661",
+      "name": "Palazzaccia",
+      "type": "station",
+      "latitude": 43.2455843,
+      "longitude": 12.4017557,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1757252662",
+      "name": "Ponte Pattoli-Civitella",
+      "type": "station",
+      "latitude": 43.1760288,
+      "longitude": 12.4356478,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1757252664",
+      "name": "San Bartolomeo-Resina",
+      "type": "station",
+      "latitude": 43.2017246,
+      "longitude": 12.4213547,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1757252669",
+      "name": "Umbertide",
+      "type": "station",
+      "latitude": 43.3040578,
+      "longitude": 12.3308077,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1765204821",
+      "name": "Fara Sabina-Montelibretti",
+      "type": "station",
+      "latitude": 42.1556934,
+      "longitude": 12.6483372,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1777874067",
+      "name": "Genova Piazza Principe",
+      "type": "interchange",
+      "latitude": 44.4170197,
+      "longitude": 8.9211296,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "1777874068",
+      "name": "Massa Centro",
+      "type": "station",
+      "latitude": 44.0237472,
+      "longitude": 10.1361592,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "1835203780",
+      "name": "Firenze Santa Maria Novella",
+      "type": "interchange",
+      "latitude": 43.7775719,
+      "longitude": 11.2474177,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "1887932187",
+      "name": "Murlo",
+      "type": "station",
+      "latitude": 43.1141335,
+      "longitude": 11.4004442,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2031789843",
+      "name": "Torino Porta Nuova",
+      "type": "interchange",
+      "latitude": 45.0611399,
+      "longitude": 7.6771922,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "2034469373",
+      "name": "Stop 2034469373",
+      "type": "station",
+      "latitude": 44.4176855,
+      "longitude": 8.9207786,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2043486426",
+      "name": "Torino Porta Nuova",
+      "type": "interchange",
+      "latitude": 45.0611539,
+      "longitude": 7.6771531,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "2047449892",
+      "name": "Gallese Teverina",
+      "type": "station",
+      "latitude": 42.3808793,
+      "longitude": 12.4397929,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2337314768",
+      "name": "Reggio Emilia AV Mediopadana",
+      "type": "station",
+      "latitude": 44.7242692,
+      "longitude": 10.6550408,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2349204992",
+      "name": "Pisa San Rossore",
+      "type": "interchange",
+      "latitude": 43.7231691,
+      "longitude": 10.3881371,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "2349204996",
+      "name": "Pisa San Rossore",
+      "type": "interchange",
+      "latitude": 43.7231775,
+      "longitude": 10.388104,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "2363324102",
+      "name": "Ponte a Tressa",
+      "type": "station",
+      "latitude": 43.2508047,
+      "longitude": 11.3963525,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2363324103",
+      "name": "Siena Zona Industriale",
+      "type": "station",
+      "latitude": 43.2651051,
+      "longitude": 11.3766895,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2439182834",
+      "name": "Montepescali",
+      "type": "station",
+      "latitude": 42.8696287,
+      "longitude": 11.0688771,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2507165938",
+      "name": "Villach Hauptbahnhof",
+      "type": "station",
+      "latitude": 46.6189546,
+      "longitude": 13.8483951,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2523746555",
+      "name": "Schwarzach-St. Veit",
+      "type": "station",
+      "latitude": 47.3184837,
+      "longitude": 13.1547706,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2524127381",
+      "name": "Salzburg Hauptbahnhof",
+      "type": "station",
+      "latitude": 47.8127872,
+      "longitude": 13.0461053,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2524127386",
+      "name": "Salzburg Hauptbahnhof",
+      "type": "station",
+      "latitude": 47.8129432,
+      "longitude": 13.0455957,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2546319915",
+      "name": "Firenze Campo di Marte",
+      "type": "interchange",
+      "latitude": 43.7775196,
+      "longitude": 11.2764766,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "2578699504",
+      "name": "Rosenheim",
+      "type": "station",
+      "latitude": 47.8501039,
+      "longitude": 12.1193438,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2578699506",
+      "name": "Rosenheim",
+      "type": "station",
+      "latitude": 47.8499865,
+      "longitude": 12.1192565,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2636661764",
+      "name": "San Giuliano Terme",
+      "type": "station",
+      "latitude": 43.7649497,
+      "longitude": 10.4368659,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2802455262",
+      "name": "Poggio Mirteto",
+      "type": "station",
+      "latitude": 42.242175,
+      "longitude": 12.6330471,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2802455264",
+      "name": "Allerona-Castel Viscardo",
+      "type": "station",
+      "latitude": 42.7847921,
+      "longitude": 12.0357735,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2802455265",
+      "name": "Allerona-Castel Viscardo",
+      "type": "station",
+      "latitude": 42.7848227,
+      "longitude": 12.0357994,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2802455268",
+      "name": "Chiusi-Chianciano Terme",
+      "type": "station",
+      "latitude": 43.0024266,
+      "longitude": 11.9579456,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2849575835",
+      "name": "Viareggio",
+      "type": "station",
+      "latitude": 43.8739325,
+      "longitude": 10.2528762,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "2849575836",
+      "name": "Viareggio",
+      "type": "station",
+      "latitude": 43.8739564,
+      "longitude": 10.2530076,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "3002611819",
+      "name": "Massarosa Bozzano",
+      "type": "station",
+      "latitude": 43.8590326,
+      "longitude": 10.3460968,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "3403946641",
+      "name": "Perugia Pallotta",
+      "type": "station",
+      "latitude": 43.0960362,
+      "longitude": 12.3941359,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "3442630078",
+      "name": "Lucca",
+      "type": "station",
+      "latitude": 43.8372723,
+      "longitude": 10.5061065,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "3503568106",
+      "name": "Monterotondo-Mentana",
+      "type": "station",
+      "latitude": 42.0640937,
+      "longitude": 12.5958448,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "3516310791",
+      "name": "Empoli",
+      "type": "station",
+      "latitude": 43.7156465,
+      "longitude": 10.9493015,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "3660322439",
+      "name": "Piombino",
+      "type": "station",
+      "latitude": 42.9248925,
+      "longitude": 10.5315034,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "3809370226",
+      "name": "Siena",
+      "type": "station",
+      "latitude": 43.3317759,
+      "longitude": 11.3229771,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "3917198201",
+      "name": "Fiesole - Caldine",
+      "type": "station",
+      "latitude": 43.8303748,
+      "longitude": 11.3079924,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "4131026718",
+      "name": "Livorno Centrale",
+      "type": "interchange",
+      "latitude": 43.5541989,
+      "longitude": 10.3361014,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "4182215307",
+      "name": "Populonia",
+      "type": "station",
+      "latitude": 42.9964536,
+      "longitude": 10.5406469,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "4247300934",
+      "name": "Siena",
+      "type": "station",
+      "latitude": 43.3318727,
+      "longitude": 11.3230551,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "4247300936",
+      "name": "Siena",
+      "type": "station",
+      "latitude": 43.3319716,
+      "longitude": 11.3231348,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "4247354854",
+      "name": "Grosseto",
+      "type": "station",
+      "latitude": 42.7673275,
+      "longitude": 11.106532,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "4252569335",
+      "name": "Chiusi-Chianciano Terme",
+      "type": "station",
+      "latitude": 43.002466,
+      "longitude": 11.9577963,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "4252569336",
+      "name": "Chiusi-Chianciano Terme",
+      "type": "station",
+      "latitude": 43.0024787,
+      "longitude": 11.9577504,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "4253273274",
+      "name": "Lucca",
+      "type": "station",
+      "latitude": 43.8371223,
+      "longitude": 10.5060836,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "4449687702",
+      "name": "Bologna Centrale",
+      "type": "interchange",
+      "latitude": 44.5070316,
+      "longitude": 11.3429022,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "4449687703",
+      "name": "Bologna Centrale",
+      "type": "interchange",
+      "latitude": 44.50707,
+      "longitude": 11.3429116,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "4810622155",
+      "name": "Campiglia Marittima",
+      "type": "station",
+      "latitude": 43.0171431,
+      "longitude": 10.5863328,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "4818907096",
+      "name": "Campiglia Marittima",
+      "type": "station",
+      "latitude": 43.0172828,
+      "longitude": 10.5865677,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "4818907098",
+      "name": "Populonia",
+      "type": "station",
+      "latitude": 42.9964376,
+      "longitude": 10.5406914,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "4818907099",
+      "name": "Piombino",
+      "type": "station",
+      "latitude": 42.9248382,
+      "longitude": 10.531502,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "4951815425",
+      "name": "Montepescali",
+      "type": "station",
+      "latitude": 42.8696011,
+      "longitude": 11.0690401,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "4975968974",
+      "name": "Stop 4975968974",
+      "type": "station",
+      "latitude": 42.6486268,
+      "longitude": 12.2349907,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "4976000295",
+      "name": "Attigliano-Bomarzo",
+      "type": "station",
+      "latitude": 42.5180165,
+      "longitude": 12.2949376,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "5640374304",
+      "name": "Ponticino",
+      "type": "station",
+      "latitude": 43.4815419,
+      "longitude": 11.71663,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "5739603870",
+      "name": "Firenze Rovezzano",
+      "type": "interchange",
+      "latitude": 43.7688328,
+      "longitude": 11.308851,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "5833462598",
+      "name": "Vezzano Ligure",
+      "type": "station",
+      "latitude": 44.12713,
+      "longitude": 9.8893555,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "5834005944",
+      "name": "La Spezia Migliarina",
+      "type": "station",
+      "latitude": 44.1231378,
+      "longitude": 9.8395537,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "5834276087",
+      "name": "Santo Stefano di Magra",
+      "type": "station",
+      "latitude": 44.1558579,
+      "longitude": 9.9152872,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "5836455238",
+      "name": "Aulla Lunigiana",
+      "type": "station",
+      "latitude": 44.2188969,
+      "longitude": 9.9767629,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "6025928112",
+      "name": "M\u00fcnchen Hauptbahnhof",
+      "type": "station",
+      "latitude": 48.1400555,
+      "longitude": 11.5531687,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "6063640080",
+      "name": "6",
+      "type": "station",
+      "latitude": 45.4414603,
+      "longitude": 12.3206465,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "6063641889",
+      "name": "Venezia Mestre",
+      "type": "station",
+      "latitude": 45.4818124,
+      "longitude": 12.2319124,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "6738842243",
+      "name": "Milano Rogoredo",
+      "type": "station",
+      "latitude": 45.4336251,
+      "longitude": 9.2394442,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "6738842244",
+      "name": "Milano Rogoredo",
+      "type": "station",
+      "latitude": 45.4336163,
+      "longitude": 9.2393937,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "6738842245",
+      "name": "Milano Rogoredo",
+      "type": "station",
+      "latitude": 45.4335867,
+      "longitude": 9.2392659,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "7006318401",
+      "name": "Crespino del Lamone",
+      "type": "station",
+      "latitude": 44.0418036,
+      "longitude": 11.5484522,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "7006318402",
+      "name": "Biforco",
+      "type": "station",
+      "latitude": 44.0684513,
+      "longitude": 11.6022525,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "7062906166",
+      "name": "Orte",
+      "type": "station",
+      "latitude": 42.4375904,
+      "longitude": 12.4089306,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "7221575566",
+      "name": "Roccastrada",
+      "type": "station",
+      "latitude": 42.9577273,
+      "longitude": 11.1929588,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "7555622304",
+      "name": "Orte",
+      "type": "station",
+      "latitude": 42.4375992,
+      "longitude": 12.4090353,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "7788645472",
+      "name": "Milano Porta Garibaldi (superficie)",
+      "type": "interchange",
+      "latitude": 45.4856266,
+      "longitude": 9.1856716,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "7788645473",
+      "name": "Milano Porta Garibaldi (superficie)",
+      "type": "interchange",
+      "latitude": 45.4856524,
+      "longitude": 9.1857082,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "8033523287",
+      "name": "Orvieto",
+      "type": "station",
+      "latitude": 42.7239349,
+      "longitude": 12.1267246,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523288",
+      "name": "Orvieto",
+      "type": "station",
+      "latitude": 42.7239959,
+      "longitude": 12.1266901,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523290",
+      "name": "Stimigliano",
+      "type": "station",
+      "latitude": 42.2898277,
+      "longitude": 12.5686525,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523296",
+      "name": "Attigliano-Bomarzo",
+      "type": "station",
+      "latitude": 42.5180346,
+      "longitude": 12.2948934,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523297",
+      "name": "Alviano",
+      "type": "station",
+      "latitude": 42.5919228,
+      "longitude": 12.2596405,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523298",
+      "name": "Castiglione in Teverina",
+      "type": "station",
+      "latitude": 42.6486092,
+      "longitude": 12.2349722,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523299",
+      "name": "Allerona-Castel Viscardo",
+      "type": "station",
+      "latitude": 42.7848132,
+      "longitude": 12.0357621,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523300",
+      "name": "Chiusi-Chianciano Terme",
+      "type": "station",
+      "latitude": 43.0024988,
+      "longitude": 11.957601,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523301",
+      "name": "Stop 8033523301",
+      "type": "station",
+      "latitude": 43.1232345,
+      "longitude": 12.0321841,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523302",
+      "name": "Castiglion del Lago",
+      "type": "station",
+      "latitude": 43.123223,
+      "longitude": 12.0321402,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523303",
+      "name": "Terontola",
+      "type": "station",
+      "latitude": 43.210643,
+      "longitude": 12.0080846,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523304",
+      "name": "Camucia-Cortona",
+      "type": "station",
+      "latitude": 43.2611666,
+      "longitude": 11.9712842,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523305",
+      "name": "Castiglion Fiorentino",
+      "type": "station",
+      "latitude": 43.3409767,
+      "longitude": 11.914402,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523306",
+      "name": "Arezzo",
+      "type": "station",
+      "latitude": 43.4609548,
+      "longitude": 11.8754953,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523307",
+      "name": "Laterina",
+      "type": "station",
+      "latitude": 43.4965012,
+      "longitude": 11.6605818,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523308",
+      "name": "Bucine",
+      "type": "station",
+      "latitude": 43.4805104,
+      "longitude": 11.6177292,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523309",
+      "name": "Montevarchi-Terranuova",
+      "type": "station",
+      "latitude": 43.525337,
+      "longitude": 11.5640509,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523310",
+      "name": "San Giovanni Valdarno",
+      "type": "station",
+      "latitude": 43.5660322,
+      "longitude": 11.5270507,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523311",
+      "name": "Figline Valdarno",
+      "type": "station",
+      "latitude": 43.6218208,
+      "longitude": 11.4736507,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523312",
+      "name": "Incisa",
+      "type": "station",
+      "latitude": 43.6558723,
+      "longitude": 11.4526838,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523313",
+      "name": "Rignano sull'Arno",
+      "type": "station",
+      "latitude": 43.7208953,
+      "longitude": 11.4525028,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523321",
+      "name": "Firenze Santa Maria Novella",
+      "type": "interchange",
+      "latitude": 43.7767828,
+      "longitude": 11.2476044,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "8033523322",
+      "name": "Firenze Santa Maria Novella",
+      "type": "interchange",
+      "latitude": 43.7768107,
+      "longitude": 11.2476994,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "8033523329",
+      "name": "Firenze Campo di Marte",
+      "type": "interchange",
+      "latitude": 43.7775989,
+      "longitude": 11.2766652,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "8033523332",
+      "name": "Compiobbi",
+      "type": "station",
+      "latitude": 43.7825845,
+      "longitude": 11.3586663,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523338",
+      "name": "Sant'Ellero",
+      "type": "station",
+      "latitude": 43.7422375,
+      "longitude": 11.4697199,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8033523339",
+      "name": "Pontassieve",
+      "type": "station",
+      "latitude": 43.7739961,
+      "longitude": 11.4380363,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8050171082",
+      "name": "Milano Centrale",
+      "type": "interchange",
+      "latitude": 45.4860872,
+      "longitude": 9.2048731,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "8050171083",
+      "name": "Milano Centrale",
+      "type": "interchange",
+      "latitude": 45.4860565,
+      "longitude": 9.204935,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "8600443885",
+      "name": "Ronta",
+      "type": "station",
+      "latitude": 44.0094442,
+      "longitude": 11.4340456,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8600444949",
+      "name": "Pian del Mugnone",
+      "type": "station",
+      "latitude": 43.8176841,
+      "longitude": 11.2952467,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8758938262",
+      "name": "Brisighella",
+      "type": "station",
+      "latitude": 44.2205634,
+      "longitude": 11.7697852,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8987989070",
+      "name": "Roma Termini",
+      "type": "station",
+      "latitude": 41.9001581,
+      "longitude": 12.5022146,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8987989081",
+      "name": "Roma Termini",
+      "type": "station",
+      "latitude": 41.9008071,
+      "longitude": 12.5029017,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8987989082",
+      "name": "Roma Termini",
+      "type": "station",
+      "latitude": 41.9008364,
+      "longitude": 12.5029328,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8987989083",
+      "name": "Roma Termini",
+      "type": "station",
+      "latitude": 41.9009212,
+      "longitude": 12.5030226,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8987989084",
+      "name": "Roma Termini",
+      "type": "station",
+      "latitude": 41.900949,
+      "longitude": 12.503052,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8987989088",
+      "name": "Roma Termini",
+      "type": "station",
+      "latitude": 41.9011756,
+      "longitude": 12.503292,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "8987989089",
+      "name": "Firenze Santa Maria Novella",
+      "type": "interchange",
+      "latitude": 43.7778137,
+      "longitude": 11.2465302,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "9029485097",
+      "name": "Empoli",
+      "type": "station",
+      "latitude": 43.7156016,
+      "longitude": 10.9493142,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "9067798505",
+      "name": "5",
+      "type": "station",
+      "latitude": 44.2936938,
+      "longitude": 11.8832628,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "9126486953",
+      "name": "Napoli Centrale",
+      "type": "interchange",
+      "latitude": 40.8525931,
+      "longitude": 14.2733559,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "9415074068",
+      "name": "Torino Porta Susa",
+      "type": "interchange",
+      "latitude": 45.0726506,
+      "longitude": 7.6659725,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "9563554591",
+      "name": "Viareggio",
+      "type": "station",
+      "latitude": 43.8739752,
+      "longitude": 10.2531655,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "9644291709",
+      "name": "Marradi - Palazzuolo sul Senio",
+      "type": "station",
+      "latitude": 44.0797631,
+      "longitude": 11.6192524,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "9906307684",
+      "name": "Siena",
+      "type": "station",
+      "latitude": 43.3319018,
+      "longitude": 11.3230785,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "10696075512",
+      "name": "Civitavecchia",
+      "type": "station",
+      "latitude": 42.0881445,
+      "longitude": 11.7985035,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "10997180076",
+      "name": "Monteroni d'Arbia",
+      "type": "station",
+      "latitude": 43.2300513,
+      "longitude": 11.4196765,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "11017417543",
+      "name": "Siena Zona Industriale",
+      "type": "station",
+      "latitude": 43.265145,
+      "longitude": 11.3765462,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "11017544050",
+      "name": "Murlo",
+      "type": "station",
+      "latitude": 43.1139945,
+      "longitude": 11.4003638,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "11017544055",
+      "name": "Ponte a Tressa",
+      "type": "station",
+      "latitude": 43.2508434,
+      "longitude": 11.3963648,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "11163454919",
+      "name": "Montepulciano",
+      "type": "station",
+      "latitude": 43.1354034,
+      "longitude": 11.8568548,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "11178398436",
+      "name": "Castelnuovo Berardenga",
+      "type": "station",
+      "latitude": 43.3068914,
+      "longitude": 11.484962,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "11197412561",
+      "name": "Rigomagno",
+      "type": "station",
+      "latitude": 43.2567685,
+      "longitude": 11.7065044,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "11200670691",
+      "name": "Torrita di Siena",
+      "type": "station",
+      "latitude": 43.1741673,
+      "longitude": 11.7876781,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "11210651928",
+      "name": "Buonconvento",
+      "type": "station",
+      "latitude": 43.1355089,
+      "longitude": 11.4837476,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "11210651929",
+      "name": "Monte Antico",
+      "type": "station",
+      "latitude": 42.9812192,
+      "longitude": 11.3598288,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "11210651930",
+      "name": "Civitella Paganico",
+      "type": "station",
+      "latitude": 42.9402519,
+      "longitude": 11.2831712,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "11279564967",
+      "name": "Sinalunga",
+      "type": "station",
+      "latitude": 43.2165622,
+      "longitude": 11.744873,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "11300332514",
+      "name": "Rapolano Terme",
+      "type": "station",
+      "latitude": 43.2833255,
+      "longitude": 11.6025287,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "11346824888",
+      "name": "Asciano M. Oliveto M.",
+      "type": "station",
+      "latitude": 43.2317101,
+      "longitude": 11.5636348,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "11539665527",
+      "name": "Siena",
+      "type": "station",
+      "latitude": 43.3316658,
+      "longitude": 11.3229024,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "11736267575",
+      "name": "Nuovo Salario",
+      "type": "station",
+      "latitude": 41.955431,
+      "longitude": 12.5102916,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "11833342067",
+      "name": "Arbia",
+      "type": "station",
+      "latitude": 43.2943886,
+      "longitude": 11.4062216,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "12055468701",
+      "name": "Massarosa Bozzano",
+      "type": "station",
+      "latitude": 43.8590688,
+      "longitude": 10.3461331,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "12055485733",
+      "name": "Pisa Centrale",
+      "type": "interchange",
+      "latitude": 43.7081266,
+      "longitude": 10.3982347,
+      "platform_count": 10,
+      "capacity": 20
+    },
+    {
+      "id": "12055485744",
+      "name": "Rigoli",
+      "type": "station",
+      "latitude": 43.7896228,
+      "longitude": 10.4197654,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "12188892204",
+      "name": "Sticciano",
+      "type": "station",
+      "latitude": 42.9293625,
+      "longitude": 11.1186508,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "12229828383",
+      "name": "Monte Sante Marie",
+      "type": "station",
+      "latitude": 43.2722901,
+      "longitude": 11.5395697,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "12290187001",
+      "name": "Roma Tiburtina",
+      "type": "station",
+      "latitude": 41.9109636,
+      "longitude": 12.5312501,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "12290187002",
+      "name": "Roma Tiburtina",
+      "type": "station",
+      "latitude": 41.9108661,
+      "longitude": 12.5311556,
+      "platform_count": 2,
+      "capacity": 5
+    },
+    {
+      "id": "12885901058",
+      "name": "Roma Nomentana",
+      "type": "station",
+      "latitude": 41.9326878,
+      "longitude": 12.5232674,
+      "platform_count": 2,
+      "capacity": 5
+    }
+  ],
+  "edges": [
+    {
+      "from": "441184820",
+      "to": "246838021",
+      "distance": 8.19,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "7788645472",
+      "to": "6738842243",
+      "distance": 8.93,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "6738842243",
+      "to": "4449687703",
+      "distance": 243.65,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "4449687703",
+      "to": "8033523322",
+      "distance": 101.94,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523322",
+      "to": "8987989083",
+      "distance": 290.43,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8987989084",
+      "to": "8033523321",
+      "distance": 290.42,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523321",
+      "to": "4449687702",
+      "distance": 101.94,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "4449687702",
+      "to": "6738842244",
+      "distance": 243.65,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "6738842244",
+      "to": "7788645473",
+      "distance": 8.93,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8050171082",
+      "to": "6738842245",
+      "distance": 8.03,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "6738842245",
+      "to": "4449687703",
+      "distance": 243.66,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "2337314768",
+      "to": "4449687703",
+      "distance": 74.45,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "8033523322",
+      "to": "8987989082",
+      "distance": 290.43,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "4449687702",
+      "to": "8050171083",
+      "distance": 250.34,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "8987989081",
+      "to": "251904108",
+      "distance": 0.5,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "251904108",
+      "to": "8033523321",
+      "distance": 290.45,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "4449687702",
+      "to": "2337314768",
+      "distance": 74.45,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "2337314768",
+      "to": "9415074068",
+      "distance": 298.23,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "9415074068",
+      "to": "2043486426",
+      "distance": 1.94,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "8987989081",
+      "to": "8033523321",
+      "distance": 290.44,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "2031789843",
+      "to": "1367073561",
+      "distance": 1.95,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "1367073561",
+      "to": "4449687703",
+      "distance": 371.1,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "8987989082",
+      "to": "9126486953",
+      "distance": 235.2,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "1406273022",
+      "to": "1137140534",
+      "distance": 4.91,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1137140534",
+      "to": "1137140415",
+      "distance": 2.33,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1137140415",
+      "to": "748805394",
+      "distance": 2.58,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "748805394",
+      "to": "1137140357",
+      "distance": 1.75,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1137140357",
+      "to": "1757252662",
+      "distance": 3.41,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1757252662",
+      "to": "1757252664",
+      "distance": 3.85,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1757252664",
+      "to": "1406178346",
+      "distance": 3.0,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1406178346",
+      "to": "1757252661",
+      "distance": 3.44,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1757252661",
+      "to": "748805398",
+      "distance": 2.68,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "748805398",
+      "to": "1757252660",
+      "distance": 4.7,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1757252660",
+      "to": "1757252669",
+      "distance": 3.71,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1757252669",
+      "to": "748801512",
+      "distance": 4.08,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "748801512",
+      "to": "748801510",
+      "distance": 2.77,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "748801510",
+      "to": "1757252656",
+      "distance": 0.92,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1757252656",
+      "to": "748223061",
+      "distance": 3.7,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "748223061",
+      "to": "748222862",
+      "distance": 2.27,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "748222862",
+      "to": "748801508",
+      "distance": 1.98,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "748801508",
+      "to": "748065622",
+      "distance": 2.86,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "748065622",
+      "to": "1757252647",
+      "distance": 5.92,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1757252647",
+      "to": "703420856",
+      "distance": 1.85,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "703420856",
+      "to": "1458148478",
+      "distance": 1.41,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1458148478",
+      "to": "747961130",
+      "distance": 1.96,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "747961130",
+      "to": "1757252648",
+      "distance": 3.64,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1757252648",
+      "to": "1303122117",
+      "distance": 2.35,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1303122117",
+      "to": "703147336",
+      "distance": 5.52,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "703147336",
+      "to": "1757252654",
+      "distance": 2.23,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1757252654",
+      "to": "747961259",
+      "distance": 1.77,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "747961259",
+      "to": "747752115",
+      "distance": 1.13,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1137140534",
+      "to": "1406202231",
+      "distance": 1.65,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1406202231",
+      "to": "3403946641",
+      "distance": 5.53,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "3403946641",
+      "to": "1406273022",
+      "distance": 1.45,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8987989070",
+      "to": "251904108",
+      "distance": 0.5,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "251904108",
+      "to": "10696075512",
+      "distance": 77.26,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "10696075512",
+      "to": "4818907096",
+      "distance": 179.1,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "4818907096",
+      "to": "1777874068",
+      "distance": 147.07,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "1777874068",
+      "to": "1262114259",
+      "distance": 34.45,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "1262114259",
+      "to": "203592307",
+      "distance": 56.52,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "203592307",
+      "to": "82739131",
+      "distance": 10.36,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "82739131",
+      "to": "36899984",
+      "distance": 29.29,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "36899984",
+      "to": "1777874067",
+      "distance": 2.94,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "1777874067",
+      "to": "4131026718",
+      "distance": 185.49,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "4131026718",
+      "to": "2849575835",
+      "distance": 45.22,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "2034469373",
+      "to": "36899984",
+      "distance": 3.01,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "4818907096",
+      "to": "1420849972",
+      "distance": 179.1,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "1420849972",
+      "to": "251904108",
+      "distance": 77.26,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "251904108",
+      "to": "4131026718",
+      "distance": 318.97,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "4131026718",
+      "to": "2849575836",
+      "distance": 45.22,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "1126326012",
+      "to": "3442630078",
+      "distance": 73.41,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "3442630078",
+      "to": "3002611819",
+      "distance": 16.32,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "3002611819",
+      "to": "9563554591",
+      "distance": 9.54,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "3516310791",
+      "to": "306836661",
+      "distance": 65.31,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2363324103",
+      "to": "59841641",
+      "distance": 21.02,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "59841641",
+      "to": "1887932187",
+      "distance": 8.94,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1887932187",
+      "to": "59841572",
+      "distance": 26.96,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "59841572",
+      "to": "59841581",
+      "distance": 9.65,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "59841581",
+      "to": "10997180076",
+      "distance": 35.13,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "10997180076",
+      "to": "11017544055",
+      "distance": 3.73,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "11017544055",
+      "to": "11017544050",
+      "distance": 19.03,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "11017544050",
+      "to": "11017417543",
+      "distance": 21.15,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "11017417543",
+      "to": "2363324102",
+      "distance": 2.83,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2363324102",
+      "to": "215643342",
+      "distance": 3.73,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "215643342",
+      "to": "11210651928",
+      "distance": 14.66,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "11210651928",
+      "to": "11210651929",
+      "distance": 24.87,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "11210651929",
+      "to": "11210651930",
+      "distance": 9.66,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "11210651930",
+      "to": "59841450",
+      "distance": 9.47,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "59841450",
+      "to": "7221575566",
+      "distance": 0.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "7221575566",
+      "to": "12188892204",
+      "distance": 8.53,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "12188892204",
+      "to": "215643337",
+      "distance": 0.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "215643337",
+      "to": "2439182834",
+      "distance": 9.72,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2439182834",
+      "to": "4951815425",
+      "distance": 0.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "4951815425",
+      "to": "4247354854",
+      "distance": 14.72,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "4247354854",
+      "to": "755794829",
+      "distance": 0.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "755794829",
+      "to": "3809370226",
+      "distance": 81.47,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "3809370226",
+      "to": "4247300934",
+      "distance": 0.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "4247300934",
+      "to": "9906307684",
+      "distance": 0.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "9906307684",
+      "to": "4247300936",
+      "distance": 0.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "4247300936",
+      "to": "11539665527",
+      "distance": 0.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "306836661",
+      "to": "11833342067",
+      "distance": 9.89,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "11833342067",
+      "to": "11178398436",
+      "distance": 8.15,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "11178398436",
+      "to": "12229828383",
+      "distance": 7.32,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "12229828383",
+      "to": "11346824888",
+      "distance": 6.14,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "11346824888",
+      "to": "496122823",
+      "distance": 1.73,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "496122823",
+      "to": "11300332514",
+      "distance": 7.02,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "11300332514",
+      "to": "11197412561",
+      "distance": 11.15,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "11197412561",
+      "to": "11279564967",
+      "distance": 6.81,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "11279564967",
+      "to": "11200670691",
+      "distance": 7.32,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "11200670691",
+      "to": "11163454919",
+      "distance": 8.84,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "11163454919",
+      "to": "4252569335",
+      "distance": 21.13,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "9067798505",
+      "to": "8758938262",
+      "distance": 15.2,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8758938262",
+      "to": "1324082151",
+      "distance": 4.84,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1324082151",
+      "to": "1324082169",
+      "distance": 4.07,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1324082169",
+      "to": "1324082122",
+      "distance": 5.62,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1324082122",
+      "to": "733941988",
+      "distance": 4.71,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "733941988",
+      "to": "733941910",
+      "distance": 3.83,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "733941910",
+      "to": "9644291709",
+      "distance": 2.84,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "9644291709",
+      "to": "7006318402",
+      "distance": 2.31,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "7006318402",
+      "to": "7006318401",
+      "distance": 6.53,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "7006318401",
+      "to": "8600443885",
+      "distance": 12.29,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8600443885",
+      "to": "600037902",
+      "distance": 13.22,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "600037902",
+      "to": "3917198201",
+      "distance": 17.84,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "3917198201",
+      "to": "8600444949",
+      "distance": 2.18,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "4810622155",
+      "to": "4818907098",
+      "distance": 5.46,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "4818907098",
+      "to": "3660322439",
+      "distance": 9.99,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "4818907099",
+      "to": "4182215307",
+      "distance": 10.0,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "4182215307",
+      "to": "4810622155",
+      "distance": 5.46,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2802455268",
+      "to": "1835203780",
+      "distance": 129.45,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1835203780",
+      "to": "2546319915",
+      "distance": 2.92,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2546319915",
+      "to": "8033523329",
+      "distance": 0.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523329",
+      "to": "5739603870",
+      "distance": 3.45,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "5739603870",
+      "to": "324248585",
+      "distance": 0.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "324248585",
+      "to": "8033523332",
+      "distance": 5.35,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523332",
+      "to": "1397057661",
+      "distance": 3.79,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1397057661",
+      "to": "8033523339",
+      "distance": 4.94,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523339",
+      "to": "8033523338",
+      "distance": 5.44,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523338",
+      "to": "8033523313",
+      "distance": 3.43,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523313",
+      "to": "8033523312",
+      "distance": 9.04,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523312",
+      "to": "8033523311",
+      "distance": 5.18,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523311",
+      "to": "8033523310",
+      "distance": 9.44,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523310",
+      "to": "8033523309",
+      "distance": 6.77,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523309",
+      "to": "8033523308",
+      "distance": 8.25,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523308",
+      "to": "8033523307",
+      "distance": 4.86,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523307",
+      "to": "5640374304",
+      "distance": 6.02,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "5640374304",
+      "to": "8033523306",
+      "distance": 16.28,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523306",
+      "to": "8033523305",
+      "distance": 17.13,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523305",
+      "to": "8033523304",
+      "distance": 12.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523304",
+      "to": "8033523303",
+      "distance": 7.95,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523303",
+      "to": "8033523302",
+      "distance": 12.39,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523302",
+      "to": "2802455265",
+      "distance": 47.04,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2802455265",
+      "to": "8033523299",
+      "distance": 0.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523299",
+      "to": "8033523288",
+      "distance": 12.55,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523288",
+      "to": "4975968974",
+      "distance": 15.24,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "4975968974",
+      "to": "8033523298",
+      "distance": 0.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523298",
+      "to": "8033523297",
+      "distance": 8.27,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523297",
+      "to": "4976000295",
+      "distance": 10.89,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "4976000295",
+      "to": "8033523296",
+      "distance": 0.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523296",
+      "to": "2047449892",
+      "distance": 24.17,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2047449892",
+      "to": "354009522",
+      "distance": 4.99,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "354009522",
+      "to": "255247257",
+      "distance": 9.83,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "255247257",
+      "to": "776073475",
+      "distance": 4.82,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "776073475",
+      "to": "776073487",
+      "distance": 4.67,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "776073487",
+      "to": "776073651",
+      "distance": 5.02,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "776073651",
+      "to": "1409788555",
+      "distance": 12.13,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1409788555",
+      "to": "301812613",
+      "distance": 7.44,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "301812613",
+      "to": "3503568106",
+      "distance": 6.64,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "3503568106",
+      "to": "1313285466",
+      "distance": 14.86,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1313285466",
+      "to": "610236330",
+      "distance": 3.31,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "610236330",
+      "to": "12290187001",
+      "distance": 6.55,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "12290187001",
+      "to": "251904108",
+      "distance": 3.3,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "251904108",
+      "to": "8033523300",
+      "distance": 163.04,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523300",
+      "to": "7555622304",
+      "distance": 91.05,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8987989088",
+      "to": "12290187002",
+      "distance": 3.18,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "12290187002",
+      "to": "12885901058",
+      "distance": 3.14,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "12885901058",
+      "to": "11736267575",
+      "distance": 3.43,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "11736267575",
+      "to": "1313285466",
+      "distance": 3.31,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "3503568106",
+      "to": "1409789378",
+      "distance": 6.64,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1409789378",
+      "to": "1765204821",
+      "distance": 7.45,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1765204821",
+      "to": "1409788555",
+      "distance": 0.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1409788555",
+      "to": "2802455262",
+      "distance": 12.13,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2802455262",
+      "to": "1409790041",
+      "distance": 5.01,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1409790041",
+      "to": "8033523290",
+      "distance": 4.66,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523290",
+      "to": "1409790301",
+      "distance": 4.82,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1409790301",
+      "to": "1409790626",
+      "distance": 9.84,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1409790626",
+      "to": "1409790788",
+      "distance": 4.98,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1409790788",
+      "to": "2047449892",
+      "distance": 0.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2047449892",
+      "to": "381991452",
+      "distance": 24.17,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "381991452",
+      "to": "879858267",
+      "distance": 10.89,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "879858267",
+      "to": "444581393",
+      "distance": 8.27,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "444581393",
+      "to": "8033523287",
+      "distance": 15.23,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523287",
+      "to": "2802455264",
+      "distance": 12.56,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2802455264",
+      "to": "8033523299",
+      "distance": 0.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523299",
+      "to": "880882003",
+      "distance": 12.56,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "880882003",
+      "to": "8033523301",
+      "distance": 34.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523301",
+      "to": "8033523302",
+      "distance": 0.5,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "324248585",
+      "to": "8033523329",
+      "distance": 3.45,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8033523329",
+      "to": "1835203780",
+      "distance": 2.94,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1835203780",
+      "to": "881535511",
+      "distance": 129.45,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "881535511",
+      "to": "7062906166",
+      "distance": 91.02,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "6063640080",
+      "to": "4449687703",
+      "distance": 161.58,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "4449687702",
+      "to": "6063640080",
+      "distance": 161.59,
+      "trackType": "highSpeed",
+      "maxSpeed": 250,
+      "capacity": 10
+    },
+    {
+      "from": "1654971118",
+      "to": "1452724488",
+      "distance": 4.8,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1452724488",
+      "to": "2578699506",
+      "distance": 61.39,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2578699506",
+      "to": "2524127381",
+      "distance": 86.64,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2524127381",
+      "to": "256079576",
+      "distance": 69.44,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "256079576",
+      "to": "2507165938",
+      "distance": 117.41,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2507165938",
+      "to": "495560462",
+      "distance": 27.85,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "495560462",
+      "to": "6063641889",
+      "distance": 194.72,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "6063641889",
+      "to": "4449687703",
+      "distance": 161.22,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "4449687702",
+      "to": "1449334230",
+      "distance": 354.77,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1449334230",
+      "to": "2507165938",
+      "distance": 27.85,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2507165938",
+      "to": "2523746555",
+      "distance": 117.4,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2523746555",
+      "to": "2524127386",
+      "distance": 69.49,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2524127386",
+      "to": "2578699504",
+      "distance": 86.58,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2578699504",
+      "to": "6025928112",
+      "distance": 66.31,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "3809370226",
+      "to": "9029485097",
+      "distance": 65.3,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "8987989089",
+      "to": "3660322439",
+      "distance": 138.84,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "9563554591",
+      "to": "12055468701",
+      "distance": 9.54,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "12055468701",
+      "to": "3442630078",
+      "distance": 16.32,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "12055485733",
+      "to": "2349204996",
+      "distance": 2.33,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2349204996",
+      "to": "2636661764",
+      "distance": 7.6,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2636661764",
+      "to": "1682426642",
+      "distance": 3.84,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1682426642",
+      "to": "1688415708",
+      "distance": 4.47,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1688415708",
+      "to": "4253273274",
+      "distance": 9.31,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1688415708",
+      "to": "12055485744",
+      "distance": 4.48,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "12055485744",
+      "to": "504922952",
+      "distance": 3.84,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "504922952",
+      "to": "2349204992",
+      "distance": 7.6,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "2349204992",
+      "to": "12055485733",
+      "distance": 2.32,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "4252569336",
+      "to": "11163454919",
+      "distance": 21.13,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "1262114259",
+      "to": "5833462598",
+      "distance": 7.86,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "5833462598",
+      "to": "5834276087",
+      "distance": 4.76,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "5834276087",
+      "to": "5836455238",
+      "distance": 10.69,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    },
+    {
+      "from": "5836455238",
+      "to": "5834005944",
+      "distance": 19.09,
+      "trackType": "single",
+      "maxSpeed": 140,
+      "capacity": 10
+    }
+  ],
+  "lines": [
+    {
+      "id": "L_255831",
+      "name": "Treno Regionale Borgo San Lorenzo <=> Pontassieve",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "441184820",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "246838021",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_2179065",
+      "name": ".italo (Milano Porta Garibaldi \u2192 Napoli Centrale)",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "7788645472",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "6738842243",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4449687703",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523322",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8987989083",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_2179066",
+      "name": ".italo (Napoli Centrale \u2192 Milano Porta Garibaldi)",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "8987989084",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523321",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4449687702",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "6738842244",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "7788645473",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_2179315",
+      "name": "Frecciarossa (Milano Centrale \u2192 Napoli Centrale)",
+      "color": "#FF0000",
+      "stops": [
+        {
+          "stationId": "8050171082",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "6738842245",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4449687703",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523322",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8987989083",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_2179316",
+      "name": "Frecciarossa (Milano Centrale \u2192 Salerno)",
+      "color": "#FF0000",
+      "stops": [
+        {
+          "stationId": "2337314768",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4449687703",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523322",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8987989082",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_2179317",
+      "name": "Frecciarossa (Napoli Centrale \u2192 Milano Centrale)",
+      "color": "#FF0000",
+      "stops": [
+        {
+          "stationId": "8987989084",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523321",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4449687702",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8050171083",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_2179318",
+      "name": "Frecciarossa (Napoli Centrale \u2192 Torino Porta Nuova)",
+      "color": "#FF0000",
+      "stops": [
+        {
+          "stationId": "8987989081",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "251904108",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523321",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4449687702",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2337314768",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "9415074068",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2043486426",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_2179319",
+      "name": "Frecciarossa (Salerno \u2192 Milano Centrale)",
+      "color": "#FF0000",
+      "stops": [
+        {
+          "stationId": "8987989081",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523321",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4449687702",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8050171083",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_2179320",
+      "name": "Frecciarossa (Torino Porta Nuova \u2192 Napoli Centrale)",
+      "color": "#FF0000",
+      "stops": [
+        {
+          "stationId": "2031789843",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1367073561",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4449687703",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523322",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8987989082",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "9126486953",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_2189097",
+      "name": "FCU (Perugia Sant'Anna => Sansepolcro)",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "1406273022",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1137140534",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1137140415",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "748805394",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1137140357",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252662",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252664",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1406178346",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252661",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "748805398",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252660",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252669",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "748801512",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "748801510",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252656",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "748223061",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "748222862",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "748801508",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "748065622",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252647",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "703420856",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1458148478",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "747961130",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252648",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1303122117",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "703147336",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252654",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "747961259",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "747752115",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_2189098",
+      "name": "FCU (Sansepolcro => Perugia Sant'Anna)",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "747752115",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "747961259",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252654",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "703147336",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1303122117",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252648",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "747961130",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1458148478",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "703420856",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252647",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "748065622",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "748801508",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "748222862",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "748223061",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252656",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "748801510",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "748801512",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252669",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252660",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "748805398",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252661",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1406178346",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252664",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1757252662",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1137140357",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "748805394",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1137140415",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1137140534",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1406202231",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "3403946641",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1406273022",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_2215519",
+      "name": "Frecciabianca (Roma Termini \u2192 Genova Piazza Principe)",
+      "color": "#FF0000",
+      "stops": [
+        {
+          "stationId": "8987989070",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "251904108",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "10696075512",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4818907096",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1777874068",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1262114259",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "203592307",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "82739131",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "36899984",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1777874067",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4131026718",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2849575835",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_2216863",
+      "name": "Frecciabianca (Genova Piazza Principe \u2192 Roma Termini)",
+      "color": "#FF0000",
+      "stops": [
+        {
+          "stationId": "2034469373",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "36899984",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "82739131",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "203592307",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1262114259",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1777874068",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4818907096",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1420849972",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "251904108",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4131026718",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2849575836",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_2232903",
+      "name": ".italo (Milano Porta Garibaldi \u2192 Roma Ostiense)",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "7788645472",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "6738842243",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4449687703",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523322",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_2232904",
+      "name": ".italo (Roma Ostiense \u2192 Milano Porta Garibaldi)",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "8033523321",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4449687702",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "6738842244",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "7788645473",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_2578063",
+      "name": "Linea Firenze-Lucca",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "1126326012",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "3442630078",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_3152297",
+      "name": "Lucca - Viareggio",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "3442630078",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "3002611819",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "9563554591",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_6320716",
+      "name": "Treno Empoli => Siena",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "3516310791",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "306836661",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_6320852",
+      "name": "Treno Grosseto => Siena",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "2363324103",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "59841641",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1887932187",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "59841572",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "59841581",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "10997180076",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11017544055",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11017544050",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11017417543",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2363324102",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "215643342",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11210651928",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11210651929",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11210651930",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "59841450",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "7221575566",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "12188892204",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "215643337",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2439182834",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4951815425",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4247354854",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "755794829",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "3809370226",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4247300934",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "9906307684",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4247300936",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11539665527",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_6320853",
+      "name": "Treno Siena => Chiusi-Chianciano Terme",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "306836661",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11833342067",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11178398436",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "12229828383",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11346824888",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "496122823",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11300332514",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11197412561",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11279564967",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11200670691",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11163454919",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4252569335",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_6332675",
+      "name": "Treno R: Faenza => Firenze Santa Maria Novella",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "9067798505",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8758938262",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1324082151",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1324082169",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1324082122",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "733941988",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "733941910",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "9644291709",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "7006318402",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "7006318401",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8600443885",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "600037902",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "3917198201",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8600444949",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_6333443",
+      "name": "train: Campiglia Marittima => Piombino Marittima",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "4810622155",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4818907098",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "3660322439",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_7191951",
+      "name": "train: Piombino Marittima => Campiglia Marittima",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "4818907099",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4182215307",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4810622155",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_11780981",
+      "name": "Ferrovia Roma Firenze",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "2802455268",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1835203780",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2546319915",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523329",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "5739603870",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "324248585",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523332",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1397057661",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523339",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523338",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523313",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523312",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523311",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523310",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523309",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523308",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523307",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "5640374304",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523306",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523305",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523304",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523303",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523302",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2802455265",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523299",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523288",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4975968974",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523298",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523297",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4976000295",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523296",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2047449892",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "354009522",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "255247257",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "776073475",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "776073487",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "776073651",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1409788555",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "301812613",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "3503568106",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1313285466",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "610236330",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "12290187001",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "251904108",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523300",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "7555622304",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_11780982",
+      "name": "Ferrovia Roma Firenze",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "8987989088",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "12290187002",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "12885901058",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11736267575",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1313285466",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "3503568106",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1409789378",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1765204821",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1409788555",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2802455262",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1409790041",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523290",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1409790301",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1409790626",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1409790788",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2047449892",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "381991452",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "879858267",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "444581393",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523287",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2802455264",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523299",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "880882003",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523301",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523302",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523303",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523304",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523305",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523306",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "5640374304",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523307",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523308",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523309",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523310",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523311",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523312",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523313",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523338",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523339",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1397057661",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523332",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "324248585",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523329",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1835203780",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "881535511",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "7062906166",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_12914903",
+      "name": "Frecciarossa: Venezia => Roma",
+      "color": "#FF0000",
+      "stops": [
+        {
+          "stationId": "6063640080",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4449687703",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523322",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8987989083",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_12914904",
+      "name": "Frecciarossa: Roma => Venezia",
+      "color": "#FF0000",
+      "stops": [
+        {
+          "stationId": "8987989084",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523321",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4449687702",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "6063640080",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_13065547",
+      "name": "NJ 295: M\u00fcnchen => Rom",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "1654971118",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1452724488",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2578699506",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2524127381",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "256079576",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2507165938",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "495560462",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "6063641889",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4449687703",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523322",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8987989083",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_13065784",
+      "name": "NJ 294: Rom => M\u00fcnchen",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "8987989084",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "8033523321",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4449687702",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1449334230",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2507165938",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2523746555",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2524127386",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2578699504",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "6025928112",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_13716009",
+      "name": "Treno Siena => Empoli",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "3809370226",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "9029485097",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_15515462",
+      "name": "Firenze \u2192 Piombino Marittima",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "8987989089",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "3660322439",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_17839609",
+      "name": "Viareggio \u2013 Lucca",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "9563554591",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "12055468701",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "3442630078",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_17839891",
+      "name": "Pisa \u2013 Lucca",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "12055485733",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2349204996",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2636661764",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1682426642",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1688415708",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4253273274",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_17839892",
+      "name": "Lucca - Pisa",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "4253273274",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1688415708",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "12055485744",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "504922952",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2349204992",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "12055485733",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_18071575",
+      "name": "Treno Siena => Grosseto",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "2363324103",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "59841641",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "1887932187",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "59841572",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "59841581",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "10997180076",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11017544055",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11017544050",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11017417543",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2363324102",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "215643342",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11210651928",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11210651929",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11210651930",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "59841450",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "7221575566",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "12188892204",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "215643337",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "2439182834",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4951815425",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4247354854",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "755794829",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "3809370226",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4247300934",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "9906307684",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "4247300936",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11539665527",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_18131107",
+      "name": "Treno Chiusi-Chianciano Terme => Siena",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "4252569336",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11163454919",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11200670691",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11279564967",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11197412561",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11300332514",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "496122823",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11346824888",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "12229828383",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11178398436",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "11833342067",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "306836661",
+          "minDwellTime": 3
+        }
+      ]
+    },
+    {
+      "id": "L_19196992",
+      "name": "da Aulla a La Spezia centrale Regionale",
+      "color": "#0000FF",
+      "stops": [
+        {
+          "stationId": "1262114259",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "5833462598",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "5834276087",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "5836455238",
+          "minDwellTime": 3
+        },
+        {
+          "stationId": "5834005944",
+          "minDwellTime": 3
+        }
+      ]
+    }
+  ],
+  "trains": []
+}

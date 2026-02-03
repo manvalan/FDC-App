@@ -7,35 +7,16 @@ import uuid
 import time
 
 # Configurazione
-FILENAME = "ToscanaLiguriaEmilia.rail"
+# Configurazione
+FILENAME = "Toscana.rail"
 OVERPASS_URL = "https://lz4.overpass-api.de/api/interpreter"
 
 # Queries separate per evitare timeout
 QUERIES = [
-    # 1. Toscana
+    # 1. Toscana (Espande a La Spezia/Roma tramite relazioni)
     """
     [out:json][timeout:300];
     area(3600041977)->.searchArea;
-    relation["route"="train"](area.searchArea)->.rels;
-    .rels out;
-    node(r.rels)->.nodesOfRels;
-    node.nodesOfRels["railway"~"station|halt|stop"]->.stations;
-    .stations out;
-    """,
-    # 2. Liguria
-    """
-    [out:json][timeout:300];
-    area(3600041854)->.searchArea;
-    relation["route"="train"](area.searchArea)->.rels;
-    .rels out;
-    node(r.rels)->.nodesOfRels;
-    node.nodesOfRels["railway"~"station|halt|stop"]->.stations;
-    .stations out;
-    """,
-    # 3. Emilia-Romagna (Intera Regione)
-    """
-    [out:json][timeout:300];
-    area(3600042611)->.searchArea;
     relation["route"="train"](area.searchArea)->.rels;
     .rels out;
     node(r.rels)->.nodesOfRels;
@@ -213,7 +194,7 @@ def main():
     
     # Root Structure (RailwayNetworkDTO for .rail)
     final_output = {
-        "name": "Toscana Liguria Emilia",
+        "name": "Toscana",
         "nodes": list(fdc_nodes.values()),
         "edges": output_edges,
         "lines": output_lines,
