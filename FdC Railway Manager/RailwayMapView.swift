@@ -653,10 +653,11 @@ struct SchematicRailwayView: View {
                 
                 // ScrollView for native scrolling/panning
                 ScrollView([.horizontal, .vertical], showsIndicators: true) {
-                    let canvasSize = CGSize(
-                        width: max(geo.size.width * totalZoom, geo.size.width),
-                        height: max(geo.size.height * totalZoom, geo.size.height)
-                    )
+                    ScrollViewReader { proxy in
+                        let canvasSize = CGSize(
+                            width: max(geo.size.width * totalZoom, geo.size.width),
+                            height: max(geo.size.height * totalZoom, geo.size.height)
+                        )
                     let bounds = self.mapBounds
                     
                     ZStack(alignment: .topLeading) {
@@ -694,6 +695,16 @@ struct SchematicRailwayView: View {
                             }
                         }
                         .contentShape(Rectangle())
+                        
+                        .contentShape(Rectangle())
+                        
+                        // Invisible Anchors for Scrolling
+                        ForEach(network.nodes) { node in
+                             Color.clear
+                                 .frame(width: 1, height: 1)
+                                 .position(finalPosition(for: node, in: canvasSize, bounds: bounds))
+                                 .id("node-\(node.id)")
+                        }
                         
                         // 1. Draw Map Content
                         Canvas { context, size in

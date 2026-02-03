@@ -6,83 +6,93 @@ struct CreditsView: View {
     
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 30) {
-                    // Header with Larger Splash Image
-                    VStack {
-                        Image("SplashImage")
+            List {
+                // Header Section
+                Section {
+                    VStack(spacing: 20) {
+                        Image("SplashImage") // Ensure this asset exists, or use a system placeholder if unsure
                             .resizable()
                             .scaledToFit()
-                            .frame(maxWidth: 400)
-                            .shadow(radius: 10)
+                            .frame(height: 120)
+                            .shadow(radius: 8)
+                            .padding(.vertical, 10)
                         
                         Text("FdC Railway Manager")
                             .font(.system(size: 28, weight: .bold, design: .rounded))
-                            .padding(.top, 10)
-                    }
-                    .padding(.top, 40)
-                    
-                    VStack(spacing: 15) {
-                        Text("developed_by".localized)
-                            .font(.headline)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.primary)
                         
-                        Text("Michele Bigi")
-                            .font(.title2.bold())
-                        
-                        Divider()
-                            .padding(.horizontal, 60)
-                        
-                        Text(String(format: "version_label".localized, "1.2.0"))
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 20) {
-                        Text("project_info_title".localized)
-                            .font(.title3.bold())
-                        
-                        Text("project_description".localized)
+                        Text("Gestione avanzata e simulazione\ndel traffico ferroviario")
                             .font(.body)
-                            .foregroundColor(.primary)
-                            .lineSpacing(5)
-                        
-                        Text("technologies_used".localized)
-                            .font(.headline)
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            labelPair(icon: "swift", title: "SwiftUI", description: "reactive_interface".localized)
-                            labelPair(icon: "brain.head.profile", title: "RailwayAI", description: "ml_optimization".localized)
-                            labelPair(icon: "map.fill", title: "MapKit", description: "geographic_visualization".localized)
-                        }
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
                     }
-                    .padding(.horizontal, 30)
+                    .frame(maxWidth: .infinity)
+                    .listRowBackground(Color.clear)
+                }
+                
+                // Developer Section
+                Section("Sviluppo") {
+                    HStack {
+                        Text("Progettato e Sviluppato da")
+                        Spacer()
+                        Text("Michele Bigi")
+                            .bold()
+                            .foregroundStyle(.primary)
+                    }
+                    HStack {
+                        Text("Versione")
+                        Spacer()
+                        Text("1.2.0")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                // Technologies Section
+                Section(header: Text("Tecnologie Utilizzate"), footer: Text("L'architettura unisce la potenza nativa di Swift con l'intelligenza di Python.")) {
+                    technologyRow(name: "SwiftUI & Combine", icon: "swift", color: .orange)
+                    technologyRow(name: "Python Backend", icon: "server.rack", color: .blue)
+                    technologyRow(name: "Overpass API", icon: "map", color: .green)
+                    technologyRow(name: "TorchScript & PyTorch", icon: "brain.head.profile", color: .purple)
+                }
+                
+                // Links Section
+                Section("Informazioni Legali") {
+                    Link(destination: URL(string: "https://railway-ai.michelebigi.it")!) {
+                        Label("Railway-AI Portal", systemImage: "globe")
+                    }
                     
-                    Spacer(minLength: 50)
-                }
-            }
-            .background(Color(UIColor.systemGroupedBackground))
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("close".localized) {
-                        dismiss()
+                    Link(destination: URL(string: "https://railway-ai.michelebigi.it/disclaimer")!) { // Assuming disclaimer path
+                        Label("Disclaimer & Termini", systemImage: "exclamationmark.shield")
                     }
                 }
+                
+                Section {
+                    Text("Questa applicazione utilizza dati geografici e ferroviari a scopo dimostrativo e di simulazione. L'uso dell'Intelligenza Artificiale per l'ottimizzazione è sperimentale.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
-            .navigationTitle("credits".localized)
+            .listStyle(.insetGrouped)
+            .navigationTitle("Info")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Chiudi") { dismiss() }
+                }
+            }
         }
     }
     
-    private func labelPair(icon: String, title: String, description: String) -> some View {
-        HStack(spacing: 15) {
+    private func technologyRow(name: String, icon: String, color: Color) -> some View {
+        HStack {
             Image(systemName: icon)
-                .foregroundColor(.blue)
-                .frame(width: 25)
-            VStack(alignment: .leading) {
-                Text(title).bold()
-                Text(description).font(.caption).foregroundColor(.secondary)
-            }
+                .foregroundStyle(.white)
+                .frame(width: 30, height: 30)
+                .background(color.gradient)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            
+            Text(name)
+                .font(.body)
         }
     }
 }

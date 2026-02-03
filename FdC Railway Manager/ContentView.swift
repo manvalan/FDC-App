@@ -221,7 +221,7 @@ struct ContentView: View {
                     connectionIndicator
                 }
                 
-                exportMenu
+                // exportMenu removed
                 
                 Button(action: { showCredits = true }) {
                     Image(systemName: "info.circle")
