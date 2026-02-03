@@ -81,13 +81,16 @@ struct LineTableView: View {
                             }
                             
                             VStack(spacing: 2) {
-                                if let arr = cellData?.0 {
-                                    Text("A: " + formatTime(arr))
+                                let isFirstStop = train.stops.first?.stationId == station.id
+                                let trainStart = train.stops.first?.departure ?? train.departureTime
+                                if let arr = cellData?.0, !isFirstStop {
+                                    Text("A: " + formatTime(arr, ref: trainStart))
                                         .font(.caption2)
                                         .foregroundColor(isConflict ? .white : .green)
                                 }
-                                if let dep = cellData?.1 {
-                                    Text("P: " + formatTime(dep))
+                                let isLastStop = train.stops.last?.stationId == station.id
+                                if let dep = cellData?.1, !isLastStop {
+                                    Text("P: " + formatTime(dep, ref: trainStart))
                                         .font(.caption2)
                                         .foregroundColor(isConflict ? .white : .blue)
                                 }
@@ -123,11 +126,20 @@ struct LineTableView: View {
         }
     }
     
-    private func formatTime(_ date: Date) -> String {
+    private func formatTime(_ date: Date, ref: Date? = nil) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
-        formatter.timeZone = TimeZone(secondsFromGMT: 0) // SYNC UTC
-        return formatter.string(from: date)
+        
+        var str = formatter.string(from: date)
+        if let r = ref {
+            let cal = Calendar.current
+            if !cal.isDate(date, inSameDayAs: r) {
+                 let diff = cal.dateComponents([.day], from: r, to: date).day ?? 0
+                 if diff > 0 { str += " (+\(diff))" }
+                 else if diff < 0 { str += " (\(diff))" }
+            }
+        }
+        return str
     }
     
     private func calculateScheduleTable() {
