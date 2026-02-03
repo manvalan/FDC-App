@@ -1,0 +1,271 @@
+{
+  "formatVersion": "1.0",
+  "qualifier": "FDC_RAIL_V1",
+  "metadata": {
+    "createdBy": "Python Script (Nominatim)",
+    "createdAt": "2026-01-29T14:00:00Z",
+    "description": "Rete generata automaticamente con dati reali (Toscana/Liguria)"
+  },
+  "network": {
+    "name": "Toscana & Liguria (Real Data)",
+    "nodes": [
+      {
+        "id": "FIRENZE_SMN",
+        "name": "Firenze S.M.N.",
+        "type": "interchange",
+        "latitude": 43.7775719,
+        "longitude": 11.2474177,
+        "platforms": 12,
+        "capacity": 20
+      },
+      {
+        "id": "PISA_CENTRALE",
+        "name": "Pisa Centrale",
+        "type": "interchange",
+        "latitude": 43.7078625,
+        "longitude": 10.3983886,
+        "platforms": 12,
+        "capacity": 20
+      },
+      {
+        "id": "LIVORNO_CENTRALE",
+        "name": "Livorno Centrale",
+        "type": "interchange",
+        "latitude": 43.5541989,
+        "longitude": 10.3361014,
+        "platforms": 12,
+        "capacity": 20
+      },
+      {
+        "id": "VIAREGGIO",
+        "name": "Viareggio",
+        "type": "station",
+        "latitude": 43.8738925,
+        "longitude": 10.2526248,
+        "platforms": 4
+      },
+      {
+        "id": "LA_SPEZIA_CENTRALE",
+        "name": "La Spezia Centrale",
+        "type": "interchange",
+        "latitude": 44.111564,
+        "longitude": 9.81358,
+        "platforms": 12,
+        "capacity": 20
+      },
+      {
+        "id": "GENOVA_BRIGNOLE",
+        "name": "Genova Brignole",
+        "type": "station",
+        "latitude": 44.4066928,
+        "longitude": 8.9469156,
+        "platforms": 4
+      },
+      {
+        "id": "GENOVA_P_PRINCIPE",
+        "name": "Genova P. Principe",
+        "type": "interchange",
+        "latitude": 44.4170197,
+        "longitude": 8.9211296,
+        "platforms": 12,
+        "capacity": 20
+      },
+      {
+        "id": "GROSSETO",
+        "name": "Grosseto",
+        "type": "station",
+        "latitude": 42.7673549,
+        "longitude": 11.1067465,
+        "platforms": 4
+      },
+      {
+        "id": "LUCCA",
+        "name": "Lucca",
+        "type": "station",
+        "latitude": 43.8372836,
+        "longitude": 10.5061831,
+        "platforms": 4
+      },
+      {
+        "id": "EMPOLI",
+        "name": "Empoli",
+        "type": "station",
+        "latitude": 43.7158642,
+        "longitude": 10.9492244,
+        "platforms": 4
+      },
+      {
+        "id": "SIENA",
+        "name": "Siena",
+        "type": "station",
+        "latitude": 43.3316658,
+        "longitude": 11.3229024,
+        "platforms": 4
+      },
+      {
+        "id": "AREZZO",
+        "name": "Arezzo",
+        "type": "station",
+        "latitude": 43.4609548,
+        "longitude": 11.8754953,
+        "platforms": 4
+      },
+      {
+        "id": "MASSA_CENTRO",
+        "name": "Massa Centro",
+        "type": "station",
+        "latitude": 44.0237472,
+        "longitude": 10.1361592,
+        "platforms": 4
+      },
+      {
+        "id": "AULLA_LUNIGIANA",
+        "name": "Aulla Lunigiana",
+        "type": "station",
+        "latitude": 44.2188969,
+        "longitude": 9.9767629,
+        "platforms": 4
+      },
+      {
+        "id": "PARMA",
+        "name": "Parma",
+        "type": "station",
+        "latitude": 44.8102782,
+        "longitude": 10.3285271,
+        "platforms": 4
+      }
+    ],
+    "edges": [
+      {
+        "id": "48018E98-E0A0-41F5-8B8D-B34E345DFA2D",
+        "from": "FIRENZE_SMN",
+        "to": "EMPOLI",
+        "distance": 29.9,
+        "trackType": "double",
+        "maxSpeed": 160
+      },
+      {
+        "id": "5028F0C3-413F-42A6-A190-26E99C2FEA47",
+        "from": "EMPOLI",
+        "to": "PISA_CENTRALE",
+        "distance": 53.1,
+        "trackType": "double",
+        "maxSpeed": 160
+      },
+      {
+        "id": "CAFCAD96-40FB-44A3-8421-100DA087B30A",
+        "from": "EMPOLI",
+        "to": "SIENA",
+        "distance": 62.7,
+        "trackType": "single",
+        "maxSpeed": 130
+      },
+      {
+        "id": "30A1BB4E-8C44-4661-8B41-363BFEDC5E62",
+        "from": "PISA_CENTRALE",
+        "to": "LIVORNO_CENTRALE",
+        "distance": 21.4,
+        "trackType": "double",
+        "maxSpeed": 160
+      },
+      {
+        "id": "ED071CB3-4CBA-40AE-A562-028BA27BEB22",
+        "from": "PISA_CENTRALE",
+        "to": "VIAREGGIO",
+        "distance": 26.2,
+        "trackType": "double",
+        "maxSpeed": 140
+      },
+      {
+        "id": "A73BC0D4-D8D6-4A9B-AB7B-72048F4794A9",
+        "from": "PISA_CENTRALE",
+        "to": "LUCCA",
+        "distance": 20.2,
+        "trackType": "single",
+        "maxSpeed": 120
+      },
+      {
+        "id": "9821EEA2-E10B-47D8-B5B8-E2A64A085D2F",
+        "from": "VIAREGGIO",
+        "to": "MASSA_CENTRO",
+        "distance": 22.9,
+        "trackType": "double",
+        "maxSpeed": 150
+      },
+      {
+        "id": "FA7653CF-D54A-48DE-83CD-466D5B6847E1",
+        "from": "MASSA_CENTRO",
+        "to": "LA_SPEZIA_CENTRALE",
+        "distance": 33.1,
+        "trackType": "double",
+        "maxSpeed": 160
+      },
+      {
+        "id": "BF75D80E-02EC-496C-A697-B5D3B135BB95",
+        "from": "LA_SPEZIA_CENTRALE",
+        "to": "GENOVA_BRIGNOLE",
+        "distance": 91.7,
+        "trackType": "double",
+        "maxSpeed": 160
+      },
+      {
+        "id": "2DC5C916-1EEC-4173-9C2D-7E4C2A0F3A69",
+        "from": "GENOVA_BRIGNOLE",
+        "to": "GENOVA_P_PRINCIPE",
+        "distance": 2.8,
+        "trackType": "double",
+        "maxSpeed": 90
+      },
+      {
+        "id": "5509B808-F3CC-4BBE-9DC1-7345DC2FDE1C",
+        "from": "LIVORNO_CENTRALE",
+        "to": "GROSSETO",
+        "distance": 129.0,
+        "trackType": "double",
+        "maxSpeed": 180
+      },
+      {
+        "id": "BFC884FA-2C5D-42DF-90EF-3BFC8E6CB1B8",
+        "from": "FIRENZE_SMN",
+        "to": "AREZZO",
+        "distance": 73.9,
+        "trackType": "double",
+        "maxSpeed": 250
+      },
+      {
+        "id": "2BE9DCE4-E7BD-407B-9A76-CADB9F9AD25F",
+        "from": "LUCCA",
+        "to": "VIAREGGIO",
+        "distance": 24.9,
+        "trackType": "single",
+        "maxSpeed": 100
+      },
+      {
+        "id": "66AD5D8E-EC70-4BA8-B4F0-DF53E0758E76",
+        "from": "LUCCA",
+        "to": "AULLA_LUNIGIANA",
+        "distance": 71.9,
+        "trackType": "single",
+        "maxSpeed": 80
+      },
+      {
+        "id": "90590339-65B1-45B6-8A13-9BE39739DFB9",
+        "from": "LA_SPEZIA_CENTRALE",
+        "to": "AULLA_LUNIGIANA",
+        "distance": 21.2,
+        "trackType": "double",
+        "maxSpeed": 140
+      },
+      {
+        "id": "8D2D5902-53E9-43E3-940D-CB2182C54A13",
+        "from": "AULLA_LUNIGIANA",
+        "to": "PARMA",
+        "distance": 85.7,
+        "trackType": "double",
+        "maxSpeed": 150
+      }
+    ],
+    "lines": [],
+    "trains": []
+  }
+}

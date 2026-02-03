@@ -28,14 +28,14 @@ struct AISettingsView: View {
                 }
             }
             
-            Section(header: Text("API Key Authentication")) {
+            Section(header: Text("ai_api_key_auth".localized)) {
                 SecureField("API Key (rw-...)", text: $appState.aiApiKey)
                     .autocapitalization(.none)
                     .disableAutocorrection(true)
                 
                 VStack(alignment: .leading, spacing: 8) {
                     Label {
-                        Text("Per ottenere la tua API Key:")
+                        Text("ai_get_key_instruction".localized)
                             .font(.caption)
                     } icon: {
                         Image(systemName: "info.circle.fill")
@@ -43,19 +43,19 @@ struct AISettingsView: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("1. Vai su https://railway-ai.michelebigi.it/static/index.html")
+                        Text("ai_step_1".localized)
                             .font(.caption2)
                             .foregroundColor(.secondary)
                         
-                        Text("2. Effettua il login con le tue credenziali")
+                        Text("ai_step_2".localized)
                             .font(.caption2)
                             .foregroundColor(.secondary)
                         
-                        Text("3. Copia la tua API Key dalla dashboard")
+                        Text("ai_step_3".localized)
                             .font(.caption2)
                             .foregroundColor(.secondary)
                         
-                        Text("4. Incollala nel campo sopra")
+                        Text("ai_step_4".localized)
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -70,7 +70,7 @@ struct AISettingsView: View {
                             #endif
                         }
                     }) {
-                        Label("Apri Railway AI Dashboard", systemImage: "arrow.up.forward.app")
+                        Label("ai_open_dashboard".localized, systemImage: "arrow.up.forward.app")
                             .font(.caption)
                     }
                     .buttonStyle(.bordered)
@@ -83,7 +83,7 @@ struct AISettingsView: View {
                     if isTestLoading {
                         ProgressView()
                     } else {
-                        Text("Verifica API Key")
+                        Text("ai_verify_key".localized)
                     }
                 }
                 .disabled(isTestLoading || appState.aiApiKey.isEmpty)
@@ -115,14 +115,14 @@ struct AISettingsView: View {
             .sink { completion in
                 self.isTestLoading = false
                 if case .failure(let error) = completion {
-                    self.testErrorMessage = "API Key non valida: \(error.localizedDescription)"
+                    self.testErrorMessage = String(format: "ai_key_invalid".localized, error.localizedDescription)
                 }
             } receiveValue: { keyInfo in
-                self.testResultMessage = "✓ API Key valida - Utente: \(keyInfo.username) - Scadenza: \(Int(keyInfo.remaining_days)) giorni"
+                self.testResultMessage = String(format: "ai_key_valid_fmt".localized, keyInfo.username, Int(keyInfo.remaining_days))
                 
                 // Warn if expiring soon
                 if keyInfo.remaining_days < 7 {
-                    self.testErrorMessage = "⚠️ Attenzione: La chiave scade tra \(Int(keyInfo.remaining_days)) giorni!"
+                    self.testErrorMessage = String(format: "ai_key_expiring_fmt".localized, Int(keyInfo.remaining_days))
                 }
             }
             .store(in: &cancellables)

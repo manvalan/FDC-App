@@ -62,7 +62,7 @@ struct RailwayAISchedulerView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("RailwayAI")
                     .font(.system(size: 34, weight: .bold, design: .rounded))
-                Text("Smart Scheduling Intelligence")
+                Text("smart_scheduling_intel".localized)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -73,7 +73,7 @@ struct RailwayAISchedulerView: View {
             } label: {
                 HStack {
                     Image(systemName: "cpu")
-                    Text("Ottimizza")
+                    Text("optimize_button".localized)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
@@ -92,12 +92,12 @@ struct RailwayAISchedulerView: View {
     private var statusCard: some View {
         VStack(spacing: 12) {
             HStack {
-                Label("Stato Sistema", systemImage: "info.circle.fill")
+                Label("system_status".localized, systemImage: "info.circle.fill")
                     .font(.headline)
                     .foregroundColor(.blue)
                 Spacer()
                 if trainManager.trains.isEmpty {
-                    Text("Nessun treno")
+                    Text("no_trains".localized)
                         .font(.caption)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
@@ -105,7 +105,7 @@ struct RailwayAISchedulerView: View {
                         .foregroundColor(.red)
                         .clipShape(Capsule())
                 } else {
-                    Text("\(trainManager.trains.count) Treni")
+                    Text(String(format: "trains_count".localized, trainManager.trains.count))
                         .font(.caption)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
@@ -118,9 +118,9 @@ struct RailwayAISchedulerView: View {
             Divider()
             
             HStack(spacing: 20) {
-                summaryItem(icon: "map.fill", title: "Stazioni", value: "\(network.nodes.count)")
-                summaryItem(icon: "road.lanes", title: "Tratte", value: "\(network.edges.count)")
-                summaryItem(icon: "clock.fill", title: "Status", value: optimizationResponse == nil ? "In attesa" : "Ottimizzato")
+                summaryItem(icon: "map.fill", title: "stations_label".localized, value: "\(network.nodes.count)")
+                summaryItem(icon: "road.lanes", title: "segments_label".localized, value: "\(network.edges.count)")
+                summaryItem(icon: "clock.fill", title: "status_label".localized, value: optimizationResponse == nil ? "waiting_status".localized : "optimized_status".localized)
             }
         }
         .padding()
@@ -146,7 +146,7 @@ struct RailwayAISchedulerView: View {
     private func modificationsSection(response: RailwayAIResponse) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Modifiche Proposte")
+                Text("proposed_modifications".localized)
                     .font(.title3.bold())
                 Spacer()
                 if let confidence = response.ml_confidence {
@@ -165,7 +165,7 @@ struct RailwayAISchedulerView: View {
                     modificationRow(mod: mod)
                 }
             } else {
-                Text("Nessuna modifica necessaria. Orario ottimale.")
+                Text("no_modifications_needed".localized)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .padding()
@@ -205,7 +205,7 @@ struct RailwayAISchedulerView: View {
             VStack(alignment: .trailing, spacing: 4) {
                 Text(modificationValue(mod: mod))
                     .font(.subheadline.bold())
-                Text("Impatto: \(mod.impact.time_increase_seconds)s")
+                Text(String(format: "impact_label".localized, mod.impact.time_increase_seconds))
                     .font(.caption2)
                     .foregroundColor(mod.impact.time_increase_seconds == 0 ? .green : .orange)
             }
@@ -217,20 +217,37 @@ struct RailwayAISchedulerView: View {
     
     private func analysisCard(response: RailwayAIResponse) -> some View {
         VStack(spacing: 16) {
-            Text("Analisi Ottimizzazione")
+            Text("optimization_analysis".localized)
                 .font(.headline)
                 .frame(maxWidth: .infinity, alignment: .leading)
             
             HStack(spacing: 20) {
-                analysisItem(title: "Controllati", value: "\(response.conflict_analysis?.original_conflicts ?? 0)", color: .blue)
-                analysisItem(title: "Risolti", value: "\(response.conflict_analysis?.resolved_conflicts ?? 0)", color: .green)
-                analysisItem(title: "Rimasti", value: "\(response.conflict_analysis?.remaining_conflicts ?? 0)", color: .red)
+                analysisItem(title: "detected_label".localized, value: "\(response.conflicts_detected ?? 0)", color: .blue)
+                analysisItem(title: "resolved_label".localized, value: "\(response.conflicts_resolved ?? 0)", color: .green)
+                let remaining = (response.conflicts_detected ?? 0) - (response.conflicts_resolved ?? 0)
+                analysisItem(title: "remaining_label".localized, value: "\(max(0, remaining))", color: .red)
+            }
+            
+            if !trainManager.conflictManager.conflicts.isEmpty {
+                let conflicts = trainManager.conflictManager.conflicts
+                Divider()
+                Text("residual_conflicts_detail".localized)
+                    .font(.subheadline.bold())
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                
+                ConflictDashboardView(
+                    conflicts: conflicts,
+                    network: network,
+                    onFocusConflict: { conflict in
+                        // Future: Map highlighting integration
+                    }
+                )
             }
             
             if let saved = response.total_impact_minutes {
                 Divider()
                 HStack {
-                    Text("Tempo Totale Ottimizzato")
+                    Text("total_optimized_time".localized)
                         .font(.subheadline)
                     Spacer()
                     Text("\(String(format: "%.1f", saved)) m")
@@ -262,10 +279,10 @@ struct RailwayAISchedulerView: View {
                 .font(.system(size: 60))
                 .foregroundColor(.blue.opacity(0.3))
             
-            Text("Pronto per l'ottimizzazione")
+            Text("ready_for_optimization".localized)
                 .font(.headline)
             
-            Text("Carica i treni e clicca su Ottimizza per usare RailwayAI e risolvere tutti i conflitti della rete.")
+            Text("ai_welcome_desc".localized)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -282,7 +299,7 @@ struct RailwayAISchedulerView: View {
             VStack(spacing: 20) {
                 ProgressView()
                     .scaleEffect(1.5)
-                Text("Analisi AI in corso...")
+                Text("ai_analyzing".localized)
                     .font(.headline)
                     .foregroundColor(.white)
             }
@@ -313,6 +330,10 @@ struct RailwayAISchedulerView: View {
                     print("❌ AI Optimization Error: \(error)")
                 }
             } receiveValue: { response in
+                print("🌐🌐🌐 [AI AUDIT] Analisi Risultati:")
+                print("   📊 Conflitti Rilevati: \(response.conflicts_detected ?? 0)")
+                print("   📊 Risoluzioni Proposte: \(response.resolutions?.count ?? 0)")
+                
                 withAnimation(.spring()) {
                     self.optimizationResponse = response
                 }
@@ -344,7 +365,7 @@ struct RailwayAISchedulerView: View {
         switch mod.modification_type {
         case "platform_change":
             let p = mod.parameters["new_platform"]?.value as? Int ?? 0
-            return "Binario \(p)"
+            return String(format: "platform_at".localized, p)
         case "speed_reduction":
             let s = mod.parameters["new_speed_kmh"]?.value as? Double ?? 0.0
             return "\(Int(s)) km/h"
@@ -352,7 +373,7 @@ struct RailwayAISchedulerView: View {
             let d = mod.parameters["delay_seconds"]?.value as? Int ?? 0
             return "+\(d/60) m"
         default:
-            return "Modifica"
+            return "modification".localized
         }
     }
 }

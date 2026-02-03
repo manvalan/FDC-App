@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct TrainDetailView: View {
     let train: Train
@@ -16,7 +17,7 @@ struct TrainDetailView: View {
             if let binding = trainBinding {
                 content(train: binding)
             } else {
-                Text("Treno non trovato").foregroundColor(.secondary)
+                Text("train_not_found".localized).foregroundColor(.secondary)
             }
         }
     }
@@ -31,21 +32,21 @@ struct TrainDetailView: View {
                         .foregroundColor(.blue)
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            TextField("Numero", value: train.number, format: .number)
+                            TextField("number_label".localized, value: train.number, format: .number)
                                 .font(.title2).bold()
                                 .frame(width: 80)
                                 .textFieldStyle(.roundedBorder)
                             
-                            TextField("Nome Treno", text: train.name)
+                            TextField("train_name".localized, text: train.name)
                                 .font(.title2).bold()
                         }
                         
-                        Picker("Tipo", selection: train.type) {
-                            Text("Regionale").tag("Regionale")
-                            Text("Diretto").tag("Diretto")
-                            Text("Alta Velocità").tag("Alta Velocità")
-                            Text("Merci").tag("Merci")
-                            Text("Supporto").tag("Supporto")
+                        Picker("type_label".localized, selection: train.type) {
+                            Text("regional_type".localized).tag("Regionale")
+                            Text("direct_type".localized).tag("Diretto")
+                            Text("high_speed_type".localized).tag("Alta Velocità")
+                            Text("merci_type".localized).tag("Merci")
+                            Text("support_type".localized).tag("Supporto")
                         }
                         .labelsHidden()
                         .pickerStyle(.menu)
@@ -55,41 +56,52 @@ struct TrainDetailView: View {
                 Divider()
                 
                 // Scheduling
-                Section("Orario") {
-                    DatePicker("Orario Partenza", selection: Binding(
+                Section("timetable_itinerary".localized) {
+                    DatePicker("departure_time".localized, selection: Binding(
                         get: { train.wrappedValue.departureTime ?? Date() },
                         set: { train.wrappedValue.departureTime = $0 }
                     ), displayedComponents: .hourAndMinute)
                     
                     if let lineId = train.wrappedValue.lineId, 
-                       let lineIndex = network.lines.firstIndex(where: { $0.id == lineId }) {
+                       let line = network.lines.first(where: { $0.id == lineId }) {
                         
-                        Text("Linea: \(network.lines[lineIndex].name)").font(.headline)
+                        Divider()
+                        Text(String(format: "line_label_fmt".localized, line.name)).font(.headline)
                         
-                        // Schedule Table with Binding to Train's Own Stops
-                        ScheduleView(train: train, line: network.lines[lineIndex], network: network)
+                        RailwayItineraryView(
+                            stations: train.wrappedValue.stops.map { $0.stationId },
+                            network: network,
+                            trainStops: train.wrappedValue.stops,
+                            lineColor: Color(hex: line.color ?? "")
+                        )
+                        .padding(.vertical, 8)
+                        
+                        Divider()
+                        
+                        // Schedule Table with Binding to Train's Own Stops (for editing)
+                        ScheduleView(train: train, line: line, network: network)
                     } else {
-                        Text("Nessuna linea assegnata").italic().foregroundColor(.secondary)
+                        Text("no_line_assigned".localized).italic().foregroundColor(.secondary)
                     }
                 }
                 
                 Divider()
                 
                 // Technical Specs
-                Section("Dati Tecnici") {
+                Section("technical_data".localized) {
                     HStack {
-                        Text("Velocità Max")
+                        Text("max_speed".localized)
                         Spacer()
-                        TextField("km/h", value: train.maxSpeed, format: .number)
+                        TextField("kmh_placeholder".localized, value: train.maxSpeed, format: .number)
                             .multilineTextAlignment(.trailing)
                             .keyboardType(.numberPad)
                             .frame(width: 80)
                         Text("km/h")
                     }
                     HStack {
-                        Text("Accelerazione")
+                        Text("acceleration".localized)
                         Spacer()
-                        Text(String(format: "%.2f m/s²", train.wrappedValue.acceleration))
+                        Text(String(format: "acceleration_val_fmt".localized, train.wrappedValue.acceleration))
                     }
                 }
             }
@@ -136,7 +148,7 @@ struct ScheduleView: View {
                 stationName: nodeName,
                 arrival: stop.arrival,
                 departure: stop.departure,
-                type: isOrigin ? "Partenza" : (isDestination ? "Arrivo" : (stop.isSkipped ? "Transito" : "Fermata")),
+                type: isOrigin ? "departure_marker".localized : (isDestination ? "arrival_marker".localized : (stop.isSkipped || stop.minDwellTime == 0 ? "transit_marker".localized : "stop_marker".localized)),
                 stopIndex: index,
                 currentTrack: stop.track
             ))
@@ -148,25 +160,25 @@ struct ScheduleView: View {
     var body: some View {
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
             GridRow {
-                Text("Stazione").bold()
-                Text("Arr").bold()
-                Text("Sos").bold()
-                Text("Par").bold()
-                Text("Bin").bold()
+                Text("station_label".localized).bold()
+                Text("arr_label".localized).bold()
+                Text("sos_label".localized).bold()
+                Text("par_label".localized).bold()
+                Text("bin_label".localized).bold()
             }
             Divider()
             ForEach(schedule) { row in
                 GridRow {
                     HStack {
-                        if row.type == "Partenza" { Image(systemName: "flag.fill").foregroundColor(.green) }
-                        else if row.type == "Arrivo" { Image(systemName: "flag.checkered").foregroundColor(.red) }
-                        else if row.type == "Transito" { Image(systemName: "arrow.right").foregroundColor(.gray) }
+                        if row.type == "departure_marker".localized { Image(systemName: "flag.fill").foregroundColor(.green) }
+                        else if row.type == "arrival_marker".localized { Image(systemName: "flag.checkered").foregroundColor(.red) }
+                        else if row.type == "transit_marker".localized { Image(systemName: "arrow.right").foregroundColor(.gray) }
                         else { Image(systemName: "circle.fill").font(.caption2) }
                         Text(row.stationName)
                     }
                     
                     // Arrival
-                    if let arr = row.arrival, let idx = row.stopIndex {
+                    if let arr = row.arrival, let idx = row.stopIndex, row.index > 0 {
                         Button(action: { prepareEdit(idx) }) {
                             HStack(spacing: 2) {
                                 if train.stops[idx].plannedArrival != nil { Image(systemName: "clock.fill").font(.system(size: 8)) }
@@ -175,22 +187,28 @@ struct ScheduleView: View {
                             }
                         }
                     } else {
-                        Text(format(row.arrival))
+                        Text("-").foregroundColor(.secondary)
                     }
                     
                     // Sosta (Dwell)
                     if let idx = row.stopIndex {
                         let stop = train.stops[idx]
-                        if !stop.isSkipped && idx > 0 && idx < train.stops.count - 1 {
-                            Text("\(stop.minDwellTime)m")
-                                .foregroundColor(.secondary)
+                        if idx > 0 && idx < train.stops.count - 1 {
+                            if stop.minDwellTime == 0 {
+                                Text("transit_marker".localized).foregroundColor(.gray).italic()
+                            } else if !stop.isSkipped {
+                                Text(String(format: "dwell_time_min".localized, stop.minDwellTime))
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text("-").foregroundColor(.secondary)
+                            }
                         } else {
                             Text("-").foregroundColor(.secondary)
                         }
                     }
                     
                     // Departure
-                    if let dep = row.departure, let idx = row.stopIndex {
+                    if let dep = row.departure, let idx = row.stopIndex, row.index < schedule.count - 1 {
                          Button(action: { prepareEdit(idx) }) {
                              HStack(spacing: 2) {
                                 if train.stops[idx].plannedDeparture != nil { Image(systemName: "clock.fill").font(.system(size: 8)) }
@@ -200,7 +218,7 @@ struct ScheduleView: View {
                              }
                          }
                     } else {
-                        Text(format(row.departure))
+                        Text("-").foregroundColor(.secondary)
                     }
                     
                     // Track
@@ -225,33 +243,46 @@ struct ScheduleView: View {
         .sheet(item: $editingStopIndex) { stopIdx in
             NavigationStack {
                 Form {
-                    Section("Modifica Fermata") {
-                        TextField("Binario", text: $editTrack)
-                        Stepper("Sosta Minima: \(editDwell) min", value: $editDwell, in: 0...120)
+                    Section("edit_stop".localized) {
+                        TextField("track_label".localized, text: $editTrack)
+                        
+                        let isTerminus = stopIdx == 0 || stopIdx == train.stops.count - 1
+                        if !isTerminus {
+                            Toggle("service_stop".localized, isOn: Binding(
+                                get: { editDwell > 0 },
+                                set: { if $0 { editDwell = 3 } else { editDwell = 0 } }
+                            ))
+                            
+                            if editDwell > 0 {
+                                Stepper(String(format: "min_dwell_val".localized, editDwell), value: $editDwell, in: 1...120)
+                            } else {
+                                Text("transit_desc".localized).font(.caption).foregroundColor(.secondary)
+                            }
+                        }
                     }
                     
-                    Section("Orari Pianificati (Vincoli)") {
-                        Toggle("Arrivo Pianificato", isOn: Binding(
+                    Section("planned_timetables".localized) {
+                        Toggle("planned_arrival".localized, isOn: Binding(
                             get: { editPlannedArr != nil },
                             set: { if $0 { editPlannedArr = train.stops[stopIdx].arrival ?? Date() } else { editPlannedArr = nil } }
                         ))
                         if let arr = editPlannedArr {
-                            DatePicker("Ora Arrivo", selection: Binding(get: { arr }, set: { editPlannedArr = $0 }), displayedComponents: .hourAndMinute)
+                            DatePicker("arrival_time".localized, selection: Binding(get: { arr }, set: { editPlannedArr = $0 }), displayedComponents: .hourAndMinute)
                         }
                         
-                        Toggle("Partenza Pianificata", isOn: Binding(
+                        Toggle("planned_departure".localized, isOn: Binding(
                             get: { editPlannedDep != nil },
                             set: { if $0 { editPlannedDep = train.stops[stopIdx].departure ?? Date() } else { editPlannedDep = nil } }
                         ))
                         if let dep = editPlannedDep {
-                            DatePicker("Ora Partenza", selection: Binding(get: { dep }, set: { editPlannedDep = $0 }), displayedComponents: .hourAndMinute)
+                            DatePicker("departure_time".localized, selection: Binding(get: { dep }, set: { editPlannedDep = $0 }), displayedComponents: .hourAndMinute)
                         }
                     }
                 }
-                .navigationTitle("Modifica Fermata")
+                .navigationTitle("edit_stop".localized)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Salva") {
+                        Button("save".localized) {
                             if stopIdx < train.stops.count {
                                 train.stops[stopIdx].minDwellTime = editDwell
                                 train.stops[stopIdx].track = editTrack.isEmpty ? nil : editTrack
@@ -280,7 +311,6 @@ struct ScheduleView: View {
         guard let date = date else { return "-" }
         let f = DateFormatter()
         f.dateFormat = "HH:mm"
-        f.timeZone = TimeZone(secondsFromGMT: 0) // SYNC UTC
         return f.string(from: date)
     }
 }

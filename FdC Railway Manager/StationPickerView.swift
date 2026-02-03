@@ -30,11 +30,11 @@ struct StationPickerView: View {
             }
         }
         
+        let result = stations.sorted { $0.name < $1.name }
         if searchText.isEmpty {
-            return stations.sorted { $0.name < $1.name }
+            return result
         } else {
-            return stations.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
-                .sorted { $0.name < $1.name }
+            return result.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
         }
     }
     
@@ -47,20 +47,20 @@ struct StationPickerView: View {
                         let isConnectivityRestricted = linkedToStationId != nil
                         
                         ContentUnavailableView(
-                            ignoreFilters ? "Nessuna Stazione" : (isLineRestricted ? "Linea Vuota" : "Nessuna Connessione"),
+                            ignoreFilters ? "no_stations".localized : (isLineRestricted ? "empty_line".localized : "no_connection".localized),
                             systemImage: ignoreFilters ? "mappin.slash" : (isLineRestricted ? "tray" : "point.topleft.down.to.point.bottomright.curvepath"),
                             description: Text(errorMessage(isLine: isLineRestricted, isConn: isConnectivityRestricted))
                         )
                         
                         if !ignoreFilters && !network.nodes.isEmpty {
-                            Button("Mostra comunque tutte le stazioni") {
+                            Button("show_all_anyway".localized) {
                                 withAnimation {
                                     ignoreFilters = true
                                 }
                             }
                             .buttonStyle(.borderedProminent)
                         } else if network.nodes.isEmpty {
-                            Text("Devi prima creare le stazioni dalla sezione 'Rete'.")
+                            Text("must_create_stations".localized)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -88,24 +88,30 @@ struct StationPickerView: View {
                     }
                 }
             }
-            .searchable(text: $searchText, prompt: "Cerca stazione...")
-            .navigationTitle("Seleziona Stazione")
+            .searchable(text: $searchText, prompt: "search_station".localized)
+            .navigationTitle("select_station".localized)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(ignoreFilters ? "filter".localized : "show_all".localized) {
+                        ignoreFilters.toggle()
+                    }
+                }
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Annulla") { dismiss() }
+                    Button("cancel".localized) { dismiss() }
                 }
             }
         }
     }
     
     private func errorMessage(isLine: Bool, isConn: Bool) -> String {
-        if ignoreFilters { return "Non ci sono stazioni registrate nel sistema." }
+        if ignoreFilters { return "no_stations_system".localized }
         if isLine && (whitelistIds ?? []).isEmpty {
-            return "Questa linea ferroviaria non ha ancora stazioni assegnate. Aggiungile nella scheda 'Linee'."
+            return "line_no_stations".localized
         }
         if isConn {
-            return "Non ci sono binari che collegano l'ultima stazione scelta ad altri nodi. Disegna un binario o mostra tutte le stazioni."
+            return "no_connected_tracks".localized
         }
-        return "Nessuna stazione corrisponde ai criteri di ricerca."
+        return "no_stations_criteria".localized
     }
 }

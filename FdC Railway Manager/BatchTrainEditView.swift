@@ -14,38 +14,39 @@ struct BatchTrainEditView: View {
     
     var body: some View {
         Form {
-            Section(header: Text("Selezione")) {
-                Text("\(selectedTrains.count) treni selezionati")
+            Section(header: Text("selection".localized)) {
+                Text(String(format: "trains_selected_count".localized, selectedTrains.count))
                 ForEach(selectedTrains.prefix(5)) { train in
                     Text(train.name).font(.caption).foregroundColor(.secondary)
                 }
                 if selectedTrains.count > 5 {
-                    Text("+ altri \(selectedTrains.count - 5)").font(.caption).italic()
+                    Text(String(format: "plus_others_count".localized, selectedTrains.count - 5)).font(.caption).italic()
                 }
             }
             
-            Section(header: Text("Azioni Rapide")) {
-                Stepper("Sposta Orario: \(timeShiftMinutes > 0 ? "+" : "")\(timeShiftMinutes) min", value: $timeShiftMinutes, step: 5)
+            Section(header: Text("quick_actions".localized)) {
+                Stepper(String(format: "shift_time_minutes".localized, timeShiftMinutes > 0 ? "+" : "", timeShiftMinutes), value: $timeShiftMinutes, step: 5)
                 
-                Button("Applica Spostamento") {
+                Button("apply_shift".localized) {
                     shiftTimes()
                 }
                 .disabled(timeShiftMinutes == 0)
                 
-                Button("Elimina Selezionati", role: .destructive) {
+                Button("delete_selected".localized, role: .destructive) {
                     showingDeleteConfirmation = true
                 }
             }
         }
-        .navigationTitle("Modifica Multipla")
-        .alert("Elimina Treni", isPresented: $showingDeleteConfirmation) {
-            Button("Annulla", role: .cancel) { }
-            Button("Elimina", role: .destructive) {
+        .navigationTitle("batch_edit".localized)
+        .alert("delete_trains".localized, isPresented: $showingDeleteConfirmation) {
+            Button("cancel".localized, role: .cancel) { }
+            Button("delete".localized, role: .destructive) {
                 deleteSelected()
             }
         } message: {
-            Text("Sei sicuro di voler eliminare \(selectedTrains.count) treni? L'azione non è reversibile.")
+            Text(String(format: "delete_trains_confirm".localized, selectedTrains.count))
         }
+
     }
     
     private func shiftTimes() {

@@ -9,12 +9,10 @@ struct AGStation: Codable {
     let lat: Double?
     let lon: Double?
     let num_platforms: Int
-    let parent_hub_id: Int?
     
     enum CodingKeys: String, CodingKey {
         case id, name, lat, lon
         case num_platforms = "num_platforms"
-        case parent_hub_id = "parent_hub_id"
     }
 }
 
@@ -131,7 +129,9 @@ class RailwayGraphManager {
              // - Basic logic: 1 pair (A->B, B->A) = 1 Physical Track.
              // - 2 pairs (2x A->B, 2x B->A) = 2 Physical Tracks.
              
-             var baseCapacity = (firstEdge.trackType == .double) ? 2 : 1
+             // Determine base capacity from track type
+             let isDual = firstEdge.trackType == .double || firstEdge.trackType == .highSpeed
+             var baseCapacity = isDual ? 2 : 1
              
              // If we have more than 2 edges for the same segment, it implies parallel tracks
              if edges.count > 2 {
@@ -139,6 +139,7 @@ class RailwayGraphManager {
                  baseCapacity = max(baseCapacity, edges.count / 2)
              }
              
+             // HIGH PRIORITY: Use explicit capacity if set in the model
              if let explicitCap = firstEdge.capacity, explicitCap > 0 {
                  baseCapacity = explicitCap
              }
@@ -201,18 +202,12 @@ class RailwayGraphManager {
         let stations: [AGStation] = network.nodes.compactMap { node in
             guard let id = stationMapping[node.id] else { return nil }
             
-            var hubId: Int? = nil
-            if let pid = node.parentHubId {
-                hubId = stationMapping[pid]
-            }
-            
             return AGStation(
                 id: id,
                 name: node.name,
                 lat: node.latitude,
                 lon: node.longitude,
-                num_platforms: node.platforms ?? (node.type == .interchange ? 4 : 2),
-                parent_hub_id: hubId
+                num_platforms: node.platforms ?? (node.type == .interchange ? 4 : 2)
             )
         }.sorted(by: { $0.id < $1.id })
         
@@ -324,19 +319,12 @@ class RailwayGraphManager {
         // 3. Convert Stations
         let stations: [AGStation] = network.nodes.compactMap { node in
             guard let id = stationMapping[node.id] else { return nil }
-            
-            var hubId: Int? = nil
-            if let pid = node.parentHubId {
-                hubId = stationMapping[pid]
-            }
-            
             return AGStation(
                 id: id,
                 name: node.name,
                 lat: node.latitude,
                 lon: node.longitude,
-                num_platforms: node.platforms ?? (node.type == .interchange ? 4 : 2),
-                parent_hub_id: hubId
+                num_platforms: node.platforms ?? (node.type == .interchange ? 4 : 2)
             )
         }.sorted(by: { $0.id < $1.id })
         

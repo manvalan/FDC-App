@@ -22,8 +22,8 @@ public class AuthenticationManager {
     
     // Configuration
     private var baseURL = "http://railway-ai.michelebigi.it:8080" 
-    private var apiKey: String?
-    private var jwtToken: String?
+    public private(set) var apiKey: String?
+    public private(set) var jwtToken: String?
     
     private init() {}
     

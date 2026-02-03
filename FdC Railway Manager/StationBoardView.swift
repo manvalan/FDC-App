@@ -48,8 +48,6 @@ struct StationBoardView: View {
                                     Spacer()
                                     if let arr = stop.arrivalTime {
                                         Text(formatTime(arr)).bold()
-                                    } else {
-                                        Text("ORIGINE").font(.caption).bold()
                                     }
                                 }
                                 
@@ -67,8 +65,6 @@ struct StationBoardView: View {
                                     if let dep = stop.departureTime {
                                         Text("Partenza: \(formatTime(dep))")
                                             .font(.caption).foregroundColor(.secondary)
-                                    } else {
-                                        Text("TERMINE CORSA").font(.caption).foregroundColor(.red).bold()
                                     }
                                 }
                                 

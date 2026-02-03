@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 
+@MainActor
 class RailwayAIService: ObservableObject {
     static let shared = RailwayAIService()
     
@@ -12,7 +13,7 @@ class RailwayAIService: ObservableObject {
     private var trackMapping: [String: Int] = [:]
     private var trainMapping: [UUID: Int] = [:]
     
-    enum ConnectionStatus {
+    enum ConnectionStatus: Equatable {
         case disconnected
         case connecting
         case connected
@@ -20,13 +21,7 @@ class RailwayAIService: ObservableObject {
         case error(String)
     }
     
-    @Published var connectionStatus: ConnectionStatus = .disconnected {
-        didSet {
-            DispatchQueue.main.async {
-                self.objectWillChange.send()
-            }
-        }
-    }
+    @Published var connectionStatus: ConnectionStatus = .disconnected
     
     @Published var lastRequestJSON: String = "" // Per ispezione da iPad
     
@@ -124,19 +119,25 @@ class RailwayAIService: ObservableObject {
     }
     
     func verifyConnection() {
-        guard token != nil || apiKey != nil else {
+        // PIGNOLO PROTOCOL: Pre-sync check
+        if baseURL.absoluteString.isEmpty || (token == nil && apiKey == nil) {
             self.connectionStatus = .disconnected
             return
         }
         
         self.connectionStatus = .connecting
+        let endpoints = ["health", ""] // The server has /api/v1/health
+        performCheck(at: endpoints)
+    }
+
+    private func performCheck(at endpoints: [String]) {
+        guard !endpoints.isEmpty else { return }
+        var currentEndpoints = endpoints
+        let endpoint = currentEndpoints.removeFirst()
         
-        // Use a more generic endpoint for connection health check
-        // PIGNOLO PROTOCOL: Use /health for simple ping, or /users/me if authenticated?
-        // Let's use /health or just root path if that fails. For now, appending /health is safer for Python APIs.
-        var request = URLRequest(url: baseURL.appendingPathComponent("health"))
+        var request = URLRequest(url: endpoint.isEmpty ? baseURL.deletingLastPathComponent() : baseURL.appendingPathComponent(endpoint))
         request.httpMethod = "GET"
-        request.timeoutInterval = 10.0
+        request.timeoutInterval = 7.0
         
         if let t = token {
             request.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization")
@@ -145,17 +146,19 @@ class RailwayAIService: ObservableObject {
             request.setValue(finalKey, forHTTPHeaderField: "X-API-Key")
         }
         
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            guard let self = self else { return }
             DispatchQueue.main.async {
                 if let httpResponse = response as? HTTPURLResponse {
-                    RailwayAILogger.shared.log("Health Check Status: \(httpResponse.statusCode)", type: httpResponse.statusCode < 400 ? .success : .warning)
-                    if httpResponse.statusCode == 401 {
-                        self.connectionStatus = .unauthorized
-                    } else if httpResponse.statusCode >= 200 && httpResponse.statusCode < 500 {
+                    if httpResponse.statusCode < 500 {
                         self.connectionStatus = .connected
-                    } else {
-                        self.connectionStatus = .error("Status: \(httpResponse.statusCode)")
+                        return
                     }
+                }
+                
+                // If failed and more endpoints to try
+                if !currentEndpoints.isEmpty {
+                    self.performCheck(at: currentEndpoints)
                 } else {
                     let errStr = error?.localizedDescription ?? "Server non raggiungibile"
                     self.connectionStatus = .error(errStr)
@@ -179,6 +182,7 @@ class RailwayAIService: ObservableObject {
         print("[Auth] Generating Permanent API Key at \(requestURL.absoluteString)...")
         
         return URLSession.shared.dataTaskPublisher(for: request)
+            .timeout(.seconds(30), scheduler: DispatchQueue.main)
             .tryMap { output in
                 guard let httpResponse = output.response as? HTTPURLResponse else {
                     throw URLError(.badServerResponse)
@@ -214,62 +218,124 @@ class RailwayAIService: ObservableObject {
     }
     
     func optimize(request: RailwayAIRequest) -> AnyPublisher<RailwayAIResponse, Error> {
-        // PIGNOLO PROTOCOL: Switching to the robust 'optimize_scheduled' endpoint as per technical specs.
-        let finalURL = baseURL.appendingPathComponent("optimize_scheduled")
+        // PIGNOLO PROTOCOL: Guard against server-side limits (max 50 trains)
+        if request.trains.count > 50 {
+            let error = NSError(
+                domain: "ai_limit_title".localized,
+                code: 400,
+                userInfo: [NSLocalizedDescriptionKey: String(format: "ai_too_many_trains_fmt".localized, request.trains.count)]
+            )
+            return Fail(error: error).eraseToAnyPublisher()
+        }
+        
+        let finalURL = baseURL.appendingPathComponent("optimize")
+        print("\n" + String(repeating: "🌐", count: 40))
+        print("🚀 [AI START] Inizio richiesta di ottimizzazione...")
         
         var urlRequest = URLRequest(url: finalURL)
         urlRequest.httpMethod = "POST"
-        urlRequest.timeoutInterval = 120.0
+        urlRequest.timeoutInterval = 240.0 // 4 minuti per gestire code sul server
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue("application/json", forHTTPHeaderField: "accept")
         
-        if let token = self.token {
-            urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        } else if let key = self.apiKey, !key.isEmpty {
-            let finalKey = key.hasPrefix("rw-") ? key : "rw-\(key)"
-            urlRequest.setValue(finalKey, forHTTPHeaderField: "X-API-Key")
-            urlRequest.setValue("Bearer \(finalKey)", forHTTPHeaderField: "Authorization")
+        // PIGNOLO PROTOCOL: Sync credentials from AuthenticationManager if local ones are missing or expired
+        let currentToken = AuthenticationManager.shared.jwtToken ?? self.token ?? ""
+        let currentKey = AuthenticationManager.shared.apiKey ?? self.apiKey ?? ""
+        
+        let cleanToken = currentToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanKey = currentKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // PIGNOLO PROTOCOL: Reverted priority - Trust fresh Session Token first
+        if !cleanToken.isEmpty {
+            print("🔑 [DEBUG] Auth: Preferring Session Token (User refresh)")
+            urlRequest.setValue("Bearer \(cleanToken)", forHTTPHeaderField: "Authorization")
+        } else if !cleanKey.isEmpty && cleanKey.hasPrefix("rw-") {
+            print("🔑 [DEBUG] Auth: Using Global API Key")
+            urlRequest.setValue(cleanKey, forHTTPHeaderField: "X-API-Key")
+        } else {
+             // Last resort fallback
+             if !cleanKey.isEmpty {
+                let finalKey = "rw-\(cleanKey)"
+                print("🔑 [DEBUG] Auth: Using Raw API Key (auto-prefixing)")
+                urlRequest.setValue(finalKey, forHTTPHeaderField: "X-API-Key")
+             } else {
+                print("⚠️ [DEBUG] No Credentials found in AuthManager or Service!")
+             }
         }
         
         do {
             let encoder = JSONEncoder()
-            encoder.outputFormatting = .prettyPrinted
-            // PIGNOLO PROTOCOL: Dates are already formatted as "HH:mm:ss" in the Request object.
+            let jsonData = try encoder.encode(request)
+            urlRequest.httpBody = jsonData
             
-            urlRequest.httpBody = try encoder.encode(request)
-            if let json = String(data: urlRequest.httpBody!, encoding: .utf8) {
-                print("[AI] Optimization Request (Scheduled): \(json)")
-                self.lastRequestJSON = json // Salva per ispezione UI
-                
-                // Salva anche su file per persistenza debug
-                let path = "/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/last_ai_request.json"
-                try? json.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+            print("📦 [DEBUG] Payload pronto: \(jsonData.count) bytes.")
+            
+            // Log in background per ispezione UI (non rallenta la richiesta)
+            DispatchQueue.global(qos: .background).async {
+                let prettyEncoder = JSONEncoder()
+                prettyEncoder.outputFormatting = .prettyPrinted
+                if let prettyData = try? prettyEncoder.encode(request),
+                   let prettyJson = String(data: prettyData, encoding: .utf8) {
+                    print("\n" + String(repeating: "📤", count: 20))
+                    print("📤 [AI REQUEST FULL JSON]:\n\(prettyJson)")
+                    print(String(repeating: "📤", count: 20) + "\n")
+                    DispatchQueue.main.async {
+                        self.lastRequestJSON = prettyJson
+                    }
+                    let path = "/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/last_ai_request.json"
+                    try? prettyJson.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+                }
             }
         } catch {
+            print("❌ [AI ERROR] Encoding failed: \(error)")
             return Fail(error: error).eraseToAnyPublisher()
         }
         
+        print("📡 [DEBUG] Cessione richiesta a URLSession...")
         return URLSession.shared.dataTaskPublisher(for: urlRequest)
-            .timeout(120, scheduler: DispatchQueue.main)
+            .timeout(.seconds(240), scheduler: DispatchQueue.global(qos: .userInitiated))
             .tryMap { output in
                 guard let httpResponse = output.response as? HTTPURLResponse else {
                     throw URLError(.badServerResponse)
                 }
                 
+                let rawBody = String(data: output.data, encoding: .utf8) ?? "Nessun corpo risposta"
+                
+                print("\n" + String(repeating: "📥", count: 20))
+                print("📡 [AI RESPONSE] STATUS: \(httpResponse.statusCode)")
+                print("📥 [AI RESPONSE FULL JSON]:\n\(rawBody)")
+                print(String(repeating: "📥", count: 20) + "\n")
+                
                 if httpResponse.statusCode == 401 {
-                    self.token = nil
+                    print("🚫 [AI UNAUTHORIZED] Clearing token...")
+                    DispatchQueue.main.async { self.token = nil }
                 }
                 
                 if httpResponse.statusCode != 200 {
-                    let body = String(data: output.data, encoding: .utf8) ?? "Nessun corpo risposta"
-                    print("❌ [AI ERROR] \(httpResponse.statusCode) at \(finalURL.absoluteString): \(body)")
-                    throw NSError(domain: "Server Error \(httpResponse.statusCode): \(body)", code: httpResponse.statusCode)
+                    throw NSError(domain: "Server Error \(httpResponse.statusCode): \(rawBody)", code: httpResponse.statusCode)
                 }
-                print("✅ [AI SUCCESS] \(httpResponse.statusCode) from \(finalURL.absoluteString)")
                 return output.data
             }
             .decode(type: RailwayAIResponse.self, decoder: JSONDecoder())
-            .receive(on: DispatchQueue.main)
+            .handleEvents(receiveOutput: { response in
+                // Log detailed resolutions
+                if let resolutions = response.resolutions, !resolutions.isEmpty {
+                    print("🌐 [AI AUDIT] Ricevute \(resolutions.count) risoluzioni:")
+                    for res in resolutions {
+                        print("   🔹 Treno ID \(res.train_id): Shift=\(res.time_adjustment_min)m, Binario=\(res.track_assignment ?? -1)")
+                    }
+                } else {
+                    print("🌐 [AI AUDIT] Nessuna risoluzione suggerita (orario già ottimale o nessun conflitto risolvibile).")
+                }
+                print(String(repeating: "💠", count: 40) + "\n")
+            }, receiveCompletion: { completion in
+                if case .failure(let error) = completion {
+                    print("⚠️ [AI FINISHED] Request failed: \(error.localizedDescription)")
+                } else {
+                    print("✅ [AI FINISHED] Success!")
+                }
+                print(String(repeating: "🌐", count: 40) + "\n")
+            })
             .eraseToAnyPublisher()
     }
     
@@ -283,18 +349,16 @@ class RailwayAIService: ObservableObject {
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue("application/json", forHTTPHeaderField: "accept")
         
-        if let token = self.token {
+        if let token = self.token, !token.isEmpty {
+            print("🔑 [DEBUG] Sending raw request with Session Token")
             urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         } else if let key = self.apiKey, !key.isEmpty {
             let finalKey = key.hasPrefix("rw-") ? key : "rw-\(key)"
+            print("🔑 [DEBUG] Sending raw request with API Key (X-API-Key)")
             urlRequest.setValue(finalKey, forHTTPHeaderField: "X-API-Key")
-            urlRequest.setValue("Bearer \(finalKey)", forHTTPHeaderField: "Authorization")
         }
         
         urlRequest.httpBody = jsonString.data(using: .utf8)
-        
-        // Debug & Logging
-        print("[AI] Optimization Request (Raw JSON): \(jsonString)")
         self.lastRequestJSON = jsonString
         
         let path = "/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/last_ai_request.json"
@@ -307,16 +371,23 @@ class RailwayAIService: ObservableObject {
                     throw URLError(.badServerResponse)
                 }
                 
+                let rawBody = String(data: output.data, encoding: .utf8) ?? "Nessun corpo risposta"
+                
+                print("\n" + String(repeating: "⚡️", count: 40))
+                print("📡 [AI RAW REQUEST] TO: \(finalURL.absoluteString)")
+                print("HTTP STATUS: \(httpResponse.statusCode)")
+                print("RAW RESPONSE BODY:")
+                print(rawBody)
+                print(String(repeating: "⚡️", count: 40) + "\n")
+                
                 if httpResponse.statusCode == 401 {
-                    self.token = nil
+                    DispatchQueue.main.async { self.token = nil }
                 }
                 
                 if httpResponse.statusCode != 200 {
-                    let body = String(data: output.data, encoding: .utf8) ?? "Nessun corpo risposta"
-                    print("❌ [AI ERROR] \(httpResponse.statusCode) at \(finalURL.absoluteString): \(body)")
-                    throw NSError(domain: "Server Error \(httpResponse.statusCode): \(body)", code: httpResponse.statusCode)
+                    print("❌ [AI RAW ERROR] \(httpResponse.statusCode) at \(finalURL.absoluteString): \(rawBody)")
+                    throw NSError(domain: "Server Error \(httpResponse.statusCode): \(rawBody)", code: httpResponse.statusCode)
                 }
-                print("✅ [AI SUCCESS] \(httpResponse.statusCode) from \(finalURL.absoluteString)")
                 return output.data
             }
             .decode(type: RailwayAIResponse.self, decoder: JSONDecoder())
@@ -327,7 +398,7 @@ class RailwayAIService: ObservableObject {
     func optimizeWithScenario(scenarioPath: String) -> AnyPublisher<RailwayAIResponse, Error> {
         var urlRequest = URLRequest(url: baseURL.appendingPathComponent("optimize"))
         urlRequest.httpMethod = "POST"
-        urlRequest.timeoutInterval = 120.0
+        urlRequest.timeoutInterval = 180.0 // PIGNOLO PROTOCOL: Augmented timeout for complex scenarios
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         if let token = self.token {
@@ -577,7 +648,7 @@ class RailwayAIService: ObservableObject {
     }
     
     /// Helper to convert current app state to RailwayAIRequest
-    func createRequest(network: RailwayNetwork, trains: [Train], conflicts: [ScheduleConflict]) -> RailwayAIRequest {
+    func createRequest(network: RailwayNetwork, trains: [Train], fixedTrainIds: Set<UUID> = [], conflicts: [ScheduleConflict]) -> RailwayAIRequest {
         stationMapping.removeAll()
         trainMapping.removeAll()
         trackMapping.removeAll()
@@ -586,7 +657,7 @@ class RailwayAIService: ObservableObject {
         let sortedNodes = network.nodes.sorted(by: { $0.id < $1.id })
         let aiStations = sortedNodes.enumerated().map { index, node in
             stationMapping[node.id] = index
-            let platforms = node.platforms ?? (node.type == .interchange ? 2 : 1)
+            let platforms = node.platforms ?? (node.type == .interchange ? 4 : 2)
             return RailwayAIStationInfo(id: index, name: node.name, num_platforms: platforms)
         }
         
@@ -603,7 +674,7 @@ class RailwayAIService: ObservableObject {
                 // Link this edge UUID to the existing track ID
                 trackMapping[edge.id.uuidString] = trackId
             } else {
-                let trackId = 1000 + uniqueTracks.count
+                let trackId = uniqueTracks.count // START FROM 0, NOT 1000
                 segmentToTrackId[key] = trackId
                 trackMapping[edge.id.uuidString] = trackId
                 
@@ -628,9 +699,12 @@ class RailwayAIService: ObservableObject {
         
         func normalize(_ date: Date?) -> Date? {
             guard let date = date else { return nil }
-            let comps = Calendar.current.dateComponents([.hour, .minute, .second], from: date)
-            let d = Calendar.current.date(from: DateComponents(year: 2000, month: 1, day: 1, hour: comps.hour, minute: comps.minute, second: comps.second)) ?? date
-            let roundedSeconds = floor((d.timeIntervalSinceReferenceDate + 30) / 60) * 60
+            let calendar = Calendar.current
+            let components = calendar.dateComponents([.hour, .minute, .second], from: date)
+            let dateAt2000 = calendar.date(from: DateComponents(year: 2000, month: 1, day: 1, hour: components.hour, minute: components.minute, second: components.second)) ?? date
+            
+            // PIGNOLO PROTOCOL: INCREASE PRECISION to 1 second to match local engine perfectly
+            let roundedSeconds = floor(dateAt2000.timeIntervalSinceReferenceDate + 0.5)
             return Date(timeIntervalSinceReferenceDate: roundedSeconds)
         }
         
@@ -656,19 +730,46 @@ class RailwayAIService: ObservableObject {
             let depTime = normalize(train.departureTime) ?? Date()
             let currentTrackId = routeIds.first ?? 0
             
+            // PIGNOLO PROTOCOL: Calculate ACTUAL average velocity from physical schedule
+            var actualVelocity = Double(train.maxSpeed) * 0.9 // Fallback
+            if let firstDep = train.stops.first?.departure, let lastArr = train.stops.last?.arrival {
+                let totalTripSeconds = lastArr.timeIntervalSince(firstDep)
+                let totalDwellSeconds = train.stops.reduce(0.0) { $0 + Double($1.minDwellTime * 60) }
+                let movingSeconds = totalTripSeconds - totalDwellSeconds
+                
+                var totalDist = 0.0
+                for i in 0..<(train.stops.count - 1) {
+                    if let path = network.findPathEdges(from: train.stops[i].stationId, to: train.stops[i+1].stationId) {
+                        totalDist += path.reduce(0.0) { $0 + $1.distance }
+                    }
+                }
+                
+                if movingSeconds > 30 && totalDist > 0 {
+                    let v = (totalDist / (movingSeconds / 3600))
+                    actualVelocity = min(v, Double(train.maxSpeed))
+                }
+            }
+            
+            // PIGNOLO PROTOCOL: Fixed trains are NOT delayed (from the AI perspective they are hard constraints)
+            let isFixed = fixedTrainIds.contains(train.id)
+            let isDelayed = isFixed ? false : conflicts.contains(where: { $0.trainAId == train.id || $0.trainBId == train.id })
+            
+            // Average dwell for better AI modeling
+            let avgDwell = train.stops.isEmpty ? 2 : Double(train.stops.reduce(0) { $0 + $1.minDwellTime }) / Double(train.stops.count)
+            
             return RailwayAITrainInfo(
                 id: index,
                 priority: train.priority,
                 position_km: 0.0,
-                velocity_kmh: Double(train.maxSpeed),
+                velocity_kmh: actualVelocity, 
                 current_track: currentTrackId,
                 destination_station: stationMapping[destId] ?? 0,
                 delay_minutes: 0,
-                is_delayed: false,
+                is_delayed: isDelayed,
                 origin_station: stationMapping[originId] ?? 0,
                 scheduled_departure_time: timeFormatter.string(from: depTime),
                 planned_route: routeIds,
-                min_dwell_minutes: train.stops.map { $0.minDwellTime }.max() ?? 3
+                min_dwell_minutes: Int(round(avgDwell))
             )
         }
         
@@ -677,8 +778,8 @@ class RailwayAIService: ObservableObject {
             tracks: uniqueTracks,
             stations: aiStations,
             max_iterations: 1000,
-            ga_max_iterations: 150,
-            ga_population_size: 50
+            ga_max_iterations: nil,
+            ga_population_size: nil
         )
         
         self.lastRequestJSON = (try? String(data: JSONEncoder().encode(finalRequest), encoding: .utf8)) ?? ""

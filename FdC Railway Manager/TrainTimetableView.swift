@@ -8,22 +8,22 @@ struct TrainTimetableView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section(header: Text("Treno: \(schedule.trainName)")) {
+                Section(header: Text(String(format: "train_label_fmt".localized, schedule.trainName))) {
                     HStack {
-                        Label("Totale Ritardo", systemImage: "clock.badge.exclamationmark")
+                        Label("total_delay_label".localized, systemImage: "clock.badge.exclamationmark")
                         Spacer()
                         Text("\(schedule.totalDelayMinutes) min")
                             .foregroundColor(schedule.totalDelayMinutes > 0 ? .red : .primary)
                     }
                 }
                 
-                Section(header: Text("Orario Dettagliato")) {
+                Section(header: Text("detailed_schedule".localized)) {
                     HStack {
-                        Text("Stazione").bold().frame(maxWidth: .infinity, alignment: .leading)
-                        Text("Arrivo").bold().frame(width: 60)
-                        Text("Partenza").bold().frame(width: 60)
-                        Text("Sosta").bold().frame(width: 40)
-                        Text("Bin.").bold().frame(width: 40)
+                        Text("station".localized).bold().frame(maxWidth: .infinity, alignment: .leading)
+                        Text("arrival".localized).bold().frame(width: 60)
+                        Text("departure".localized).bold().frame(width: 60)
+                        Text("dwell_time_short".localized).bold().frame(width: 40)
+                        Text("platform_short".localized).bold().frame(width: 40)
                     }
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -54,11 +54,11 @@ struct TrainTimetableView: View {
                     }
                 }
             }
-            .navigationTitle("Dettaglio Orario")
+            .navigationTitle("timetable_detail".localized)
             .toolbar {
                 if let sim = simulator {
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Risolvi Conflitti") {
+                        Button("solve_conflicts_button".localized) {
                             // This would run resolution for whole network
                         }
                     }

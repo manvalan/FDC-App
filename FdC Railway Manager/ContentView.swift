@@ -11,179 +11,373 @@ struct ContentView: View {
     @StateObject private var aiService = RailwayAIService.shared
     
     // Navigation State
-    @State private var sidebarSelection: SidebarItem? = .lines
+    // @State private var sidebarSelection: SidebarItem? = .lines <-- Moved to AppState
     @State private var selectedLine: RailwayLine? = nil
     @State private var selectedNode: Node? = nil
     @State private var selectedEdgeId: String? = nil // New state for edge selection
     @State private var selectedTrains: Set<UUID> = [] // Multi-selection support
+    @State private var highlightedConflictLocation: String? = nil // State for map highlighting
+    @State private var isExporting = false
+    @State private var showCredits = false
+    
     @State private var inspectorVisible: Bool = false
     
     // Global Settings State (lifted for easy access)
     @State private var showGrid: Bool = false
+    @State private var isMoveModeEnabled: Bool = false
     
-    enum SidebarItem: String, CaseIterable, Identifiable {
-        case network = "Rete"
-        case lines = "Linee"
-        case trains = "Treni"
-        case ai = "Railway AI"
-        case io = "I/O"
-        case settings = "Impostazioni"
-        
-        var id: String { rawValue }
-        var icon: String {
-            switch self {
-            case .network: return "map"
-            case .lines: return "point.topleft.down.to.point.bottomright.curvepath"
-            case .trains: return "train.side.front.car"
-            case .ai: return "sparkles"
-            case .io: return "doc.badge.arrow.up"
-            case .settings: return "gear"
+    // Infrastructure validation
+    @State private var missingTracks: [(from: String, to: String, type: Edge.TrackType)] = []
+    @State private var showInfrastructureAlert = false
+    
+
+    var body: some View {
+        VStack(spacing: 0) {
+            topNavigationBar
+            
+            HStack(spacing: 0) {
+                // 1. MASTER LIST (Left)
+                if appState.sidebarSelection != nil {
+                    sidebarContent
+                        .frame(width: 300)
+                        .background(Color.secondary.opacity(0.05))
+                        .background(.ultraThinMaterial)
+                    
+                    Divider()
+                        .edgesIgnoringSafeArea(.all)
+                }
+                
+                // 2. MAIN VIEW (Center Map)
+                detailContent
+                    .layoutPriority(1)
+                
+                // 3. PROPERTIES / DIAGRAM (Right)
+                if isSomethingSelected {
+                    Divider()
+                        .edgesIgnoringSafeArea(.all)
+                    
+                    sidebarPropertiesContent
+                        .frame(width: 350)
+                        .background(Color.secondary.opacity(0.05))
+                        .background(.ultraThinMaterial)
+                        .transition(.move(edge: .trailing))
+                }
+            }
+        }
+        .animation(.spring(), value: appState.sidebarSelection)
+        .animation(.spring(), value: isSomethingSelected)
+        .environmentObject(network)
+        .onMainStateChanges(
+            selectedLine: $selectedLine,
+            selectedNode: $selectedNode,
+            selectedEdgeId: $selectedEdgeId,
+            selectedTrains: $selectedTrains,
+            inspectorVisible: $inspectorVisible
+        )
+        .onNetworkStateChanges(appState: appState, network: network, trainManager: trainManager, selectedTrains: $selectedTrains)
+        .onChange(of: appState.sidebarSelection) { _ in
+            // Clear selection when switching modes to avoid 'confusion'
+            selectedLine = nil
+            selectedNode = nil
+            selectedEdgeId = nil
+            selectedTrains = []
+        }
+    }
+
+    
+    @ViewBuilder
+    private var sidebarPropertiesContent: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("details".localized)
+                    .font(.headline)
+                Spacer()
+                Button(action: {
+                    withAnimation {
+                        selectedLine = nil
+                        selectedNode = nil
+                        selectedEdgeId = nil
+                        selectedTrains = []
+                    }
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+            Divider()
+            
+            ScrollView {
+                VStack(spacing: 16) {
+                    if let node = selectedNode, let index = network.nodes.firstIndex(where: { $0.id == node.id }) {
+                        StationEditView(
+                            station: $network.nodes[index],
+                            isMoveModeEnabled: $isMoveModeEnabled,
+                            onDelete: {
+                                withAnimation {
+                                    network.removeNode(node.id)
+                                    selectedNode = nil
+                                }
+                            }
+                        )
+                        .id("node-\(node.id)")
+                    } else if let line = selectedLine {
+                        LineDetailView(line: Binding(
+                            get: { line },
+                            set: { newVal in
+                                if let idx = network.lines.firstIndex(where: { $0.id == line.id }) {
+                                    network.lines[idx] = newVal
+                                    selectedLine = newVal
+                                }
+                            }
+                        ), isMoveModeEnabled: $isMoveModeEnabled, selectedNode: $selectedNode, selectedEdgeId: $selectedEdgeId)
+                        .id("line-\(line.id)")
+                    } else if let edgeId = selectedEdgeId, let index = network.edges.firstIndex(where: { $0.id.uuidString == edgeId }) {
+                        TrackEditView(edge: $network.edges[index]) {
+                            withAnimation {
+                                network.removeEdge(network.edges[index].from, network.edges[index].to)
+                                selectedEdgeId = nil
+                            }
+                        }
+                        .id("edge-\(edgeId)")
+                    } else if !selectedTrains.isEmpty {
+                        if selectedTrains.count == 1, let trainId = selectedTrains.first, let train = trainManager.trains.first(where: { $0.id == trainId }) {
+                            TrainDetailView(train: train)
+                                .id("train-\(trainId)")
+                        } else {
+                            BatchTrainEditView(selectedIds: selectedTrains)
+                        }
+                    }
+                }
+                .padding()
             }
         }
     }
 
-    var body: some View {
-        NavigationSplitView {
-            List(SidebarItem.allCases, selection: $sidebarSelection) { item in
-                NavigationLink(value: item) {
-                    HStack {
-                        Label(item.rawValue, systemImage: item.icon)
-                        Spacer()
-                        if item == .ai {
-                            connectionIndicator
-                        }
-                    }
-                }
+    @ViewBuilder
+    private var sidebarContent: some View {
+        if let selection = appState.sidebarSelection {
+            switch selection {
+            case .network:
+                NetworkListView(network: network, selectedNode: $selectedNode, selectedEdgeId: $selectedEdgeId)
+            case .lines:
+                LinesListView(network: network, selectedLine: $selectedLine)
+            case .trains:
+                TrainsListView(selectedTrains: $selectedTrains)
+            case .ai:
+                RailwayAIView(network: network)
+            case .io:
+                IOManagementView()
+            case .settings:
+                SettingsView(showGrid: $showGrid)
             }
-            .navigationTitle("FdC Manager")
-        } content: {
-            if let selection = sidebarSelection {
-                switch selection {
-                case .network:
-                   NetworkListView(network: network, selectedNode: $selectedNode, selectedEdgeId: $selectedEdgeId)
-                case .lines:
-                    LinesListView(network: network, selectedLine: $selectedLine)
-                case .trains:
-                    TrainsListView(selectedTrains: $selectedTrains)
-                case .ai:
-                    RailwayAIView(network: network)
-                case .io:
-                    RailwayIOView(showGrid: $showGrid)
-                case .settings:
-                    SettingsView(showGrid: $showGrid) // Pass binding
-                }
-            } else {
-                Text("Seleziona una categoria")
-            }
-        } detail: {
-            RailwayMapView(
-                network: network,
-                selectedNode: $selectedNode,
-                selectedLine: $selectedLine,
-                selectedEdgeId: $selectedEdgeId,
-                showGrid: $showGrid,
-                mode: (sidebarSelection == .lines || sidebarSelection == .trains || sidebarSelection == .io) ? .lines : .network
-            )
-            .overlay(alignment: .bottomTrailing) {
-                // Floating button to toggle inspector if selection active
-                if selectedLine != nil || selectedNode != nil || selectedEdgeId != nil {
-                    Button(action: { inspectorVisible.toggle() }) {
-                        Image(systemName: "slider.horizontal.3")
-                            .padding()
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
-                            .shadow(radius: 4)
-                    }
-                    .padding()
-                }
-            }
-        }
-        .inspector(isPresented: $inspectorVisible) {
-            Group {
-                if let node = selectedNode, let index = network.nodes.firstIndex(where: { $0.id == node.id }) {
-                    StationEditView(station: $network.nodes[index]) {
-                        // On Delete
-                        network.nodes.remove(at: index)
-                        selectedNode = nil
-                    }
-                } else if let line = selectedLine {
-                    // Binding hack for selectedLine
-                    LineDetailView(line: Binding(
-                        get: { line },
-                        set: { newVal in
-                            if let idx = network.lines.firstIndex(where: { $0.id == line.id }) {
-                                network.lines[idx] = newVal
-                                selectedLine = newVal
-                            }
-                        }
-                    ))
-                } else if let edgeId = selectedEdgeId, let index = network.edges.firstIndex(where: { $0.id.uuidString == edgeId }) {
-                    TrackEditView(edge: $network.edges[index]) {
-                        // On Delete
-                        network.edges.remove(at: index)
-                        selectedEdgeId = nil
-                    }
-                } else if !selectedTrains.isEmpty {
-                    if selectedTrains.count == 1, let trainId = selectedTrains.first, let train = trainManager.trains.first(where: { $0.id == trainId }) {
-                        TrainDetailView(train: train)
-                    } else {
-                        BatchTrainEditView(selectedIds: selectedTrains)
-                    }
-                } else {
-                    ContentUnavailableView("Nessuna selezione", systemImage: "cursorarrow.click")
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: { inspectorVisible = false }) {
-                        Image(systemName: "xmark")
-                    }
-                }
-            }
-        }
-        .environmentObject(network) // Ensure network is available for Hub Picker
-        .onChange(of: selectedLine) { newVal in 
-            if newVal != nil { 
-                selectedNode = nil
-                selectedEdgeId = nil
-                selectedTrains = []
-                inspectorVisible = true 
-            } 
-        }
-        .onChange(of: selectedNode) { newVal in 
-            if newVal != nil { 
-                selectedLine = nil
-                selectedEdgeId = nil
-                selectedTrains = []
-                inspectorVisible = true 
-            } 
-        }
-        .onChange(of: selectedEdgeId) { newVal in 
-            if newVal != nil { 
-                selectedLine = nil
-                selectedNode = nil
-                selectedTrains = []
-                inspectorVisible = true 
-            } 
-        }
-        .onChange(of: selectedTrains) { newVal in
-            if !newVal.isEmpty {
-                selectedLine = nil
-                selectedNode = nil
-                selectedEdgeId = nil
-                inspectorVisible = true
-            }
-        }
-        .onChange(of: network.lines) { _ in
-            trainManager.validateSchedules(with: network)
-        }
-        .onChange(of: trainManager.trains) { _ in
-            trainManager.validateSchedules(with: network)
-            appState.simulator.schedules = trainManager.generateSchedules(with: network)
+        } else {
+            Text("select_category".localized)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
     
-    private func releaseOthers() {} // Deprecated by specific handlers
+    @ViewBuilder
+    private var detailContent: some View {
+        RailwayMapView(
+            network: network,
+            selectedNode: $selectedNode,
+            selectedLine: $selectedLine,
+            selectedEdgeId: $selectedEdgeId,
+            showGrid: $showGrid,
+            isMoveModeEnabled: $isMoveModeEnabled,
+            highlightedConflictLocation: $highlightedConflictLocation,
+            mode: (appState.sidebarSelection == .lines || appState.sidebarSelection == .trains || appState.sidebarSelection == .io) ? .lines : .network
+        )
+    }
+    
+    private var isSomethingSelected: Bool {
+        selectedLine != nil || selectedNode != nil || selectedEdgeId != nil || !selectedTrains.isEmpty
+    }
+    private var topNavigationBar: some View {
+        HStack(spacing: 0) {
+            Text("🚊 FdC Manager")
+                .font(.system(size: 16, weight: .black))
+                .padding(.horizontal, 20)
+                .foregroundStyle(.primary)
+            
+            Divider()
+                .frame(height: 24)
+            
+            HStack(spacing: 8) {
+                ForEach(SidebarItem.allCases) { item in
+                    tabButton(for: item)
+                }
+            }
+            .padding(.horizontal, 12)
+            
+            Spacer()
+            
+            // Connection Status and global info
+            HStack(spacing: 20) {
+                if let selection = appState.sidebarSelection, selection == .ai {
+                    connectionIndicator
+                }
+                
+                exportMenu
+                
+                Button(action: { showCredits = true }) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 14))
+                        .padding(8)
+                        .background(Circle().fill(Color.primary.opacity(0.05)))
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+        .sheet(isPresented: $showCredits) {
+            CreditsView()
+        }
+        .frame(height: 50)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+        .overlay {
+            if isExporting {
+                ZStack {
+                    Color.black.opacity(0.3).ignoresSafeArea()
+                    VStack(spacing: 12) {
+                        ProgressView()
+                        Text("exporting_in_progress".localized)
+                            .font(.subheadline.bold())
+                    }
+                    .padding(24)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
+            }
+        }
+    }
+    
+    private var exportMenu: some View {
+        Menu {
+            Section("current_screen".localized) {
+                Button(action: { exportCurrentScreen(as: .jpeg) }) {
+                    Label("export_jpg".localized, systemImage: "photo")
+                }
+                Button(action: { exportCurrentScreen(as: .pdf) }) {
+                    Label("export_pdf".localized, systemImage: "doc.text")
+                }
+                Button(action: { printCurrentScreen() }) {
+                    Label("print".localized, systemImage: "printer")
+                }
+            }
+            
+            if appState.sidebarSelection == .network || appState.sidebarSelection == .lines {
+                Section("map".localized) {
+                    Button(action: { /* Triggers map-specific high-res export */ }) {
+                        Label("high_res_map".localized, systemImage: "map")
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "square.and.arrow.up")
+                .font(.system(size: 14))
+                .padding(8)
+                .background(Circle().fill(Color.primary.opacity(0.05)))
+        }
+    }
+    
+    @MainActor
+    private func exportCurrentScreen(as format: ExportFormat) {
+        isExporting = true
+        
+        let mode: RailwayMapView.MapVisualizationMode = (appState.sidebarSelection == .lines || appState.sidebarSelection == .trains) ? .lines : .network
+        
+        // Prepare High-Res Snapshot Data for the MAP (the central view)
+        let snapshotData = RailwayMapView.MapSnapshotData.prepare(
+            nodes: network.nodes,
+            edges: network.edges,
+            lines: network.lines,
+            schedules: appState.simulator.schedules,
+            mode: mode,
+            globalFontSize: 24, // High res labels
+            globalLineWidth: 14 // High res lines
+        )
+        
+        // Global Export from TOP bar always exports the MAP (viewed at center)
+        let finalView = RailwayMapView.RailwayMapSnapshot(data: snapshotData)
+            .environmentObject(appState)
+            .frame(width: 2048, height: 1536)
+        
+        Task {
+            if format == .jpeg {
+                if let image = ExportUtils.exportViewAsImage(content: finalView) {
+                    ExportUtils.shareItem(image)
+                }
+            } else {
+                if let url = ExportUtils.exportViewAsPDF(content: finalView, fileName: "FdC_Mappa_Rete") {
+                    ExportUtils.shareItem(url)
+                }
+            }
+            isExporting = false
+        }
+    }
+    
+    @MainActor
+    private func printCurrentScreen() {
+        isExporting = true
+        
+        let mode: RailwayMapView.MapVisualizationMode = (appState.sidebarSelection == .lines || appState.sidebarSelection == .trains) ? .lines : .network
+        let snapshotData = RailwayMapView.MapSnapshotData.prepare(
+            nodes: network.nodes,
+            edges: network.edges,
+            lines: network.lines,
+            schedules: appState.simulator.schedules,
+            mode: mode,
+            globalFontSize: 20,
+            globalLineWidth: 12
+        )
+        
+        let finalView = RailwayMapView.RailwayMapSnapshot(data: snapshotData)
+            .environmentObject(appState)
+            .frame(width: 1600, height: 1200)
+        
+        Task {
+            if let image = ExportUtils.exportViewAsImage(content: finalView) {
+                ExportUtils.printImage(image, jobName: "print_job_map".localized)
+            }
+            isExporting = false
+        }
+    }
+    
+    private func tabButton(for item: SidebarItem) -> some View {
+        let isSelected = appState.sidebarSelection == item
+        
+        return Button(action: {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                appState.sidebarSelection = item
+            }
+        }) {
+            HStack(spacing: 8) {
+                Image(systemName: item.icon)
+                    .font(.system(size: 14, weight: isSelected ? .bold : .regular))
+                Text(item.title)
+                    .font(.system(size: 13, weight: isSelected ? .bold : .medium))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.accentColor.opacity(0.15))
+                        .matchedGeometryEffect(id: "tab_background", in: tabNameSpace)
+                }
+            }
+            .foregroundColor(isSelected ? .accentColor : .primary.opacity(0.7))
+        }
+        .buttonStyle(.plain)
+    }
+    
+    @Namespace private var tabNameSpace
     
     private var connectionIndicator: some View {
         return Group {
@@ -201,6 +395,79 @@ struct ContentView: View {
     }
 }
 
+// MARK: - Navigation Logic Extensions
+extension View {
+    func onMainStateChanges(
+        selectedLine: Binding<RailwayLine?>,
+        selectedNode: Binding<Node?>,
+        selectedEdgeId: Binding<String?>,
+        selectedTrains: Binding<Set<UUID>>,
+        inspectorVisible: Binding<Bool>
+    ) -> some View {
+        self
+            .onChange(of: selectedLine.wrappedValue) { newVal in
+                if newVal != nil {
+                    selectedNode.wrappedValue = nil
+                    selectedEdgeId.wrappedValue = nil
+                    selectedTrains.wrappedValue = []
+                    inspectorVisible.wrappedValue = true
+                }
+            }
+            .onChange(of: selectedNode.wrappedValue) { newVal in
+                if newVal != nil {
+                    print("📍 [ContentView] selectedNode changed to: \(newVal?.name ?? "nil")")
+                    selectedLine.wrappedValue = nil
+                    selectedEdgeId.wrappedValue = nil
+                    selectedTrains.wrappedValue = []
+                    inspectorVisible.wrappedValue = true
+                }
+            }
+            .onChange(of: selectedEdgeId.wrappedValue) { newVal in
+                if newVal != nil {
+                    print("🛤️ [ContentView] selectedEdgeId changed to: \(newVal ?? "nil")")
+                    selectedLine.wrappedValue = nil
+                    selectedNode.wrappedValue = nil
+                    selectedTrains.wrappedValue = []
+                    inspectorVisible.wrappedValue = true
+                }
+            }
+            .onChange(of: selectedTrains.wrappedValue) { newVal in
+                if !newVal.isEmpty {
+                    selectedLine.wrappedValue = nil
+                    selectedNode.wrappedValue = nil
+                    selectedEdgeId.wrappedValue = nil
+                    inspectorVisible.wrappedValue = true
+                }
+            }
+    }
+    
+    func onNetworkStateChanges(
+        appState: AppState,
+        network: RailwayNetwork,
+        trainManager: TrainManager,
+        selectedTrains: Binding<Set<UUID>>
+    ) -> some View {
+        self
+            .onChange(of: appState.jumpToTrainId) { trainId in
+                if let tId = trainId {
+                    appState.sidebarSelection = .trains
+                    selectedTrains.wrappedValue = [tId]
+                    appState.jumpToTrainId = nil
+                }
+            }
+            .onChange(of: network.lines) { _ in
+                trainManager.validateSchedules(with: network)
+            }
+            .onChange(of: trainManager.trains) { _ in
+                trainManager.validateSchedules(with: network)
+                appState.simulator.schedules = trainManager.generateSchedules(with: network)
+            }
+    }
+}
+
+// MARK: - Legacy Inspector Removed
+// SidebarInspectorView functionality merged into sidebarContainer
+
 // MARK: - Subviews for Content Column
 
 struct NetworkListView: View {
@@ -211,9 +478,13 @@ struct NetworkListView: View {
     @State private var mode: NetworkListMode = .stations
     
     enum NetworkListMode: String, CaseIterable, Identifiable {
-        case stations = "Stazioni"
-        case tracks = "Binari"
+        case stations = "stations"
+        case tracks = "tracks"
         var id: String { rawValue }
+        
+        var localizedName: String {
+            self.rawValue.localized
+        }
     }
     
     private func stationName(for id: String) -> String {
@@ -222,9 +493,9 @@ struct NetworkListView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Visualizza", selection: $mode) {
+            Picker("visualization".localized, selection: $mode) {
                 ForEach(NetworkListMode.allCases) { m in
-                    Text(m.rawValue).tag(m)
+                    Text(m.localizedName).tag(m)
                 }
             }
             .pickerStyle(.segmented)
@@ -232,8 +503,8 @@ struct NetworkListView: View {
             
             List {
                 if mode == .stations {
-                    Section("Stazioni (\(network.nodes.count))") {
-                        ForEach(network.nodes) { node in
+                    Section(String(format: "stations_count".localized, network.nodes.count)) {
+                        ForEach(network.sortedNodes) { node in
                             HStack {
                                 Text(node.name)
                                     .foregroundColor(node.id == selectedNode?.id ? .blue : .primary)
@@ -248,10 +519,20 @@ struct NetworkListView: View {
                             }
                             .listRowBackground(node.id == selectedNode?.id ? Color.accentColor.opacity(0.1) : Color.clear)
                         }
+                        .onDelete { indexSet in
+                            let sorted = network.sortedNodes
+                            for index in indexSet {
+                                let node = sorted[index]
+                                network.removeNode(node.id)
+                                if selectedNode?.id == node.id {
+                                    selectedNode = nil
+                                }
+                            }
+                        }
                     }
                 } else {
-                    Section("Binari (\(network.edges.count))") {
-                        ForEach(network.edges) { edge in
+                    Section(String(format: "tracks_count".localized, network.edges.count)) {
+                        ForEach(network.sortedEdges) { edge in
                             HStack {
                                 VStack(alignment: .leading) {
                                     Text("\(stationName(for: edge.from)) → \(stationName(for: edge.to))")
@@ -272,11 +553,21 @@ struct NetworkListView: View {
                             }
                             .listRowBackground(selectedEdgeId == edge.id.uuidString ? Color.accentColor.opacity(0.1) : Color.clear)
                         }
+                        .onDelete { indexSet in
+                            let sorted = network.sortedEdges
+                            for index in indexSet {
+                                let edge = sorted[index]
+                                network.removeEdge(edge.from, edge.to)
+                                if selectedEdgeId == edge.id.uuidString {
+                                    selectedEdgeId = nil
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
-        .navigationTitle("Rete")
+        .navigationTitle("network".localized)
     }
 }
 
@@ -284,10 +575,11 @@ struct LinesListView: View {
     @ObservedObject var network: RailwayNetwork
     @Binding var selectedLine: RailwayLine?
     @State private var showCreate = false
+    @State private var editingLineId: String? = nil
     
     var body: some View {
         List {
-            ForEach(network.lines) { line in
+            ForEach(network.sortedLines) { line in
                 HStack {
                     if let color = line.color {
                         Circle().fill(Color(hex: color) ?? .black).frame(width: 10, height: 10)
@@ -300,16 +592,33 @@ struct LinesListView: View {
                 .onTapGesture {
                     selectedLine = line
                 }
+                .contextMenu {
+                    Button(action: { editingLineId = line.id }) {
+                        Label("edit_line".localized, systemImage: "pencil")
+                    }
+                    Button(role: .destructive, action: {
+                        if let idx = network.lines.firstIndex(where: { $0.id == line.id }) {
+                            network.lines.remove(at: idx)
+                            if selectedLine?.id == line.id { selectedLine = nil }
+                        }
+                    }) {
+                        Label("delete_line".localized, systemImage: "trash")
+                    }
+                }
                 .listRowBackground(selectedLine?.id == line.id ? Color.accentColor.opacity(0.1) : Color.clear)
             }
-            .onDelete { idx in
-                network.lines.remove(atOffsets: idx)
-                if let sel = selectedLine, !network.lines.contains(where: { $0.id == sel.id }) {
-                    selectedLine = nil
+            .onDelete { indexSet in
+                let sorted = network.sortedLines
+                for index in indexSet {
+                    let line = sorted[index]
+                    if let idx = network.lines.firstIndex(where: { $0.id == line.id }) {
+                        network.lines.remove(at: idx)
+                        if selectedLine?.id == line.id { selectedLine = nil }
+                    }
                 }
             }
         }
-        .navigationTitle("Linee")
+        .navigationTitle("lines".localized)
         .toolbar {
             Button(action: { showCreate = true }) {
                 Image(systemName: "plus")
@@ -318,6 +627,12 @@ struct LinesListView: View {
         .sheet(isPresented: $showCreate) {
             LineCreationView()
         }
+        .sheet(item: Binding(
+            get: { editingLineId.map { IdentifiableString(id: $0) } },
+            set: { editingLineId = $0?.id }
+        )) { ident in
+            LineEditView(lineId: ident.id)
+        }
     }
 }
 struct TrainsListView: View {
@@ -325,30 +640,40 @@ struct TrainsListView: View {
     @EnvironmentObject var manager: TrainManager
     @EnvironmentObject var appState: AppState
     
-    @State private var scheduleLine: RailwayLine? = nil
-    @State private var customTrainLine: RailwayLine? = nil
-    @State private var showScheduleForLine: RailwayLine? = nil
     @Binding var selectedTrains: Set<UUID>
     @State private var showAddTrain = false
-    
+    @State private var customTrainLine: RailwayLine? = nil
+    @State private var showScheduleForLine: RailwayLine? = nil
+
     // AI State
     @State private var suggestingForLine: RailwayLine? = nil
     @State private var aiSuggestion: String? = nil
     @State private var isAiLoading = false
     
+    struct ScheduleRequest: Identifiable {
+        let id = UUID()
+        let line: RailwayLine
+        let mode: ScheduleCreationView.ScheduleMode
+    }
+    @State private var activeScheduleRequest: ScheduleRequest? = nil
+    
     var body: some View {
         List {
-            ForEach(network.lines) { line in
+            ForEach(network.sortedLines) { line in
                 Section(header: LineHeader(
                     line: line,
-                    onAddTrain: { customTrainLine = line },
-                    onAddTrainCadenced: { scheduleLine = line },
+                    onAddTrain: { 
+                        activeScheduleRequest = ScheduleRequest(line: line, mode: .single)
+                    },
+                    onAddTrainCadenced: { 
+                        activeScheduleRequest = ScheduleRequest(line: line, mode: .cadenced)
+                    },
                     onShowSchedule: { showScheduleForLine = line }
                 )) {
                     let lineTrains = manager.trains.filter { $0.lineId == line.id }
                     
                     if lineTrains.isEmpty {
-                        Text("Nessun treno assegnato a questa linea.").font(.caption).foregroundColor(.secondary)
+                        Text("no_trains_assigned".localized).font(.caption).foregroundColor(.secondary)
                     }
                     
                     ForEach(lineTrains) { train in
@@ -369,7 +694,7 @@ struct TrainsListView: View {
                 }
             }
             
-            Section("Treni Non Assegnati") {
+            Section("unassigned_trains".localized) {
                 let unassigned = manager.trains.filter { $0.lineId == nil }
                 ForEach(unassigned) { train in
                     Button(action: {
@@ -379,7 +704,7 @@ struct TrainsListView: View {
                             Image(systemName: "exclamationmark.triangle").foregroundColor(.orange)
                             Text(train.name)
                             Spacer()
-                            Text(train.type).font(.caption)
+                            Text(train.type.localized).font(.caption)
                         }
                         .background(selectedTrains.contains(train.id) ? Color.accentColor.opacity(0.2) : Color.clear)
                         .cornerRadius(4)
@@ -392,7 +717,7 @@ struct TrainsListView: View {
                 }
             }
         }
-        .navigationTitle("Gestione Orari")
+        .navigationTitle("schedule_management".localized)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(action: {
@@ -400,14 +725,14 @@ struct TrainsListView: View {
                     appState.simulator.schedules.removeAll()
                     selectedTrains.removeAll()
                 }) {
-                    Label("Elimina Tutti i Treni", systemImage: "trash.fill")
+                    Label("delete_all_trains".localized, systemImage: "trash.fill")
                 }
                 .foregroundColor(.red)
-                .help("Elimina tutti i treni dal sistema (inclusi i fantasmi)")
+                .help("delete_all_trains_help".localized)
             }
         }
-        .sheet(item: $scheduleLine) { line in
-            ScheduleCreationView(line: line)
+        .sheet(item: $activeScheduleRequest) { req in
+            ScheduleCreationView(line: req.line, initialMode: req.mode)
         }
         .sheet(item: $customTrainLine) { line in
             TrainCreationView(line: line)
@@ -417,7 +742,7 @@ struct TrainsListView: View {
                 LineScheduleView(line: line)
                     .toolbar {
                         ToolbarItem(placement: .navigationBarLeading) {
-                            Button("Chiudi") {
+                            Button("close".localized) {
                                 showScheduleForLine = nil
                             }
                         }
@@ -425,8 +750,8 @@ struct TrainsListView: View {
             }
         }
         // Popover removed - using Inspector in ContentView
-        .alert("Suggerimento AI", isPresented: Binding(get: { aiSuggestion != nil }, set: { if !$0 { aiSuggestion = nil } })) {
-            Button("Ok", role: .cancel) { }
+        .alert("ai_suggestion_alert".localized, isPresented: Binding(get: { aiSuggestion != nil }, set: { if !$0 { aiSuggestion = nil } })) {
+            Button("ok".localized, role: .cancel) { }
         } message: {
             Text(aiSuggestion ?? "")
         }
@@ -440,13 +765,7 @@ struct TrainsListView: View {
             return nil
         }.joined(separator: ", ")
 
-        let prompt = """
-        Sto pianificando l'orario ferroviario per la linea "\(line.name)".
-        Fermate (\(line.stops.count)): \(stopNames).
-        Tempo di sosta medio per fermata: 3 minuti.
-        
-        Suggerisci una frequenza oraria ottimale (es. ogni 30 min, ogni ora) basandoti sulla lunghezza del percorso e sul tipo di servizio (Regionale/Diretto). Fornisci una risposta concisa con la frequenza e una breve motivazione.
-        """
+        let prompt = String(format: "frequency_suggestion_prompt_fmt".localized, line.name, stopNames)
         
         isAiLoading = true
         sendToRailwayAI(prompt: prompt, network: network, endpoint: appState.aiEndpoint) { result in
@@ -456,7 +775,7 @@ struct TrainsListView: View {
                 case .success(let resp):
                     aiSuggestion = resp
                 case .failure(let err):
-                    aiSuggestion = "Errore durante la richiesta AI: \(err.localizedDescription)"
+                    aiSuggestion = String(format: "ai_error_fmt".localized, err.localizedDescription)
                 }
             }
         }
@@ -542,60 +861,145 @@ struct TrainRow: View {
 struct LineDetailView: View {
     @Binding var line: RailwayLine
     @EnvironmentObject var network: RailwayNetwork
+    @EnvironmentObject var appState: AppState
+    @Binding var isMoveModeEnabled: Bool
+    @Binding var selectedNode: Node?
+    @Binding var selectedEdgeId: String?
     
     private var colorBinding: Binding<Color> {
-         Binding(
-             get: { Color(hex: line.color ?? "") ?? .black },
-             set: { if let hex = $0.toHex() { line.color = hex } }
-         )
-     }
-     
-     var body: some View {
-         Form {
-             Section("Proprietà") {
-                 TextField("Nome Linea", text: $line.name)
-                 ColorPicker("Colore", selection: colorBinding)
-                 HStack {
-                     Text("Spessore Traccia")
-                     Spacer()
-                     Text("\(Int(line.width ?? 12)) px")
-                         .foregroundColor(.secondary)
-                 }
-                 Slider(value: Binding(get: { line.width ?? 12 }, set: { line.width = $0 }), in: 4...40, step: 2)
-             }
-             
-             Section("Stazioni e Geometria") {
-                 VerticalTrackDiagramView(line: line, network: network)
-                     .frame(minHeight: 300)
-             }
-             
-             Section("Tempi di Sosta e Binari") {
-                 ForEach($line.stops) { $stop in
-                     HStack {
-                         Text(stopName(stop.stationId))
-                             .font(.caption)
-                             .frame(width: 100, alignment: .leading)
-                         
-                         TextField("Binario", text: Binding(
-                             get: { stop.track ?? "" },
-                             set: { stop.track = $0.isEmpty ? nil : $0 }
-                         ))
-                         .textFieldStyle(.roundedBorder)
-                         .frame(width: 60)
-                         
-                         Stepper("\(stop.minDwellTime)m", value: $stop.minDwellTime, in: 0...120)
-                             .font(.caption)
-                     }
-                 }
-             }
-         }
-         .navigationTitle("Modifica Linea")
-     }
+        Binding(
+            get: { Color(hex: line.color ?? "") ?? .black },
+            set: { if let hex = $0.toHex() { line.color = hex } }
+        )
+    }
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // 1. Identification
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("identification".localized.uppercased())
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                    
+                    TextField("line_name_placeholder".localized, text: $line.name)
+                        .textFieldStyle(.roundedBorder)
+                    
+                    HStack {
+                        Text("color_label".localized)
+                        Spacer()
+                        ColorPicker("", selection: colorBinding)
+                            .labelsHidden()
+                    }
+                }
+                .padding()
+                .background(Color.secondary.opacity(0.05))
+                .cornerRadius(8)
+                
+                // 2. Numbering
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("train_numbering".localized.uppercased())
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                    
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text("prefix".localized).font(.caption2)
+                            TextField("RE", text: Binding(
+                                get: { line.codePrefix ?? "" },
+                                set: { line.codePrefix = $0.isEmpty ? nil : $0 }
+                            ))
+                            .textFieldStyle(.roundedBorder)
+                        }
+                        
+                        VStack(alignment: .leading) {
+                            Text("code".localized).font(.caption2)
+                            TextField("5", value: Binding(
+                                get: { line.numberPrefix ?? 0 },
+                                set: { line.numberPrefix = $0 == 0 ? nil : $0 }
+                            ), format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .keyboardType(.numberPad)
+                        }
+                    }
+                    
+                    Text(String(format: "numbering_example".localized, line.codePrefix ?? "RE", line.numberPrefix ?? 5))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .italic()
+                }
+                .padding()
+                .background(Color.secondary.opacity(0.05))
+                .cornerRadius(8)
+                
+                // 3. Diagram
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("vertical_diagram".localized.uppercased())
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                    
+                    VerticalTrackDiagramView(
+                        line: $line,
+                        network: network,
+                        isMoveModeEnabled: $isMoveModeEnabled,
+                        externalSelectedStationID: Binding(
+                            get: { selectedNode?.id },
+                            set: { id in
+                                if let id = id {
+                                    selectedNode = network.nodes.first(where: { $0.id == id })
+                                } else {
+                                    selectedNode = nil
+                                }
+                            }
+                        ),
+                        externalSelectedEdgeID: $selectedEdgeId
+                    )
+                    .frame(minHeight: 400)
+                    .cornerRadius(8)
+                }
+                
+                // 4. Dwell Times & Tracks
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("tracks_dwells".localized.uppercased())
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                    
+                    ForEach($line.stops) { $stop in
+                        HStack {
+                            Text(stopName(stop.stationId))
+                                .font(.system(size: 13, weight: .medium))
+                                .frame(width: 120, alignment: .leading)
+                            
+                            TextField("track_label_short".localized, text: Binding(
+                                get: { stop.track ?? "" },
+                                set: { stop.track = $0.isEmpty ? nil : $0 }
+                            ))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 50)
+                            
+                            Spacer()
+                            
+                            Stepper(String(format: "dwell_time_min".localized, stop.minDwellTime), value: $stop.minDwellTime, in: 0...120)
+                                .font(.caption)
+                        }
+                        .padding(.vertical, 4)
+                        Divider()
+                    }
+                }
+                .padding()
+                .background(Color.secondary.opacity(0.05))
+                .cornerRadius(8)
+            }
+            .padding()
+        }
+    }
      
      private func stopName(_ id: String) -> String {
          network.nodes.first(where: { $0.id == id })?.name ?? id
      }
  }
+
+
 
 
 // ... (Subviews)
@@ -743,125 +1147,72 @@ struct SettingsView: View {
     }
     
     private func generateKey() {
+        // PIGNOLO PROTOCOL: Proactive Sync
+        RailwayAIService.shared.syncCredentials(
+            endpoint: appState.aiEndpoint,
+            apiKey: appState.aiApiKey,
+            token: appState.aiToken
+        )
+        
         isTestLoading = true
         testResultMessage = "Generazione API Key..."
         testErrorMessage = nil
         
-        // 1. Use AuthenticationManager to generate the key
-        AuthenticationManager.shared.generatePermanentKey { result in
-            DispatchQueue.main.async {
+        // Use the centralized service instead of the redundant manager
+        RailwayAIService.shared.generateApiKey()
+            .sink { completion in
                 self.isTestLoading = false
-                
-                switch result {
-                case .success(let key):
-                    self.appState.aiApiKey = key
-                    self.testResultMessage = "API Key Generata e Salvata!"
-                    
-                    // Sync immediately
-                    RailwayAIService.shared.syncCredentials(
-                        endpoint: self.appState.aiEndpoint,
-                        apiKey: key,
-                        token: self.appState.aiToken
-                    )
-                    
-                case .failure(let error):
+                if case .failure(let error) = completion {
                     self.testErrorMessage = "Errore Generazione Key: \(error.localizedDescription)"
                 }
+            } receiveValue: { key in
+                self.appState.aiApiKey = key
+                self.testResultMessage = "API Key Generata e Salvata!"
+                // Auto-sync after generation
+                RailwayAIService.shared.syncCredentials(
+                    endpoint: self.appState.aiEndpoint,
+                    apiKey: key,
+                    token: self.appState.aiToken
+                )
             }
-        }
+            .store(in: &cancellables)
     }
     
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("Visualizzazione")) {
-                    Toggle("Mostra Griglia", isOn: $showGrid)
+                Section(header: Text("language".localized)) {
+                    Picker("language".localized, selection: $appState.currentLanguage) {
+                        ForEach(AppLanguage.allCases) { lang in
+                            Text(lang.displayName).tag(lang)
+                        }
+                    }
+                    .pickerStyle(.menu)
                 }
-
-                Section(header: Text("Intelligenza Artificiale")) {
-                    HStack {
-                        TextField("Server API Base URL", text: $appState.aiEndpoint)
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
-                        
-                        Button(action: {
-                            appState.aiEndpoint = "http://railway-ai.michelebigi.it:8080"
-                        }) {
-                            Image(systemName: "arrow.counterclockwise")
-                                .foregroundColor(.blue)
-                        }
-                        .buttonStyle(BorderlessButtonStyle())
-                        .help("Ripristina URL di default")
+                
+                Section(header: Text("ai_config".localized)) {
+                    NavigationLink(destination: TrainTrackParametersView()) {
+                        Label("train_params".localized, systemImage: "slider.horizontal.3")
                     }
                     
-                    TextField("Username", text: $appState.aiUsername)
-                        .autocapitalization(.none)
-                    
-                    SecureField("Password", text: $appState.aiPassword)
-                    
-                    SecureField("API Key Permanente", text: $appState.aiApiKey)
-                    
-                    Text("Usa la Password per il login temporaneo o l'API Key per l'accesso permanente.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                    
-                    HStack {
-                        Button(action: testConnection) {
-                            if isTestLoading && testResultMessage != "Generazione API Key..." {
-                                ProgressView()
-                            } else {
-                                Text("Test Login")
-                            }
-                        }
-                        .disabled(isTestLoading || appState.aiPassword.isEmpty)
-                        
-                        Spacer()
-                        
-                        Button(action: generateKey) {
-                            if isTestLoading && testResultMessage == "Generazione API Key..." {
-                                ProgressView()
-                            } else {
-                                Text("Genera API Key")
-                            }
-                        }
-                        .disabled(isTestLoading || RailwayAIService.shared.token == nil)
-                        .foregroundColor(.orange)
-                    }
-                    
-                    if let result = testResultMessage {
-                        Text(result).foregroundColor(.green).font(.caption)
-                    }
-                    if let error = testErrorMessage {
-                        Text(error).foregroundColor(.red).font(.caption)
-                    }
-                }
-
-                Section(header: Text("Diagnostica")) {
-                    Button(action: { showLogs = true }) {
-                        Label("Mostra Log di Rete", systemImage: "list.bullet.rectangle.portrait")
+                    NavigationLink(destination: VisualizationSettingsView(showGrid: $showGrid)) {
+                        Label("visualization".localized, systemImage: "eye")
                     }
                 }
                 
-                Section(header: Text("Informazioni")) {
-                    Button(action: { showCredits = true }) {
-                        Label("Credits e Autore", systemImage: "info.circle")
+                Section(header: Text("railway_ai".localized)) {
+                    NavigationLink(destination: AISettingsView()) {
+                        Label("railway_ai".localized, systemImage: "sparkles")
                     }
                 }
                 
-                Section("Debug Dati (JSON)") {
-                    Button(action: {
-                        showJsonInspector(for: network.lines, title: "Linee (\(network.lines.count))")
-                    }) {
-                        Label("Mostra JSON Linee", systemImage: "curlybraces")
-                    }
-                    Button(action: {
-                        showJsonInspector(for: trainManager.trains, title: "Treni (\(trainManager.trains.count))")
-                    }) {
-                        Label("Mostra JSON Treni", systemImage: "curlybraces")
+                Section(header: Text("settings".localized)) {
+                    NavigationLink(destination: DiagnosticsSettingsView()) {
+                        Label("diagnostics".localized, systemImage: "info.circle")
                     }
                 }
             }
-            .navigationTitle("Impostazioni")
+            .navigationTitle("settings".localized)
             .sheet(item: $debugContent) { content in
                 NavigationStack {
                     ScrollView {
@@ -901,10 +1252,10 @@ struct RailwayIOView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Gestione File") {
+                Section("file_management".localized) {
                     Button(action: { showExporter = true }) {
                         Label {
-                            Text("Salva Progetto")
+                            Text("save_project".localized)
                                 .foregroundColor(.primary)
                         } icon: {
                             Image(systemName: "square.and.arrow.up")
@@ -914,8 +1265,8 @@ struct RailwayIOView: View {
                     
                     Button(action: { showImporter = true }) {
                         Label {
-                            Text("Apri Progetto")
-                            Text("Supporta .rail, .fdc, .json")
+                            Text("open_project".localized)
+                            Text("support_format".localized)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         } icon: {
@@ -923,16 +1274,30 @@ struct RailwayIOView: View {
                                 .foregroundColor(.accentColor)
                         }
                     }
+                    
+                    Button(action: { 
+                        Task { await loader.saveCurrentState() }
+                    }) {
+                        Label {
+                            Text("save_local".localized)
+                            Text("save_local_desc".localized)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } icon: {
+                            Image(systemName: "tray.and.arrow.down")
+                                .foregroundColor(.green)
+                        }
+                    }
                 }
                 
-                Section(header: Text("Integrazione Legacy"), footer: Text("Importa file creati con versioni precedenti (FDC 1.x) per convertirli automaticamente al nuovo protocollo Pignolo.")) {
+                Section(header: Text("legacy_integration".localized), footer: Text("legacy_footer".localized)) {
                     Button(action: { showImporter = true }) {
-                        Label("Importa Vecchio FDC (.fdc)", systemImage: "arrow.triangle.2.circlepath")
+                        Label("import_old".localized, systemImage: "arrow.triangle.2.circlepath")
                             .foregroundColor(.orange)
                     }
                     
                     Button(action: { showExporter = true }) {
-                        Label("Esporta Pignolo V2 (.rail)", systemImage: "arrow.up.doc")
+                        Label("export_new".localized, systemImage: "arrow.up.doc")
                             .foregroundColor(.blue)
                     }
                 }
@@ -943,7 +1308,7 @@ struct RailwayIOView: View {
                     }
                 }
             }
-            .navigationTitle("I/O Dati")
+            .navigationTitle("io_title".localized)
             .fileExporter(isPresented: $showExporter, document: RailwayNetworkDocument(network: network, trains: trainManager.trains), contentType: .rail, defaultFilename: "rete-ferroviaria") { _ in }
             .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json, .fdc, .railml, .rail]) { result in
                 do {
@@ -1110,48 +1475,48 @@ struct RailwayAIView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("Ottimizzatore FDC (v1/v2)")) {
+                Section(header: Text("ai_optimizer_fdc".localized)) {
                     Button(action: runStandardOptimization) {
                         HStack {
                             Image(systemName: "sparkles")
-                            Text("Risolvi Conflitti (FDC JSON)")
+                            Text("solve_conflicts_json".localized)
                         }
                     }
                     .disabled(isLoading || trainManager.trains.isEmpty)
                 }
 
-                Section(header: Text("Ottimizzatore Avanzato (GA C++)")) {
+                Section(header: Text("advanced_optimizer_cpp".localized)) {
                     Button(action: runAdvancedOptimization) {
                         HStack {
                             Image(systemName: "cpu.fill")
-                            Text("Ottimizzazione Globale (Pignolo)")
+                            Text("global_optimization_pignolo".localized)
                         }
                     }
                     .disabled(isLoading || trainManager.trains.isEmpty)
                     
                     if let stats = optimizerStats {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Conflitti rilevati: \(stats.conflicts)")
-                            Text("Ritardo totale: \(String(format: "%.1f", stats.delay)) min")
+                            Text(String(format: "conflicts_detected_fmt".localized, stats.conflicts))
+                            Text(String(format: "total_delay_fmt".localized, stats.delay))
                         }
                         .font(.caption)
                         .foregroundColor(.secondary)
                     }
                 }
 
-                Section(header: Text("Assistente Pianificazione (Fast Proposer)")) {
-                    Stepper("Target Linee: \(targetLines)", value: $targetLines, in: 1...20)
+                Section(header: Text("planning_assistant_fast".localized)) {
+                    Stepper(String(format: "target_lines_fmt".localized, targetLines), value: $targetLines, in: 1...20)
                     
                     Button(action: runFastProposer) {
                         HStack {
                             Image(systemName: "wand.and.stars")
-                            Text("Genera Proposta Orario")
+                            Text("generate_schedule_proposal".localized)
                         }
                     }
                     .disabled(isLoading || network.nodes.count < 2)
                     
                     if !proposedLines.isEmpty {
-                        Button("Rivedi Proposte (\(proposedLines.count) linee)") {
+                        Button(String(format: "review_proposals_fmt".localized, proposedLines.count)) {
                             showLineProposalSheet = true
                         }
                         .buttonStyle(.borderedProminent)
@@ -1162,7 +1527,7 @@ struct RailwayAIView: View {
                 // Unified V2 resolutions are shown below
                 
                 if !resolutions.isEmpty {
-                    Section(header: Text("Soluzioni Ottimizzate")) {
+                    Section(header: Text("optimized_solutions".localized)) {
                         ForEach(resolutions, id: \.train_id) { res in
                             if let uuid = RailwayAIService.shared.getTrainUUID(optimizerId: res.train_id),
                                let train = trainManager.trains.first(where: { $0.id == uuid }) {
@@ -1170,11 +1535,11 @@ struct RailwayAIView: View {
                                     Text(train.name).font(.headline)
                                     HStack {
                                         let sign = res.time_adjustment_min > 0 ? "+" : ""
-                                        Text("Partenza: \(sign)\(String(format: "%.1f", res.time_adjustment_min)) min")
+                                        Text(String(format: "departure_adj_fmt".localized, sign, res.time_adjustment_min))
                                         
                                         if let dwells = res.dwell_delays, !dwells.isEmpty {
                                             Divider().frame(height: 10)
-                                            Text("\(dwells.count) soste allungate")
+                                            Text(String(format: "dwells_extended_fmt".localized, dwells.count))
                                         }
                                     }
                                     .font(.subheadline)
@@ -1187,11 +1552,11 @@ struct RailwayAIView: View {
                         Button(action: {
                             trainManager.applyResolutions(resolutions, network: network, trainMapping: RailwayAIService.shared.getTrainMapping())
                             resolutions = []
-                            aiResult = "Piani di viaggio aggiornati correttamente."
+                            aiResult = "schedules_updated_success".localized
                         }) {
                             HStack {
                                 Image(systemName: "checkmark.circle.fill")
-                                Text("Applica Cambio Orario")
+                                Text("apply_schedule_change".localized)
                             }
                         }
                         .buttonStyle(.borderedProminent)
@@ -1200,34 +1565,34 @@ struct RailwayAIView: View {
                 }
                 
                 if !solutions.isEmpty {
-                    Section(header: Text("Soluzioni Proposte")) {
+                    Section(header: Text("proposed_solutions".localized)) {
                         ForEach(solutions, id: \.trainId) { sol in
                             let train = trainManager.trains.first(where: { $0.id == sol.trainId })
                             VStack(alignment: .leading) {
-                                Text(train?.name ?? "Treno Sconosciuto").bold()
-                                Text("Nuova Partenza: \(sol.newDepartureTime)")
+                                Text(train?.name ?? "unknown_train".localized).bold()
+                                Text(String(format: "new_departure_fmt".localized, sol.newDepartureTime))
                                 if let adjustments = sol.stopAdjustments {
-                                    Text("Soste modificate: \(adjustments.count)")
+                                    Text(String(format: "modified_stops_fmt".localized, adjustments.count))
                                         .font(.caption).foregroundColor(.secondary)
                                 }
                             }
                         }
-                        Button("Applica Modifiche") {
+                        Button("apply_changes_button".localized) {
                             trainManager.applyAISuggestions(solutions)
                             trainManager.validateSchedules(with: network)
                             solutions = []
-                            aiResult = "Modifiche applicate con successo."
+                            aiResult = "changes_applied_success".localized
                         }
                         .foregroundColor(.green)
                     }
                 }
 
                 if !aiResult.isEmpty {
-                    Section(header: Text("Risultato Ultima Operazione")) {
+                    Section(header: Text("last_operation_result".localized)) {
                         Text(aiResult).font(.body).foregroundColor(.blue)
                         
                         Button(action: { showJSONInspector = true }) {
-                            Label("Ispezione JSON Richiesta", systemImage: "doc.text.magnifyingglass")
+                            Label("json_inspection_request".localized, systemImage: "doc.text.magnifyingglass")
                         }
                         .font(.caption)
                         .padding(.top, 4)
@@ -1237,13 +1602,13 @@ struct RailwayAIView: View {
                 if isLoading {
                     HStack {
                         Spacer()
-                        ProgressView("Ottimizzazione in corso...")
+                        ProgressView("optimization_in_progress".localized)
                         Spacer()
                     }
                 }
                 
                 if let error = errorMessage {
-                    Section(header: Text("Errore Riscontrato")) {
+                    Section(header: Text("encountered_error".localized)) {
                         Text(error)
                             .foregroundColor(.red)
                             .font(.caption)
@@ -1254,7 +1619,7 @@ struct RailwayAIView: View {
             .sheet(isPresented: $showJSONInspector) {
                 NavigationStack {
                     VStack {
-                        Text("Questo è il pacchetto dati inviato all'IA. Utile per il debug dei '0 suggerimenti'.")
+                        Text("json_debug_description".localized)
                             .font(.caption)
                             .padding()
                         
@@ -1264,10 +1629,10 @@ struct RailwayAIView: View {
                             .cornerRadius(8)
                             .padding()
                     }
-                    .navigationTitle("Dettaglio JSON")
+                    .navigationTitle("json_detail".localized)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
-                            Button("Chiudi") { showJSONInspector = false }
+                            Button("close".localized) { showJSONInspector = false }
                         }
                     }
                 }
@@ -1681,13 +2046,13 @@ struct LogViewerSheet: View {
                         .font(.system(.caption, design: .monospaced))
                 }
             }
-            .navigationTitle("Log Diagnostica")
+            .navigationTitle("diagnostics_log".localized)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Chiudi") { dismiss() }
+                    Button("close".localized) { dismiss() }
                 }
                 ToolbarItem(placement: .destructiveAction) {
-                    Button("Cancella") { logger.logs.removeAll() }
+                    Button("clear".localized) { logger.logs.removeAll() }
                 }
             }
         }

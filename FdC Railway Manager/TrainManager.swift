@@ -137,22 +137,26 @@ final class TrainManager: ObservableObject {
         return "Risoluzione completata (Locale). Modificati \(updatesCount) orari."
     }
     
-    // Fix-up missing stops and calculate actual times
+    /// Fix-up missing stops and calculate actual times
+    ///   - network: La rete ferroviaria
     func refreshSchedules(with network: RailwayNetwork) {
+        var dummyCache = [String: [Edge]]()
+        refreshSchedules(with: network, pathCache: &dummyCache)
+    }
+
+    /// Fix-up missing stops and calculate actual times with an external path cache
+    ///   - network: La rete ferroviaria
+    ///   - pathCache: Un dizionario per memorizzare i percorsi e velocizzare ricalcoli massivi.
+    func refreshSchedules(with network: RailwayNetwork, pathCache: inout [String: [Edge]]) {
         for i in trains.indices {
             guard let depTime = trains[i].departureTime, !trains[i].stops.isEmpty else { continue }
             
             // Re-normalize departure time to 2000-01-01 to ensure consistency
             var currentTime = depTime.normalized()
             
-            // Link to line if exists for originId, otherwise use first stop
-            let originId: String
-            if let lineId = trains[i].lineId, let line = network.lines.first(where: { $0.id == lineId }) {
-                originId = line.originId
-            } else {
-                originId = trains[i].stops.first?.stationId ?? ""
-            }
-            
+            // The schedule calculation should ALWAYS start from the train's FIRST stop.
+            // Using the line's originId is incorrect if the train starts later or is a return trip.
+            let originId = trains[i].stops.first?.stationId ?? ""
             var prevId = originId
             
             for j in trains[i].stops.indices {
@@ -168,28 +172,43 @@ final class TrainManager: ObservableObject {
                     trains[i].stops[j].departure = stop.plannedDeparture?.normalized() ?? currentTime
                     currentTime = trains[i].stops[j].departure ?? currentTime
                 } else {
-                    // LEG TRANSIT - Using Physics Engine
+                    // LEG TRANSIT - Calculate as continuous motion between stops
+                    var legDistance: Double = 0
+                    var legMinSpeed: Double = Double.infinity
                     var transitDuration: TimeInterval = 0
-                    if let path = network.findPathEdges(from: prevId, to: stop.stationId) {
-                        for edge in path {
-                            // High Fidelity Physics call
-                            let hours = FDCSchedulerEngine.calculateTravelTime(
-                                distanceKm: edge.distance,
-                                maxSpeedKmh: Double(edge.maxSpeed),
-                                train: trains[i],
-                                initialSpeedKmh: 0, // Simplified: assume stop-to-stop for now or refine if needed
-                                finalSpeedKmh: 0
-                            )
-                            transitDuration += hours * 3600
+                    
+                    let currentPrevId = trains[i].stops[j-1].stationId // Use the actual previous stop ID
+                    let pathKey = "\(currentPrevId)--\(stop.stationId)"
+                    
+                    let path = pathCache[pathKey] ?? network.findPathEdges(from: currentPrevId, to: stop.stationId)
+                    if let actualPath = path {
+                        pathCache[pathKey] = actualPath
+                    }
+                    
+                    if let actualPath = path {
+                        for edge in actualPath {
+                            legDistance += edge.distance
+                            legMinSpeed = min(legMinSpeed, Double(edge.maxSpeed))
                         }
                     }
                     
-                    // Safety padding (35s margin for station entry/exit)
-                    let realTransitDuration = max(transitDuration + 35.0, 60.0)
-                    currentTime = currentTime.addingTimeInterval(realTransitDuration)
+                    if legDistance > 0 {
+                        let hours = FDCSchedulerEngine.calculateTravelTime(
+                            distanceKm: legDistance,
+                            maxSpeedKmh: legMinSpeed == .infinity ? 100 : legMinSpeed,
+                            train: trains[i],
+                            initialSpeedKmh: 0,
+                            finalSpeedKmh: 0
+                        )
+                        transitDuration = hours * 3600
+                    }
                     
-                    // ROUNDING
-                    let roundedArrivalSeconds = floor((currentTime.timeIntervalSinceReferenceDate + 30) / 60) * 60
+                    // Safety padding (35s margin for station entry/exit)
+                    // PIGNOLO PROTOCOL: Use raw transit without arbitrary 35s padding to stay in sync with Neural AI
+                    currentTime = currentTime.addingTimeInterval(transitDuration)
+                    
+                    // HIGHER PRECISION ROUNDING (1s sync with AI/ConflictManager)
+                    let roundedArrivalSeconds = floor(currentTime.timeIntervalSinceReferenceDate + 0.5)
                     let roundedArrival = Date(timeIntervalSinceReferenceDate: roundedArrivalSeconds)
                     
                     let actualArrival = stop.plannedArrival?.normalized() ?? roundedArrival
@@ -199,7 +218,7 @@ final class TrainManager: ObservableObject {
                     let targetDeparture = stop.plannedDeparture?.normalized() ?? earliestDeparture
                     
                     let finalDep = max(earliestDeparture, targetDeparture)
-                    let roundedDepSeconds = floor((finalDep.timeIntervalSinceReferenceDate + 30) / 60) * 60
+                    let roundedDepSeconds = floor(finalDep.timeIntervalSinceReferenceDate + 0.5)
                     let roundedDep = Date(timeIntervalSinceReferenceDate: roundedDepSeconds)
                     
                     trains[i].stops[j].departure = (j < trains[i].stops.count - 1) ? roundedDep : nil
@@ -209,6 +228,7 @@ final class TrainManager: ObservableObject {
                 prevId = stop.stationId
             }
         }
+        objectWillChange.send()
     }
 }
 

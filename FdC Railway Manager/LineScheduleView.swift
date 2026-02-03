@@ -34,78 +34,79 @@ struct LineScheduleView: View {
         HStack(spacing: 0) {
             // Main Content (Left)
             VStack(spacing: 0) {
-                // Picker
-                Picker("Vista", selection: $mode) {
-                    ForEach(ScheduleMode.allCases) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding()
-                
-                // Content
-                Group {
-                    switch mode {
-                    case .graph:
-                        LineGraphView(
-                            line: line,
-                            orderedStations: orderedStations,
-                            stationDistances: stationDistances,
-                            maxDistance: maxDistance,
-                            selectedStation: $selectedStation
-                        )
-                    case .table:
-                        LineTableView(
-                            line: line,
-                            orderedStations: orderedStations,
-                            selectedStation: $selectedStation
-                        )
-                    }
-                }
-            }
-            
-            // Inspector (Right)
-            if let selection = selectedStation, let station = network.nodes.first(where: { $0.id == selection.id }) {
-                Divider()
-                
-                VStack(spacing: 0) {
-                    HStack {
-                        Text(station.name).font(.headline)
-                        Spacer()
-                        Button(action: { selectedStation = nil }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
+                if let selection = selectedStation, let station = network.nodes.first(where: { $0.id == selection.id }) {
+                    // Panel style station schedule
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text(station.name).font(.title3).bold()
+                            Spacer()
+                            Button(action: {
+                                withAnimation { selectedStation = nil }
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
-                    }
-                    .padding()
-                    .background(Color.gray.opacity(0.1))
-                    
-                    // Inspector View Mode Picker
-                    Picker("Vista Dettaglio", selection: $inspectorMode) {
-                        ForEach(InspectorMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-                    
-                    if inspectorMode == .schedule {
+                        .padding()
+                        .background(Color.gray.opacity(0.1))
+                        
                         StationScheduleView(station: station)
-                    } else {
-                        StationOccupancyView(station: station)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    // Line Content (Table or Graph)
+                    VStack(spacing: 0) {
+                        Picker("Vista", selection: $mode) {
+                            ForEach(ScheduleMode.allCases) { mode in
+                                Text(mode.rawValue).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .padding()
+                        
+                        Group {
+                            switch mode {
+                            case .graph:
+                                LineGraphView(
+                                    line: line,
+                                    orderedStations: orderedStations,
+                                    stationDistances: stationDistances,
+                                    maxDistance: maxDistance,
+                                    selectedStation: $selectedStation
+                                )
+                            case .table:
+                                LineTableView(
+                                    line: line,
+                                    orderedStations: orderedStations,
+                                    selectedStation: $selectedStation
+                                )
+                            }
+                        }
                     }
                 }
-                .frame(width: 350) 
-                .background(Color(UIColor.systemBackground))
-                .transition(.move(edge: .trailing))
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            
+            Divider()
+            
+            // Side Column: Graphical Line Diagram (Right)
+            LineVerticalDiagram(
+                line: line,
+                orderedStations: orderedStations,
+                selectedStation: $selectedStation,
+                onLineClick: {
+                    withAnimation { selectedStation = nil }
+                }
+            )
+            .frame(width: 250)
+            .background(Color(UIColor.secondarySystemBackground))
         }
         .navigationTitle("Orario: \(line.name)")
         .onAppear {
             calculateLineGeometry()
         }
+        .id(line.id) // Ensure state refresh on line change
     }
     
     // MARK: - Geometry Calculation

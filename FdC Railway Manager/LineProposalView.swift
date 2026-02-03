@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct LineProposalView: View {
     @ObservedObject var network: RailwayNetwork
@@ -58,6 +59,7 @@ struct LineProposalView: View {
                         ForEach(proposals, id: \.id) { proposal in
                             ProposalRow(
                                 proposal: proposal,
+                                network: network,
                                 isSelected: selectedLineIds.contains(proposal.id),
                                 onToggle: {
                                     if selectedLineIds.contains(proposal.id) {
@@ -122,6 +124,7 @@ struct LineProposalView: View {
 
 struct ProposalRow: View {
     let proposal: ProposedLine
+    let network: RailwayNetwork
     let isSelected: Bool
     let onToggle: () -> Void
     
@@ -156,7 +159,11 @@ struct ProposalRow: View {
                         .font(.caption)
                         .foregroundColor(.blue)
                     
-                    Text(proposal.stationSequence.joined(separator: " → "))
+                    let names = proposal.stationSequence.map { id in
+                        network.nodes.first(where: { $0.id == id })?.name ?? "?? (\(id.prefix(4)))"
+                    }
+                    
+                    Text(names.joined(separator: " → "))
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct StationEditView: View {
     @Binding var station: Node
+    @Binding var isMoveModeEnabled: Bool
     @EnvironmentObject var network: RailwayNetwork
     @Environment(\.dismiss) var dismiss
     
@@ -9,167 +10,214 @@ struct StationEditView: View {
     @State private var showDeleteConfirmation = false
     @State private var initialStation: Node? // For Undo logic
     
+    private var availableHubs: [Node] {
+        network.nodes.filter { $0.id != station.id }.sorted { $0.name < $1.name }
+    }
+    
     var body: some View {
-        let availableHubs = network.nodes
-            .filter { $0.id != station.id }
-            .sorted(by: { $0.name < $1.name })
-        
-        NavigationStack {
-            Form {
-            Section("Anagrafica") {
-                TextField("Nome Stazione", text: $station.name)
-                Picker("Tipo Funzionale", selection: $station.type) {
-                    Text("Stazione Standard").tag(Node.NodeType.station)
-                    Text("Interscambio").tag(Node.NodeType.interchange)
-                    Text("Deposito").tag(Node.NodeType.depot)
-                }
-                .onChange(of: station.type) { newValue in
-                    // Auto-update visual style when functional type changes
-                    station.visualType = station.defaultVisualType
-                    station.customColor = station.defaultColor
-                }
-            }
-            
-            Section("Hub e Interscambi") {
-                Picker("Appartiene a HUB", selection: $station.parentHubId) {
-                    Text("Nessun HUB (Indipendente)").tag(String?.none)
-                    Divider()
-                    ForEach(availableHubs) { node in
-                        Text(node.name).tag(String?.some(node.id))
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // Header
+                HStack {
+                    Image(systemName: "building.2.fill")
+                        .font(.largeTitle)
+                        .foregroundColor(.blue)
+                    VStack(alignment: .leading) {
+                        Text(station.name)
+                            .font(.title)
+                            .fontWeight(.bold)
+                        Text("edit_station".localized)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                     }
+                    Spacer()
                 }
-                .onChange(of: station.parentHubId) { newHubId in
-                    // Auto-apply interchange look if it's part of a hub
-                    station.visualType = station.defaultVisualType
-                    station.customColor = station.defaultColor
-                    
-                    // Auto-position near parent hub
-                    if let hubId = newHubId,
-                       let parentHub = network.nodes.first(where: { $0.id == hubId }),
-                       let parentLat = parentHub.latitude,
-                       let parentLon = parentHub.longitude {
-                        // Position at bottom-left (like lower-left vertex of a square)
-                        station.latitude = parentLat - 0.01  // ~1km south
-                        station.longitude = parentLon - 0.01 // ~1km west
-                    }
-                }
+                .padding()
+                .background(Color.secondary.opacity(0.05))
+                .cornerRadius(8)
                 
-                if station.parentHubId != nil {
-                    Picker("Posizione nell'Hub", selection: $station.hubOffsetDirection) {
-                        Text("Standard (In Basso a Sx)").tag(Node.HubOffsetDirection?.none)
-                        ForEach(Node.HubOffsetDirection.allCases) { dir in
-                            Text(dir.rawValue).tag(Node.HubOffsetDirection?.some(dir))
-                        }
+                // Station Data
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("station_data".localized.uppercased())
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                    
+                    TextField("station_name".localized, text: $station.name)
+                        .textFieldStyle(.roundedBorder)
+                    
+                    Picker("functional_type".localized, selection: $station.type) {
+                        Text("standard_station".localized).tag(Node.NodeType.station)
+                        Text("interchange".localized).tag(Node.NodeType.interchange)
+                        Text("depot".localized).tag(Node.NodeType.depot)
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: station.type) { newValue in
+                        station.visualType = station.defaultVisualType
+                        station.customColor = station.defaultColor
                     }
                     
-                    Text("Questa stazione è legata logicamente a un'altra. Verrà trattata come punto di interscambio rapido.")
-                        .font(.caption).foregroundColor(.blue)
-                }
-            }
-            
-            Section("Aspetto Grafico") {
-                // Custom Binding for Visual Type to handle Optional
-                let visualTypeBinding = Binding<Node.StationVisualType>(
-                    get: { station.visualType ?? station.defaultVisualType },
-                    set: { station.visualType = $0 }
-                )
-                
-                Picker("Simbolo", selection: visualTypeBinding) {
-                    ForEach(Node.StationVisualType.allCases) { type in
+                    Stepper(value: Binding(
+                        get: { station.platforms ?? 2 },
+                        set: { station.platforms = $0 }
+                    ), in: 1...20) {
                         HStack {
-                            symbolImage(for: type)
-                            Text(type.rawValue)
+                            Text("platform_count".localized)
+                            Spacer()
+                            Text("\(station.platforms ?? 2)")
+                                .foregroundColor(.secondary)
+                                .fontWeight(.bold)
                         }
-                        .tag(type)
                     }
                 }
-                .pickerStyle(.menu) // Safer than navigationLink in sheet
+                .padding()
+                .background(Color.secondary.opacity(0.05))
+                .cornerRadius(8)
                 
-                // Custom Binding for Color
-                let colorBinding = Binding<Color>(
-                    get: { Color(hex: station.customColor ?? station.defaultColor) ?? .black },
-                    set: { if let hex = $0.toHex() { station.customColor = hex } }
-                )
-                ColorPicker("Colore Personalizzato", selection: colorBinding)
-            }
-            
-            Section("Coordinate") {
-                // Custom bindings for Optionals with default 0.0
-                let latBinding = Binding<Double>(
-                    get: { station.latitude ?? 0.0 },
-                    set: { station.latitude = $0 }
-                )
-                let lonBinding = Binding<Double>(
-                    get: { station.longitude ?? 0.0 },
-                    set: { station.longitude = $0 }
-                )
+                // Hubs
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("hubs_interchanges".localized.uppercased())
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                    
+                    Picker("belongs_to_hub".localized, selection: $station.parentHubId) {
+                        Text("no_hub".localized).tag(String?.none)
+                        Divider()
+                        ForEach(availableHubs) { node in
+                            Text(node.name).tag(String?.some(node.id))
+                        }
+                    }
+                    .onChange(of: station.parentHubId) { newHubId in
+                        station.visualType = station.defaultVisualType
+                        station.customColor = station.defaultColor
+                        
+                        if let hubId = newHubId,
+                           let parentHub = network.nodes.first(where: { $0.id == hubId }),
+                           let parentLat = parentHub.latitude,
+                           let parentLon = parentHub.longitude {
+                            station.latitude = parentLat - 0.01
+                            station.longitude = parentLon - 0.01
+                        }
+                    }
+                    
+                    if station.parentHubId != nil {
+                        Picker("hub_position".localized, selection: $station.hubOffsetDirection) {
+                            Text("hub_standard_pos".localized).tag(Node.HubOffsetDirection?.none)
+                            ForEach(Node.HubOffsetDirection.allCases) { dir in
+                                Text(dir.localizedName).tag(Node.HubOffsetDirection?.some(dir))
+                            }
+                        }
+                        
+                        Text("hub_logic_description".localized)
+                            .font(.caption).foregroundColor(.blue)
+                    }
+                }
+                .padding()
+                .background(Color.secondary.opacity(0.05))
+                .cornerRadius(8)
                 
-                HStack {
-                    Text("Lat")
-                    TextField("Latitudine", value: latBinding, format: .number.precision(.fractionLength(6)))
-                        .keyboardType(.decimalPad)
+                // Visual Style
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("visual_style".localized.uppercased())
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                    
+                    Picker("type".localized, selection: $station.visualType) {
+                        ForEach(Node.StationVisualType.allCases) { type in
+                            symbolImage(for: type).tag(Node.StationVisualType?.some(type))
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    HStack {
+                        Text("custom_color".localized)
+                        Spacer()
+                        ColorPicker("", selection: Binding<Color>(
+                            get: { Color(hex: station.customColor ?? station.defaultColor) ?? .black },
+                            set: { if let hex = $0.toHex() { station.customColor = hex } }
+                        ))
+                        .labelsHidden()
+                    }
                 }
-                HStack {
-                    Text("Lon")
-                    TextField("Longitudine", value: lonBinding, format: .number.precision(.fractionLength(6)))
-                        .keyboardType(.decimalPad)
+                .padding()
+                .background(Color.secondary.opacity(0.05))
+                .cornerRadius(8)
+                
+                // Coordinates
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("coordinates".localized.uppercased())
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                    
+                    HStack {
+                        Text("latitude".localized)
+                        Spacer()
+                        TextField("latitude".localized, value: Binding<Double>(
+                            get: { station.latitude ?? 0.0 },
+                            set: { station.latitude = $0 }
+                        ), format: .number.precision(.fractionLength(6)))
+                            .textFieldStyle(.roundedBorder)
+                            .keyboardType(.decimalPad)
+                            .disabled(!isMoveModeEnabled)
+                            .frame(width: 150)
+                    }
+                    
+                    HStack {
+                        Text("longitude".localized)
+                        Spacer()
+                        TextField("longitude".localized, value: Binding<Double>(
+                            get: { station.longitude ?? 0.0 },
+                            set: { station.longitude = $0 }
+                        ), format: .number.precision(.fractionLength(6)))
+                            .textFieldStyle(.roundedBorder)
+                            .keyboardType(.decimalPad)
+                            .disabled(!isMoveModeEnabled)
+                            .frame(width: 150)
+                    }
+                    
+                    Toggle(isOn: $isMoveModeEnabled) {
+                        Label("move_mode".localized, systemImage: isMoveModeEnabled ? "hand.draw.fill" : "hand.draw")
+                            .font(.headline)
+                    }
+                    .tint(.blue)
+                    
+                    Text(isMoveModeEnabled ? "move_mode_on".localized : "move_mode_off".localized)
+                        .font(.caption)
+                        .foregroundColor(isMoveModeEnabled ? .blue : .secondary)
                 }
-                Text("Puoi modificare le coordinate manualmente qui o trascinando la stazione sulla mappa.")
-                    .font(.caption).foregroundColor(.secondary)
-            }
-            
-            if let onDelete = onDelete {
-                Section {
+                .padding()
+                .background(Color.secondary.opacity(0.05))
+                .cornerRadius(8)
+                
+                // Delete
+                if let onDelete = onDelete {
                     Button(role: .destructive) {
                         showDeleteConfirmation = true
                     } label: {
                         HStack {
                             Spacer()
-                            Text("Elimina Stazione")
+                            Text("delete_station".localized)
                             Spacer()
                         }
+                        .padding()
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(8)
                     }
                 }
+            }
+            .padding()
+        }
+        .onAppear {
+            if initialStation == nil {
+                initialStation = station
             }
         }
-            .navigationTitle("Modifica Stazione")
-            .toolbar {
-                // Show Save/Cancel only if changes exist
-                if let initial = initialStation, station != initial {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Annulla") {
-                            // Revert changes
-                            station = initial
-                            dismiss()
-                        }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Salva") {
-                            dismiss()
-                        }
-                    }
-                } else {
-                    // Default Close button when no changes
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Chiudi") {
-                            dismiss()
-                        }
-                    }
-                }
+        .alert("delete_station".localized, isPresented: $showDeleteConfirmation) {
+            Button("cancel".localized, role: .cancel) { }
+            Button("delete".localized, role: .destructive) {
+                onDelete?()
             }
-            .onAppear {
-                if initialStation == nil {
-                    initialStation = station
-                }
-            }
-            .alert("Elimina Stazione", isPresented: $showDeleteConfirmation) {
-                Button("Annulla", role: .cancel) { }
-                Button("Elimina", role: .destructive) {
-                    onDelete?()
-                }
-            } message: {
-                Text("Sei sicuro di voler eliminare questa stazione? L'azione non può essere annullata.")
-            }
+        } message: {
+            Text("delete_confirm".localized)
         }
     }
     

@@ -89,7 +89,7 @@ struct LineGraphView: View {
                     $0.addLine(to: CGPoint(x: x, y: size.height))
                 }
                 context.stroke(path, with: .color(.gray.opacity(0.3)), lineWidth: 1)
-                context.draw(Text("\(hour):00").font(.caption), at: CGPoint(x: x + 5, y: 5))
+                context.draw(Text(hour == 24 ? "0:00" : "\(hour):00").font(.caption), at: CGPoint(x: x + 5, y: 5))
             }
             
             // Draw Station Grid (Horizontal Lines)
@@ -130,13 +130,23 @@ struct LineGraphView: View {
                     // Time X
                     let startX = xFor(conflict.timeStart)
                     let endX = xFor(conflict.timeEnd)
-                    let conflictWidth = max(8, endX - startX)
                     
-                    let rect = CGRect(x: startX - conflictWidth/2, y: y - 10, width: conflictWidth, height: 20)
-                    context.fill(Path(roundedRect: rect, cornerRadius: 4), with: .color(.red.opacity(0.6)))
+                    if endX >= startX {
+                        let conflictWidth = max(8, endX - startX)
+                        let rect = CGRect(x: startX - conflictWidth/2, y: y - 10, width: conflictWidth, height: 20)
+                        context.fill(Path(roundedRect: rect, cornerRadius: 4), with: .color(.red.opacity(0.6)))
+                    } else {
+                        // Wraps Midnight
+                        let maxX = 24 * timeScale
+                        // Part 1: startX to 24:00
+                        let rect1 = CGRect(x: startX, y: y - 10, width: maxX - startX, height: 20)
+                        context.fill(Path(roundedRect: rect1, cornerRadius: 4), with: .color(.red.opacity(0.6)))
+                        // Part 2: 00:00 to endX
+                        let rect2 = CGRect(x: 0, y: y - 10, width: endX, height: 20)
+                        context.fill(Path(roundedRect: rect2, cornerRadius: 4), with: .color(.red.opacity(0.6)))
+                    }
                     context.draw(Image(systemName: "exclamationmark.triangle.fill"), at: CGPoint(x: startX, y: y))
                 } else if conflict.locationType == .line {
-                    // Try to visualize line conflict between two stations
                     if conflict.locationId.hasPrefix("EDGE::") {
                         let parts = conflict.locationId.replacingOccurrences(of: "EDGE::", with: "").components(separatedBy: "-")
                         if parts.count == 2 {
@@ -180,9 +190,7 @@ struct LineGraphView: View {
                 for stop in train.stops {
                     if let idx = orderedStations.firstIndex(where: { $0.id == stop.stationId }) {
                         // MATH: Add small Y offset based on track (platform) to distinguish occupancy
-                        let trackNum = Double(stop.track.flatMap { Int($0) } ?? 1)
-                        let trackOffset = (trackNum - 1) * 3.0 // 3px per platform to avoid overlap
-                        let y = CGFloat(stationDistances[idx]) * pixelsPerKm + 50.0 + CGFloat(trackOffset)
+                        let y = CGFloat(stationDistances[idx]) * pixelsPerKm + 50.0
                         
                         if let arrival = stop.arrival {
                             points.append(CGPoint(x: xFor(arrival), y: y))
@@ -209,20 +217,58 @@ struct LineGraphView: View {
     }
     
     private func drawTrainPath(_ points: [CGPoint], for train: Train, in context: GraphicsContext) {
-        let path = Path {
-            $0.move(to: points[0])
-            for p in points.dropFirst() {
-                $0.addLine(to: p)
+        let maxX = 24 * timeScale
+        
+        var currentPath = Path()
+        var movedToStart = false
+        
+        for i in 0..<(points.count - 1) {
+            let p1 = points[i]
+            let p2 = points[i+1]
+            
+            if !movedToStart {
+                currentPath.move(to: p1)
+                movedToStart = true
+            }
+            
+            if p2.x >= p1.x {
+                // Normal segment
+                currentPath.addLine(to: p2)
+            } else {
+                // Crossing Midnight!
+                // Calculate y at midnight
+                let distToMidnight = maxX - p1.x
+                let totalDist = distToMidnight + p2.x
+                let ratio = distToMidnight / totalDist
+                let yMidnight = p1.y + (p2.y - p1.y) * ratio
+                
+                // End current path segment at midnight
+                currentPath.addLine(to: CGPoint(x: maxX, y: yMidnight))
+                
+                // Stroke the current segment
+                strokePath(currentPath, for: train, in: context)
+                
+                // Start a new path from 0 at midnight
+                currentPath = Path()
+                currentPath.move(to: CGPoint(x: 0, y: yMidnight))
+                currentPath.addLine(to: p2)
+                movedToStart = true
             }
         }
         
-        // PIGNOLO PROTOCOL: Contrast colors based on priority
-        let color: Color = train.priority > 7 ? .red : .primary
-        context.stroke(path, with: .color(color), lineWidth: 2)
+        // Stroke final remaining path
+        strokePath(currentPath, for: train, in: context)
         
         if let first = points.first {
+            let color: Color = train.priority > 7 ? .red : .primary
             context.draw(Text(train.type + " " + train.name).font(.caption2).foregroundColor(color), at: CGPoint(x: first.x, y: first.y - 12))
         }
+    }
+    
+    private func strokePath(_ path: Path, for train: Train, in context: GraphicsContext) {
+        guard !path.isEmpty else { return }
+        let color: Color = train.priority > 7 ? .red : .primary
+        context.stroke(path, with: .color(color), lineWidth: 2)
     }
 }
 

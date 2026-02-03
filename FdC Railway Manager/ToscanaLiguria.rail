@@ -1,0 +1,185 @@
+{
+  "formatVersion": "1.0",
+  "qualifier": "FDC_RAIL_V1",
+  "metadata": {
+    "createdBy": "Antigravity AI",
+    "createdAt": "2026-01-29T12:00:00Z",
+    "description": "Rete ferroviaria dimostrativa Toscana e Liguria"
+  },
+  "network": {
+    "name": "Toscana & Liguria",
+    "nodes": [
+      {
+        "id": "FI_SMN",
+        "name": "Firenze S.M.N.",
+        "type": "interchange",
+        "latitude": 43.7765,
+        "longitude": 11.2480,
+        "capacity": 15,
+        "platforms": 19
+      },
+      {
+        "id": "EMP",
+        "name": "Empoli",
+        "type": "station",
+        "latitude": 43.7197,
+        "longitude": 10.9430,
+        "platforms": 6
+      },
+      {
+        "id": "PI_C",
+        "name": "Pisa Centrale",
+        "type": "interchange",
+        "latitude": 43.7085,
+        "longitude": 10.3988,
+        "platforms": 12
+      },
+      {
+        "id": "LI_C",
+        "name": "Livorno Centrale",
+        "type": "station",
+        "latitude": 43.5532,
+        "longitude": 10.3340,
+        "platforms": 10
+      },
+      {
+        "id": "VIA",
+        "name": "Viareggio",
+        "type": "station",
+        "latitude": 43.8668,
+        "longitude": 10.2520,
+        "platforms": 8
+      },
+      {
+        "id": "SP_C",
+        "name": "La Spezia C.",
+        "type": "interchange",
+        "latitude": 44.1070,
+        "longitude": 9.8160,
+        "platforms": 10
+      },
+      {
+        "id": "GE_BR",
+        "name": "Genova Brignole",
+        "type": "interchange",
+        "latitude": 44.4055,
+        "longitude": 8.9480,
+        "platforms": 12
+      },
+      {
+        "id": "GE_PP",
+        "name": "Genova P. Principe",
+        "type": "interchange",
+        "latitude": 44.4172,
+        "longitude": 8.9216,
+        "platforms": 11
+      },
+      {
+        "id": "GR",
+        "name": "Grosseto",
+        "type": "station",
+        "latitude": 42.7597,
+        "longitude": 11.1090,
+        "platforms": 5
+      }
+    ],
+    "edges": [
+      {
+        "id": "ED_FI_EMP",
+        "from": "FI_SMN",
+        "to": "EMP",
+        "distance": 31.0,
+        "trackType": "double",
+        "maxSpeed": 160
+      },
+      {
+        "id": "ED_EMP_PI",
+        "from": "EMP",
+        "to": "PI_C",
+        "distance": 49.0,
+        "trackType": "double",
+        "maxSpeed": 160
+      },
+      {
+        "id": "ED_PI_LI",
+        "from": "PI_C",
+        "to": "LI_C",
+        "distance": 21.0,
+        "trackType": "double",
+        "maxSpeed": 160
+      },
+      {
+        "id": "ED_LI_GR",
+        "from": "LI_C",
+        "to": "GR",
+        "distance": 130.0,
+        "trackType": "double",
+        "maxSpeed": 180
+      },
+      {
+        "id": "ED_PI_VIA",
+        "from": "PI_C",
+        "to": "VIA",
+        "distance": 22.0,
+        "trackType": "double",
+        "maxSpeed": 140
+      },
+      {
+        "id": "ED_VIA_SP",
+        "from": "VIA",
+        "to": "SP_C",
+        "distance": 57.0,
+        "trackType": "double",
+        "maxSpeed": 160
+      },
+      {
+        "id": "ED_SP_GEBR",
+        "from": "SP_C",
+        "to": "GE_BR",
+        "distance": 85.0,
+        "trackType": "double",
+        "maxSpeed": 150
+      },
+      {
+        "id": "ED_GEBR_GEPP",
+        "from": "GE_BR",
+        "to": "GE_PP",
+        "distance": 3.0,
+        "trackType": "double",
+        "maxSpeed": 80
+      }
+    ],
+    "lines": [
+      {
+        "id": "L_FI_LI",
+        "name": "Firenze - Livorno",
+        "color": "#0000FF",
+        "originId": "FI_SMN",
+        "destinationId": "LI_C",
+        "stops": [
+          { "stationId": "FI_SMN" },
+          { "stationId": "EMP" },
+          { "stationId": "PI_C" },
+          { "stationId": "LI_C" }
+        ]
+      },
+      {
+        "id": "L_TIRRENICA",
+        "name": "Tirrenica Nord (Roma-Genova)",
+        "color": "#008000",
+        "originId": "GR",
+        "destinationId": "GE_PP",
+        "stops": [
+          { "stationId": "GR" },
+          { "stationId": "LI_C" },
+          { "stationId": "PI_C" },
+          { "stationId": "VIA" },
+          { "stationId": "SP_C" },
+          { "stationId": "GE_BR" },
+          { "stationId": "GE_PP" }
+        ]
+      }
+    ],
+    "trains": []
+  }
+}

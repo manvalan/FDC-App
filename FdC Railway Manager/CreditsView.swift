@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct CreditsView: View {
     @Environment(\.dismiss) var dismiss
@@ -22,7 +23,7 @@ struct CreditsView: View {
                     .padding(.top, 40)
                     
                     VStack(spacing: 15) {
-                        Text("Sviluppato da")
+                        Text("developed_by".localized)
                             .font(.headline)
                             .foregroundColor(.secondary)
                         
@@ -32,27 +33,27 @@ struct CreditsView: View {
                         Divider()
                             .padding(.horizontal, 60)
                         
-                        Text("Versione 1.2.0")
+                        Text(String(format: "version_label".localized, "1.2.0"))
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
                     
                     VStack(alignment: .leading, spacing: 20) {
-                        Text("Informazioni sul Progetto")
+                        Text("project_info_title".localized)
                             .font(.title3.bold())
                         
-                        Text("FdC Railway Manager è uno strumento avanzato per la gestione, simulazione e ottimizzazione di reti ferroviarie locali. Integra algoritmi di pathfinding, rilevamento conflitti e intelligenza artificiale per garantire orari efficienti e sicuri.")
+                        Text("project_description".localized)
                             .font(.body)
                             .foregroundColor(.primary)
                             .lineSpacing(5)
                         
-                        Text("Tecnologie utilizzate:")
+                        Text("technologies_used".localized)
                             .font(.headline)
                         
                         VStack(alignment: .leading, spacing: 8) {
-                            labelPair(icon: "swift", title: "SwiftUI", description: "Interfaccia Reattiva")
-                            labelPair(icon: "brain.head.profile", title: "RailwayAI", description: "Ottimizzazione via ML")
-                            labelPair(icon: "map.fill", title: "MapKit", description: "Visualizzazione Geografica")
+                            labelPair(icon: "swift", title: "SwiftUI", description: "reactive_interface".localized)
+                            labelPair(icon: "brain.head.profile", title: "RailwayAI", description: "ml_optimization".localized)
+                            labelPair(icon: "map.fill", title: "MapKit", description: "geographic_visualization".localized)
                         }
                     }
                     .padding(.horizontal, 30)
@@ -63,12 +64,12 @@ struct CreditsView: View {
             .background(Color(UIColor.systemGroupedBackground))
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Chiudi") {
+                    Button("close".localized) {
                         dismiss()
                     }
                 }
             }
-            .navigationTitle("Credits")
+            .navigationTitle("credits".localized)
             .navigationBarTitleDisplayMode(.inline)
         }
     }

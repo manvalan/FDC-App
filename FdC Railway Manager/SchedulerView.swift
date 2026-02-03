@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import UniformTypeIdentifiers
 import Foundation
 import Charts
@@ -26,19 +27,19 @@ struct SchedulerView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("Treni da schedulare")) {
-                    Button("Gestisci treni") { showTrains = true }
+                Section(header: Text("trains_to_schedule".localized)) {
+                    Button("manage_trains".localized) { showTrains = true }
                     ForEach(trainManager.trains) { train in
                         VStack(alignment: .leading) {
                             Text(train.name).font(.headline)
-                            Text("Tipo: \(train.type), Velocità max: \(train.maxSpeed) km/h").font(.caption)
+                            Text(String(format: "type_speed_label".localized, train.type, train.maxSpeed)).font(.caption)
                         }
                     }
                 }
-                Section(header: Text("Simulazione Orari e Traffico")) {
-                    Button("Calcola Orari e Conflitti") {
+                Section(header: Text("timetable_traffic_sim".localized)) {
+                    Button("calculate_timetables".localized) {
                         isLoading = true
-                        schedulerResult = "Calcolo in corso..."
+                        schedulerResult = "calculating_in_progress".localized
                         errorMessage = nil
                         sendToScheduler(network: network, trains: trainManager.trains) { result in
                             DispatchQueue.main.async {
@@ -53,15 +54,15 @@ struct SchedulerView: View {
                             }
                         }
                     }.disabled(isLoading || trainManager.trains.isEmpty)
-                    Button("Esporta risultato") {
+                    Button("export_result".localized) {
                         showExport = true
                     }.disabled(schedulerResult.isEmpty)
-                    Button("Visualizza grafico orari") {
+                    Button("view_timetable_chart".localized) {
                         showChart = true
                     }.disabled(schedulerResult.isEmpty)
                 }
-                Section(header: Text("Infrastruttura Locale (FDC Engine)")) {
-                    Button("Simula Rete Completa") {
+                Section(header: Text("local_infrastructure".localized)) {
+                    Button("simulate_full_network".localized) {
                         simulateLocally()
                     }.disabled(trainManager.trains.isEmpty || network.lines.isEmpty)
                     
@@ -85,34 +86,45 @@ struct SchedulerView: View {
                     }
                 }
                 if !appState.simulator.activeConflicts.isEmpty {
-                    Section(header: Text("Conflitti Operativi")) {
-                        ForEach(appState.simulator.activeConflicts) { conflict in
-                            VStack(alignment: .leading) {
-                                HStack {
-                                    Image(systemName: conflict.type == .stationOverlap ? "building.2.fill" : "rail.tracks")
-                                    Text("\(conflict.type.rawValue) a \(conflict.locationId)").bold()
-                                }
-                                Text(conflict.trainNames.joined(separator: " vs "))
-                                    .font(.caption).foregroundColor(.red)
+                    Section(header: Text("conflict_dashboard".localized)) {
+                        ConflictDashboardView(
+                            conflicts: appState.simulator.activeConflicts.map { c in
+                                ScheduleConflict(
+                                    trainAId: c.trainIds.first ?? UUID(),
+                                    trainBId: c.trainIds.last ?? UUID(),
+                                    trainAName: c.trainNames.first ?? "Sconosciuto",
+                                    trainBName: c.trainNames.last ?? "Sconosciuto",
+                                    locationType: c.type == .stationOverlap ? .station : .line,
+                                    locationName: network.nodes.first(where: { $0.id == c.locationId })?.name ?? c.locationId,
+                                    locationId: c.locationId,
+                                    timeStart: c.startTime,
+                                    timeEnd: c.endTime
+                                )
+                            },
+                            network: network,
+                            onFocusConflict: { conflict in
+                                // Optional: logic to center map on conflict
                             }
-                        }
+                        )
+                        .listRowInsets(EdgeInsets())
+                        .background(Color.clear)
                     }
                 }
-                Section(header: Text("Editing manuale orari")) {
-                    Button("Modifica orari manualmente") {
+                Section(header: Text("manual_timetable_edit".localized)) {
+                    Button("edit_timetables_manually".localized) {
                         showManualEdit = true
                     }.disabled(schedulerResult.isEmpty)
                 }
-                Section(header: Text("Esportazione avanzata e stampa")) {
-                    Button("Copia risultato negli appunti") {
+                Section(header: Text("advanced_export_print".localized)) {
+                    Button("copy_to_clipboard".localized) {
                         UIPasteboard.general.string = schedulerResult
                     }.disabled(schedulerResult.isEmpty)
-                    Button("Stampa risultato") {
+                    Button("print_result".localized) {
                         showPrint = true
                     }.disabled(schedulerResult.isEmpty)
                 }
-                Section(header: Text("Importazione file")) {
-                    Button("Importa file .fdc o .txt") {
+                Section(header: Text("file_import".localized)) {
+                    Button("import_fdc_txt".localized) {
                         showImport = true
                     }
                 }
@@ -125,7 +137,7 @@ struct SchedulerView: View {
                     }
                 }
                 if !schedulerResult.isEmpty {
-                    Section(header: Text("Risultato Orari/Conflitti")) {
+                    Section(header: Text("timetables_conflicts_result".localized)) {
                         ScrollView {
                             Text(schedulerResult)
                                 .font(.body)
@@ -147,7 +159,7 @@ struct SchedulerView: View {
                         }
                         // Gestione conflitti dettagliata
                         if let conflicts = parseConflicts(from: schedulerResult), !conflicts.isEmpty {
-                            Section(header: Text("Conflitti rilevati")) {
+                            Section(header: Text("detected_conflicts".localized)) {
                                 ForEach(conflicts, id: \.self) { conflict in
                                     Text(conflict).foregroundColor(.red)
                                 }
@@ -156,11 +168,11 @@ struct SchedulerView: View {
                     }
                 }
             }
-            .navigationTitle("Scheduler")
+            .navigationTitle("scheduler_title".localized)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { showImport = true }) {
-                        Label("Importa .fdc", systemImage: "tray.and.arrow.down")
+                        Label("import_fdc_button".localized, systemImage: "tray.and.arrow.down")
                     }
                 }
             }
@@ -230,13 +242,13 @@ struct TimetableChartView: View {
     @Environment(\.dismiss) var dismiss
     var body: some View {
         VStack {
-            Text("Grafico Orari Treni")
+            Text("timetable_chart_title".localized)
                 .font(.title2)
                 .padding(.top)
             TimetableChart(data: TimetableChartData.parse(from: schedulerResult))
                 .frame(height: 400)
                 .padding()
-            Button("Chiudi") { dismiss() }
+            Button("close".localized) { dismiss() }
                 .padding(.bottom)
         }
     }
@@ -334,7 +346,7 @@ struct TimetableChart: View {
                 AxisValueLabel(format: .dateTime.hour().minute())
             }
         }
-        .chartYAxisLabel("Stazione")
+        .chartYAxisLabel("stations_label".localized)
         .chartLegend(position: .bottom)
         .padding()
     }
@@ -422,33 +434,33 @@ struct TrainsDetailView: View {
                 ForEach(manager.trains) { train in
                     VStack(alignment: .leading) {
                         Text(train.name).font(.headline)
-                        Text("Tipo: \(train.type), Velocità max: \(train.maxSpeed) km/h").font(.caption)
+                        Text(String(format: "type_speed_label".localized, train.type, train.maxSpeed)).font(.caption)
                     }
                 }
                 .onDelete { manager.trains.remove(atOffsets: $0) }
             }
-            .navigationTitle("Gestione Treni")
+            .navigationTitle("manage_trains_title".localized)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { showAdd = true }) {
-                        Label("Aggiungi treno", systemImage: "plus")
+                        Label("add_train".localized, systemImage: "plus")
                     }
                 }
             }
             .sheet(isPresented: $showAdd) {
                 NavigationStack {
                     Form {
-                        TextField("Nome treno", text: $newName)
-                        TextField("Tipo", text: $newType)
-                        TextField("Velocità max (km/h)", value: $newMaxSpeed, format: .number)
+                        TextField("train_name".localized, text: $newName)
+                        TextField("type_label".localized, text: $newType)
+                        TextField("max_speed_kmh".localized, value: $newMaxSpeed, format: .number)
                     }
-                    .navigationTitle("Nuovo Treno")
+                    .navigationTitle("new_train".localized)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
-                            Button("Annulla") { showAdd = false }
+                            Button("cancel".localized) { showAdd = false }
                         }
                         ToolbarItem(placement: .confirmationAction) {
-                            Button("Aggiungi") {
+                            Button("add_button".localized) {
                                 guard !newName.isEmpty else { return }
                                  manager.trains.append(Train(id: UUID(), number: 100 + manager.trains.count, name: newName, type: newType, maxSpeed: newMaxSpeed, priority: 5, acceleration: 0.5, deceleration: 0.5))
                                  newName = ""
@@ -580,7 +592,7 @@ struct ManualEditView: View {
     @State private var editedText: String = ""
     var body: some View {
         VStack(alignment: .leading) {
-            Text("Modifica manuale orari e conflitti")
+            Text("manual_edit_title".localized)
                 .font(.headline)
                 .padding(.top)
             TextEditor(text: $editedText)
@@ -589,8 +601,8 @@ struct ManualEditView: View {
                 .padding(.vertical)
             HStack {
                 Spacer()
-                Button("Annulla") { dismiss() }
-                Button("Salva") {
+                Button("cancel".localized) { dismiss() }
+                Button("save".localized) {
                     schedulerResult = editedText
                     dismiss()
                 }.buttonStyle(.borderedProminent)
@@ -607,7 +619,7 @@ struct PrintView: View {
     @Environment(\.dismiss) var dismiss
     var body: some View {
         VStack(alignment: .leading) {
-            Text("Anteprima di stampa")
+            Text("print_preview_title".localized)
                 .font(.headline)
                 .padding(.top)
             ScrollView {
@@ -617,8 +629,8 @@ struct PrintView: View {
             }
             HStack {
                 Spacer()
-                Button("Chiudi") { dismiss() }
-                Button("Stampa") {
+                Button("close".localized) { dismiss() }
+                Button("print".localized) {
                     printText(text)
                 }.buttonStyle(.borderedProminent)
             }
@@ -629,7 +641,7 @@ struct PrintView: View {
         let printController = UIPrintInteractionController.shared
         let printInfo = UIPrintInfo(dictionary: nil)
         printInfo.outputType = .general
-        printInfo.jobName = "Orari e conflitti"
+        printInfo.jobName = "print_job_scheduler".localized
         printController.printInfo = printInfo
         let formatter = UISimpleTextPrintFormatter(text: text)
         printController.printFormatter = formatter
@@ -647,7 +659,7 @@ extension SchedulerView {
             network.nodes = loadedNetwork.nodes
             network.edges = loadedNetwork.edges
         } catch {
-            errorMessage = "Errore durante il caricamento della rete: \(error.localizedDescription)"
+            errorMessage = String(format: "network_load_error".localized, error.localizedDescription)
         }
     }
 
@@ -656,7 +668,7 @@ extension SchedulerView {
         do {
             try network.saveToFile(url: url)
         } catch {
-            errorMessage = "Errore durante il salvataggio della rete: \(error.localizedDescription)"
+            errorMessage = String(format: "network_save_error".localized, error.localizedDescription)
         }
     }
 }

@@ -25,7 +25,7 @@ struct LineTableView: View {
             Grid(horizontalSpacing: 0, verticalSpacing: 0) {
                 // Header Row
                 GridRow {
-                    Text("Stazione")
+                    Text("station".localized)
                         .font(.headline)
                         .frame(width: 150, alignment: .leading)
                         .padding(8)
@@ -84,13 +84,13 @@ struct LineTableView: View {
                                 let isFirstStop = train.stops.first?.stationId == station.id
                                 let trainStart = train.stops.first?.departure ?? train.departureTime
                                 if let arr = cellData?.0, !isFirstStop {
-                                    Text("A: " + formatTime(arr, ref: trainStart))
+                                    Text("arrival_short".localized + " " + formatTime(arr, ref: trainStart))
                                         .font(.caption2)
                                         .foregroundColor(isConflict ? .white : .green)
                                 }
                                 let isLastStop = train.stops.last?.stationId == station.id
                                 if let dep = cellData?.1, !isLastStop {
-                                    Text("P: " + formatTime(dep, ref: trainStart))
+                                    Text("departure_short".localized + " " + formatTime(dep, ref: trainStart))
                                         .font(.caption2)
                                         .foregroundColor(isConflict ? .white : .blue)
                                 }

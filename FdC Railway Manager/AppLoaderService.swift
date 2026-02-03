@@ -40,6 +40,10 @@ class AppLoaderService: ObservableObject {
                 trainManager.trains = dto.trains ?? []
                 
                 print("✅ Caricato ultimo stato da: \(lastStateURL.lastPathComponent)")
+                
+                // Clean up any duplicate edges
+                network.removeDuplicateEdges()
+                
                 trainManager.validateSchedules(with: network)
                 
                 // PIGNOLO PROTOCOL: Pre-populate simulator for map visualization

@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 @main
 struct FdC_Railway_ManagerApp: App {

@@ -16,6 +16,7 @@ struct StationScheduleView: View {
     struct StationArrival: Identifiable {
         let id = UUID() // Unique ID for the row
         let trainId: UUID
+        let trainType: String // New
         let trainName: String
         let relationName: String
         let origin: String
@@ -27,6 +28,7 @@ struct StationScheduleView: View {
     }
     
     @State private var arrivals: [StationArrival] = []
+    @EnvironmentObject var appState: AppState
     
     var body: some View {
         VStack { // Removed NavigationStack
@@ -34,8 +36,6 @@ struct StationScheduleView: View {
             HStack {
                 Picker("Binario", selection: $selectedTrack) {
                     Text("Tutti").tag(String?.none)
-                    // Dynamic list of tracks?
-                    // For now hardcoded common ones or extracted from data
                     ForEach(availableTracks, id: \.self) { track in
                         Text(track).tag(String?.some(track))
                     }
@@ -44,11 +44,12 @@ struct StationScheduleView: View {
                 
                 Spacer()
                 
-                Picker("Ordina", selection: $sortOrder) {
+                Picker("Ordina per", selection: $sortOrder) {
                     Text("Ora").tag(SortOrder.time)
                     Text("Treno").tag(SortOrder.train)
                 }
                 .pickerStyle(.segmented)
+                .frame(width: 150)
             }
             .padding()
             
@@ -56,15 +57,49 @@ struct StationScheduleView: View {
             List {
                 ForEach(filteredArrivals) { item in
                     HStack {
+                        HStack(spacing: 4) {
+                            if let arr = item.arrivalTime {
+                                VStack(alignment: .trailing) {
+                                    Text("Arr.")
+                                        .font(.system(size: 8)).foregroundColor(.secondary)
+                                    Text(format(arr))
+                                        .font(.system(size: 14)).bold()
+                                }
+                                .frame(width: 45)
+                            } else {
+                                Spacer().frame(width: 45)
+                            }
+                            
+                            if let dep = item.departureTime {
+                                VStack(alignment: .leading) {
+                                    Text("Part.")
+                                        .font(.system(size: 8)).foregroundColor(.secondary)
+                                    Text(format(dep))
+                                        .font(.system(size: 14)).bold()
+                                        .foregroundColor(.green)
+                                }
+                                .frame(width: 45)
+                            } else {
+                                Spacer().frame(width: 45)
+                            }
+                        }
+                        .frame(width: 100)
+                        
                         VStack(alignment: .leading) {
-                            Text(format(item.arrivalTime ?? item.departureTime))
-                                .font(.title3).bold()
-                                .foregroundColor(item.arrivalTime != nil ? .primary : .green)
+                            Text(item.trainType)
+                                .font(.caption2).bold()
+                                .foregroundColor(.secondary)
                             Text(item.trainName)
-                                .font(.caption)
-                                .bold()
+                                .font(.caption2).bold()
+                                .padding(.horizontal, 4)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(4)
                         }
                         .frame(width: 80, alignment: .leading)
+                        .contentShape(Rectangle()) // Better tap area
+                        .onTapGesture {
+                            appState.jumpToTrainId = item.trainId
+                        }
                         
                         VStack(alignment: .leading) {
                             Text(item.destination)
@@ -87,6 +122,7 @@ struct StationScheduleView: View {
             .listStyle(.plain)
         }
         .onAppear(perform: calculateArrivals)
+        .onChange(of: station.id) { _ in calculateArrivals() }
         .onReceive(manager.objectWillChange) { _ in
             calculateArrivals()
         }
@@ -122,7 +158,6 @@ struct StationScheduleView: View {
         guard let date = date else { return "--:--" }
         let f = DateFormatter()
         f.dateFormat = "HH:mm"
-        f.timeZone = TimeZone(secondsFromGMT: 0) // SYNC with manager and AI
         return f.string(from: date)
     }
     
@@ -157,7 +192,8 @@ struct StationScheduleView: View {
                 
                 results.append(StationArrival(
                     trainId: train.id,
-                    trainName: train.type + " " + train.name,
+                    trainType: train.type, // New
+                    trainName: train.name,
                     relationName: relationName,
                     origin: originName,
                     destination: destName,
