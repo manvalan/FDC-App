@@ -505,6 +505,17 @@ class RailwayNetwork: ObservableObject {
         edges = uniqueEdges
         print("✅ [CLEANUP] Removed \(removed) duplicate edge(s). Total edges now: \(edges.count)")
     }
+    
+    /// Resetta l'intera rete e la cronologia (Irreversibile)
+    func reset() {
+        undoStack.removeAll()
+        redoStack.removeAll()
+        updateUndoFlags()
+        
+        nodes.removeAll()
+        edges.removeAll()
+        lines.removeAll()
+    }
 
     // MARK: - Pathfinding (High Performance)
     

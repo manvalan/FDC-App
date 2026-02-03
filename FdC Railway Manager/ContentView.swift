@@ -1076,6 +1076,7 @@ struct SettingsView: View {
     @State private var showCredits = false
     @State private var importError: String? = nil
     @State private var showLogs = false
+    @State private var showDeleteConfirmation = false
     
     // Debug State
     struct DebugContent: Identifiable {
@@ -1211,6 +1212,14 @@ struct SettingsView: View {
                         Label("diagnostics".localized, systemImage: "info.circle")
                     }
                 }
+                
+                Section(header: Text("danger_zone".localized)) {
+                    Button(role: .destructive, action: {
+                        showDeleteConfirmation = true
+                    }) {
+                        Label("reset_all_data".localized, systemImage: "trash.fill")
+                    }
+                }
             }
             .navigationTitle("settings".localized)
             .sheet(item: $debugContent) { content in
@@ -1232,6 +1241,17 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showCredits) {
                 CreditsView()
+            }
+            .alert("reset_confirm_title".localized, isPresented: $showDeleteConfirmation) {
+                Button("cancel".localized, role: .cancel) { }
+                Button("confirm".localized, role: .destructive) {
+                    // Reset Logic
+                    network.reset()
+                    trainManager.trains.removeAll()
+                    appState.simulator.schedules.removeAll()
+                }
+            } message: {
+                Text("reset_confirm_message".localized)
             }
         }
     }

@@ -498,7 +498,11 @@ class LocalizationManager: ObservableObject {
             "ai_too_many_trains_fmt": "Troppi treni (%d). Il limite massimo per l'ottimizzazione AI è 50 treni. Riduci il numero di treni e riprova.",
             "add_station_upstream": "Aggiungi stazione a monte",
             "add_station_downstream": "Aggiungi stazione a valle",
-            "dwell_time_min": "%d min"
+            "dwell_time_min": "%d min",
+            "danger_zone": "Zona Pericolo",
+            "reset_all_data": "Elimina Tutto (Rete e Treni)",
+            "reset_confirm_title": "Conferma Eliminazione",
+            "reset_confirm_message": "Sei sicuro di voler eliminare l'intera rete, tutte le linee e tutti i treni? Questa azione non può essere annullata."
         ],
         .english: [
             "settings": "Settings",
@@ -958,7 +962,11 @@ class LocalizationManager: ObservableObject {
             "ai_too_many_trains_fmt": "Too many trains (%d). The maximum limit for AI optimization is 50 trains. Reduce the number of trains and try again.",
             "add_station_upstream": "Add upstream station",
             "add_station_downstream": "Add downstream station",
-            "dwell_time_min": "%d min"
+            "dwell_time_min": "%d min",
+            "danger_zone": "Danger Zone",
+            "reset_all_data": "Delete All (Network & Trains)",
+            "reset_confirm_title": "Confirm Deletion",
+            "reset_confirm_message": "Are you sure you want to delete the entire network, all lines, and all trains? This action cannot be undone."
         ]
     ]
 }
