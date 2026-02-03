@@ -1315,12 +1315,10 @@ struct SchematicRailwayView: View {
         let newEdge = Edge(from: n1.id, to: n2.id, distance: newTrackDistance, trackType: newTrackType, maxSpeed: speed, capacity: 10)
         network.edges.append(newEdge)
         
-        // Solo doppio e AV creano automaticamente il ritorno
-        // Single e Regional rimangono archi singoli (bidirezionali logicamente)
-        if newTrackType == .double || newTrackType == .highSpeed {
-            let returnEdge = Edge(from: n2.id, to: n1.id, distance: newTrackDistance, trackType: newTrackType, maxSpeed: speed, capacity: 10)
-            network.edges.append(returnEdge)
-        }
+        // Create return edge for ALL track types to ensure bidirectional connectivity in the graph
+        // (Pathfinding requires directed edges for both directions)
+        let returnEdge = Edge(from: n2.id, to: n1.id, distance: newTrackDistance, trackType: newTrackType, maxSpeed: speed, capacity: 10)
+        network.edges.append(returnEdge)
         
         // Reset selection
         newTrackFrom = nil

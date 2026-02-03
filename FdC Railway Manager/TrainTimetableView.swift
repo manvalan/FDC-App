@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct TrainTimetableView: View {
     @ObservedObject var schedule: TrainSchedule
@@ -19,8 +20,9 @@ struct TrainTimetableView: View {
                 Section(header: Text("Orario Dettagliato")) {
                     HStack {
                         Text("Stazione").bold().frame(maxWidth: .infinity, alignment: .leading)
-                        Text("Arrivo").bold().frame(width: 80)
-                        Text("Partenza").bold().frame(width: 80)
+                        Text("Arrivo").bold().frame(width: 60)
+                        Text("Partenza").bold().frame(width: 60)
+                        Text("Sosta").bold().frame(width: 40)
                         Text("Bin.").bold().frame(width: 40)
                     }
                     .font(.caption)
@@ -34,11 +36,15 @@ struct TrainTimetableView: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             
-                            Text(formatTime(stop.arrivalTime))
-                                .frame(width: 80)
+                            Text(formatTime(stop.arrivalTime, refDate: schedule.stops.first?.departureTime))
+                                .frame(width: 60)
                             
-                            Text(formatTime(stop.departureTime))
-                                .frame(width: 80)
+                            Text(formatTime(stop.departureTime, refDate: schedule.stops.first?.departureTime))
+                                .frame(width: 60)
+                                
+                            Text(formatDwell(stop))
+                                .frame(width: 40)
+                                .foregroundColor(.secondary)
                             
                             Text("\(stop.platform ?? 1)")
                                 .frame(width: 40)
@@ -61,12 +67,35 @@ struct TrainTimetableView: View {
         }
     }
     
-    func formatTime(_ date: Date?) -> String {
-        guard let date = date else { return "---" }
+    func formatTime(_ date: Date?, refDate: Date? = nil) -> String {
+        guard let date = date else { return "-" }
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
-        formatter.timeZone = TimeZone(secondsFromGMT: 0) // SYNC UTC
-        return formatter.string(from: date)
+        var str = formatter.string(from: date)
+        
+        // Add +1 if day differs from refDate (start of train)
+        if let ref = refDate {
+            let cal = Calendar.current
+            if !cal.isDate(date, inSameDayAs: ref) {
+                let diff = cal.dateComponents([.day], from: ref, to: date).day ?? 0
+                if diff > 0 { str += " (+\(diff))" }
+            }
+        }
+        return str
+    }
+    
+    func formatDwell(_ stop: ScheduleStop) -> String {
+        if let arr = stop.arrivalTime, let dep = stop.departureTime {
+            let diff = dep.timeIntervalSince(arr)
+            if diff > 0 {
+                return String(format: "%d'", Int(diff / 60))
+            }
+        }
+        // Fallback to min dwell if actual times not set
+        if stop.dwellsMinutes > 0 {
+             return "\(stop.dwellsMinutes)'"
+        }
+        return "-"
     }
     
     func isConflict(stationId: String) -> Bool {
