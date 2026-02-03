@@ -172,7 +172,7 @@ def main():
             "id": f"L_{rel['id']}",
             "name": route_name,
             "color": color,
-            "stations": unique
+            "stops": [{"stationId": s, "minDwellTime": 3} for s in unique]
         })
         
         # Create Edges
@@ -201,26 +201,23 @@ def main():
                 ttype = "double"
             
             output_edges.append({
-                "from_node": u,
-                "to_node": v,
+                "from": u,
+                "to": v,
                 "distance": max(0.5, round(dist, 2)),
-                "track_type": ttype,
-                "max_speed": max_s,
-                "bidirectional": True,
+                "trackType": ttype,
+                "maxSpeed": int(max_s),
                 "capacity": 10
             })
 
     print(f"Risultato: {len(output_lines)} linee, {len(output_edges)} segmenti, {len(fdc_nodes)} stazioni.")
     
-    # Root Structure (FDCFileRoot)
+    # Root Structure (RailwayNetworkDTO for .rail)
     final_output = {
-        "network": {
-            "nodes": list(fdc_nodes.values()),
-            "edges": output_edges
-        },
-        "trains": [],
+        "name": "Toscana Liguria Emilia",
+        "nodes": list(fdc_nodes.values()),
+        "edges": output_edges,
         "lines": output_lines,
-        "schedules": [] 
+        "trains": []
     }
     
     with open(FILENAME, 'w') as f:
