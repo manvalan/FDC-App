@@ -1315,10 +1315,8 @@ struct SchematicRailwayView: View {
         let newEdge = Edge(from: n1.id, to: n2.id, distance: newTrackDistance, trackType: newTrackType, maxSpeed: speed, capacity: 10)
         network.edges.append(newEdge)
         
-        // Create return edge for ALL track types to ensure bidirectional connectivity in the graph
-        // (Pathfinding requires directed edges for both directions)
-        let returnEdge = Edge(from: n2.id, to: n1.id, distance: newTrackDistance, trackType: newTrackType, maxSpeed: speed, capacity: 10)
-        network.edges.append(returnEdge)
+        // Note: Pathfinding treats all edges as bidirectional, so no need to create return edge
+        
         
         // Reset selection
         newTrackFrom = nil
