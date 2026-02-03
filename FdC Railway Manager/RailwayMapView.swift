@@ -994,6 +994,7 @@ struct SchematicRailwayView: View {
                                 onDragStarted: { network.createCheckpoint() }
                             )
                             .position(finalPosition(for: node, in: canvasSize, bounds: bounds))
+                            .id("node-\(node.id)")
                         }
                     }
                     .frame(width: canvasSize.width, height: canvasSize.height)
@@ -1008,6 +1009,15 @@ struct SchematicRailwayView: View {
                             magnification = 1.0
                         }
                 )
+                .onChange(of: selectedNode) { node in
+                    if let node = node { withAnimation { proxy.scrollTo("node-\(node.id)", anchor: .center) } }
+                }
+                .onChange(of: selectedEdgeId) { edgeId in
+                    if let edgeId = edgeId, let edge = network.edges.first(where: { $0.id.uuidString == edgeId }) {
+                         withAnimation { proxy.scrollTo("node-\(edge.from)", anchor: .center) }
+                    }
+                }
+            } // End ScrollViewReader
                 
                 // Consolidated Controls Toolbar (Right Side)
                 VStack(alignment: .trailing, spacing: 20) {
