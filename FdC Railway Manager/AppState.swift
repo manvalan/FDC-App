@@ -129,11 +129,11 @@ final class AppState: ObservableObject {
     init() {
         self.currentLanguage = LocalizationManager.shared.currentLanguage
         
-        var endpoint = UserDefaults.standard.string(forKey: "ai_endpoint") ?? "http://railway-ai.michelebigi.it:8080"
+        var endpoint = UserDefaults.standard.string(forKey: "ai_endpoint") ?? "https://railway-ai.michelebigi.it"
         
-        // MIGRATION FIX: Force update if old IP or broken HTTPS is found
-        if endpoint.contains("82.165.138.64") || endpoint.contains("localhost") || endpoint.hasPrefix("https://") {
-            endpoint = "http://railway-ai.michelebigi.it:8080"
+        // MIGRATION FIX: Force upgrade to HTTPS if using old HTTP or port 8080
+        if endpoint.contains("82.165.138.64") || endpoint.contains("localhost") || endpoint.contains(":8080") || endpoint.hasPrefix("http://") {
+            endpoint = "https://railway-ai.michelebigi.it"
             UserDefaults.standard.set(endpoint, forKey: "ai_endpoint") // Persist correction
         }
 
