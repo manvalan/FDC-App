@@ -14,6 +14,8 @@ enum PickerType: Identifiable, Hashable {
 
 struct PathPickerComponent: View {
     @EnvironmentObject var network: RailwayNetwork
+    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var trainManager: TrainManager
     
     @Binding var startStationId: String
     @Binding var viaStationIds: [String]
@@ -28,7 +30,7 @@ struct PathPickerComponent: View {
     }
     
     private var viaItems: [ViaItem] {
-        viaStationIds.enumerated().map { ViaItem(id: $0, stationId: $1) }
+        viaStationIds.enumerated().map { (index, stationId) in ViaItem(id: index, stationId: stationId) }
     }
     
     @State private var alternatives: [(path: [String], distance: Double, description: String)] = []
@@ -40,7 +42,15 @@ struct PathPickerComponent: View {
     @Binding var manualStationId: String
     var lineContext: RailwayLine? = nil
     
+    // AI Analysis
+    var lineAnalysis: RailwayAIService.LineAnalysis? = nil
+    var isAnalyzing: Bool = false
+    
     @State private var isCalculating = false
+    
+    // Local GA Search
+    @StateObject private var cadenceOptimizer = CadenceOptimizer()
+    @State private var localProposedOffset: Double? = nil
 
     var body: some View {
         Group {
@@ -52,22 +62,26 @@ struct PathPickerComponent: View {
                 .pickerStyle(.segmented)
                 .onChange(of: useAutomaticSelection) { old, new in
                     manualAddition = !new
-                    if !new {
-                        stationSequence = startStationId.isEmpty ? [] : [startStationId]
-                    }
                 }
             }
+            .task {
+                // PIGNOLO PROTOCOL: Auto-calculate path on load if terminals are set
+                if !startStationId.isEmpty && !endStationId.isEmpty && alternatives.isEmpty {
+                    calculatePath()
+                }
+            }
+            .onChange(of: startStationId) { _, _ in if useAutomaticSelection { calculatePath() } }
+            .onChange(of: endStationId) { _, _ in if useAutomaticSelection { calculatePath() } }
+            .onChange(of: viaStationIds) { _, _ in if useAutomaticSelection { calculatePath() } }
             
             if useAutomaticSelection {
                 Section(header: Text("define_terminals".localized)) {
-                    if lineContext == nil {
-                        HStack {
-                            Text("from".localized)
-                            Spacer()
-                            Button(action: { activePicker = .start }) {
-                                Text(stationName(startStationId))
-                                    .foregroundColor(startStationId.isEmpty ? .secondary : .primary)
-                            }
+                    HStack {
+                        Text("from".localized)
+                        Spacer()
+                        Button(action: { activePicker = .start }) {
+                            Text(stationName(startStationId))
+                                .foregroundColor(startStationId.isEmpty ? .secondary : .primary)
                         }
                     }
                     
@@ -112,14 +126,12 @@ struct PathPickerComponent: View {
                         .padding(.vertical, 4)
                     }
                     
-                    if lineContext == nil {
-                        HStack {
-                            Text("to".localized)
-                            Spacer()
-                            Button(action: { activePicker = .end }) {
-                                Text(stationName(endStationId))
-                                    .foregroundColor(endStationId.isEmpty ? .secondary : .primary)
-                            }
+                    HStack {
+                        Text("to".localized)
+                        Spacer()
+                        Button(action: { activePicker = .end }) {
+                            Text(stationName(endStationId))
+                                .foregroundColor(endStationId.isEmpty ? .secondary : .primary)
                         }
                     }
                     
@@ -141,8 +153,24 @@ struct PathPickerComponent: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
+                    } 
+                    
+                    // Display AI Analysis if enabled and available (for both new and existing lines)
+                    if isAnalyzing {
+                        HStack {
+                            ProgressView().controlSize(.small)
+                            Text("ai_analyzing".localized).font(.caption).foregroundColor(.blue)
+                        }
                         .padding(.vertical, 8)
-                    } else {
+                    } else if let analysis = lineAnalysis {
+                        aiAnalysisView(analysis: analysis)
+                        localAnalysisView
+                    } else if !stationSequence.isEmpty {
+                        // Show local analysis even if AI is not available
+                        localAnalysisView
+                    }
+                    
+                    if lineContext == nil {
                         Button("calculate_proposed_paths".localized) {
                             calculatePath()
                         }
@@ -155,7 +183,8 @@ struct PathPickerComponent: View {
                                 Text("select_dots".localized).tag(Int?.none)
                                 ForEach(alternatives.indices, id: \.self) { index in
                                     let alt = alternatives[index]
-                                    Text(String(format: "path_alt_fmt".localized, alt.description, alt.path.count, alt.distance))
+                                    let dist = (alt.distance > 500) ? (alt.distance / 1000.0) : alt.distance
+                                    Text(String(format: "path_alt_fmt".localized, alt.description, alt.path.count, dist))
                                         .tag(Int?.some(index))
                                 }
                             }
@@ -163,11 +192,12 @@ struct PathPickerComponent: View {
                         } else {
                             // Only one alternative, show info
                             let alt = alternatives[0]
+                            let dist = (alt.distance > 500) ? (alt.distance / 1000.0) : alt.distance
                             HStack {
                                 Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
                                 Text(String(format: "path_found_fmt".localized, alt.description))
                                 Spacer()
-                                Text(String(format: "%.1f km", alt.distance))
+                                Text(String(format: "%.1f km", dist))
                                     .font(.caption).bold()
                             }
                             .padding(.vertical, 4)
@@ -176,10 +206,11 @@ struct PathPickerComponent: View {
                     
                     if let selectedIdx = selectedAlternativeIndex, selectedIdx < alternatives.count {
                         let alt = alternatives[selectedIdx]
+                        let dist = (alt.distance > 500) ? (alt.distance / 1000.0) : alt.distance
                         HStack {
                             Text("total_distance".localized)
                             Spacer()
-                            Text(String(format: "%.1f km", alt.distance))
+                            Text(String(format: "%.1f km", dist))
                                 .bold()
                         }
                         .font(.caption)
@@ -308,7 +339,7 @@ struct PathPickerComponent: View {
                 path = Array(stations[endIndex...startIndex]).reversed()
             }
             
-            let dist = RailwayNetwork.calculatePathDistance(path, edges: edges)
+            let dist = RailwayNetwork.calculatePathDistance(path: path, edges: edges)
             let desc = "\(stationName(startStationId)) → \(stationName(endStationId))"
             
             return ([(path: path, distance: dist, description: desc)], nil)
@@ -356,7 +387,7 @@ struct PathPickerComponent: View {
         combineRecursive(segmentIdx: 0, currentPath: [], currentDist: 0)
         
         let finalCombined = combined.map { item -> (path: [String], distance: Double, description: String) in
-            let trueDist = RailwayNetwork.calculatePathDistance(item.path, edges: edges)
+            let trueDist = RailwayNetwork.calculatePathDistance(path: item.path, edges: edges)
             return (item.path, trueDist, item.description)
         }
         
@@ -396,15 +427,146 @@ struct PathPickerComponent: View {
     
     private func getSuggestions() -> [Node] {
         guard let lastId = stationSequence.last else { return [] }
-        let connectedIds = network.edges.compactMap { edge -> String? in
-            if edge.from == lastId { return edge.to }
-            if edge.to == lastId { return edge.from }
-            return nil
-        }
+        let connectedIds = network.getNeighborStations(for: lastId)
         // Filter out stations already in sequence to avoid immediate loops, 
         // but allow them if the user explicitly wants them (unfiltered in picker).
         // For quick suggestions, we prioritize new stations.
         return network.nodes.filter { connectedIds.contains($0.id) && !stationSequence.contains($0.id) }
             .sorted { $0.name < $1.name }
+    }
+    
+    @ViewBuilder
+    private func aiAnalysisView(analysis: RailwayAIService.LineAnalysis) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Divider()
+            HStack {
+                Image(systemName: "sparkles")
+                    .foregroundColor(.purple)
+                Text("railway_ai_analysis".localized).bold()
+                
+                if analysis.travelTimeMin != nil {
+                    Spacer()
+                    Text("AI Engine V2")
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .padding(4)
+                        .background(Color.purple.opacity(0.1))
+                        .cornerRadius(4)
+                }
+            }
+            .font(.subheadline)
+            
+            if let rec = analysis.recommendation {
+                Text(rec)
+                    .font(.caption2)
+                    .foregroundColor(.primary)
+                    .padding(8)
+                    .background(Color.white.opacity(0.5))
+                    .cornerRadius(8)
+                    .padding(.bottom, 4)
+            }
+            
+            HStack(spacing: 12) {
+                VStack(alignment: .leading) {
+                    Text("est_duration_short".localized).font(.caption2).foregroundColor(.secondary)
+                    if let tt = analysis.travelTimeMin {
+                        Text(String(format: "duration_min_fmt".localized, tt)).font(.subheadline).bold()
+                    } else {
+                        Text("N/A").font(.subheadline).bold()
+                    }
+                }
+                VStack(alignment: .leading) {
+                    Text("max_frequency_label".localized).font(.caption2).foregroundColor(.secondary)
+                    if let maxStr = analysis.maxFrequency, !maxStr.isEmpty {
+                        Text(maxStr).font(.subheadline).bold()
+                    } else if let headway = analysis.minHeadwayMin {
+                        Text(String(format: "every_min_fmt".localized, Int(headway))).font(.subheadline).bold()
+                    } else {
+                        Text("N/A").font(.subheadline).bold()
+                    }
+                }
+                VStack(alignment: .leading) {
+                    Text("recommended_label".localized).font(.caption2).foregroundColor(.secondary)
+                    if let recStr = analysis.recommendedFrequency, !recStr.isEmpty {
+                        Text(recStr).font(.subheadline).bold()
+                    } else if let recommended = analysis.optimalHeadwayMin {
+                        Text(String(format: "every_min_fmt".localized, Int(recommended))).font(.subheadline).bold()
+                    } else {
+                        Text("N/A").font(.subheadline).bold()
+                    }
+                }
+                VStack(alignment: .leading) {
+                    Text("optimal_offset_label".localized).font(.caption2).foregroundColor(.secondary)
+                    let offset = analysis.optimalOffsetMin ?? Double(analysis.optimalOffsetAB ?? 0)
+                    Text(String(format: "interval_min_fmt".localized, Int(offset))).font(.subheadline).bold()
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+    
+    @ViewBuilder
+    private var localAnalysisView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Divider()
+            HStack {
+                Image(systemName: "cpu")
+                    .foregroundColor(.blue)
+                Text("local_optimization_pignolo".localized).bold()
+                Spacer()
+                if cadenceOptimizer.isRunning {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button(action: { findLocalIdealOffset() }) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .font(.subheadline)
+            
+            HStack(spacing: 12) {
+                VStack(alignment: .leading) {
+                    Text("optimal_offset_label".localized).font(.caption2).foregroundColor(.secondary)
+                    if let offset = localProposedOffset {
+                        Text(String(format: "interval_min_fmt".localized, Int(offset))).font(.subheadline).bold()
+                            .foregroundColor(.green)
+                    } else {
+                        Text("--").font(.subheadline).bold().foregroundColor(.secondary)
+                    }
+                }
+                
+                Text("local_ga_searching_desc".localized)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .italic()
+            }
+            .padding(.vertical, 4)
+        }
+        .padding()
+        .background(Color.blue.opacity(0.05))
+        .cornerRadius(12)
+    }
+    
+    private func findLocalIdealOffset() {
+        guard stationSequence.count >= 2 else { return }
+        Task {
+            // Find frequency from line context or default to 60
+            let freq = lineContext?.cadenceFrequency ?? 60.0
+            
+            let tempLine = RailwayLine(
+                id: lineContext?.id ?? "preview",
+                name: "Preview",
+                stops: stationSequence.map { RelationStop(stationId: $0) }
+            )
+            
+            let offset = await cadenceOptimizer.proposeIdealWindow(
+                for: tempLine, 
+                frequency: freq, 
+                existingTrains: trainManager.trains, 
+                network: network
+            )
+            self.localProposedOffset = offset
+        }
     }
 }

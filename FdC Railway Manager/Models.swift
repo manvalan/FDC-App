@@ -5,6 +5,55 @@ import UniformTypeIdentifiers
 import CoreLocation
 import MapKit
 
+// Bridge for refactoring compatibility
+typealias RailwayNetwork = NetworkModel
+typealias TrainManager = LinesManager
+
+struct RailwayNetworkDTO: Codable {
+    var name: String?
+    let nodes: [Node]
+    let edges: [Edge]
+    var lines: [RailwayLine]?
+    var trains: [Train]?
+    var vehicles: [Vehicle]?
+}
+
+extension NetworkModel {
+    func toDTO() -> RailwayNetworkDTO {
+        return RailwayNetworkDTO(name: name, nodes: nodes, edges: edges, lines: nil, trains: nil)
+    }
+    
+    func apply(dto: RailwayNetworkDTO) {
+        self.name = dto.name ?? "Network"
+        self.nodes = dto.nodes
+        self.edges = dto.edges
+    }
+}
+
+struct AIScheduleSuggestion: Identifiable, Codable {
+    var id: UUID = UUID()
+    let trainId: UUID
+    let newDepartureTime: String // HH:mm
+    let stopAdjustments: [StopAdjustment]?
+    
+    struct StopAdjustment: Codable {
+        let stationId: String
+        let newMinDwellTime: Int
+    }
+}
+
+// Routing Constraint for a station: defines which tracks are allowed for a specific line/direction
+struct RoutingConstraint: Identifiable, Codable, Hashable {
+    var id: UUID = UUID()
+    var lineId: String
+    var directionStationId: String? // Target station for direction (terminus or next node)
+    var allowedTracks: [String] // List of track names, e.g. ["1", "2"]
+    
+    enum CodingKeys: String, CodingKey {
+        case id, lineId, directionStationId, allowedTracks
+    }
+}
+
 // Nodo della rete ferroviaria (stazione o interscambio)
 struct Node: Identifiable, Codable, Hashable {
     enum NodeType: String, Codable {
@@ -59,11 +108,12 @@ struct Node: Identifiable, Codable, Hashable {
     var platforms: Int?
     var parentHubId: String? // ID of parent hub station for linked stations
     var hubOffsetDirection: HubOffsetDirection? // Position offset for hub visualization
+    var routingConstraints: [RoutingConstraint] = []
 
     enum CodingKeys: String, CodingKey {
         case id, name, type, visualType, customColor, latitude, longitude, capacity, platforms
         case platformCount = "platform_count"
-        case parentHubId, hubOffsetDirection
+        case parentHubId, hubOffsetDirection, routingConstraints
     }
 
     init(id: String, name: String, type: NodeType = .station, visualType: StationVisualType? = nil, customColor: String? = nil, latitude: Double? = nil, longitude: Double? = nil, capacity: Int? = nil, platforms: Int? = 2, parentHubId: String? = nil, hubOffsetDirection: HubOffsetDirection? = nil) {
@@ -78,6 +128,7 @@ struct Node: Identifiable, Codable, Hashable {
         self.platforms = platforms
         self.parentHubId = parentHubId
         self.hubOffsetDirection = hubOffsetDirection
+        self.routingConstraints = []
     }
 
     init(from decoder: Decoder) throws {
@@ -94,6 +145,7 @@ struct Node: Identifiable, Codable, Hashable {
                     container.decodeIfPresent(Int.self, forKey: .platformCount) ?? 2
         parentHubId = try container.decodeIfPresent(String.self, forKey: .parentHubId)
         hubOffsetDirection = try container.decodeIfPresent(HubOffsetDirection.self, forKey: .hubOffsetDirection)
+        routingConstraints = try container.decodeIfPresent([RoutingConstraint].self, forKey: .routingConstraints) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -109,6 +161,7 @@ struct Node: Identifiable, Codable, Hashable {
         try container.encodeIfPresent(platforms, forKey: .platforms)
         try container.encodeIfPresent(parentHubId, forKey: .parentHubId)
         try container.encodeIfPresent(hubOffsetDirection, forKey: .hubOffsetDirection)
+        try container.encode(routingConstraints, forKey: .routingConstraints)
     }
 
     var coordinate: CLLocationCoordinate2D? {
@@ -130,6 +183,53 @@ struct Node: Identifiable, Codable, Hashable {
         case .depot: return "#FF9500" // Orange
         default: return "#000000" // Black
         }
+    }
+    
+    func isTrackAllowed(track: String?, lineId: String, prevStationId: String?, nextStationId: String?) -> Bool {
+        let t = track ?? "1"
+        
+        // --- 1. Bounds Check ---
+        if let max = platforms, let tNum = Int(t), tNum > max {
+            return false
+        }
+        
+        // --- 2. Routing Check ---
+        let constraints = routingConstraints.filter { $0.lineId == lineId }
+        if constraints.isEmpty { return true }
+        
+        let matchingConstraint = constraints.first { $0.directionStationId != nil && $0.directionStationId == nextStationId }
+                              ?? constraints.first { $0.directionStationId != nil && $0.directionStationId == prevStationId }
+                              ?? constraints.first { $0.directionStationId == nil }
+        
+        if let constraint = matchingConstraint {
+            if constraint.allowedTracks.isEmpty { return true }
+            return constraint.allowedTracks.contains(t)
+        }
+        
+        return true
+    }
+
+    /// Restituisce i binari preferiti in base alla provenienza.
+    /// Se non ci sono vincoli specifici, restituisce tutti i binari disponibili (da cui scegliere a caso).
+    func getTracksByProvenance(from prevStationId: String?, nextStationId: String? = nil, forLine lineId: String?) -> [String] {
+        let maxPlatforms = self.platforms ?? 2
+        let allTracks = (1...maxPlatforms).map { "\($0)" }
+        
+        guard let lineId = lineId, !lineId.isEmpty else { return allTracks }
+        let lineConstraints = routingConstraints.filter { $0.lineId == lineId }
+        
+        // Priority for matching direction (where we are going next)
+        // Secondary priority for matching provenance (where we came from)
+        // Tertiary priority for a global constraint for this line
+        let matchingConstraint = lineConstraints.first { $0.directionStationId != nil && $0.directionStationId == nextStationId }
+                              ?? lineConstraints.first { $0.directionStationId != nil && $0.directionStationId == prevStationId }
+                              ?? lineConstraints.first { $0.directionStationId == nil }
+
+        if let preferred = matchingConstraint?.allowedTracks, !preferred.isEmpty {
+            return preferred
+        }
+        
+        return allTracks
     }
 }
 
@@ -250,16 +350,18 @@ struct RailwayLine: Identifiable, Codable, Hashable {
     // Train Numbering Logic
     var codePrefix: String? // e.g. "RE"
     var numberPrefix: Int? // e.g. 5 (results in 5001, 5002...)
+    var cadenceFrequency: Double? // e.g. 30.0 or 60.0 minutes
+    var terminalTracks: [String: String] = [:] // StationID -> Track
     
     var stations: [String] {
         stops.map { $0.stationId }
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, color, width, originId, destinationId, stops, codePrefix, numberPrefix
+        case id, name, color, width, originId, destinationId, stops, codePrefix, numberPrefix, cadenceFrequency, terminalTracks
     }
 
-    init(id: String, name: String, color: String? = nil, width: Double? = nil, originId: String = "", destinationId: String = "", stops: [RelationStop] = [], codePrefix: String? = nil, numberPrefix: Int? = nil) {
+    init(id: String, name: String, color: String? = nil, width: Double? = nil, originId: String = "", destinationId: String = "", stops: [RelationStop] = [], codePrefix: String? = nil, numberPrefix: Int? = nil, cadenceFrequency: Double? = nil) {
         self.id = id
         self.name = name
         self.color = color
@@ -269,6 +371,8 @@ struct RailwayLine: Identifiable, Codable, Hashable {
         self.stops = stops
         self.codePrefix = codePrefix
         self.numberPrefix = numberPrefix
+        self.cadenceFrequency = cadenceFrequency
+        self.terminalTracks = [:]
     }
     
     init(from decoder: Decoder) throws {
@@ -282,6 +386,8 @@ struct RailwayLine: Identifiable, Codable, Hashable {
         stops = try container.decodeIfPresent([RelationStop].self, forKey: .stops) ?? []
         codePrefix = try container.decodeIfPresent(String.self, forKey: .codePrefix)
         numberPrefix = try container.decodeIfPresent(Int.self, forKey: .numberPrefix)
+        cadenceFrequency = try container.decodeIfPresent(Double.self, forKey: .cadenceFrequency)
+        terminalTracks = try container.decodeIfPresent([String: String].self, forKey: .terminalTracks) ?? [:]
     }
 }
 
@@ -293,28 +399,37 @@ struct RelationStop: Identifiable, Codable, Hashable {
     var extraDwellTime: Double = 0 // Ritardo extra da AI (minuti)
     var isSkipped: Bool = false // Se true, il treno non ferma (transito)
     var track: String? // Binario programmato (es: "1")
+    var isManualTrack: Bool = false // Se true, non viene sovrascritto da auto-resolve o sync
+    var isPreferredTrack: Bool = false // Se true, l'AI riceve un bonus se sceglie questo binario
     
     // Per treni specifici: orari pianificati (opzionali, sovrascrivono il calcolo)
     var plannedArrival: Date?
     var plannedDeparture: Date?
+    
+    // Custom dwell time in seconds (when user manually sets departure)
+    // If set, this overrides minDwellTime + extraDwellTime
+    var customDwellSeconds: TimeInterval?
     
     // Campi calcolati per visualizzazione/validazione corrente
     var arrival: Date?
     var departure: Date?
 
     enum CodingKeys: String, CodingKey {
-        case id, stationId, minDwellTime, extraDwellTime, isSkipped, track, plannedArrival, plannedDeparture, arrival, departure
+        case id, stationId, minDwellTime, extraDwellTime, isSkipped, track, isManualTrack, isPreferredTrack, plannedArrival, plannedDeparture, customDwellSeconds, arrival, departure
     }
 
-    init(id: UUID = UUID(), stationId: String, minDwellTime: Int = 3, extraDwellTime: Double = 0, isSkipped: Bool = false, track: String? = nil, plannedArrival: Date? = nil, plannedDeparture: Date? = nil, arrival: Date? = nil, departure: Date? = nil) {
+    init(id: UUID = UUID(), stationId: String, minDwellTime: Int = 3, extraDwellTime: Double = 0, isSkipped: Bool = false, track: String? = nil, isManualTrack: Bool = false, isPreferredTrack: Bool = false, plannedArrival: Date? = nil, plannedDeparture: Date? = nil, customDwellSeconds: TimeInterval? = nil, arrival: Date? = nil, departure: Date? = nil) {
         self.id = id
         self.stationId = stationId
         self.minDwellTime = minDwellTime
         self.extraDwellTime = extraDwellTime
         self.isSkipped = isSkipped
         self.track = track
+        self.isManualTrack = isManualTrack
+        self.isPreferredTrack = isPreferredTrack
         self.plannedArrival = plannedArrival
         self.plannedDeparture = plannedDeparture
+        self.customDwellSeconds = customDwellSeconds
         self.arrival = arrival
         self.departure = departure
     }
@@ -327,428 +442,115 @@ struct RelationStop: Identifiable, Codable, Hashable {
         extraDwellTime = try container.decodeIfPresent(Double.self, forKey: .extraDwellTime) ?? 0
         isSkipped = try container.decodeIfPresent(Bool.self, forKey: .isSkipped) ?? false
         track = try container.decodeIfPresent(String.self, forKey: .track)
+        isManualTrack = try container.decodeIfPresent(Bool.self, forKey: .isManualTrack) ?? false
+        isPreferredTrack = try container.decodeIfPresent(Bool.self, forKey: .isPreferredTrack) ?? false
         plannedArrival = try container.decodeIfPresent(Date.self, forKey: .plannedArrival)
         plannedDeparture = try container.decodeIfPresent(Date.self, forKey: .plannedDeparture)
+        customDwellSeconds = try container.decodeIfPresent(TimeInterval.self, forKey: .customDwellSeconds)
         arrival = try container.decodeIfPresent(Date.self, forKey: .arrival)
         departure = try container.decodeIfPresent(Date.self, forKey: .departure)
     }
 }
 
-
-// Rete ferroviaria (grafo)
-@MainActor
-class RailwayNetwork: ObservableObject {
-    @Published var name: String
-    @Published var nodes: [Node]
-    @Published var edges: [Edge]
-    @Published var lines: [RailwayLine]
+// Mezzo fisico (Materiale Rotante)
+struct Vehicle: Identifiable, Codable, Hashable {
+    var id: UUID = UUID()
+    var name: String // Matricola o Nome (es: "ETR521 #042")
+    var model: String // Modello (es: "Pop", "Rock", "Minuetto")
+    var length: Double = 200 // Lunghezza in metri
+    var maxSpeed: Double = 160
     
-    var sortedLines: [RailwayLine] {
-        lines.sorted { (a, b) -> Bool in
-            let aPref = a.numberPrefix ?? Int.max
-            let bPref = b.numberPrefix ?? Int.max
-            if aPref != bPref {
-                return aPref < bPref
-            }
-            return a.name < b.name
-        }
-    }
+    // Per gestire il giro macchina
+    var notes: String?
+}
 
-    var sortedNodes: [Node] {
-        nodes.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-    }
-
-    var sortedEdges: [Edge] {
-        let nameLookup = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0.name) })
-        return edges.sorted { (a, b) -> Bool in
-            let nameAFrom = nameLookup[a.from] ?? ""
-            let nameBFrom = nameLookup[b.from] ?? ""
-            if nameAFrom != nameBFrom {
-                return nameAFrom.localizedStandardCompare(nameBFrom) == .orderedAscending
-            }
-            let nameATo = nameLookup[a.to] ?? ""
-            let nameBTo = nameLookup[b.to] ?? ""
-            return nameATo.localizedStandardCompare(nameBTo) == .orderedAscending
-        }
-    }
+// Treno circolante nella rete
+struct Train: Identifiable, Codable, Hashable {
+    var id: UUID = UUID()
+    var number: Int?
+    var name: String
+    var type: String
+    var lineId: String?
+    var departureTime: Date?
+    var stops: [RelationStop] = []
     
-    // Undo Support
-    private var undoStack: [RailwayNetworkDTO] = []
-    private var redoStack: [RailwayNetworkDTO] = []
-    @Published var canUndo = false
-    @Published var canRedo = false
-    private var isUndoing = false
-
-    init(name: String, nodes: [Node] = [], edges: [Edge] = [], lines: [RailwayLine] = []) {
+    // Collegamento al materiale rotante
+    var vehicleId: UUID?
+    
+    // Technical specs
+    var maxSpeed: Double = 120
+    var acceleration: Double = 0.5
+    var deceleration: Double = 0.5
+    var priority: Int = 5
+    
+    init(id: UUID = UUID(), number: Int? = nil, name: String, type: String, lineId: String? = nil, departureTime: Date? = nil, stops: [RelationStop] = [], vehicleId: UUID? = nil, maxSpeed: Double = 120, acceleration: Double = 0.5, deceleration: Double = 0.5, priority: Int = 5) {
+        self.id = id
+        self.number = number
         self.name = name
-        self.nodes = nodes
-        self.edges = edges
-        self.lines = lines
+        self.type = type
+        self.lineId = lineId
+        self.departureTime = departureTime
+        self.stops = stops
+        self.vehicleId = vehicleId
+        self.maxSpeed = maxSpeed
+        self.acceleration = acceleration
+        self.deceleration = deceleration
+        self.priority = priority
     }
     
-    // MARK: - Infrastructure Validation
-    
-    /// Identifica binari doppi che non hanno il corrispondente arco di ritorno
-    func checkMissingReturnTracks() -> [(from: String, to: String, type: Edge.TrackType)] {
-        var missing: [(from: String, to: String, type: Edge.TrackType)] = []
-        
-        // Build map for fast lookup O(E)
-        var edgeMap = Set<String>()
-        for edge in edges {
-            edgeMap.insert("\(edge.from)->\(edge.to)")
-        }
-        
-        for edge in edges {
-            // Se è doppio, AV o regionale (non esplicitamente single), deve avere un ritorno 
-            // per essere considerato una tratta bidirezionale completa nel grafo
-            if edge.trackType != .single {
-                if !edgeMap.contains("\(edge.to)->\(edge.from)") {
-                    missing.append((edge.from, edge.to, edge.trackType))
-                }
-            }
-        }
-        return missing
-    }
-    
-    /// Crea i binari di ritorno mancanti
-    func fixMissingTracks(_ missing: [(from: String, to: String, type: Edge.TrackType)]) {
-        createCheckpoint()
-        for m in missing {
-            let newEdge = Edge(
-                from: m.to,
-                to: m.from,
-                distance: edges.first(where: { $0.from == m.from && $0.to == m.to })?.distance ?? 1.0,
-                trackType: m.type,
-                maxSpeed: edges.first(where: { $0.from == m.from && $0.to == m.to })?.maxSpeed ?? 120,
-                capacity: 10
-            )
-            edges.append(newEdge)
-        }
-    }
-    
-    func createCheckpoint() {
-        guard !isUndoing else { return }
-        let dto = self.toDTO()
-        undoStack.append(dto)
-        if undoStack.count > 30 { undoStack.removeFirst() }
-        redoStack.removeAll()
-        updateUndoFlags()
-    }
-    
-    func undo() {
-        guard let last = undoStack.popLast() else { return }
-        isUndoing = true
-        let current = self.toDTO()
-        redoStack.append(current)
-        self.apply(dto: last)
-        isUndoing = false
-        updateUndoFlags()
-    }
-    
-    func redo() {
-        guard let next = redoStack.popLast() else { return }
-        isUndoing = true
-        let current = self.toDTO()
-        undoStack.append(current)
-        self.apply(dto: next)
-        isUndoing = false
-        updateUndoFlags()
-    }
-    
-    private func updateUndoFlags() {
-        canUndo = !undoStack.isEmpty
-        canRedo = !redoStack.isEmpty
-    }
-
-    // MARK: - Gestione nodi e archi
-    func addNode(_ node: Node) {
-        createCheckpoint()
-        nodes.append(node)
-    }
-    func addEdge(_ edge: Edge) {
-        createCheckpoint()
-        edges.append(edge)
-    }
-    
-    func removeNode(_ id: String) {
-        createCheckpoint()
-        nodes.removeAll { $0.id == id }
-        edges.removeAll { $0.from == id || $0.to == id }
-    }
-    
-    func removeEdge(_ from: String, _ to: String) {
-        createCheckpoint()
-        edges.removeAll { $0.from == from && $0.to == to }
-    }
-    
-    /// Remove duplicate edges between the same stations
-    func removeDuplicateEdges() {
-        createCheckpoint()
-        var seen = Set<String>()
-        var uniqueEdges: [Edge] = []
-        
-        for edge in edges {
-            // Create a key that's the same regardless of direction
-            let key1 = "\(edge.from)-\(edge.to)"
-            let key2 = "\(edge.to)-\(edge.from)"
-            
-            if !seen.contains(key1) && !seen.contains(key2) {
-                seen.insert(key1)
-                seen.insert(key2)
-                uniqueEdges.append(edge)
-            } else {
-                print("🗑️ [CLEANUP] Removing duplicate edge: \(edge.from) <-> \(edge.to), type=\(edge.trackType.rawValue)")
-            }
-        }
-        
-        let removed = edges.count - uniqueEdges.count
-        edges = uniqueEdges
-        print("✅ [CLEANUP] Removed \(removed) duplicate edge(s). Total edges now: \(edges.count)")
-    }
-    
-    /// Resetta l'intera rete e la cronologia (Irreversibile)
-    func reset() {
-        undoStack.removeAll()
-        redoStack.removeAll()
-        updateUndoFlags()
-        
-        nodes.removeAll()
-        edges.removeAll()
-        lines.removeAll()
-    }
-
-    // MARK: - Pathfinding (High Performance)
-    
-    func dijkstraAll(from start: String, isReverse: Bool = false, precalculatedAdj: [String: [Edge]]? = nil) -> (distances: [String: Double], previous: [String: String]) {
-        return RailwayNetwork.dijkstraAll(from: start, nodes: nodes, edges: edges, isReverse: isReverse, precalculatedAdj: precalculatedAdj)
-    }
-
-    nonisolated static func dijkstraAll(from start: String, nodes: [Node], edges: [Edge], isReverse: Bool = false, precalculatedAdj: [String: [Edge]]? = nil) -> (distances: [String: Double], previous: [String: String]) {
-        var distances = [String: Double]()
-        var previous = [String: String]()
-        
-        let adj: [String: [Edge]]
-        if let pre = precalculatedAdj {
-            adj = pre
-        } else {
-            var tempAdj = [String: [Edge]]()
-            for edge in edges {
-                if isReverse {
-                    tempAdj[edge.to, default: []].append(edge)
-                    if edge.trackType == .single { tempAdj[edge.from, default: []].append(edge) }
-                } else {
-                    tempAdj[edge.from, default: []].append(edge)
-                    if edge.trackType == .single { tempAdj[edge.to, default: []].append(edge) }
-                }
-            }
-            adj = tempAdj
-        }
-        
-        for node in nodes { distances[node.id] = Double.infinity }
-        distances[start] = 0
-        
-        var candidates: [String] = [start]
-        var visited = Set<String>()
-        
-        var loopCount = 0
-        while !candidates.isEmpty {
-            loopCount += 1
-            var minIndex = -1
-            var minDistance = Double.infinity
-            
-            for (i, node) in candidates.enumerated() {
-                let d = distances[node] ?? .infinity
-                if d < minDistance {
-                    minDistance = d
-                    minIndex = i
-                }
-            }
-            
-            if minIndex == -1 { break }
-            let current = candidates.remove(at: minIndex)
-            
-            if visited.contains(current) { continue }
-            visited.insert(current)
-            
-            let dist = distances[current] ?? .infinity
-            if dist == .infinity { break }
-            
-            let neighbors = adj[current] ?? []
-            for edge in neighbors {
-                let neighborId = isReverse ? (edge.to == current ? edge.from : edge.to) : (edge.from == current ? edge.to : edge.from)
-                if visited.contains(neighborId) { continue }
-                
-                let alt = dist + edge.distance
-                if alt < (distances[neighborId] ?? .infinity) {
-                    distances[neighborId] = alt
-                    previous[neighborId] = current
-                    candidates.append(neighborId)
-                }
-            }
-        }
-        
-        return (distances, previous)
-    }
-
-    func findShortestPath(from start: String, to end: String) -> ([String], Double)? {
-        return RailwayNetwork.findShortestPath(from: start, to: end, nodes: nodes, edges: edges)
-    }
-    
-    nonisolated static func findShortestPath(from start: String, to end: String, nodes: [Node], edges: [Edge]) -> ([String], Double)? {
-        let (distances, previous) = dijkstraAll(from: start, nodes: nodes, edges: edges)
-        if (distances[end] ?? .infinity) == .infinity { return nil }
-        
-        var path: [String] = []
-        var u: String? = end
-        while let node = u, node != start {
-            path.append(node)
-            u = previous[node]
-        }
-        if u == start {
-            path.append(start)
-            path.reverse()
-            return (path, distances[end]!)
-        }
-        return nil
-    }
-
-    func calculatePathDistance(_ path: [String]) -> Double {
-        return RailwayNetwork.calculatePathDistance(path, edges: edges)
-    }
-    
-    nonisolated static func calculatePathDistance(_ path: [String], edges: [Edge]) -> Double {
-        guard path.count > 1 else { return 0 }
-        var total: Double = 0
-        for i in 0..<(path.count - 1) {
-            let from = path[i]
-            let to = path[i+1]
-            if let edge = edges.first(where: { 
-                ($0.from == from && $0.to == to) || ($0.from == to && $0.to == from) 
-            }) {
-                total += edge.distance
-            }
-        }
-        return total
-    }
-
-    func findAlternativePaths(from start: String, to end: String) -> [(path: [String], distance: Double, description: String)] {
-        return RailwayNetwork.findAlternativePaths(from: start, to: end, nodes: nodes, edges: edges)
-    }
-    
-    nonisolated static func findAlternativePaths(from start: String, to end: String, nodes: [Node], edges: [Edge]) -> [(path: [String], distance: Double, description: String)] {
-        // Pre-calculate adjacency lists for both directions to reuse
-        var forwardAdj = [String: [Edge]]()
-        var backwardAdj = [String: [Edge]]()
-        for edge in edges {
-            forwardAdj[edge.from, default: []].append(edge)
-            if edge.trackType == .single { forwardAdj[edge.to, default: []].append(edge) }
-            
-            backwardAdj[edge.to, default: []].append(edge)
-            if edge.trackType == .single { backwardAdj[edge.from, default: []].append(edge) }
-        }
-
-        var alternatives: [(path: [String], distance: Double, description: String)] = []
-        
-        let forward = dijkstraAll(from: start, nodes: nodes, edges: edges, isReverse: false, precalculatedAdj: forwardAdj)
-        if let dEnd = forward.distances[end], dEnd != .infinity {
-            var path: [String] = []
-            var u: String? = end
-            while let node = u, node != start { path.append(node); u = forward.previous[node] }
-            if u == start {
-                path.append(start)
-                path.reverse()
-                alternatives.append((path, dEnd, "Diretto"))
-            }
-        }
-        
-        let backward = dijkstraAll(from: end, nodes: nodes, edges: edges, isReverse: true, precalculatedAdj: backwardAdj)
-        let interchanges = nodes.filter { $0.type == .interchange && $0.id != start && $0.id != end }
-        
-        func stationName(_ id: String) -> String {
-            return nodes.first(where: { $0.id == id })?.name ?? "Sconosciuta"
-        }
-
-        for mid in interchanges {
-            let d1 = forward.distances[mid.id] ?? .infinity
-            let d2 = backward.distances[mid.id] ?? .infinity
-            
-            if d1 != .infinity && d2 != .infinity {
-                var p1: [String] = []
-                var u1: String? = mid.id
-                while let n = u1, n != start { p1.append(n); u1 = forward.previous[n] }
-                if u1 != start { continue }
-                p1.append(start)
-                p1.reverse()
-                
-                var p2: [String] = []
-                var curr: String? = mid.id
-                while let n = curr, n != end {
-                    curr = backward.previous[n]
-                    if let next = curr { p2.append(next) }
-                }
-                if p2.last != end { continue }
-                
-                let fullPath = p1 + p2
-                if Set(fullPath).count == fullPath.count {
-                    if !alternatives.contains(where: { $0.path == fullPath }) {
-                        alternatives.append((fullPath, d1 + d2, "Via \(mid.name)"))
-                    }
-                }
-            }
-        }
-        return alternatives.sorted { $0.distance < $1.distance }
-    }
-    
-    func findPathEdges(from startId: String, to endId: String) -> [Edge]? {
-        return RailwayNetwork.findPathEdges(from: startId, to: endId, edges: edges)
-    }
-    
-    nonisolated static func findPathEdges(from startId: String, to endId: String, edges: [Edge]) -> [Edge]? {
-        guard startId != endId else { return [] }
-        
-        // Simplified BFS to find edge sequence
-        var queue: [(String, [Edge])] = [(startId, [])]
-        var visited = Set<String>([startId])
-        
-        var head = 0
-        while head < queue.count {
-            let (curr, path) = queue[head]
-            head += 1
-            
-            if curr == endId { return path }
-            
-            for edge in edges {
-                if edge.from == curr {
-                    if !visited.contains(edge.to) {
-                        visited.insert(edge.to)
-                        queue.append((edge.to, path + [edge]))
-                    }
-                } else if edge.to == curr {
-                    if !visited.contains(edge.from) {
-                        visited.insert(edge.from)
-                        queue.append((edge.from, path + [edge]))
-                    }
-                }
-            }
-        }
-        return nil
+    enum CodingKeys: String, CodingKey {
+        case id, number, name, type, lineId, departureTime, stops, maxSpeed, acceleration, deceleration, priority, vehicleId
     }
 }
 
-extension RailwayNetwork {
-    static let fileType = UTType(exportedAs: "it.fdc.railwaynetwork")
-    
-    func saveToFile(url: URL) throws {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = .prettyPrinted
-        let dto = self.toDTO()
-        let data = try encoder.encode(dto)
-        try data.write(to: url)
+extension Train {
+    /// Restituisce la lista dei binari preferenziali ordinati per priorità.
+    /// - Parameters:
+    ///   - node: La stazione in oggetto.
+    ///   - prevStationId: L'ID della stazione da cui proviene il treno (opzionale).
+    ///   - nextStationId: L'ID della stazione successiva (opzionale).
+    ///   - line: La linea di appartenenza del treno (se nil, usa quella del treno).
+    /// - Returns: Una lista di stringhe (es: ["2", "1", "3"]) dove il primo è il preferito.
+    func getPreferredTracks(at node: Node, prevStationId: String?, nextStationId: String?, for line: RailwayLine?) -> [String] {
+        let maxPlatforms = node.platforms ?? 2
+        let allPlatforms = (1...maxPlatforms).map { "\($0)" }
+        let targetLineId = line?.id ?? self.lineId ?? ""
+        
+        // Cerchiamo i vincoli specifici per questa linea in questa stazione
+        let lineConstraints = node.routingConstraints.filter { $0.lineId == targetLineId }
+        
+        // 1. Cerchiamo un vincolo che corrisponda esattamente alla direzione (prossima stazione)
+        let matchingConstraint = lineConstraints.first { $0.directionStationId == nextStationId } 
+                              ?? lineConstraints.first { $0.directionStationId == nil }
+        
+        let preferred = matchingConstraint?.allowedTracks ?? []
+        
+        // Se non abbiamo preferenze, restituiamo tutti i binari (es: ["1", "2"])
+        if preferred.isEmpty {
+            return allPlatforms
+        }
+        
+        // Costruiamo la lista finale: prima i preferiti, poi gli altri come alternative
+        var finalList = preferred
+        for platform in allPlatforms {
+            if !finalList.contains(platform) {
+                finalList.append(platform)
+            }
+        }
+        
+        return finalList
     }
-    
-    static func loadFromFile(url: URL) throws -> RailwayNetworkDTO {
-        let data = try Data(contentsOf: url)
-        let decoder = JSONDecoder()
-        return try decoder.decode(RailwayNetworkDTO.self, from: data)
+
+    func isTrackPreferred(_ track: String, at node: Node, prevStationId: String?, nextStationId: String?, for lineId: String?) -> Bool {
+        let targetLineId = lineId ?? self.lineId ?? ""
+        let lineConstraints = node.routingConstraints.filter { $0.lineId == targetLineId }
+        let matchingConstraint = lineConstraints.first { $0.directionStationId == nextStationId } 
+                              ?? lineConstraints.first { $0.directionStationId == nil }
+        return matchingConstraint?.allowedTracks.contains(track) ?? false
     }
+}
+// MARK: - Helpers
+
+extension Int: Identifiable {
+    public var id: Int { self }
 }

@@ -59,6 +59,15 @@ struct AGAIRequest: Codable {
     let max_iterations: Int
     let ga_max_iterations: Int
     let ga_population_size: Int
+    let active_agent_ids: [Int]?
+    
+    enum CodingKeys: String, CodingKey {
+        case trains, tracks, stations
+        case max_iterations = "max_iterations"
+        case ga_max_iterations = "ga_max_iterations"
+        case ga_population_size = "ga_population_size"
+        case active_agent_ids = "active_agent_ids"
+    }
 }
 
 // MARK: - RailwayGraphManager
@@ -165,7 +174,7 @@ class RailwayGraphManager {
     // MARK: - 2. Generate AI Request
     
     /// Generates the strict JSON payload for the Python AI Server
-    func generateAIRequestDictionary(for trains: [Train], network: RailwayNetwork) -> [String: Any]? {
+    func generateAIRequestDictionary(for trains: [Train], network: RailwayNetwork, focusAgentIds: [UUID]? = nil) -> [String: Any]? {
         // We reuse the logic but return a dictionary instead of JSON string
         loadNetwork(from: network)
         
@@ -218,7 +227,8 @@ class RailwayGraphManager {
         let agTrains: [AGTrain] = trains.enumerated().map { index, train in
             trainIdMap[train.id] = index
             var routeIds: [Int] = []
-            for i in 0..<(train.stops.count - 1) {
+            if train.stops.count >= 2 {
+                for i in 0..<(train.stops.count - 1) {
                 let from = train.stops[i].stationId
                 let to = train.stops[i+1].stationId
                 if let edge = network.edges.first(where: {
@@ -226,6 +236,7 @@ class RailwayGraphManager {
                 }), let tId = trackMapping[edge.id.uuidString] {
                     routeIds.append(tId)
                 }
+            }
             }
             let depTime = normalize(train.departureTime) ?? Date()
             return AGTrain(
@@ -244,13 +255,22 @@ class RailwayGraphManager {
             )
         }
         
+        // Map focusAgentIds to actual numeric IDs used in agTrains
+        let activeNumericIds: [Int]? = focusAgentIds?.compactMap { uuid in
+            if let idx = trains.firstIndex(where: { $0.id == uuid }) {
+                return idx // index is used as ID in agTrains loop
+            }
+            return nil
+        }
+
         let request = AGAIRequest(
             trains: agTrains,
             tracks: generatedTracks,
             stations: stations,
             max_iterations: 1000,
             ga_max_iterations: 300,
-            ga_population_size: 100
+            ga_population_size: 100,
+            active_agent_ids: activeNumericIds
         )
         
         if let data = try? JSONEncoder().encode(request),
@@ -260,7 +280,7 @@ class RailwayGraphManager {
         return nil
     }
     
-    func generateAIRequestJSON(for trains: [Train], network: RailwayNetwork) -> String? {
+    func generateAIRequestJSON(for trains: [Train], network: RailwayNetwork, focusAgentIds: [UUID]? = nil) -> String? {
         // Ensure mappings are up to date (this populates uniqueTracks internally if we stored them, 
         // but currently loadNetwork doesn't store uniqueTracks in a property. 
         // We probably should to avoid recalculating it differently here!)
@@ -270,17 +290,7 @@ class RailwayGraphManager {
         // For safety, we'll re-run a generation-safe version here or rely on the mapping being correct.
         
         // To guarantee consistency, we will reconstruct the uniqueAGTracks array using the SAME logic 
-        // or helper. Since we heavily upgraded logic above, we need to apply it here too.
-        
-        // Actually, best practice: loadNetwork should populate a cache of AGTracks too if we want to reuse it.
-        // But for now, let's copy the smart aggregation logic here for the 'tracks' list generation phase.
-        
-        // 1. Re-run mapping to ensure consistency
         loadNetwork(from: network)
-        
-        // 2. Extract the AGTracks from the internal state we just built? 
-        // loadNetwork didn't save AGTracks. Let's fix that pattern or re-generate.
-        // We'll regenerate using the exact same loop logic which is deterministic.
         
         var generatedTracks: [AGTrack] = []
         var segmentGroups: [String: [Edge]] = [:]
@@ -291,32 +301,27 @@ class RailwayGraphManager {
             segmentGroups[key, default: []].append(edge)
         }
         
-        // Use mapping to find ID
         var processedIds = Set<Int>() 
-        
-        // We need the exact track objects that match the trackMapping
         for key in segmentGroups.keys.sorted() {
-             guard let edges = segmentGroups[key], let firstEdge = edges.first else { continue }
-             guard let tId = trackMapping[firstEdge.id.uuidString] else { continue }
-             
-             if processedIds.contains(tId) { continue }
-             processedIds.insert(tId)
-             
-             var baseCapacity = (firstEdge.trackType == .double) ? 2 : 1
-             if edges.count > 2 { baseCapacity = max(baseCapacity, edges.count / 2) }
-             if let explicitCap = firstEdge.capacity, explicitCap > 0 { baseCapacity = explicitCap }
-             
-             generatedTracks.append(AGTrack(
+            guard let edges = segmentGroups[key], let firstEdge = edges.first else { continue }
+            guard let tId = trackMapping[firstEdge.id.uuidString] else { continue }
+            if processedIds.contains(tId) { continue }
+            processedIds.insert(tId)
+            
+            var baseCapacity = (firstEdge.trackType == .double) ? 2 : 1
+            if edges.count > 2 { baseCapacity = max(baseCapacity, edges.count / 2) }
+            if let explicitCap = firstEdge.capacity, explicitCap > 0 { baseCapacity = explicitCap }
+            
+            generatedTracks.append(AGTrack(
                 id: tId,
                 station_ids: [stationMapping[firstEdge.from] ?? 0, stationMapping[firstEdge.to] ?? 0],
                 length_km: firstEdge.distance,
                 is_single_track: baseCapacity == 1,
                 capacity: baseCapacity,
                 max_speed: firstEdge.maxSpeed
-             ))
+            ))
         }
-
-        // 3. Convert Stations
+        
         let stations: [AGStation] = network.nodes.compactMap { node in
             guard let id = stationMapping[node.id] else { return nil }
             return AGStation(
@@ -328,30 +333,25 @@ class RailwayGraphManager {
             )
         }.sorted(by: { $0.id < $1.id })
         
-        
-        // 3. Convert Trains
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "HH:mm:ss"
         timeFormatter.timeZone = TimeZone(secondsFromGMT: 0)
         
         let agTrains: [AGTrain] = trains.enumerated().map { index, train in
             trainIdMap[train.id] = index
-            
-            // Route Building
             var routeIds: [Int] = []
-            for i in 0..<(train.stops.count - 1) {
-                let from = train.stops[i].stationId
-                let to = train.stops[i+1].stationId
-                // Find edge
-                if let edge = network.edges.first(where: {
-                    ($0.from == from && $0.to == to) || ($0.from == to && $0.to == from)
-                }), let tId = trackMapping[edge.id.uuidString] {
-                    routeIds.append(tId)
+            if train.stops.count >= 2 {
+                for i in 0..<(train.stops.count - 1) {
+                    let from = train.stops[i].stationId
+                    let to = train.stops[i+1].stationId
+                    if let edge = network.edges.first(where: {
+                        ($0.from == from && $0.to == to) || ($0.from == to && $0.to == from)
+                    }), let tId = trackMapping[edge.id.uuidString] {
+                        routeIds.append(tId)
+                    }
                 }
             }
-            
             let depTime = normalize(train.departureTime) ?? Date()
-            
             return AGTrain(
                 id: index,
                 priority: train.priority,
@@ -368,17 +368,23 @@ class RailwayGraphManager {
             )
         }
         
-        // 4. Wrap Request
+        let activeNumericIds: [Int]? = focusAgentIds?.compactMap { uuid in
+            if let idx = trains.firstIndex(where: { $0.id == uuid }) {
+                return idx
+            }
+            return nil
+        }
+
         let request = AGAIRequest(
             trains: agTrains,
             tracks: generatedTracks,
             stations: stations,
             max_iterations: 1000,
             ga_max_iterations: 300,
-            ga_population_size: 100
+            ga_population_size: 100,
+            active_agent_ids: activeNumericIds
         )
         
-        // 5. Encode
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
         if let data = try? encoder.encode(request) {

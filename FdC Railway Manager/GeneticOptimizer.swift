@@ -1,17 +1,46 @@
 import Foundation
 import Combine
 
+// PIGNOLO SPEED: Using structs for memory efficiency and arrays for O(1) access
 struct TrainGene {
     let trainId: UUID
-    var departureOffset: TimeInterval // in seconds
-    var stopDwellOffsets: [String: Double] // stationId -> extra dwell minutes (can be fractional for seconds)
-    var stopTracks: [String: String] // stationId -> track name/number
+    var departureOffset: Double // in seconds
+    var stopDwellOffsets: [Double] // Indexed by stop index
+    var stopTracks: [String] // Indexed by stop index
+    var legTransitTimes: [Double] // seconds
+}
+
+// LITE MODELS: Minimal data package for the evaluation loop to avoid cloning Train classes
+struct LiteStop {
+    let stationId: String
+    var arrival: Double? // timeIntervalSinceReferenceDate
+    var departure: Double? // timeIntervalSinceReferenceDate
+    var extraDwell: Double // minutes
+    var track: String
+    let isManualTrack: Bool
+    let isPreferredTrack: Bool
+    let isSkipped: Bool
+    let minDwell: Double
+    let plannedArrival: Double?
+    let plannedDeparture: Double?
+}
+
+struct LiteTrain {
+    let id: UUID
+    let name: String
+    let lineId: String?
+    var departureTime: Double
+    var stops: [LiteStop]
+    let maxSpeed: Double
+    let acceleration: Double
+    let deceleration: Double
 }
 
 struct Chromosome {
     var genes: [TrainGene]
     var fitness: Double = 0.0
     var conflictingTrainIds: Set<UUID> = []
+    var conflictLocations: [UUID: Set<String>] = [:] // trainId -> Set of resourceIds
 }
 
 class GeneticOptimizer: ObservableObject {
@@ -22,15 +51,21 @@ class GeneticOptimizer: ObservableObject {
     @Published var conflictCount = 0
     
     // Performance settings (PIGNOLO BOOSTED)
-    private let populationSize = 60
-    private let maxGenerations = 250
-    private let mutationRate = 0.3
+    private let populationSize = 100
+    private let maxGenerations = 300
+    private let mutationRate = 0.38
     
-    // Pre-calculated paths to avoid A* searches during evaluate
-    private var precalculatedPaths: [UUID: [[Edge]?]] = [:]
+    // Cached platform info for fast evaluation
+    private var stationCapacities: [String: Int] = [:]
+    private var segmentCapacities: [String: Int] = [:]
     
-    /// Main entry point for optimization.
-    func optimize(newTrains: [Train], existingTrains: [Train], network: RailwayNetwork, iterations: Int? = nil) async -> [Train] {
+    // State for stagnation detection
+    private var lastBestConflictCount = 999
+    private var stagnationGenerations = 0
+    private var currentAdaptiveMutationRate: Double = 0.38
+    
+    @MainActor
+    func optimize(newTrains: [Train], existingTrains: [Train], nodes: [Node], edges: [Edge], iterations: Int? = nil) async -> [Train] {
         await MainActor.run {
             self.isRunning = true
             self.progress = 0.0
@@ -38,17 +73,68 @@ class GeneticOptimizer: ObservableObject {
             self.bestFitness = Double.infinity
         }
         
-        // 0. Pre-calculate paths for all trains (HUGE performance gain)
-        precalculatedPaths.removeAll()
-        for train in (newTrains + existingTrains) {
+        // 0. Spatial Filtering
+        let focusResourceIds = Set(newTrains.flatMap { train -> [String] in
+            var resources: [String] = []
+            var prevId: String? = nil
+            for stop in train.stops {
+                resources.append("STATION::\(stop.stationId)")
+                if let prev = prevId {
+                    let path = NetworkModel.findPathEdges(from: prev, to: stop.stationId, edges: edges) ?? []
+                    resources.append(contentsOf: path.map { "SEGMENT::\($0.canonicalKey)" })
+                }
+                prevId = stop.stationId
+            }
+            return resources
+        })
+        
+        let relevantFixedTrains = existingTrains.filter { bgTrain in
+            var bgResources: [String] = []
+            var prevId: String? = nil
+            for stop in bgTrain.stops {
+                bgResources.append("STATION::\(stop.stationId)")
+                if let prev = prevId {
+                    let path = NetworkModel.findPathEdges(from: prev, to: stop.stationId, edges: edges) ?? []
+                    bgResources.append(contentsOf: path.map { "SEGMENT::\($0.canonicalKey)" })
+                }
+                prevId = stop.stationId
+            }
+            return !Set(bgResources).isDisjoint(with: focusResourceIds)
+        }
+        
+        // PIGNOLO: Pre-calculate Allowed Tracks for each stop of each train to avoid lookups in evaluate
+        var allowedTracksPerStop: [UUID: [Set<String>]] = [:]
+        for train in (newTrains + relevantFixedTrains) {
+            var stopConstraints: [Set<String>] = []
+            for j in train.stops.indices {
+                let stop = train.stops[j]
+                guard let node = nodes.first(where: { $0.id == stop.stationId }) else {
+                    stopConstraints.append(["1"])
+                    continue
+                }
+                let nextId = (j < train.stops.count - 1) ? train.stops[j+1].stationId : nil
+                let prevId = (j > 0) ? train.stops[j-1].stationId : nil
+                let allowed = node.getTracksByProvenance(from: prevId, nextStationId: nextId, forLine: train.lineId)
+                stopConstraints.append(Set(allowed))
+            }
+            allowedTracksPerStop[train.id] = stopConstraints
+        }
+
+        // Pre-calculate Capacities and Paths
+        let conflictMgr = ConflictManager()
+        let caps = conflictMgr.getResourceCapacities(nodes: nodes, edges: edges)
+        self.stationCapacities = caps.filter { $0.key.hasPrefix("STATION_GLOBAL") }
+        self.segmentCapacities = caps.filter { $0.key.hasPrefix("SEGMENT") }
+        
+        var precalculatedPaths: [UUID: [[Edge]?]] = [:]
+        for train in (newTrains + relevantFixedTrains) {
             var trainPaths: [[Edge]? ] = []
             var prevId = train.stops.first?.stationId ?? ""
             for j in train.stops.indices {
-                if j == 0 { 
-                    trainPaths.append(nil) 
-                } else {
+                if j == 0 { trainPaths.append(nil) }
+                else {
                     let stop = train.stops[j]
-                    let path = network.findPathEdges(from: prevId, to: stop.stationId)
+                    let path = NetworkModel.findPathEdges(from: prevId, to: stop.stationId, edges: edges)
                     trainPaths.append(path)
                     prevId = stop.stationId
                 }
@@ -56,75 +142,91 @@ class GeneticOptimizer: ObservableObject {
             precalculatedPaths[train.id] = trainPaths
         }
         
-        let actualMaxGenerations = iterations ?? maxGenerations
+        // Convert to Lite structures
+        let liteFixed = relevantFixedTrains.map { convertToLite(train: $0, precalculatedPaths: precalculatedPaths) }
+        let liteNew = newTrains.map { convertToLite(train: $0, precalculatedPaths: precalculatedPaths) }
+        
+        let baseTransitTimes = precalculateTransitTimes(liteTrains: liteNew + liteFixed, edges: edges, precalculatedPaths: precalculatedPaths)
+        
         var population: [Chromosome] = []
-        population.append(createIdentityChromosome(for: newTrains, network: network))
+        population.append(createIdentityChromosome(for: liteNew, transitTimes: baseTransitTimes))
         
         for _ in 1..<populationSize {
-            population.append(createRandomChromosome(for: newTrains, network: network, intensity: 0.3))
+            population.append(createRandomChromosome(for: liteNew, nodes: nodes, transitTimes: baseTransitTimes, allowedTracks: allowedTracksPerStop, intensity: 0.3))
         }
         
-        // PIGNOLO PROTOCOL: Heavy optimization loop
+        let actualMaxGenerations = iterations ?? maxGenerations
+        lastBestConflictCount = 999
+        stagnationGenerations = 0
+        currentAdaptiveMutationRate = mutationRate
+        
         for gen in 0..<actualMaxGenerations {
-            // Permit UI updates and check for cancellation
-            if gen % 5 == 0 {
+            if gen % 10 == 0 {
                 await Task.yield()
+                if Task.isCancelled { break }
             }
             
-            // 1. Parallel Evaluation of Fitness (Background Threads)
             let currentPopulation = population
-            let evaluatedPopulation = await withTaskGroup(of: (Int, Double, Set<UUID>).self) { group in
+            let evaluatedPopulation = await withTaskGroup(of: (Int, Double, Set<UUID>, [UUID: Set<String>]).self) { group in
                 for i in currentPopulation.indices {
                     group.addTask {
-                        let (fit, ids) = self.evaluate(
+                        let (fit, ids, locations) = GeneticOptimizer.evaluate(
                             chromosome: currentPopulation[i],
-                            candidateTrains: newTrains,
-                            fixedTrains: existingTrains,
-                            network: network
+                            candidateTrains: liteNew,
+                            fixedTrains: liteFixed,
+                            nodes: nodes,
+                            edges: edges,
+                            precalculatedPaths: precalculatedPaths,
+                            stationCapacities: self.stationCapacities,
+                            segmentCapacities: self.segmentCapacities,
+                            allowedTracks: allowedTracksPerStop
                         )
-                        return (i, fit, ids)
+                        return (i, fit, ids, locations)
                     }
                 }
                 
-                var results: [(Int, Double, Set<UUID>)] = []
+                var results: [(Int, Double, Set<UUID>, [UUID: Set<String>])] = []
                 for await result in group {
                     results.append(result)
                 }
                 return results
             }
             
-            // Map results back to population
-            for (index, fit, ids) in evaluatedPopulation {
+            for (index, fit, ids, locations) in evaluatedPopulation {
                 population[index].fitness = fit
                 population[index].conflictingTrainIds = ids
+                population[index].conflictLocations = locations
             }
             
-            // 2. Selection & Update UI
             population.sort { $0.fitness < $1.fitness }
-            
             let best = population[0]
-            let topConflictCount = best.conflictingTrainIds.count
-            let currentProgress = Double(gen) / Double(actualMaxGenerations)
             
             await MainActor.run {
                 self.bestFitness = best.fitness
-                self.progress = currentProgress
-                self.conflictCount = topConflictCount
+                self.progress = Double(gen) / Double(actualMaxGenerations)
+                self.conflictCount = best.conflictingTrainIds.count
                 self.currentGeneration = gen
             }
             
-            if topConflictCount == 0 && gen >= 5 {
-                print("🧬 [GA] Soluzione Ottimale Trovata: 0 Conflitti alla Gen \(gen).")
-                break
+            if best.conflictingTrainIds.count == 0 && gen >= 8 { break }
+            
+            if best.conflictingTrainIds.count < lastBestConflictCount {
+                lastBestConflictCount = best.conflictingTrainIds.count
+                stagnationGenerations = 0
+                currentAdaptiveMutationRate = mutationRate
+            } else {
+                stagnationGenerations += 1
+                if stagnationGenerations > 25 {
+                    currentAdaptiveMutationRate = min(0.85, currentAdaptiveMutationRate * 1.04)
+                }
             }
             
-            // 3. Breeding next generation
-            var nextGen = Array(population.prefix(5)) // Elitism
+            var nextGen = Array(population.prefix(12))
             while nextGen.count < populationSize {
                 let p1 = selectParent(from: population)
                 let p2 = selectParent(from: population)
                 var child = crossover(p1: p1, p2: p2)
-                mutate(chromosome: &child, network: network)
+                mutate(chromosome: &child, nodes: nodes, contextTrains: liteNew + liteFixed, allowedTracks: allowedTracksPerStop, rate: currentAdaptiveMutationRate)
                 nextGen.append(child)
             }
             population = nextGen
@@ -135,206 +237,327 @@ class GeneticOptimizer: ObservableObject {
             self.progress = 1.0
         }
         
-        return apply(chromosome: population[0], to: newTrains, network: network)
+        // Final application
+        var finalLite = GeneticOptimizer.apply(chromosome: population[0], to: liteNew, edges: edges, precalculatedPaths: precalculatedPaths)
+        
+        // PIGNOLO CLEANUP: Force correct tracks if GA missed any routing constraints, but NOT for manual tracks
+        for i in finalLite.indices {
+            let tid = finalLite[i].id
+            guard let constraints = allowedTracksPerStop[tid] else { continue }
+            for j in finalLite[i].stops.indices {
+                if finalLite[i].stops[j].isManualTrack { continue }
+                let currentTrack = finalLite[i].stops[j].track
+                if !constraints[j].contains(currentTrack) {
+                    finalLite[i].stops[j].track = constraints[j].first ?? currentTrack
+                }
+            }
+        }
+        
+        return reconstructTrains(lite: finalLite, original: newTrains, edges: edges, precalculatedPaths: precalculatedPaths)
     }
     
-    private func createIdentityChromosome(for trains: [Train], network: RailwayNetwork) -> Chromosome {
-        let genes = trains.map { train in
-            var tracks: [String: String] = [:]
-            var dwellOffsets: [String: Double] = [:]
-            for stop in train.stops {
-                dwellOffsets[stop.stationId] = stop.extraDwellTime
-                tracks[stop.stationId] = stop.track ?? "1"
+    private func convertToLite(train: Train, precalculatedPaths: [UUID: [[Edge]?]]) -> LiteTrain {
+        let departure = train.departureTime?.timeIntervalSinceReferenceDate ?? 0
+        let stops = train.stops.map { stop in
+            LiteStop(
+                stationId: stop.stationId,
+                arrival: stop.arrival?.timeIntervalSinceReferenceDate,
+                departure: stop.departure?.timeIntervalSinceReferenceDate,
+                extraDwell: stop.extraDwellTime, 
+                track: stop.track ?? "1", 
+                isManualTrack: stop.isManualTrack, 
+                isPreferredTrack: stop.isPreferredTrack,
+                isSkipped: stop.isSkipped, 
+                minDwell: Double(stop.minDwellTime), 
+                plannedArrival: stop.plannedArrival?.timeIntervalSinceReferenceDate, 
+                plannedDeparture: stop.plannedDeparture?.timeIntervalSinceReferenceDate
+            )
+        }
+        return LiteTrain(
+            id: train.id,
+            name: train.name,
+            lineId: train.lineId,
+            departureTime: departure,
+            stops: stops,
+            maxSpeed: train.maxSpeed,
+            acceleration: train.acceleration,
+            deceleration: train.deceleration
+        )
+    }
+
+    private func reconstructTrains(lite: [LiteTrain], original: [Train], edges: [Edge], precalculatedPaths: [UUID: [[Edge]?]]) -> [Train] {
+        var result = original
+        for i in result.indices {
+            guard let l = lite.first(where: { $0.id == result[i].id }) else { continue }
+            result[i].departureTime = Date(timeIntervalSinceReferenceDate: l.departureTime)
+            for j in result[i].stops.indices {
+                result[i].stops[j].extraDwellTime = l.stops[j].extraDwell
+                result[i].stops[j].track = l.stops[j].track
+                if let arr = l.stops[j].arrival { result[i].stops[j].arrival = Date(timeIntervalSinceReferenceDate: arr) }
+                if let dep = l.stops[j].departure { result[i].stops[j].departure = Date(timeIntervalSinceReferenceDate: dep) }
             }
-            return TrainGene(
+        }
+        return result
+    }
+
+    private func precalculateTransitTimes(liteTrains: [LiteTrain], edges: [Edge], precalculatedPaths: [UUID: [[Edge]?]]) -> [UUID: [Double]] {
+        var results: [UUID: [Double]] = [:]
+        for train in liteTrains {
+            var times: [Double] = []
+            for j in train.stops.indices {
+                if j == 0 { times.append(0) }
+                else {
+                    let path = precalculatedPaths[train.id]?[j]
+                    var dist = 0.0
+                    var minSpeed = Double.infinity
+                    if let actualPath = path {
+                        for edge in actualPath {
+                            dist += edge.distance
+                            minSpeed = min(minSpeed, Double(edge.maxSpeed))
+                        }
+                    }
+                    if dist > 0 {
+                        let vMaxLimit = min(Double(train.maxSpeed), minSpeed == .infinity ? 100 : minSpeed) / 3.6
+                        let distM = dist * 1000.0
+                        let a = train.acceleration
+                        let d = train.deceleration
+                        let accelDist = (vMaxLimit * vMaxLimit) / (2.0 * a)
+                        let brakeDist = (vMaxLimit * vMaxLimit) / (2.0 * d)
+                        let t: Double
+                        if accelDist + brakeDist <= distM {
+                            let cruiseDist = distM - accelDist - brakeDist
+                            t = (vMaxLimit / a) + (cruiseDist / vMaxLimit) + (vMaxLimit / d)
+                        } else {
+                            let vPeak = sqrt((2.0 * a * d * distM) / (a + d))
+                            t = (vPeak / a) + (vPeak / d)
+                        }
+                        times.append(t)
+                    } else { times.append(0) }
+                }
+            }
+            results[train.id] = times
+        }
+        return results
+    }
+
+    private func createIdentityChromosome(for trains: [LiteTrain], transitTimes: [UUID: [Double]]) -> Chromosome {
+        let genes = trains.map { train in
+            TrainGene(
                 trainId: train.id,
                 departureOffset: 0,
-                stopDwellOffsets: dwellOffsets,
-                stopTracks: tracks
+                stopDwellOffsets: train.stops.map { $0.extraDwell },
+                stopTracks: train.stops.map { $0.track },
+                legTransitTimes: transitTimes[train.id] ?? Array(repeating: 0.0, count: train.stops.count)
             )
         }
         return Chromosome(genes: genes)
     }
 
-    private func createRandomChromosome(for trains: [Train], network: RailwayNetwork, intensity: Double = 1.0) -> Chromosome {
+    private func createRandomChromosome(for trains: [LiteTrain], nodes: [Node], transitTimes: [UUID: [Double]], allowedTracks: [UUID: [Set<String>]], intensity: Double = 1.0) -> Chromosome {
         let genes = trains.map { train in
-            var dwellOffsets: [String: Double] = [:]
-            var tracks: [String: String] = [:]
-            for stop in train.stops {
-                // Se intensity < 1, riduciamo la probabilità di sosta aggiuntiva casuale
-                let maxRandomDwell = Double(10.0 * intensity)
-                dwellOffsets[stop.stationId] = Double(Int.random(in: 0...Int(max(1, maxRandomDwell))))
-                
-                if let _ = network.nodes.first(where: { $0.id == stop.stationId }) {
-                    tracks[stop.stationId] = stop.track ?? "1"
-                }
+            let dwellOffsets = train.stops.indices.map { _ in Double(Int.random(in: 0...Int(10.0 * intensity))) }
+            let tracks = train.stops.indices.map { j -> String in
+                let allowed = allowedTracks[train.id]?[j] ?? ["1"]
+                return allowed.randomElement() ?? "1"
             }
-            
-            let maxShift = Int(15.0 * intensity)
+            let maxShift = 30.0 * 60.0 * intensity
             return TrainGene(
                 trainId: train.id,
-                departureOffset: TimeInterval(Int.random(in: -maxShift...maxShift) * 60),
+                departureOffset: Double.random(in: -maxShift...maxShift),
                 stopDwellOffsets: dwellOffsets,
-                stopTracks: tracks
+                stopTracks: tracks,
+                legTransitTimes: transitTimes[train.id] ?? Array(repeating: 0.0, count: train.stops.count)
             )
         }
         return Chromosome(genes: genes)
     }
-    
-    private func evaluate(chromosome: Chromosome, candidateTrains: [Train], fixedTrains: [Train], network: RailwayNetwork) -> (Double, Set<UUID>) {
-        let updatedSubset = apply(chromosome: chromosome, to: candidateTrains, network: network)
+
+    private static func evaluate(chromosome: Chromosome, candidateTrains: [LiteTrain], fixedTrains: [LiteTrain], nodes: [Node], edges: [Edge], precalculatedPaths: [UUID: [[Edge]?]], stationCapacities: [String: Int], segmentCapacities: [String: Int], allowedTracks: [UUID: [Set<String>]]) -> (Double, Set<UUID>, [UUID: Set<String>]) {
+        let updatedSubset = apply(chromosome: chromosome, to: candidateTrains, edges: edges, precalculatedPaths: precalculatedPaths)
         let allTrains = updatedSubset + fixedTrains
         
-        // 1. Conflict penalty (SUPREME PRIORITY)
-        let tempManager = ConflictManager()
-        let conflicts = tempManager.calculateConflicts(network: network, trains: allTrains)
-        let conflictCount = conflicts.count
-        let conflictPenalty = Double(conflictCount) * 1000000.0 // PIGNOLO: even higher to force 0 conflicts
-        
+        var resourceOccupations: [String: [(Double, Double, UUID)]] = [:]
+        var routingViolationCount = 0
+        var constraintPenalty = 0.0
         var conflictingIds = Set<UUID>()
-        for c in conflicts {
-            conflictingIds.insert(c.trainAId)
-            conflictingIds.insert(c.trainBId)
+        var conflictLocs: [UUID: Set<String>] = [:]
+        var conflictCount = 0
+        
+        for (i, train) in allTrains.enumerated() {
+            let tid = train.id
+            let isCandidate = i < updatedSubset.count
+            let constraints = allowedTracks[tid]
+            
+            var totalExtraDwell = 0.0
+            
+            for j in train.stops.indices {
+                let stop = train.stops[j]
+                if stop.isSkipped { continue }
+                
+                // PIGNOLO: Enforce Dwell Constraints (Min 2.0, Max 15.0 per station)
+                if isCandidate {
+                    let totalDwell = stop.minDwell + stop.extraDwell
+                    if totalDwell > 15.0 {
+                        constraintPenalty += (totalDwell - 15.0) * 500000.0
+                    } else if totalDwell < 2.0 {
+                        constraintPenalty += (2.0 - totalDwell) * 1000000.0 // Hard limit
+                    } else if totalDwell < stop.minDwell {
+                        // Light penalty for reducing dwell (encourages 2min stops only if needed)
+                        constraintPenalty += (stop.minDwell - totalDwell) * 10000.0
+                    }
+                    totalExtraDwell += stop.extraDwell
+                }
+                
+                if isCandidate, let currentConstraints = constraints?[j] {
+                    if !currentConstraints.contains(stop.track) {
+                        routingViolationCount += 1
+                        conflictingIds.insert(tid)
+                        conflictLocs[tid, default: []].insert("ROUTING::\(stop.stationId)")
+                    }
+                }
+                
+                let trackResId = "TRACK::\(stop.stationId)::\(stop.track)"
+                let globalResId = "STATION_GLOBAL::\(stop.stationId)"
+                
+                if let arr = stop.arrival, let dep = stop.departure {
+                    let occ = (arr, dep + 5, train.id)
+                    resourceOccupations[trackResId, default: []].append(occ)
+                    resourceOccupations[globalResId, default: []].append(occ)
+                }
+                
+                if j > 0, let depPrev = train.stops[j-1].departure, let arr = stop.arrival {
+                    let path = precalculatedPaths[train.id]?[j]
+                    if let actualPath = path {
+                        let totalTime = arr - depPrev
+                        let totalDist = actualPath.reduce(0.0) { $0 + $1.distance }
+                        let avgSpeed = totalDist > 0 ? (totalDist / (totalTime / 3600.0)) : 0.0
+                        var curr = depPrev
+                        for edge in actualPath {
+                            let transit = avgSpeed > 0 ? (edge.distance / avgSpeed * 3600.0) : 0.0
+                            let exit = curr + transit
+                            let s1Id = edge.from < edge.to ? edge.from : edge.to
+                            let s2Id = edge.from < edge.to ? edge.to : edge.from
+                            let resId = "SEGMENT::\(s1Id)--\(s2Id)"
+                            resourceOccupations[resId, default: []].append((curr, exit + 30, train.id))
+                            curr = exit
+                        }
+                    }
+                }
+            }
+            if isCandidate && totalExtraDwell > 30.0 {
+                constraintPenalty += (totalExtraDwell - 30.0) * 1000000.0
+            }
         }
         
-        // 2. Travel Time & Deviation (EFFICIENCY PRIORITY)
-        var travelTimeMinutes = 0.0
-        var deviationPenalty = 0.0
         
-        for (i, train) in updatedSubset.enumerated() {
-            if let start = train.stops.first?.departure, let end = train.stops.last?.arrival {
-                let duration = end.timeIntervalSince(start) / 60.0
-                travelTimeMinutes += duration
+        
+        for (resId, occs) in resourceOccupations {
+            let cap = resId.hasPrefix("STATION_GLOBAL") ? (stationCapacities[resId] ?? 1) : (resId.hasPrefix("SEGMENT") ? (segmentCapacities[resId] ?? 1) : 1)
+            if occs.count <= cap { continue }
+            
+            var events: [(Double, Int, UUID)] = []
+            for o in occs {
+                events.append((o.0, 1, o.2))
+                events.append((o.1, -1, o.2))
             }
+            events.sort { $0.0 < $1.0 || ($0.0 == $1.0 && $0.1 < $1.1) }
             
+            var active = Set<UUID>()
+            for e in events {
+                if e.1 == 1 {
+                    active.insert(e.2)
+                    if active.count > cap {
+                        conflictCount += (active.count - cap)
+                        for id in active {
+                            conflictingIds.insert(id)
+                            conflictLocs[id, default: []].insert(resId)
+                        }
+                    }
+                } else { active.remove(e.2) }
+            }
+        }
+        
+        var travelTimePenalty = 0.0
+        var deviationPenalty = 0.0
+        var preferredTrackBonus = 0.0
+        for (i, train) in updatedSubset.enumerated() {
+            for j in train.stops.indices {
+                if train.stops[j].isPreferredTrack && train.stops[j].track == candidateTrains[i].stops[j].track {
+                    preferredTrackBonus += 500.0 // Give a healthy bonus for staying on preferred track
+                }
+            }
+            if let start = train.stops.first?.departure, let end = train.stops.last?.arrival {
+                travelTimePenalty += (end - start) / 60.0
+            }
             let gene = chromosome.genes[i]
-            let originalTrain = candidateTrains[i]
-            
-            // Penalty for base departure shift (to avoid arbitrary large gaps)
-            deviationPenalty += abs(gene.departureOffset) / 20.0 
-            
-            // Track changes penalty
-            for (j, stop) in originalTrain.stops.enumerated() {
-                let currentTrack = gene.stopTracks[stop.stationId] ?? "1"
-                let originalTrack = stop.track ?? "1"
-                if currentTrack != originalTrack {
-                    let isTerminal = (j == 0 || j == originalTrain.stops.count - 1)
-                    deviationPenalty += isTerminal ? 80.0 : 30.0
+            deviationPenalty += abs(gene.departureOffset) / 30.0
+            for j in train.stops.indices {
+                if gene.stopTracks[j] != candidateTrains[i].stops[j].track {
+                    deviationPenalty += (j == 0 || j == train.stops.count - 1) ? 100.0 : 40.0
                 }
             }
         }
         
-        // BALANCED FITNESS: 
-        // We want (0 conflicts) FIRST, then (minimum travel time), then (minimum deviation).
-        let finalFitness = conflictPenalty + (travelTimeMinutes * 10.0) + deviationPenalty
-        return (finalFitness, conflictingIds)
+        let totalScore = Double(conflictCount) + (Double(routingViolationCount) * 10.0)
+        let fitness = (totalScore * 2000000.0) + constraintPenalty + (travelTimePenalty * 15.0) + deviationPenalty - preferredTrackBonus
+        return (fitness, conflictingIds, conflictLocs)
     }
-    
-    /// Applies a chromosome's changes to a specific set of trains and recalculates their physics-based schedules.
-    private func apply(chromosome: Chromosome, to trains: [Train], network: RailwayNetwork) -> [Train] {
+
+    private static func apply(chromosome: Chromosome, to trains: [LiteTrain], edges: [Edge], precalculatedPaths: [UUID: [[Edge]?]]) -> [LiteTrain] {
         var result = trains
         for i in result.indices {
             guard let gene = chromosome.genes.first(where: { $0.trainId == result[i].id }) else { continue }
+            result[i].departureTime += gene.departureOffset
             
-            // 1. Shift Departure
-            if let baseDep = result[i].departureTime {
-                result[i].departureTime = baseDep.addingTimeInterval(gene.departureOffset)
+            var totalExtra = 0.0
+            for j in result[i].stops.indices {
+                // CLAMP dwell time to [2.0, 15.0] min total per station
+                let minAllowedExtra = max(-5.0, 2.0 - result[i].stops[j].minDwell) // Allow down to 2.0
+                let maxAllowedExtra = max(0, 15.0 - result[i].stops[j].minDwell)
+                var extra = max(minAllowedExtra, min(maxAllowedExtra, gene.stopDwellOffsets[j]))
+                
+                // Respect total extra limit of 30 mins
+                if totalExtra + extra > 30.0 {
+                    extra = max(0, 30.0 - totalExtra)
+                }
+                
+                result[i].stops[j].extraDwell = extra
+                totalExtra += extra
+                result[i].stops[j].track = gene.stopTracks[j]
             }
             
-            // 2. Apply Dwell Offsets and Tracks to Stops
+            var curr = result[i].departureTime
+            let origin = result[i].stops.first?.stationId ?? ""
             for j in result[i].stops.indices {
-                let sid = result[i].stops[j].stationId
-                if let offset = gene.stopDwellOffsets[sid] {
-                    result[i].stops[j].extraDwellTime = offset
-                }
-                if let track = gene.stopTracks[sid] {
-                    result[i].stops[j].track = track
+                let stop = result[i].stops[j]
+                if stop.stationId == origin && j == 0 {
+                    result[i].stops[j].arrival = nil
+                    
+                    // Departure at origin can be pushed by plannedDeparture
+                    let dep = max(curr, stop.plannedDeparture ?? 0)
+                    result[i].stops[j].departure = dep
+                    curr = dep
+                } else {
+                    let transit = gene.legTransitTimes[j]
+                    curr += transit
+                    
+                    // Respect plannedArrival
+                    let arrival = max(curr, stop.plannedArrival ?? 0)
+                    result[i].stops[j].arrival = arrival
+                    
+                    let baseDwell = (stop.isSkipped ? 0 : stop.minDwell + stop.extraDwell) * 60.0
+                    let earliestDeparture = arrival + baseDwell
+                    
+                    // Respect plannedDeparture (as a minimum)
+                    let dep = max(earliestDeparture, stop.plannedDeparture ?? 0)
+                    result[i].stops[j].departure = (j < result[i].stops.count - 1) ? dep : nil
+                    curr = dep
                 }
             }
         }
-        
-        // 3. Recalculate all stop arrivals/departures locally (No side-effects on shared state)
-        refreshSchedulesLocally(trains: &result, network: network)
-        
         return result
     }
-    
-    private func refreshSchedulesLocally(trains: inout [Train], network: RailwayNetwork) {
-        for i in trains.indices {
-            guard let depTime = trains[i].departureTime, !trains[i].stops.isEmpty else { continue }
-            
-            var currentTime = depTime.normalized()
-            let originId = trains[i].stops.first?.stationId ?? ""
-            var prevId = originId
-            
-            for j in trains[i].stops.indices {
-                let stop = trains[i].stops[j]
-                let isSkipped = stop.isSkipped
-                
-                if stop.stationId == originId && j == 0 {
-                    // ORIGIN
-                    trains[i].stops[j].arrival = nil
-                    let departure = stop.plannedDeparture?.normalized() ?? currentTime
-                    trains[i].stops[j].departure = departure
-                    currentTime = departure
-                } else {
-                    // LEG TRANSIT - Calculate as continuous motion between stops
-                    var legDistance: Double = 0
-                    var legMinSpeed: Double = Double.infinity
-                    
-                    let path = precalculatedPaths[trains[i].id]?[j]
-                    if let actualPath = path {
-                        for edge in actualPath {
-                            legDistance += edge.distance
-                            legMinSpeed = min(legMinSpeed, Double(edge.maxSpeed))
-                        }
-                    }
-                    
-                    var transitDuration: TimeInterval = 0
-                    if legDistance > 0 {
-                        let hours = FDCSchedulerEngine.calculateTravelTime(
-                            distanceKm: legDistance,
-                            maxSpeedKmh: legMinSpeed == .infinity ? 100 : legMinSpeed,
-                            train: trains[i],
-                            initialSpeedKmh: 0,
-                            finalSpeedKmh: 0
-                        )
-                        transitDuration = hours * 3600
-                    }
-                    
-                    // PIGNOLO PROTOCOL: Sync perfectly with TrainManager.refreshSchedules
-                    currentTime = currentTime.addingTimeInterval(transitDuration)
-                    
-                    let roundedArrVal = floor(currentTime.timeIntervalSinceReferenceDate + 0.5)
-                    let roundedArrival = Date(timeIntervalSinceReferenceDate: roundedArrVal)
-                    
-                    let actualArrival = stop.plannedArrival?.normalized() ?? roundedArrival
-                    trains[i].stops[j].arrival = actualArrival
-                    
-                    // CRITICAL FIX: Include extraDwellTime (CTC/AI/GA offsets)
-                    let baseDwell = isSkipped ? 0 : Double(stop.minDwellTime)
-                    let dwellDuration = (baseDwell + stop.extraDwellTime) * 60
-                    
-                    let earliestDep = actualArrival.addingTimeInterval(dwellDuration)
-                    let targetDep = stop.plannedDeparture?.normalized() ?? earliestDep
-                    
-                    let finalDep = max(earliestDep, targetDep)
-                    let roundedDepVal = floor(finalDep.timeIntervalSinceReferenceDate + 0.5)
-                    let roundedDep = Date(timeIntervalSinceReferenceDate: roundedDepVal)
-                    
-                    trains[i].stops[j].departure = (j < trains[i].stops.count - 1) ? roundedDep : nil
-                    currentTime = roundedDep
-                }
-                prevId = stop.stationId
-            }
-        }
-    }
-    
-    private func detectConflictsCount(trains: [Train], network: RailwayNetwork) -> Int {
-        let tempManager = ConflictManager()
-        return tempManager.calculateConflicts(network: network, trains: trains).count
-    }
-    
+
     private func selectParent(from population: [Chromosome]) -> Chromosome {
         let i1 = Int.random(in: 0..<population.count)
         let i2 = Int.random(in: 0..<population.count)
@@ -349,54 +572,59 @@ class GeneticOptimizer: ObservableObject {
         return Chromosome(genes: childGenes)
     }
     
-    private func mutate(chromosome: inout Chromosome, network: RailwayNetwork) {
-        let conflictingIndices = chromosome.genes.indices.filter { i in
-            chromosome.conflictingTrainIds.contains(chromosome.genes[i].trainId)
+    private func mutate(chromosome: inout Chromosome, nodes: [Node], contextTrains: [LiteTrain], allowedTracks: [UUID: [Set<String>]], rate: Double) {
+        let conflictingIndices = chromosome.genes.indices.filter { i in 
+            chromosome.conflictingTrainIds.contains(chromosome.genes[i].trainId) 
         }
-        
-        // Elitism: We only mutate trains with conflicts + a small percentage of others to explore efficiency
         let targets = conflictingIndices.isEmpty ? Array(chromosome.genes.indices) : conflictingIndices
         
         for i in targets {
             let trainId = chromosome.genes[i].trainId
             let isConflicting = chromosome.conflictingTrainIds.contains(trainId)
-            let mutationChance = isConflicting ? mutationRate * 2.5 : mutationRate * 0.5 
+            let mutationChance = isConflicting ? rate * 2.5 : rate * 0.3
             
             if Double.random(in: 0...1) < mutationChance {
                 let r = Double.random(in: 0...1)
                 
-                if isConflicting && r < 0.6 {
-                    // Precision Shift to clear the track
-                    let shift = Double(Int.random(in: 1...10) * (Bool.random() ? 1 : -1))
-                    chromosome.genes[i].departureOffset += (shift * 60)
-                } else {
-                    let rr = Double.random(in: 0...1)
-                    if rr < 0.3 {
-                        // Change track at a station
-                        let stations = Array(chromosome.genes[i].stopTracks.keys)
-                        if let sid = stations.randomElement(),
-                           let node = network.nodes.first(where: { $0.id == sid }), (node.platforms ?? 2) > 1 {
-                            let maxPlatforms = min(node.platforms ?? 2, 8)
-                            chromosome.genes[i].stopTracks[sid] = "\(Int.random(in: 1...maxPlatforms))"
+                if isConflicting, let locs = chromosome.conflictLocations[trainId], !locs.isEmpty {
+                    let targetLoc = locs.randomElement() ?? ""
+                    if targetLoc.contains("STATION") || targetLoc.contains("TRACK") || targetLoc.contains("ROUTING") {
+                        let sid = targetLoc.components(separatedBy: "::").count > 1 ? targetLoc.components(separatedBy: "::")[1] : ""
+                        if let stopIdx = contextTrains[i].stops.firstIndex(where: { $0.stationId == sid }) {
+                            // PIGNOLO: Respect Manual Tracks
+                            if contextTrains[i].stops[stopIdx].isManualTrack { continue }
+                            
+                            let allowed = allowedTracks[trainId]?[stopIdx] ?? ["1"]
+                            if allowed.count > 1 {
+                                let current = chromosome.genes[i].stopTracks[stopIdx]
+                                let others = allowed.filter { $0 != current }
+                                chromosome.genes[i].stopTracks[stopIdx] = others.randomElement() ?? current
+                                continue
+                            }
                         }
-                    } else if rr < 0.5 {
-                        // NUDGE MUTATION: Small dwell adjustment (+/- 30s or 60s) for micro-conflicts
-                        let stations = Array(chromosome.genes[i].stopDwellOffsets.keys)
-                        if let sid = stations.randomElement() {
-                            let current = chromosome.genes[i].stopDwellOffsets[sid] ?? 0
-                            let nudge = Bool.random() ? 0.5 : 1.0 // 0.5 min = 30s
-                            let direction = Bool.random() ? 1.0 : -1.0
-                            chromosome.genes[i].stopDwellOffsets[sid] = max(0, current + (nudge * direction))
-                        }
-                    } else {
-                        // Regular Dwell mutation
-                        let stations = Array(chromosome.genes[i].stopDwellOffsets.keys)
-                        if let sid = stations.randomElement() {
-                            let current = chromosome.genes[i].stopDwellOffsets[sid] ?? 0
-                            let change = Double(Int.random(in: -1...3))
-                            chromosome.genes[i].stopDwellOffsets[sid] = max(0, current + change)
+                    } else if targetLoc.hasPrefix("SEGMENT::") {
+                        let seg = targetLoc.replacingOccurrences(of: "SEGMENT::", with: "")
+                        if let stopIdx = contextTrains[i].stops.firstIndex(where: { seg.contains($0.stationId) }) {
+                            let current = chromosome.genes[i].stopDwellOffsets[stopIdx]
+                            chromosome.genes[i].stopDwellOffsets[stopIdx] = min(15.0, current + Double.random(in: 1.0...3.0))
+                            continue
                         }
                     }
+                }
+                
+                if r < 0.4 {
+                    chromosome.genes[i].departureOffset += Double.random(in: -300...300)
+                } else if r < 0.7 {
+                    let j = Int.random(in: 0..<chromosome.genes[i].stopDwellOffsets.count)
+                    // PIGNOLO ELASTIC: Allow reduction down to 2 min (negative offset)
+                    chromosome.genes[i].stopDwellOffsets[j] = max(-5.0, min(15.0, chromosome.genes[i].stopDwellOffsets[j] + Double.random(in: -1...2)))
+                } else {
+                    let j = Int.random(in: 0..<chromosome.genes[i].stopTracks.count)
+                    // PIGNOLO: Respect Manual Tracks
+                    if contextTrains[i].stops[j].isManualTrack { continue }
+                    
+                    let allowed = allowedTracks[trainId]?[j] ?? ["1"]
+                    chromosome.genes[i].stopTracks[j] = allowed.randomElement() ?? "1"
                 }
             }
         }

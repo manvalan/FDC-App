@@ -1,0 +1,497 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project "FdC Railway Manager.xcodeproj" -scheme "FdC Railway Manager" -configuration Debug -destination "platform=iOS Simulator,name=iPhone 16e" build
+
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (1 target)
+    Target 'FdC Railway Manager' in project 'FdC Railway Manager' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/Assets.xcassets
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --version --output-format xml1
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+Build description signature: 0d3d07b51b36583b527101d28ecc55bd
+Build description path: /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/XCBuildData/0d3d07b51b36583b527101d28ecc55bd.xcbuilddata
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk /Users/michelebigi/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.2-23C53-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -o /Users/michelebigi/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.2-23C53-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache
+
+CompileAssetCatalogVariant thinned /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Products/Debug-iphonesimulator/FdC\ Railway\ Manager.app /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/Assets.xcassets (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    /Applications/Xcode.app/Contents/Developer/usr/bin/actool /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/Assets.xcassets --compile /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/assetcatalog_output/thinned --output-format human-readable-text --notices --warnings --export-dependency-info /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/assetcatalog_dependencies_thinned --output-partial-info-plist /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/assetcatalog_generated_info.plist_thinned --app-icon AppIcon --accent-color AccentColor --compress-pngs --enable-on-demand-resources YES --filter-for-thinning-device-configuration iPhone17,5 --filter-for-device-os-version 26.2 --development-region en --target-device iphone --target-device ipad --minimum-deployment-target 17.6 --platform iphonesimulator
+
+SwiftDriver FdC\ Railway\ Manager normal arm64 com.apple.xcode.tools.swift.compiler (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    builtin-SwiftDriver -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name FdC_Railway_Manager -Onone -enforce-exclusivity\=checked @/Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/FdC\ Railway\ Manager.SwiftFileList -DDEBUG -default-isolation\=MainActor -enable-bare-slash-regex -enable-upcoming-feature DisableOutwardActorInference -enable-upcoming-feature InferSendableFromCaptures -enable-upcoming-feature GlobalActorIsolatedTypesUsability -enable-upcoming-feature MemberImportVisibility -enable-upcoming-feature InferIsolatedConformances -enable-upcoming-feature NonisolatedNonsendingByDefault -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -target arm64-apple-ios17.6-simulator -g -module-cache-path /Users/michelebigi/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Products/Debug-iphonesimulator -F /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Products/Debug-iphonesimulator -emit-localized-strings -emit-localized-strings-path /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64 -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/michelebigi/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.2-23C53-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache -output-file-map /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/FdC\ Railway\ Manager-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/michelebigi/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/michelebigi/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/FdC_Railway_Manager.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/michelebigi/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/FdC\ Railway\ Manager_const_extract_protocols.json -Xcc -iquote -Xcc /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/FdC\ Railway\ Manager-generated-files.hmap -Xcc -I/Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/FdC\ Railway\ Manager-own-target-headers.hmap -Xcc -I/Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/FdC\ Railway\ Manager-all-target-headers.hmap -Xcc -iquote -Xcc /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/FdC\ Railway\ Manager-project-headers.hmap -Xcc -I/Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/DerivedSources-normal/arm64 -Xcc -I/Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/DerivedSources/arm64 -Xcc -I/Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/FdC_Railway_Manager-Swift.h -working-directory /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager -experimental-emit-module-separately -disable-cmo
+
+SwiftCompile normal arm64 Compiling\ Extensions.swift,\ FDC_RailML.swift,\ FdC_Railway_ManagerApp.swift,\ FDC_Scheduler.swift,\ FDCImporter.swift,\ FDCModels.swift,\ FDCParser.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/Extensions.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FDC_RailML.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FdC_Railway_ManagerApp.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FDC_Scheduler.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FDCImporter.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FDCModels.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FDCParser.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/Extensions.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FDC_RailML.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FdC_Railway_ManagerApp.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/FdC_Railway_ManagerApp.swift:31:25: warning: no 'async' operations occur within 'await' expression
+                        await loader.performInitialLoad()
+                        ^
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/FdC_Railway_ManagerApp.swift:43:29: warning: no 'async' operations occur within 'await' expression
+                            await loader.saveCurrentState()
+                            ^
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FDC_Scheduler.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FDCImporter.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FDCModels.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FDCParser.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/FDCParser.swift:125:13: warning: variable 'trains' was never mutated; consider changing to 'let' constant
+        var trains: [FDCTrain] = []
+        ~~~ ^
+        let
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/FDCParser.swift:126:13: warning: variable 'timetable' was never used; consider replacing with '_' or removing it
+        var timetable: [FDCTimetableEntry] = []
+            ^~~~~~~~~
+            _
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/FDCParser.swift:127:13: warning: variable 'parsedLines' was never mutated; consider changing to 'let' constant
+        var parsedLines: [RailwayLine] = []
+        ~~~ ^
+        let
+
+SwiftCompile normal arm64 Compiling\ ConflictCard.swift,\ ConflictDashboardView.swift,\ ConflictManager.swift,\ ContentView.swift,\ CreditsView.swift,\ DiagnosticsSettingsView.swift,\ ExportUtils.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ConflictCard.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ConflictDashboardView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ConflictManager.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ContentView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/CreditsView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/DiagnosticsSettingsView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ExportUtils.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ConflictCard.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ConflictDashboardView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ConflictManager.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ContentView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/CreditsView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/DiagnosticsSettingsView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ExportUtils.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 Compiling\ AdminUserListView.swift,\ AISettingsView.swift,\ AppConfig.swift,\ AppLoaderService.swift,\ AppState.swift,\ AuthenticationManager.swift,\ BatchTrainEditView.swift,\ CadenceOptimizer.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AdminUserListView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AISettingsView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AppConfig.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AppLoaderService.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AppState.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AuthenticationManager.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/BatchTrainEditView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/CadenceOptimizer.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AdminUserListView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AISettingsView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AppConfig.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AppLoaderService.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AppState.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/AppState.swift:147:13: warning: initialization of immutable value 'token' was never used; consider replacing with assignment to '_' or removing it
+        let token = KeychainHelper.shared.read(service: "it.fdc.railway", account: "ai_token")
+        ~~~~^~~~~
+        _
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AuthenticationManager.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/AuthenticationManager.swift:188:15: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+            } catch {
+              ^
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/BatchTrainEditView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/CadenceOptimizer.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ FdC_Railway_Manager (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+EmitSwiftModule normal arm64 (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 Compiling\ RailwayAIService+KeyValidation.swift,\ RailwayGraphManager.swift,\ RailwayItineraryView.swift,\ RailwayMapView.swift,\ RailwayOptimizerDTO.swift,\ RailwayScheduleOptimizer.swift,\ RailwaySharedVisualization.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAIService+KeyValidation.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayGraphManager.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayItineraryView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayMapView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayOptimizerDTO.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayScheduleOptimizer.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwaySharedVisualization.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAIService+KeyValidation.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayGraphManager.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayItineraryView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayMapView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayOptimizerDTO.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayScheduleOptimizer.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwaySharedVisualization.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 Compiling\ TrainingCenterView.swift,\ TrainTimetableView.swift,\ TrainTrackParametersView.swift,\ UTTypes.swift,\ VerticalTrackDiagramView.swift,\ VisualizationSettingsView.swift,\ GeneratedAssetSymbols.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrainingCenterView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrainTimetableView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrainTrackParametersView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/UTTypes.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/VerticalTrackDiagramView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/VisualizationSettingsView.swift /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrainingCenterView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrainTimetableView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrainTrackParametersView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/UTTypes.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/VerticalTrackDiagramView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/VisualizationSettingsView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 Compiling\ LinePDFExportView.swift,\ LineProposalView.swift,\ LineScheduleView.swift,\ LineTableView.swift,\ LineVerticalDiagram.swift,\ LocalizationManager.swift,\ Models.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LinePDFExportView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineProposalView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineScheduleView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineTableView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineVerticalDiagram.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LocalizationManager.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/Models.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LinePDFExportView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineProposalView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineScheduleView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineTableView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineVerticalDiagram.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LocalizationManager.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/Models.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 Compiling\ GeneticOptimizer.swift,\ IOManagementView.swift,\ KeychainHelper.swift,\ LineCreationView.swift,\ LineEditingSystem.swift,\ LineEditView.swift,\ LineGraphView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/GeneticOptimizer.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/IOManagementView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/KeychainHelper.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineCreationView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineEditingSystem.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineEditView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineGraphView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/GeneticOptimizer.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/IOManagementView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/KeychainHelper.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineCreationView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineEditingSystem.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineEditView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineGraphView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 Compiling\ PathPickerComponent.swift,\ RailFileContainer.swift,\ RailroadNetwork.swift,\ RailwayAILogger.swift,\ RailwayAIModels.swift,\ RailwayAISchedulerView.swift,\ RailwayAIService.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/PathPickerComponent.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailFileContainer.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailroadNetwork.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAILogger.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAIModels.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAISchedulerView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAIService.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+Failed frontend command:
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -c /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AdminUserListView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AISettingsView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AppConfig.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AppLoaderService.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AppState.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/AuthenticationManager.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/BatchTrainEditView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/CadenceOptimizer.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ConflictCard.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ConflictDashboardView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ConflictManager.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ContentView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/CreditsView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/DiagnosticsSettingsView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ExportUtils.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/Extensions.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FDC_RailML.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FdC_Railway_ManagerApp.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FDC_Scheduler.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FDCImporter.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FDCModels.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/FDCParser.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/GeneticOptimizer.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/IOManagementView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/KeychainHelper.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineCreationView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineEditingSystem.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineEditView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineGraphView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LinePDFExportView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineProposalView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineScheduleView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineTableView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LineVerticalDiagram.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/LocalizationManager.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/Models.swift -primary-file /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/PathPickerComponent.swift -primary-file /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailFileContainer.swift -primary-file /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailroadNetwork.swift -primary-file /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAILogger.swift -primary-file /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAIModels.swift -primary-file /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAISchedulerView.swift -primary-file /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAIService.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAIService+KeyValidation.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayGraphManager.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayItineraryView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayMapView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayOptimizerDTO.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayScheduleOptimizer.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwaySharedVisualization.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ScheduleCreationView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ScheduleCreationView+Logic.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ScheduleProposer.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/SchedulerView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/Secrets.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/StationBoardView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/StationEditView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/StationOccupancyView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/StationPickerView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/StationScheduleView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrackEditView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrackGraphicView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrainCreationView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrainDetailView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrainingCenterView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrainTimetableView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrainTrackParametersView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/UTTypes.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/VerticalTrackDiagramView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/VisualizationSettingsView.swift /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/DerivedSources/GeneratedAssetSymbols.swift -supplementary-output-file-map /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/supplementaryOutputs-6 -emit-localized-strings -emit-localized-strings-path /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64 -target arm64-apple-ios17.6-simulator -module-can-import-version DeveloperToolsSupport 23.0.4 23.0.4 -module-can-import-version SwiftUI 7.2.5.1 7.2.5 -module-can-import-version UIKit 9126.2.4.1 9126.2.4 -disable-cross-import-overlay-search -swift-module-cross-import MapKit /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/System/Library/Frameworks/MapKit.framework/Modules/MapKit.swiftcrossimport/SwiftUI.swiftoverlay -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libFoundationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#FoundationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libObservationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#ObservationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libPreviewsMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#PreviewsMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libSwiftMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#SwiftMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server\#SwiftUIMacros -disable-implicit-swift-modules -Xcc -fno-implicit-modules -Xcc -fno-implicit-module-maps -explicit-swift-module-map-file /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/FdC_Railway_Manager-dependencies-1.json -Xllvm -aarch64-use-tbi -enable-objc-interop -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -I /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Products/Debug-iphonesimulator -F /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Products/Debug-iphonesimulator -no-color-diagnostics -Xcc -fno-color-diagnostics -enable-testing -g -debug-info-format\=dwarf -dwarf-version\=4 -module-cache-path /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -swift-version 5 -enforce-exclusivity\=checked -Onone -D DEBUG -serialize-debugging-options -const-gather-protocols-file /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/FdC\ Railway\ Manager_const_extract_protocols.json -enable-upcoming-feature DisableOutwardActorInference -enable-upcoming-feature InferSendableFromCaptures -enable-upcoming-feature GlobalActorIsolatedTypesUsability -enable-upcoming-feature MemberImportVisibility -enable-upcoming-feature InferIsolatedConformances -enable-upcoming-feature NonisolatedNonsendingByDefault -enable-experimental-feature DebugDescriptionMacro -enable-bare-slash-regex -default-isolation\=MainActor -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /Users/michelebigi/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager -enable-anonymous-context-mangled-names -file-compilation-dir /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -Xcc -ivfsstatcache -Xcc /Users/michelebigi/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.2-23C53-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache -Xcc -I/Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/swift-overrides.hmap -Xcc -iquote -Xcc /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/FdC\ Railway\ Manager-generated-files.hmap -Xcc -I/Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/FdC\ Railway\ Manager-own-target-headers.hmap -Xcc -I/Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/FdC\ Railway\ Manager-all-target-headers.hmap -Xcc -iquote -Xcc /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/FdC\ Railway\ Manager-project-headers.hmap -Xcc -I/Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/DerivedSources-normal/arm64 -Xcc -I/Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/DerivedSources/arm64 -Xcc -I/Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/DerivedSources -Xcc -DDEBUG\=1 -no-auto-bridging-header-chaining -module-name FdC_Railway_Manager -frontend-parseable-output -disable-clang-spi -target-sdk-version 26.2 -target-sdk-name iphonesimulator26.2 -clang-target arm64-apple-ios26.2-simulator -in-process-plugin-server-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/libSwiftInProcPluginServer.dylib -o /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/PathPickerComponent.o -o /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/RailFileContainer.o -o /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/RailroadNetwork.o -o /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/RailwayAILogger.o -o /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/RailwayAIModels.o -o /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/RailwayAISchedulerView.o -o /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Build/Intermediates.noindex/FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/RailwayAIService.o -index-unit-output-path /FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/PathPickerComponent.o -index-unit-output-path /FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/RailFileContainer.o -index-unit-output-path /FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/RailroadNetwork.o -index-unit-output-path /FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/RailwayAILogger.o -index-unit-output-path /FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/RailwayAIModels.o -index-unit-output-path /FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/RailwayAISchedulerView.o -index-unit-output-path /FdC\ Railway\ Manager.build/Debug-iphonesimulator/FdC\ Railway\ Manager.build/Objects-normal/arm64/RailwayAIService.o -index-store-path /Users/michelebigi/Library/Developer/Xcode/DerivedData/FdC_Railway_Manager-eftciwgatnstcfgxbvwagoyugjai/Index.noindex/DataStore -index-system-modules
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/PathPickerComponent.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/PathPickerComponent.swift:342:60: error: missing argument label 'path:' in call
+            let dist = RailwayNetwork.calculatePathDistance(path, edges: edges)
+                                                           ^
+                                                            path: 
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/PathPickerComponent.swift:360:62: error: extra arguments at positions #3, #4 in call
+            let results = RailwayNetwork.findAlternativePaths(from: points[i], to: points[i+1], nodes: nodes, edges: edges)
+                                                             ^
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailroadNetwork.swift:85:10: note: 'findAlternativePaths(from:to:)' declared here
+    func findAlternativePaths(from start: String, to end: String) -> [(path: [String], distance: Double, description: String)] {
+         ^
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/PathPickerComponent.swift:360:27: error: instance member 'findAlternativePaths' cannot be used on type 'RailwayNetwork' (aka 'NetworkModel'); did you mean to use a value of this type instead?
+            let results = RailwayNetwork.findAlternativePaths(from: points[i], to: points[i+1], nodes: nodes, edges: edges)
+                          ^~~~~~~~~~~~~~
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/PathPickerComponent.swift:390:64: error: missing argument label 'path:' in call
+            let trueDist = RailwayNetwork.calculatePathDistance(item.path, edges: edges)
+                                                               ^
+                                                                path: 
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/PathPickerComponent.swift:317:33: warning: call to main actor-isolated static method 'string(for:language:)' in a synchronous nonisolated context
+            LocalizationManager.string(for: key, language: language)
+                                ^
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/LocalizationManager.swift:37:17: note: calls to static method 'string(for:language:)' from outside of its actor context are implicitly asynchronous
+    static func string(for key: String, language: AppLanguage) -> String {
+                ^
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/PathPickerComponent.swift:329:33: warning: main actor-isolated property 'stations' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+            let stations = line.stations
+                           ~~~~~^~~~~~~~
+                           await 
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailFileContainer.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailroadNetwork.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailroadNetwork.swift:86:51: error: extra arguments at positions #3, #4 in call
+        return RailwayNetwork.findAlternativePaths(from: start, to: end, nodes: nodes, edges: edges)
+                                                  ^
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailroadNetwork.swift:85:10: note: 'findAlternativePaths(from:to:)' declared here
+    func findAlternativePaths(from start: String, to end: String) -> [(path: [String], distance: Double, description: String)] {
+         ^
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailroadNetwork.swift:86:16: error: instance member 'findAlternativePaths' cannot be used on type 'RailwayNetwork' (aka 'NetworkModel'); did you mean to use a value of this type instead?
+        return RailwayNetwork.findAlternativePaths(from: start, to: end, nodes: nodes, edges: edges)
+               ^~~~~~~~~~~~~~
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailroadNetwork.swift:356:17: warning: variable 'prevId' was written to, but never read
+            var prevId = originId
+                ^
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailroadNetwork.swift:549:19: warning: value 'railroad' was defined but never used; consider replacing with boolean test
+        guard let railroad = railroad else { return }
+              ~~~~^~~~~~~~~~~
+                                      != nil
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailroadNetwork.swift:605:138: error: cannot convert value of type 'Int' to expected argument type 'Double'
+            return Train(id: newId, number: number, name: fdcTrain.name, type: fdcTrain.type ?? "Regionale", maxSpeed: fdcTrain.maxSpeed ?? 120, priority: fdcTrain.priority ?? 5)
+                                                                                                                                         ^
+                                                                                                                       Double(                 )
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailroadNetwork.swift:634:19: warning: value 'railroad' was defined but never used; consider replacing with boolean test
+        guard let railroad = railroad else { return }
+              ~~~~^~~~~~~~~~~
+                                      != nil
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailroadNetwork.swift:674:19: warning: value 'railroad' was defined but never used; consider replacing with boolean test
+        guard let railroad = railroad else { return }
+              ~~~~^~~~~~~~~~~
+                                      != nil
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAILogger.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAIModels.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAISchedulerView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailwayAISchedulerView.swift:315:65: error: extra argument 'network' in call
+        guard let request = try? service.createRequest(network: network, trains: trainManager.trains, conflicts: trainManager.conflictManager.conflicts) else {
+                                                      ~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailwayAISchedulerView.swift:315:55: error: missing arguments for parameters 'nodes', 'edges' in call
+        guard let request = try? service.createRequest(network: network, trains: trainManager.trains, conflicts: trainManager.conflictManager.conflicts) else {
+                                                      ^
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailwayAIService.swift:847:10: note: 'createRequest(nodes:edges:trains:fixedTrainIds:activeAgentIds:temporalObstacles:conflicts:)' declared here
+    func createRequest(nodes: [Node], edges: [Edge], trains: [Train], fixedTrainIds: Set<UUID> = [], activeAgentIds: Set<UUID>? = nil, temporalObstacles: [TemporalObstacle]? = nil, conflicts: [ScheduleConflict]) -> RailwayAIRequest {
+         ^
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAIService.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailwayAIService.swift:284:56: warning: main actor-isolated conformance of 'RailwayAIRequest' to 'Encodable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode
+                if let prettyData = try? prettyEncoder.encode(request),
+                                                       ^
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailwayAIService.swift:629:19: warning: value 'token' was defined but never used; consider replacing with boolean test
+        guard let token = self.token else {
+              ~~~~^~~~~~~~
+                                     != nil
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailwayAIService.swift:654:19: warning: value 'token' was defined but never used; consider replacing with boolean test
+        guard let token = self.token else {
+              ~~~~^~~~~~~~
+                                     != nil
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailwayAIService.swift:695:19: warning: value 'token' was defined but never used; consider replacing with boolean test
+        guard let token = self.token else {
+              ~~~~^~~~~~~~
+                                     != nil
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailwayAIService.swift:721:19: warning: value 'token' was defined but never used; consider replacing with boolean test
+        guard let token = self.token else {
+              ~~~~^~~~~~~~
+                                     != nil
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailwayAIService.swift:753:19: warning: value 'token' was defined but never used; consider replacing with boolean test
+        guard let token = self.token else {
+              ~~~~^~~~~~~~
+                                     != nil
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailwayAIService.swift:818:63: warning: main actor-isolated conformance of 'WSMessage' to 'Decodable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode
+                            let wsMessage = try JSONDecoder().decode(WSMessage.self, from: data)
+                                                              ^
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailwayAIService.swift:832:23: warning: call to main actor-isolated instance method 'receiveWSMessage()' in a synchronous nonisolated context
+                self?.receiveWSMessage()
+                      ^
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailwayAIService.swift:810:18: note: calls to instance method 'receiveWSMessage()' from outside of its actor context are implicitly asynchronous
+    private func receiveWSMessage() {
+                 ^
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailwayAIService.swift:835:23: warning: main actor-isolated property 'isWsConnected' can not be mutated from a Sendable closure
+                self?.isWsConnected = false
+                      ^
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/RailwayAIService.swift:788:20: note: mutation of this property is only permitted within the actor
+    @Published var isWsConnected = false
+                   ^
+
+SwiftCompile normal arm64 Compiling\ StationOccupancyView.swift,\ StationPickerView.swift,\ StationScheduleView.swift,\ TrackEditView.swift,\ TrackGraphicView.swift,\ TrainCreationView.swift,\ TrainDetailView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/StationOccupancyView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/StationPickerView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/StationScheduleView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrackEditView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrackGraphicView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrainCreationView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrainDetailView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/StationOccupancyView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/StationPickerView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/StationScheduleView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrackEditView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrackGraphicView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrainCreationView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/TrainDetailView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling AdminUserListView.swift, AISettingsView.swift, AppConfig.swift, AppLoaderService.swift, AppState.swift, AuthenticationManager.swift, BatchTrainEditView.swift, CadenceOptimizer.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+
+SwiftCompile normal arm64 Compiling\ ScheduleCreationView.swift,\ ScheduleCreationView+Logic.swift,\ ScheduleProposer.swift,\ SchedulerView.swift,\ Secrets.swift,\ StationBoardView.swift,\ StationEditView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ScheduleCreationView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ScheduleCreationView+Logic.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ScheduleProposer.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/SchedulerView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/Secrets.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/StationBoardView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/StationEditView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ScheduleCreationView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ScheduleCreationView+Logic.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/ScheduleProposer.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/SchedulerView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/Secrets.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/StationBoardView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/StationEditView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+    cd /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling Extensions.swift, FDC_RailML.swift, FdC_Railway_ManagerApp.swift, FDC_Scheduler.swift, FDCImporter.swift, FDCModels.swift, FDCParser.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+
+/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager.xcodeproj: warning: The Copy Bundle Resources build phase contains this target's Info.plist file '/Users/michelebigi/Documents/Develop/XCode/FdC/FdC Railway Manager/FdC Railway Manager/FdC-Info.plist'. (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+** BUILD FAILED **
+
+
+The following build commands failed:
+	SwiftCompile normal arm64 Compiling\ PathPickerComponent.swift,\ RailFileContainer.swift,\ RailroadNetwork.swift,\ RailwayAILogger.swift,\ RailwayAIModels.swift,\ RailwayAISchedulerView.swift,\ RailwayAIService.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/PathPickerComponent.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailFileContainer.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailroadNetwork.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAILogger.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAIModels.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAISchedulerView.swift /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAIService.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+	SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/PathPickerComponent.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+	SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailroadNetwork.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+	SwiftCompile normal arm64 /Users/michelebigi/Documents/Develop/XCode/FdC/FdC\ Railway\ Manager/FdC\ Railway\ Manager/RailwayAISchedulerView.swift (in target 'FdC Railway Manager' from project 'FdC Railway Manager')
+	Building project FdC Railway Manager with scheme FdC Railway Manager and configuration Debug
+(5 failures)

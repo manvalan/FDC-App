@@ -212,6 +212,7 @@ class FDCSchedulerEngine {
         var trackUsage: [String: [(Date, Date, UUID, String)]] = [:]
         
         for sch in schedules {
+            guard sch.stops.count >= 2 else { continue }
             for i in 0..<(sch.stops.count - 1) {
                 let s1 = sch.stops[i]
                 let s2 = sch.stops[i+1]
@@ -292,6 +293,7 @@ class FDCSimulator: ObservableObject {
     
     private func findStationBeforeTrack(schedule: TrainSchedule, edgeKey: String) -> String? {
         let stationIds = edgeKey.components(separatedBy: "-")
+        guard schedule.stops.count >= 2 else { return nil }
         for i in 0..<(schedule.stops.count - 1) {
             let s1 = schedule.stops[i].stationId
             let s2 = schedule.stops[i+1].stationId

@@ -5,6 +5,32 @@ import Combine
 class RailwayAIService: ObservableObject {
     static let shared = RailwayAIService()
     
+    struct LineAnalysis: Codable {
+        let maxFrequency: String?
+        let recommendedFrequency: String?
+        let optimalOffsetAB: Int? // In minutes
+        
+        // Extended fields from the AI V2 Analysis engine
+        let travelTimeMin: Double?
+        let crossingPointsCount: Int?
+        let minHeadwayMin: Double?
+        let optimalHeadwayMin: Double?
+        let optimalOffsetMin: Double?
+        let recommendation: String?
+        
+        enum CodingKeys: String, CodingKey {
+            case maxFrequency = "max_frequency"
+            case recommendedFrequency = "recommended_frequency"
+            case optimalOffsetAB = "optimal_offset_ab"
+            case travelTimeMin = "travel_time_min"
+            case crossingPointsCount = "crossing_points_count"
+            case minHeadwayMin = "min_headway_min"
+            case optimalHeadwayMin = "optimal_headway_min"
+            case optimalOffsetMin = "optimal_offset_min"
+            case recommendation
+        }
+    }
+    
     var baseURL = URL(string: "https://railway-ai.michelebigi.it/api/v1")!
     var token: String? = nil
     var apiKey: String? = nil
@@ -51,13 +77,20 @@ class RailwayAIService: ObservableObject {
         let cleanKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         self.apiKey = cleanKey.isEmpty ? nil : cleanKey
         
-        if let t = token {
+        // If a new token is provided, use it (temporary session). 
+        // Otherwise, if we are syncing without a token, ensure it's cleared.
+        if let t = token, !t.isEmpty {
             self.token = t
+        } else if token == nil {
+            // Only clear if explicitly nil (not just omitted if we had a default which we don't here as it's an override)
+            // Wait, the signature is token: String? = nil.
+            // If called as syncCredentials(..., token: nil), we clear.
+            self.token = nil
         }
         
         // Update AuthManager as well
         if let key = self.apiKey { AuthenticationManager.shared.setAPIKey(key) }
-        if let t = self.token { AuthenticationManager.shared.setToken(t) }
+        if let t = self.token { AuthenticationManager.shared.setToken(t) } else { AuthenticationManager.shared.setToken("") }
         
         RailwayAILogger.shared.log("Sync Complete. Endpoint: \(self.baseURL)", type: .info)
         RailwayAILogger.shared.log("API Key: \(self.apiKey != nil ? "Presente" : "Assente"), Token: \(self.token != nil ? "Presente" : "Assente")", type: .info)
@@ -139,12 +172,8 @@ class RailwayAIService: ObservableObject {
         request.httpMethod = "GET"
         request.timeoutInterval = 7.0
         
-        if let t = token {
-            request.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization")
-        } else if let key = apiKey {
-            let finalKey = key.hasPrefix("rw-") ? key : "rw-\(key)"
-            request.setValue(finalKey, forHTTPHeaderField: "X-API-Key")
-        }
+        // Use central AuthManager to ensure Header Unico
+        AuthenticationManager.shared.attachAuthHeaders(to: &request)
         
         URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else { return }
@@ -238,30 +267,8 @@ class RailwayAIService: ObservableObject {
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue("application/json", forHTTPHeaderField: "accept")
         
-        // PIGNOLO PROTOCOL: Sync credentials from AuthenticationManager if local ones are missing or expired
-        let currentToken = AuthenticationManager.shared.jwtToken ?? self.token ?? ""
-        let currentKey = AuthenticationManager.shared.apiKey ?? self.apiKey ?? ""
-        
-        let cleanToken = currentToken.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanKey = currentKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // PIGNOLO PROTOCOL: Reverted priority - Trust fresh Session Token first
-        if !cleanToken.isEmpty {
-            print("🔑 [DEBUG] Auth: Preferring Session Token (User refresh)")
-            urlRequest.setValue("Bearer \(cleanToken)", forHTTPHeaderField: "Authorization")
-        } else if !cleanKey.isEmpty && cleanKey.hasPrefix("rw-") {
-            print("🔑 [DEBUG] Auth: Using Global API Key")
-            urlRequest.setValue(cleanKey, forHTTPHeaderField: "X-API-Key")
-        } else {
-             // Last resort fallback
-             if !cleanKey.isEmpty {
-                let finalKey = "rw-\(cleanKey)"
-                print("🔑 [DEBUG] Auth: Using Raw API Key (auto-prefixing)")
-                urlRequest.setValue(finalKey, forHTTPHeaderField: "X-API-Key")
-             } else {
-                print("⚠️ [DEBUG] No Credentials found in AuthManager or Service!")
-             }
-        }
+        // Use central AuthManager to ensure Header Unico and prioritize API Key
+        AuthenticationManager.shared.attachAuthHeaders(to: &urlRequest)
         
         do {
             let encoder = JSONEncoder()
@@ -339,7 +346,202 @@ class RailwayAIService: ObservableObject {
             .eraseToAnyPublisher()
     }
     
-    // PIGNOLO PROTOCOL: Overload for pre-formatted JSON from RailwayGraphManager
+    // PIGNOLO PROTOCOL: Unified analysis for lines (created or in-progress)
+    func analyzeLine(name: String, stationIds: [String], nodes: [Node], edges: [Edge]) async throws -> LineAnalysis {
+        // 1. Resolve Station Names for the Prompt
+        let stopNames = stationIds.compactMap { sid in
+            nodes.first(where: { $0.id == sid })?.name
+        }.joined(separator: ", ")
+        
+        print("🧠 [AI DEBUG] analyzeLine: stationsCount=\(stationIds.count), resolvedNames='\(stopNames)'")
+        
+        // Validation: If stops are empty, AI will hallucinate based on the whole network.
+        // Fallback: If we have at least 2 stationIds but names are empty, the IDs might be mismatched.
+        if stopNames.isEmpty && stationIds.count >= 2 {
+            print("⚠️ [AI WARNING] Station IDs provided but names resolved to empty string. Checking ID mismatch...")
+            for sid in stationIds.prefix(5) {
+                print("   - ID Search: '\(sid)' exists in network? \(nodes.contains(where: { $0.id == sid }))")
+            }
+        }
+        
+        let prompt = """
+        Analyze the railway line: "\(name)"
+        Stops: \(stopNames.isEmpty ? "None specified (analyze the provided network)" : stopNames)
+        
+        CONTEXT: 
+        - All distances in the provided 'tracks' data are in KILOMETERS (km).
+        - All speeds are in KM/H.
+        - The network layout is schematic but distances are real.
+        
+        Please provide:
+        1. Maximum frequency (e.g., "Every 15 min")
+        2. Recommended frequency (e.g., "Every 30 min")
+        3. Optimal offset in minutes between departure from origin and departure from destination (to balance the fleet and minimize wait times).
+        
+        Respond ONLY with a JSON object using EXACTLY these keys in snake_case:
+        {
+          "max_frequency": "string",
+          "recommended_frequency": "string",
+          "optimal_offset_ab": int
+        }
+        Do not include any other keys or text.
+        """
+        
+        // PIGNOLO PROTOCOL: We must map the network to the AI's expected format (Integer IDs, etc.)
+        // We filter the tracks to only include those relevant to the line if possible.
+        // If we have a sequence, we find the edges.
+        var relevantEdgeIds = Set<UUID>()
+        if stationIds.count >= 2 {
+            for i in 0..<(stationIds.count - 1) {
+                let from = stationIds[i]
+                let to = stationIds[i+1]
+                if let pathEdges = NetworkModel.findPathEdges(from: from, to: to, edges: edges) {
+                    for e in pathEdges { relevantEdgeIds.insert(e.id) }
+                }
+            }
+        }
+        
+        let aiRequest = self.createRequest(nodes: nodes, edges: edges, trains: [], fixedTrainIds: [], activeAgentIds: nil, temporalObstacles: nil, conflicts: [])
+        
+        // Filter tracks if we identified relevant ones, otherwise send all (less ideal)
+        let filteredTracks: [RailwayAITrackInfo]
+        if !relevantEdgeIds.isEmpty {
+            // We need to map our UUIDs back to the AI Track IDs we just created in createRequest
+            let relevantAiTrackIds = Set(relevantEdgeIds.compactMap { trackMapping[$0.uuidString] })
+            filteredTracks = aiRequest.tracks.filter { relevantAiTrackIds.contains($0.id) }
+            print("🧠 [AI DEBUG] Filtering tracks: origin=\(aiRequest.tracks.count) -> filtered=\(filteredTracks.count)")
+        } else {
+            filteredTracks = aiRequest.tracks
+            print("⚠️ [AI WARNING] No relevant tracks found for path. Sending full network (\(filteredTracks.count) tracks).")
+        }
+
+        let responseString: String = try await withCheckedThrowingContinuation { continuation in
+            let analysisURL = baseURL.appendingPathComponent("analyze_line").absoluteString
+            
+            // We use a specialized payload for analysis that includes the prompt and the mapped network data
+            struct AnalysisPayload: Codable {
+                let prompt: String
+                let stations: [RailwayAIStationInfo]
+                let tracks: [RailwayAITrackInfo]
+                let line_name: String
+                let temporal_obstacles: [TemporalObstacle]
+                let current_time_minutes: Int
+            }
+            
+            let payload = AnalysisPayload(
+                prompt: prompt,
+                stations: aiRequest.stations,
+                tracks: filteredTracks,
+                line_name: name,
+                temporal_obstacles: aiRequest.temporal_obstacles ?? [],
+                current_time_minutes: self.getMinutesFromMidnight(for: Date())
+            )
+            
+            // PIGNOLO PROTOCOL: Debug Logging for Units
+            if let firstTrack = payload.tracks.first {
+                print("🧠 [AI DEBUG] Outbound Units: tracksCount=\(payload.tracks.count), firstLength=\(firstTrack.length_km)")
+            }
+            
+            guard let jsonData = try? JSONEncoder().encode(payload) else {
+                continuation.resume(throwing: NSError(domain: "Serializzazione fallita", code: 0))
+                return
+            }
+            
+            // Print full payload for deep debugging if needed
+            let payloadStr = String(data: jsonData, encoding: .utf8) ?? ""
+            if payloadStr.count < 1000 {
+                print("🧠 [AI DEBUG] Full Payload: \(payloadStr)")
+            } else {
+                print("🧠 [AI DEBUG] Payload (truncated): \(payloadStr.prefix(500))...")
+            }
+            
+            var request = URLRequest(url: URL(string: analysisURL)!)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            AuthenticationManager.shared.attachAuthHeaders(to: &request)
+            request.httpBody = jsonData
+            
+            URLSession.shared.dataTask(with: request) { data, response, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                
+                guard let data = data, let responseString = String(data: data, encoding: .utf8) else {
+                    continuation.resume(throwing: NSError(domain: "Nessuna risposta dal server", code: 0))
+                    return
+                }
+                
+                // The generic sendToRailwayAI logic expected a Result<String, Error>
+                // Here we handle the response directly to avoid double-encoding issues
+                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
+                    continuation.resume(throwing: NSError(domain: "Errore Server (\(httpResponse.statusCode)): \(responseString)", code: httpResponse.statusCode))
+                    return
+                }
+                
+                continuation.resume(returning: responseString)
+            }.resume()
+        }
+
+        // Extract JSON from potential markdown blocks or conversational filler
+        print("🧠 [AI DEBUG] Raw Response: \(responseString)")
+        
+        var cleanJson = responseString
+        
+        // Remove markdown blocks if present
+        if cleanJson.contains("```") {
+            let lines = cleanJson.components(separatedBy: .newlines)
+            var inJson = false
+            var extracted = ""
+            for line in lines {
+                if line.hasPrefix("```") {
+                    inJson = !inJson
+                    continue
+                }
+                if inJson {
+                    extracted += line + "\n"
+                }
+            }
+            if !extracted.isEmpty {
+                cleanJson = extracted
+            } else {
+                // FALLBACK: Just remove the markers
+                cleanJson = cleanJson.replacingOccurrences(of: "```json", with: "")
+                                     .replacingOccurrences(of: "```", with: "")
+            }
+        }
+        
+        // Final trim
+        cleanJson = cleanJson.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // If it starts with some text before the first '{', try to find the '{'
+        if let firstBrace = cleanJson.firstIndex(of: "{"), let lastBrace = cleanJson.lastIndex(of: "}") {
+            cleanJson = String(cleanJson[firstBrace...lastBrace])
+        }
+        
+        print("🧠 [AI DEBUG] Cleaned JSON: \(cleanJson)")
+        
+        if let data = cleanJson.data(using: .utf8) {
+            do {
+                let decoder = JSONDecoder()
+                // PIGNOLO PROTOCOL: If the AI uses camelCase despite instructions, try to handle it.
+                // Note: The CodingKeys in the struct usually take precedence.
+                return try decoder.decode(LineAnalysis.self, from: data)
+            } catch {
+                print("❌ [AI DECODE ERROR] \(error)")
+                throw error
+            }
+        } else {
+            throw NSError(domain: "Invalid JSON response (Empty)", code: 0)
+        }
+    }
+    
+    // Helper to bridge async/await with the existing logic if needed, but here we just implemented it inline for clarity
+    private func performAnalysisRequest(url: String, payload: Data) async throws -> String {
+        // Implementation similar to above...
+        return ""
+    }
+    
     func optimize(jsonString: String) -> AnyPublisher<RailwayAIResponse, Error> {
         let finalURL = baseURL.appendingPathComponent("optimize_scheduled")
         
@@ -349,14 +551,10 @@ class RailwayAIService: ObservableObject {
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue("application/json", forHTTPHeaderField: "accept")
         
-        if let token = self.token, !token.isEmpty {
-            print("🔑 [DEBUG] Sending raw request with Session Token")
-            urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        } else if let key = self.apiKey, !key.isEmpty {
-            let finalKey = key.hasPrefix("rw-") ? key : "rw-\(key)"
-            print("🔑 [DEBUG] Sending raw request with API Key (X-API-Key)")
-            urlRequest.setValue(finalKey, forHTTPHeaderField: "X-API-Key")
-        }
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue("application/json", forHTTPHeaderField: "accept")
+        
+        AuthenticationManager.shared.attachAuthHeaders(to: &urlRequest)
         
         urlRequest.httpBody = jsonString.data(using: .utf8)
         self.lastRequestJSON = jsonString
@@ -401,9 +599,7 @@ class RailwayAIService: ObservableObject {
         urlRequest.timeoutInterval = 180.0 // PIGNOLO PROTOCOL: Augmented timeout for complex scenarios
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        if let token = self.token {
-            urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
+        AuthenticationManager.shared.attachAuthHeaders(to: &urlRequest)
         
         let request = OptimizeRequestWithScenario(scenario_path: scenarioPath)
         
@@ -442,7 +638,7 @@ class RailwayAIService: ObservableObject {
         
         var request = URLRequest(url: baseURL.appendingPathComponent("admin/users"))
         request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        AuthenticationManager.shared.attachAuthHeaders(to: &request)
         
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { output in
@@ -468,7 +664,7 @@ class RailwayAIService: ObservableObject {
         var request = URLRequest(url: baseURL.appendingPathComponent("admin/users"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        AuthenticationManager.shared.attachAuthHeaders(to: &request)
         
         let body = AddUserRequest(username: username, password: password)
         do {
@@ -508,7 +704,7 @@ class RailwayAIService: ObservableObject {
         
         var request = URLRequest(url: baseURL.appendingPathComponent("admin/users").appendingPathComponent(username))
         request.httpMethod = "DELETE"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        AuthenticationManager.shared.attachAuthHeaders(to: &request)
         
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { output in
@@ -535,7 +731,7 @@ class RailwayAIService: ObservableObject {
         var request = URLRequest(url: baseURL.appendingPathComponent("scenario/generate"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        AuthenticationManager.shared.attachAuthHeaders(to: &request)
         
         let body = ScenarioGenerateRequest(area: area)
         do {
@@ -567,7 +763,7 @@ class RailwayAIService: ObservableObject {
         var request = URLRequest(url: baseURL.appendingPathComponent("train"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        AuthenticationManager.shared.attachAuthHeaders(to: &request)
         
         let body = TrainRequest(scenario_path: scenarioPath)
         do {
@@ -647,14 +843,16 @@ class RailwayAIService: ObservableObject {
         }
     }
     
+    private func getMinutesFromMidnight(for date: Date) -> Int {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        return (components.hour ?? 0) * 60 + (components.minute ?? 0)
+    }
+    
     /// Helper to convert current app state to RailwayAIRequest
-    func createRequest(network: RailwayNetwork, trains: [Train], fixedTrainIds: Set<UUID> = [], conflicts: [ScheduleConflict]) -> RailwayAIRequest {
-        stationMapping.removeAll()
-        trainMapping.removeAll()
-        trackMapping.removeAll()
-        
+    func createRequest(nodes: [Node], edges: [Edge], trains: [Train], fixedTrainIds: Set<UUID> = [], activeAgentIds: Set<UUID>? = nil, temporalObstacles: [TemporalObstacle]? = nil, conflicts: [ScheduleConflict]) -> RailwayAIRequest {
         // 1. Map STATIONS (ID string -> Int)
-        let sortedNodes = network.nodes.sorted(by: { $0.id < $1.id })
+        let sortedNodes = nodes.sorted(by: { $0.id < $1.id })
         let aiStations = sortedNodes.enumerated().map { index, node in
             stationMapping[node.id] = index
             let platforms = node.platforms ?? (node.type == .interchange ? 4 : 2)
@@ -663,36 +861,39 @@ class RailwayAIService: ObservableObject {
         
         // 2. Map UNIQUE TRACKS (Group edges between same stations)
         var uniqueTracks: [RailwayAITrackInfo] = []
-        var segmentToTrackId: [String: Int] = [:] // Key: "minId-maxId"
+        var segmentToTrackId: [String: Int] = [:] 
         
-        for edge in network.edges {
+        // PIGNOLO: Removied confusing heuristic. App standard is kilometers for distance.
+        let unitFactor: Double = 1.0
+        
+        for edge in edges {
             let s1 = stationMapping[edge.from] ?? 0
             let s2 = stationMapping[edge.to] ?? 0
             let key = [s1, s2].sorted().map{String($0)}.joined(separator: "-")
             
             if let trackId = segmentToTrackId[key] {
-                // Link this edge UUID to the existing track ID
                 trackMapping[edge.id.uuidString] = trackId
             } else {
-                let trackId = uniqueTracks.count // START FROM 0, NOT 1000
+                let trackId = uniqueTracks.count
                 segmentToTrackId[key] = trackId
                 trackMapping[edge.id.uuidString] = trackId
                 
                 let isSingle = edge.trackType == .single || edge.trackType == .regional
                 let capacity = isSingle ? 1 : 2
+                let lengthKm = edge.distance / unitFactor
                 
                 let track = RailwayAITrackInfo(
                     id: trackId,
                     station_ids: [s1, s2],
-                    length_km: edge.distance,
+                    length_km: lengthKm,
                     is_single_track: isSingle,
-                    capacity: capacity
+                    capacity: capacity,
+                    max_speed_kmh: edge.maxSpeed
                 )
                 uniqueTracks.append(track)
             }
         }
         
-        // Formatter for "HH:mm:ss"
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "HH:mm:ss"
         timeFormatter.timeZone = TimeZone(secondsFromGMT: 0)
@@ -702,27 +903,67 @@ class RailwayAIService: ObservableObject {
             let calendar = Calendar.current
             let components = calendar.dateComponents([.hour, .minute, .second], from: date)
             let dateAt2000 = calendar.date(from: DateComponents(year: 2000, month: 1, day: 1, hour: components.hour, minute: components.minute, second: components.second)) ?? date
-            
-            // PIGNOLO PROTOCOL: INCREASE PRECISION to 1 second to match local engine perfectly
             let roundedSeconds = floor(dateAt2000.timeIntervalSinceReferenceDate + 0.5)
             return Date(timeIntervalSinceReferenceDate: roundedSeconds)
         }
         
-        // 3. Map TRAINS
-        let aiTrains = trains.enumerated().map { index, train in
+        // 3. Map TRAINS (Focus vs Background Objects)
+        let focusTrains = (activeAgentIds == nil) ? trains : trains.filter { activeAgentIds!.contains($0.id) }
+        let bgTrains = (activeAgentIds == nil) ? [] : trains.filter { !activeAgentIds!.contains($0.id) }
+        
+        var focusTrackIds = Set<Int>()
+        for ft in focusTrains {
+            guard ft.stops.count >= 2 else { continue }
+            for i in 0..<(ft.stops.count - 1) {
+                let s1 = ft.stops[i].stationId
+                let s2 = ft.stops[i+1].stationId
+                if let edge = edges.first(where: { ($0.from == s1 && $0.to == s2) || ($0.from == s2 && $0.to == s1) }) {
+                    if let tId = trackMapping[edge.id.uuidString] {
+                        focusTrackIds.insert(tId)
+                    }
+                }
+            }
+        }
+        
+        var rawObstacles: [TemporalObstacle] = temporalObstacles ?? []
+        for bgTrain in bgTrains {
+            guard bgTrain.stops.count >= 2 else { continue }
+            for i in 0..<(bgTrain.stops.count - 1) {
+                let s1 = bgTrain.stops[i].stationId
+                let s2 = bgTrain.stops[i+1].stationId
+                guard let dep = bgTrain.stops[i].departure, let arr = bgTrain.stops[i+1].arrival else { continue }
+                
+                if let edge = edges.first(where: { ($0.from == s1 && $0.to == s2) || ($0.from == s2 && $0.to == s1) }) {
+                    if let tId = trackMapping[edge.id.uuidString], focusTrackIds.contains(tId) {
+                        let startMin = getMinutesFromMidnight(for: dep)
+                        let endMin = getMinutesFromMidnight(for: arr)
+                        if startMin <= endMin {
+                            rawObstacles.append(TemporalObstacle(track_id: tId, start_minute: startMin, end_minute: endMin, reason: "Traffico: \(bgTrain.name)"))
+                        } else {
+                            rawObstacles.append(TemporalObstacle(track_id: tId, start_minute: startMin, end_minute: 1440, reason: "Traffico: \(bgTrain.name) (Pre-Midnight)"))
+                            rawObstacles.append(TemporalObstacle(track_id: tId, start_minute: 0, end_minute: endMin, reason: "Traffico: \(bgTrain.name) (Post-Midnight)"))
+                        }
+                    }
+                }
+            }
+        }
+        
+        let mergedObstacles = mergeObstacles(rawObstacles)
+        
+        let aiTrains = focusTrains.enumerated().map { index, train in
             trainMapping[train.id] = index
-            
             let originId = train.stops.first?.stationId ?? ""
             let destId = train.stops.last?.stationId ?? ""
             
-            // Build planned_route as a list of track IDs
             var routeIds: [Int] = []
-            for i in 0..<(train.stops.count - 1) {
-                let s1 = train.stops[i].stationId
-                let s2 = train.stops[i+1].stationId
-                if let edge = network.edges.first(where: { ($0.from == s1 && $0.to == s2) || ($0.from == s2 && $0.to == s1) }) {
-                    if let tId = trackMapping[edge.id.uuidString] {
-                        routeIds.append(tId)
+            if train.stops.count >= 2 {
+                for i in 0..<(train.stops.count - 1) {
+                    let s1 = train.stops[i].stationId
+                    let s2 = train.stops[i+1].stationId
+                    if let edge = edges.first(where: { ($0.from == s1 && $0.to == s2) || ($0.from == s2 && $0.to == s1) }) {
+                        if let tId = trackMapping[edge.id.uuidString] {
+                            routeIds.append(tId)
+                        }
                     }
                 }
             }
@@ -730,38 +971,37 @@ class RailwayAIService: ObservableObject {
             let depTime = normalize(train.departureTime) ?? Date()
             let currentTrackId = routeIds.first ?? 0
             
-            // PIGNOLO PROTOCOL: Calculate ACTUAL average velocity from physical schedule
-            var actualVelocity = Double(train.maxSpeed) * 0.9 // Fallback
+            var actualVelocity = Double(train.maxSpeed) * 0.9 
             if let firstDep = train.stops.first?.departure, let lastArr = train.stops.last?.arrival {
                 let totalTripSeconds = lastArr.timeIntervalSince(firstDep)
                 let totalDwellSeconds = train.stops.reduce(0.0) { $0 + Double($1.minDwellTime * 60) }
                 let movingSeconds = totalTripSeconds - totalDwellSeconds
                 
                 var totalDist = 0.0
-                for i in 0..<(train.stops.count - 1) {
-                    if let path = network.findPathEdges(from: train.stops[i].stationId, to: train.stops[i+1].stationId) {
-                        totalDist += path.reduce(0.0) { $0 + $1.distance }
+                if train.stops.count >= 2 {
+                    for i in 0..<(train.stops.count - 1) {
+                        if let path = NetworkModel.findPathEdges(from: train.stops[i].stationId, to: train.stops[i+1].stationId, edges: edges) {
+                            totalDist += path.reduce(0.0) { $0 + $1.distance }
+                        }
                     }
                 }
                 
                 if movingSeconds > 30 && totalDist > 0 {
-                    let v = (totalDist / (movingSeconds / 3600))
+                    // PIGNOLO: velocity in km/h = km / hours
+                    let v = totalDist / (movingSeconds / 3600.0)
                     actualVelocity = min(v, Double(train.maxSpeed))
                 }
             }
             
-            // PIGNOLO PROTOCOL: Fixed trains are NOT delayed (from the AI perspective they are hard constraints)
             let isFixed = fixedTrainIds.contains(train.id)
             let isDelayed = isFixed ? false : conflicts.contains(where: { $0.trainAId == train.id || $0.trainBId == train.id })
-            
-            // Average dwell for better AI modeling
             let avgDwell = train.stops.isEmpty ? 2 : Double(train.stops.reduce(0) { $0 + $1.minDwellTime }) / Double(train.stops.count)
             
             return RailwayAITrainInfo(
                 id: index,
                 priority: train.priority,
                 position_km: 0.0,
-                velocity_kmh: actualVelocity, 
+                velocity_kmh: actualVelocity,
                 current_track: currentTrackId,
                 destination_station: stationMapping[destId] ?? 0,
                 delay_minutes: 0,
@@ -773,13 +1013,21 @@ class RailwayAIService: ObservableObject {
             )
         }
         
+        // Map focusAgentIds to actual numeric IDs used in aiTrains
+        let activeNumericIds: [Int]? = activeAgentIds?.compactMap { uuid in
+            return trainMapping[uuid]
+        }
+        
         let finalRequest = RailwayAIRequest(
             trains: aiTrains,
             tracks: uniqueTracks,
             stations: aiStations,
             max_iterations: 1000,
             ga_max_iterations: nil,
-            ga_population_size: nil
+            ga_population_size: nil,
+            active_agent_ids: activeNumericIds,
+            temporal_obstacles: mergedObstacles,
+            current_time_minutes: self.getMinutesFromMidnight(for: Date())
         )
         
         self.lastRequestJSON = (try? String(data: JSONEncoder().encode(finalRequest), encoding: .utf8)) ?? ""
@@ -810,9 +1058,33 @@ class RailwayAIService: ObservableObject {
         return trainMapping.first(where: { $0.value == optimizerId })?.key
     }
     
-    // Alias for compatibility
-    func getTrainId(optimizerId: Int) -> UUID? {
-        return getTrainUUID(optimizerId: optimizerId)
+    private func mergeObstacles(_ obstacles: [TemporalObstacle]) -> [TemporalObstacle] {
+        var byTrack: [Int: [TemporalObstacle]] = [:]
+        for o in obstacles { byTrack[o.track_id, default: []].append(o) }
+        
+        var result: [TemporalObstacle] = []
+        for (trackId, group) in byTrack {
+            let sorted = group.sorted { $0.start_minute < $1.start_minute }
+            if sorted.isEmpty { continue }
+            
+            var current = sorted[0]
+            for i in 1..<sorted.count {
+                let next = sorted[i]
+                if next.start_minute <= current.end_minute {
+                    current = TemporalObstacle(
+                        track_id: trackId,
+                        start_minute: current.start_minute,
+                        end_minute: max(current.end_minute, next.end_minute),
+                        reason: "Merged Traffic"
+                    )
+                } else {
+                    result.append(current)
+                    current = next
+                }
+            }
+            result.append(current)
+        }
+        return result
     }
     
     func getTrainMapping() -> [UUID: Int] {

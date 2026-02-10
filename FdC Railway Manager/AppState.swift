@@ -5,7 +5,7 @@ import Combine
 final class AppState: ObservableObject {
     static let shared = AppState()
     @Published var showAI: Bool = false
-    var aiNetwork: RailwayNetwork? = nil
+    var aiNetwork: NetworkModel? = nil
     @Published var didAutoImport: Bool = false
     @Published var importMessage: String? = nil
     @Published var simulator = FDCSimulator()
@@ -13,6 +13,46 @@ final class AppState: ObservableObject {
     // Navigation State (Global)
     @Published var sidebarSelection: SidebarItem? = .lines
     @Published var jumpToTrainId: UUID? = nil
+    
+    // Selection State (Global)
+    @Published var selectedLineId: String? = nil
+    @Published var selectedNodeId: String? = nil
+    @Published var selectedEdgeId: String? = nil
+    @Published var selectedTrainIds: Set<UUID> = []
+    @Published var isInspectorEditingMode: Bool = false
+    
+    var selectedLine: RailwayLine? {
+        railroad.lines.lines.first { $0.id == selectedLineId }
+    }
+    
+    var selectedNode: Node? {
+        railroad.network.nodes.first { $0.id == selectedNodeId }
+    }
+    
+    func selectTrain(_ id: UUID) {
+        selectedTrainIds = [id]
+        selectedLineId = nil
+        selectedNodeId = nil
+        selectedEdgeId = nil
+    }
+    
+    func selectLine(_ line: RailwayLine) {
+        selectedLineId = line.id
+        selectedNodeId = nil
+        selectedEdgeId = nil
+        selectedTrainIds = []
+    }
+    
+    func clearSelection() {
+        selectedLineId = nil
+        selectedNodeId = nil
+        selectedEdgeId = nil
+        selectedTrainIds = []
+    }
+    
+    // MARK: - New Architecture (Code That Fits in Your Head)
+    // Central Aggregate Root for the entire domain logic
+    @Published var railroad = RailroadNetwork()
     
     // UI Settings
     @Published var globalLineWidth: Double {
@@ -146,7 +186,11 @@ final class AppState: ObservableObject {
         self.aiUsername = username
         self.aiPassword = password
         self.aiApiKey = apiKey
-        self.aiToken = token
+        
+        // JWT Tokens are deprecated - explicitly clear from state and Keychain
+        self.aiToken = nil
+        KeychainHelper.shared.delete(service: "it.fdc.railway", account: "ai_token")
+        
         self.useCloudAI = UserDefaults.standard.bool(forKey: "use_cloud_ai")
         
         let storedWidth = UserDefaults.standard.double(forKey: "global_line_width")
@@ -209,27 +253,34 @@ final class AppState: ObservableObject {
         self.highSpeedTrackMaxSpeed = (highSpeedTrackSpeed > 0) ? highSpeedTrackSpeed : 300
         
         // Initial sync of credentials to the singleton service
-        RailwayAIService.shared.syncCredentials(endpoint: endpoint, apiKey: apiKey, token: token)
+        RailwayAIService.shared.syncCredentials(endpoint: endpoint, apiKey: apiKey, token: nil)
         RailwayAIService.shared.verifyConnection()
         
-        // Auto-login if Cloud AI is enabled and we have credentials but no token
-        if useCloudAI && token == nil && !password.isEmpty {
-            AuthenticationManager.shared.login(username: username, password: password) { [weak self] result in
-                Task { @MainActor in
-                    switch result {
-                    case .success(let newToken):
-                        self?.aiToken = newToken
-                        RailwayAIService.shared.syncCredentials(
-                            endpoint: endpoint,
-                            apiKey: apiKey,
-                            token: newToken
-                        )
-                        print("✅ Auto-login AI riuscito")
-                    case .failure(let error):
-                        print("⚠️ Auto-login AI fallito: \(error)")
-                    }
-                }
-            }
+        // Auto-login is disabled - we only use apiKey
+        
+        setupBindings()
+    }
+    
+    private func setupBindings() {
+        railroad.lines.onSchedulesChanged = { [weak self] in
+            guard let self = self else { return }
+            self.simulator.schedules = self.railroad.lines.generateSchedulesPreview()
+        }
+    }
+
+    /// Centralized physics parameters for each train category
+    func getPhysics(for category: TrainCategory) -> (acceleration: Double, deceleration: Double) {
+        switch category {
+        case .regional:
+            return (regionalAcceleration, regionalDeceleration)
+        case .direct:
+            return (intercityAcceleration, intercityDeceleration)
+        case .highSpeed:
+            return (highSpeedAcceleration, highSpeedDeceleration)
+        case .freight:
+            return (0.3, 0.3)
+        case .support:
+            return (0.4, 0.4)
         }
     }
 }
@@ -238,6 +289,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     case network = "network"
     case lines = "lines"
     case trains = "trains"
+    case vehicles = "materiale_rotante"
     case ai = "railway_ai"
     case io = "io"
     case settings = "settings"
@@ -253,6 +305,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .network: return "map"
         case .lines: return "point.topleft.down.to.point.bottomright.curvepath"
         case .trains: return "train.side.front.car"
+        case .vehicles: return "bus.doubledecker"
         case .ai: return "sparkles"
         case .io: return "doc.badge.arrow.up"
         case .settings: return "gear"

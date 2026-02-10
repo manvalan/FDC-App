@@ -26,7 +26,7 @@ struct StationOccupancyView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            Text("Occupazione Binari: \(station.name)")
+            Text(String(format: "track_occupancy_title".localized, station.name))
                 .font(.headline)
                 .padding()
             
@@ -50,7 +50,7 @@ struct StationOccupancyView: View {
                                     // Track Label (Sticky?)
                                     // ideally we'd want labels to be separate. 
                                     // For now just put them here, they scroll away.
-                                    Text("Bin \(track)")
+                                    Text(String(format: "track_label_fmt".localized, track))
                                         .font(.caption)
                                         .bold()
                                         .padding(.leading, 4)
@@ -139,7 +139,7 @@ struct StationOccupancyView: View {
                     track: track,
                     arrival: arrival,
                     departure: stop.isSkipped ? arrival.addingTimeInterval(120) : departure,
-                    type: stop.isSkipped ? "Passaggio" : "Fermata"
+                    type: stop.isSkipped ? "transit_marker".localized : "stop_marker".localized
                 ))
             }
         }

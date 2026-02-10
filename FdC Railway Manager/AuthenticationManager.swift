@@ -161,34 +161,27 @@ public class AuthenticationManager {
                 let api_key: String
             }
             
-            do {
-                // Try decoding as object first
-                if let keyObj = try? JSONDecoder().decode(KeyResponse.self, from: data) {
-                    self?.apiKey = keyObj.api_key
-                } else if let rawString = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !rawString.isEmpty {
-                    // Try decoding as plain string (e.g. "rw-xyz") or double-quoted string
-                    if rawString.hasPrefix("\"") && rawString.hasSuffix("\"") {
-                        self?.apiKey = String(rawString.dropFirst().dropLast())
-                    } else {
-                        self?.apiKey = rawString
-                    }
-                }
-                
-                if let key = self?.apiKey {
-                    // Normalize prefix if needed (PIGNOLO PROTOCOL)
-                    if !key.hasPrefix("rw-") && key.count > 5 {
-                        self?.apiKey = "rw-\(key)"
-                    }
-                    print("AuthManager: Permanent API Key Generated: \(self?.apiKey ?? "ERROR")")
-                    completion(.success(self?.apiKey ?? ""))
+            // Try decoding as object first
+            if let keyObj = try? JSONDecoder().decode(KeyResponse.self, from: data) {
+                self?.apiKey = keyObj.api_key
+            } else if let rawString = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !rawString.isEmpty {
+                // Try decoding as plain string (e.g. "rw-xyz") or double-quoted string
+                if rawString.hasPrefix("\"") && rawString.hasSuffix("\"") {
+                    self?.apiKey = String(rawString.dropFirst().dropLast())
                 } else {
-                    print("AuthManager: Failed to parse API Key from response.")
-                    completion(.failure(.decodingError))
+                    self?.apiKey = rawString
                 }
-            } catch {
-                print("AuthManager Key Decoding Error: \(error)")
-                let body = String(data: data, encoding: .utf8) ?? "No Body"
-                print("AuthManager Key Body: \(body)")
+            }
+            
+            if let key = self?.apiKey {
+                // Normalize prefix if needed (PIGNOLO PROTOCOL)
+                if !key.hasPrefix("rw-") && key.count > 5 {
+                    self?.apiKey = "rw-\(key)"
+                }
+                print("AuthManager: Permanent API Key Generated: \(self?.apiKey ?? "ERROR")")
+                completion(.success(self?.apiKey ?? ""))
+            } else {
+                print("AuthManager: Failed to parse API Key from response.")
                 completion(.failure(.decodingError))
             }
         }.resume()
@@ -225,16 +218,18 @@ public class AuthenticationManager {
     /// Helper to attach headers to any request
     public func attachAuthHeaders(to request: inout URLRequest) {
         if let key = apiKey, !key.isEmpty {
-            // PIGNOLO PROTOCOL: Send both X-API-Key and Bearer Authorization for API Keys
             let finalKey = key.hasPrefix("rw-") ? key : "rw-\(key)"
             request.setValue(finalKey, forHTTPHeaderField: "X-API-Key")
-            request.setValue("Bearer \(finalKey)", forHTTPHeaderField: "Authorization")
-            print("AuthManager: Attached API Key \(finalKey.prefix(6))...")
-        } else if let token = jwtToken {
+            
+            // Header Unico: Se usi la API Key, l'header Authorization deve essere completamente rimosso
+            request.setValue(nil, forHTTPHeaderField: "Authorization")
+            
+            print("AuthManager: Attached API Key \(finalKey.prefix(6))... (Authorization header removed)")
+        } else if let token = jwtToken, !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             print("AuthManager: Attached JWT Token \(token.prefix(10))...")
         } else {
-            print("AuthManager: No credentials to attach (ApiKey and Token are nil).")
+            print("AuthManager: No credentials to attach.")
         }
     }
 }

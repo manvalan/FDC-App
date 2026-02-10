@@ -64,6 +64,8 @@ struct ScheduleCreationView: View {
     init(line: RailwayLine, initialMode: ScheduleMode = .single) {
         self.line = line
         self._mode = State(initialValue: initialMode)
+        self._startStationId = State(initialValue: line.originId)
+        self._endStationId = State(initialValue: line.destinationId)
     }
     
     // GA Optimizer
@@ -72,181 +74,35 @@ struct ScheduleCreationView: View {
     @State private var aiStatus: String? = nil
     @State private var aiTask: Task<Void, Never>? = nil
 
+    // AI Analysis
+    @State private var lineAnalysis: RailwayAIService.LineAnalysis? = nil
+    @State private var isAnalyzingLine: Bool = false
+    
+    // Local Cadence Optimizer
+    @StateObject private var cadenceOptimizer = CadenceOptimizer()
+    @State private var localProposedOffset: Double? = nil
+
     // Preview
     @State private var previewCount: Int = 0
+    @State private var estimatedTravelTime: Int = 0
+    @State private var estimatedDistance: Double = 0
     
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    headerSection
-                    stationSelectSection
-                    
-                    PathPickerComponent(
-                        startStationId: $startStationId,
-                        viaStationIds: $viaStationIds,
-                        endStationId: $endStationId,
-                        stationSequence: $stationSequence,
-                        manualAddition: $manualAddition,
-                        activePicker: $activePicker,
-                        manualStationId: $manualStationId,
-                        lineContext: line
-                    )
-                    .padding(.horizontal)
-                    
-                    pathInfoRow
-                    
-                    // Two Columns for Cadence
-                    HStack(alignment: .top, spacing: 20) {
-                        cadenceColumn(title: "A ➔ B (\("outward".localized))", 
-                                     isReturn: false,
-                                     sTime: $startTime, 
-                                     eTime: $endTime, 
-                                     interv: $intervalMinutes,
-                                     sNum: $startNumber)
-                        
-                        Divider()
-                        
-                        cadenceColumn(title: "B ➔ A (\("return".localized))", 
-                                     isReturn: true,
-                                     sTime: $returnStartTime, 
-                                     eTime: $returnEndTime, 
-                                     interv: $returnIntervalMinutes,
-                                     sNum: $returnStartNumber)
-                    }
-                    .padding()
-                    .background(Color.secondary.opacity(0.05))
-                    .cornerRadius(12)
-                    .padding(.horizontal)
-                    
-                    
-                    previewSection
-                    
-                    if geneticOptimizer.isRunning {
-                        VStack(spacing: 8) {
-                            ProgressView(value: geneticOptimizer.progress)
-                            HStack {
-                                Text(String(format: "genetic_opt_gen_fmt".localized, geneticOptimizer.currentGeneration))
-                                Spacer()
-                                Text(String(format: "conflicts_count_fmt".localized, geneticOptimizer.conflictCount))
-                                    .foregroundColor(geneticOptimizer.conflictCount == 0 ? .green : .red)
-                                    .bold()
-                            }
-                            .font(.caption2)
-                        }
-                        .padding()
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(8)
-                        .padding(.horizontal)
-                    }
-                    
-                    Divider().padding(.top)
-                    
-                    HStack {
-                        Button("cancel".localized.uppercased()) { dismiss() }
-                            .buttonStyle(.bordered)
-                            .controlSize(.large)
-                        
-                        Spacer()
-                        
-                        Button(action: {
-                            if aiStatus != nil || geneticOptimizer.isRunning {
-                                // STOP EVERYTHING - Cancel and reset
-                                aiTask?.cancel()
-                                aiTask = nil
-                                aiStatus = "cancelling".localized
-                                
-                                // Wait for cleanup before resetting UI
-                                Task { @MainActor in
-                                    // Give the pipeline time to detect cancellation and exit
-                                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
-                                    aiStatus = nil
-                                }
-                            } else {
-                                aiTask = Task {
-                                    await generateSchedule()
-                                }
-                            }
-                        }) {
-                            if geneticOptimizer.isRunning || aiStatus != nil {
-                                ProgressView().controlSize(.small).padding(.trailing, 4)
-                            }
-                            if aiStatus != nil || geneticOptimizer.isRunning {
-                                Text("stop".localized.uppercased())
-                            } else {
-                                Text("generate".localized.uppercased())
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                    }
-                    .padding()
-                }
-                .padding(.vertical)
+            formContent
+        }
+        .overlay(optimizationOverlay)
+    }
+    
+    private func triggerLineAnalysis() {
+        Task {
+            isAnalyzingLine = true
+            do {
+                lineAnalysis = try await RailwayAIService.shared.analyzeLine(name: line.name, stationIds: stationSequence, nodes: network.nodes, edges: network.edges)
+            } catch {
+                print("❌ AI Line Analysis failed: \(error)")
             }
-            .navigationTitle("schedule_generation".localized)
-            .onAppear {
-                startStationId = line.originId
-                endStationId = line.destinationId
-                stationSequence = line.stations
-                
-                // Sync return times
-                returnStartTime = startTime
-                returnEndTime = endTime
-                returnIntervalMinutes = intervalMinutes
-                
-                presetTrainType()
-                
-                // Propose numbers starting from 0 (range 0-999) for this line
-                let lineTrains = manager.trains.filter { $0.lineId == line.id }
-                let usedBaseNumbers = lineTrains.map { t -> Int in
-                    let prefix = line.numberPrefix ?? 0
-                    return t.number - (prefix * 1000)
-                }.filter { $0 >= 0 && $0 < 1000 }
-                
-                let maxUsed = usedBaseNumbers.max() ?? -1
-                startNumber = (maxUsed + 1 < 1000) ? maxUsed + 1 : 0
-                
-                // If parità needs sync
-                if preferredParity == .even && startNumber % 2 != 0 { startNumber += 1 }
-                if preferredParity == .odd && startNumber % 2 == 0 { startNumber += 1 }
-                
-                returnStartNumber = (startNumber + 1 < 1000) ? startNumber + 1 : 1
-                
-                updatePreview()
-            }
-            .sheet(item: $activePicker) { item in
-                Group {
-                    switch item {
-                    case .start:
-                        StationPickerView(selectedStationId: $startStationId, whitelistIds: line.stations)
-                    case .via(let idx):
-                        StationPickerView(selectedStationId: $viaStationIds[idx], whitelistIds: line.stations)
-                    case .end:
-                        StationPickerView(selectedStationId: $endStationId, whitelistIds: line.stations)
-                    case .manual:
-                        StationPickerView(selectedStationId: $manualStationId, linkedToStationId: stationSequence.last, whitelistIds: line.stations)
-                    }
-                }
-                .environmentObject(network)
-            }
-            .onChange(of: manualStationId) { old, new in
-                if !new.isEmpty {
-                    stationSequence.append(new)
-                    manualStationId = ""
-                }
-            }
-            .onChange(of: startStationId) { old, new in
-                if !new.isEmpty {
-                    if stationSequence.isEmpty || !manualAddition {
-                        stationSequence = [new]
-                    }
-                }
-            }
-            .onChange(of: mode) { _ in updatePreview() }
-            .onChange(of: startTime) { _ in updatePreview() }
-            .onChange(of: endTime) { _ in updatePreview() }
-            .onChange(of: intervalMinutes) { _ in updatePreview() }
+            isAnalyzingLine = false
         }
     }
 
@@ -312,8 +168,8 @@ struct ScheduleCreationView: View {
     private var pathInfoRow: some View {
         HStack(spacing: 20) {
             infoLabel(title: "path".localized, value: String(format: "stations_count_fmt".localized, stationSequence.count))
-            infoLabel(title: "length_short".localized, value: String(format: "%.1f km", network.calculatePathDistance(stationSequence)))
-            infoLabel(title: "est_duration_short".localized, value: String(format: "duration_min_fmt".localized, estimateAccurateTravelTime()))
+            infoLabel(title: "length_short".localized, value: String(format: "%.1f km", estimatedDistance))
+            infoLabel(title: "est_duration_short".localized, value: String(format: "duration_min_fmt".localized, estimatedTravelTime))
             Spacer()
             
             Picker("train_type".localized, selection: $selectedTrainType) {
@@ -363,6 +219,55 @@ struct ScheduleCreationView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+            }
+            
+            Button(action: { findIdealBaseTime(isReturn: isReturn) }) {
+                Label(cadenceOptimizer.isRunning ? "finding_slot".localized : "propose_ideal_slot".localized, 
+                      systemImage: "wand.and.stars")
+                    .font(.caption)
+            }
+            .disabled(cadenceOptimizer.isRunning || stationSequence.count < 2)
+            
+            if !isReturn, let offset = localProposedOffset {
+                Text(String(format: "suggested_offset_fmt".localized, Int(offset)))
+                    .foregroundColor(.green)
+                    .font(.caption2.bold())
+            }
+        }
+    }
+    
+    private func findIdealBaseTime(isReturn: Bool) {
+        Task {
+            let seq = isReturn ? stationSequence.reversed() : stationSequence
+            let tempLine = RailwayLine(
+                id: line.id,
+                name: line.name,
+                stops: seq.map { RelationStop(stationId: $0) }
+            )
+            
+            let offset = await cadenceOptimizer.proposeIdealWindow(
+                for: tempLine, 
+                frequency: Double(isReturn ? returnIntervalMinutes : intervalMinutes), 
+                existingTrains: manager.trains, 
+                network: network
+            )
+            
+            await MainActor.run {
+                if isReturn {
+                    // Apply offset to returnStartTime
+                    let base = normalizeDate(returnStartTime)
+                    let cal = Calendar.current
+                    let baseStartOfDay = cal.startOfDay(for: base)
+                    returnStartTime = baseStartOfDay.addingTimeInterval(offset * 60)
+                } else {
+                    // Apply offset to startTime
+                    let base = normalizeDate(startTime)
+                    let cal = Calendar.current
+                    let baseStartOfDay = cal.startOfDay(for: base)
+                    startTime = baseStartOfDay.addingTimeInterval(offset * 60)
+                    self.localProposedOffset = offset
+                }
+                updatePreview()
             }
         }
     }
@@ -420,11 +325,18 @@ struct ScheduleCreationView: View {
         var total = calculateCount(s: start, e: end, interval: intervalMinutes)
         
         // Return calculations
-        let rStart = normalizeDate(returnStartTime)
-        let rEnd = normalizeDate(returnEndTime)
-        total += calculateCount(s: rStart, e: rEnd, interval: returnIntervalMinutes)
+        if scheduleReturn {
+            let rStart = normalizeDate(returnStartTime)
+            let rEnd = normalizeDate(returnEndTime)
+            total += calculateCount(s: rStart, e: rEnd, interval: returnIntervalMinutes)
+        }
         
         previewCount = max(0, total)
+    }
+    
+    private func updatePathCalculations() {
+        self.estimatedDistance = network.calculatePathDistance(path: stationSequence)
+        self.estimatedTravelTime = calculateAccurateTravelTime()
     }
     
     @MainActor
@@ -450,39 +362,39 @@ struct ScheduleCreationView: View {
         let normalizedStart = normalizeDate(startTime)
         let normalizedRStartDraft = normalizeDate(returnStartTime)
 
-        // Helper to formatting Train Number & Name based on Line Prefixes
-        func makeTrainSpecs(baseNumber: Int, line: RailwayLine, currentType: String) -> (number: Int, name: String) {
-            let numPrefix = line.numberPrefix ?? 0
-            let finalNumber = (numPrefix * 1000) + baseNumber
-            
-            let code = line.codePrefix ?? currentType
-            // Rule 4: "il nome del treno è costituito dal prefisso della linea, spazio e il numero del treno"
-            let finalName = "\(code) \(finalNumber)"
-            return (finalNumber, finalName)
-        }
-
         // 1a. Probe Simulation
-        let pOutSpecs = makeTrainSpecs(baseNumber: currentStart, line: line, currentType: selectedTrainType.rawValue)
-        let probeOut = Train(id: UUID(), number: pOutSpecs.number, name: "Probe Out", type: selectedTrainType.rawValue, maxSpeed: selectedTrainType.defaultMaxSpeed, priority: selectedTrainType.defaultPriority, lineId: line.id, departureTime: normalizedStart, stops: outwardStops)
-        
-        let returnStops = outwardStops.reversed().map { stop -> RelationStop in
-            var ns = stop
-            ns.id = UUID()
-            // PIGNOLO PROTOCOL: Return uses Track 2 to avoid trivial conflicts in stations
-            ns.track = "2"
-            return ns
-        }
+        let physics = appState.getPhysics(for: selectedTrainType)
         
         // Find Return Line (or self)
-        let rLineId = network.lines.first(where: { 
+        let rLineObj = manager.lines.first(where: { 
              $0.originId == line.destinationId && $0.destinationId == line.originId 
-        })?.id ?? line.id
+        }) ?? line
         
-        // Resolve return line object if different, to get its prefixes
-        let rLineObj = network.lines.first(where: { $0.id == rLineId }) ?? line
+        let pOutNum = (line.numberPrefix ?? 0) * 1000 + currentStart
+        let probeOut = manager.instantiateTrain(
+            number: pOutNum,
+            name: "Probe Out",
+            category: selectedTrainType,
+            departureTime: normalizedStart,
+            line: line,
+            stationSequence: stationSequence,
+            acceleration: physics.acceleration,
+            deceleration: physics.deceleration,
+            preferredTrack: "1"
+        )
         
-        let pRetSpecs = makeTrainSpecs(baseNumber: currentStart + 1, line: rLineObj, currentType: selectedTrainType.rawValue)
-        let probeReturn = Train(id: UUID(), number: pRetSpecs.number, name: "Probe Return", type: selectedTrainType.rawValue, maxSpeed: selectedTrainType.defaultMaxSpeed, priority: selectedTrainType.defaultPriority, lineId: rLineId, departureTime: normalizedRStartDraft, stops: returnStops)
+        let pRetNum = (rLineObj.numberPrefix ?? 0) * 1000 + (currentStart + 1)
+        let probeReturn = manager.instantiateTrain(
+            number: pRetNum,
+            name: "Probe Return",
+            category: selectedTrainType,
+            departureTime: normalizedRStartDraft,
+            line: rLineObj,
+            stationSequence: stationSequence.reversed(),
+            acceleration: physics.acceleration,
+            deceleration: physics.deceleration,
+            preferredTrack: "2"
+        )
         
         
         
@@ -503,33 +415,23 @@ struct ScheduleCreationView: View {
         for i in 0..<outwardIterations {
             let departureTime = calendar.date(byAdding: .minute, value: i * intervalMinutes, to: normalizedStart) ?? normalizedStart
             let outwardNumber = currentStart + (i * 2)
+            let finalNumber = (line.numberPrefix ?? 0) * 1000 + outwardNumber
             
-            let specs = makeTrainSpecs(baseNumber: outwardNumber, line: line, currentType: selectedTrainType.rawValue)
-            
-            let outwardTrain = Train(
-                id: UUID(),
-                number: specs.number,
-                name: specs.name, // Now uses prefix + number
-                type: selectedTrainType.rawValue,
-                maxSpeed: selectedTrainType.defaultMaxSpeed,
-                priority: selectedTrainType.defaultPriority,
-                lineId: line.id,
+            let outwardTrain = manager.instantiateTrain(
+                number: finalNumber,
+                category: selectedTrainType,
                 departureTime: departureTime,
-                stops: outwardStops
+                line: line,
+                stationSequence: stationSequence,
+                acceleration: physics.acceleration,
+                deceleration: physics.deceleration,
+                preferredTrack: "1"
             )
             generatedTrains.append(outwardTrain)
         }
         
         // 3. GENERATE RETURN
         if scheduleReturn {
-            let returnStops = stationSequence.reversed().map { sid -> RelationStop in
-                let node = network.nodes.first(where: { $0.id == sid })
-                let defaultDwell = (node?.type == .interchange) ? 5 : 3
-                // PIGNOLO PROTOCOL: Return trains prefer Track 2 on multi-track/hubs
-                let preferredTrack = ((node?.platforms ?? 1) > 1) ? "2" : "1"
-                return RelationStop(stationId: sid, minDwellTime: defaultDwell, track: preferredTrack)
-            }
-            
             let normalizedRStart = normalizeDate(returnStartTime)
             let normalizedREnd = normalizeDate(returnEndTime)
             
@@ -542,30 +444,20 @@ struct ScheduleCreationView: View {
                 returnIterations = (eMin - sMin) / returnIntervalMinutes + 1
             }
             
-            // Re-resolve rLineObj
-             let rLineObj = network.lines.first(where: { 
-                 $0.originId == line.destinationId && $0.destinationId == line.originId 
-            }) ?? line
-            let rLineId = rLineObj.id
-            
             for i in 0..<returnIterations {
                 let departureTime = calendar.date(byAdding: .minute, value: i * returnIntervalMinutes, to: normalizedRStart) ?? normalizedRStart
                 let returnNumber = returnStartNumber + (i * 2)
+                let finalNumber = (rLineObj.numberPrefix ?? 0) * 1000 + returnNumber
                 
-                let specs = makeTrainSpecs(baseNumber: returnNumber, line: rLineObj, currentType: selectedTrainType.rawValue)
-                
-                let returnTrain = Train(
-                    id: UUID(),
-                    number: specs.number,
-                    name: specs.name,
-                    type: selectedTrainType.rawValue,
-                    // ... continuation handled by existing code
-
-                    maxSpeed: selectedTrainType.defaultMaxSpeed,
-                    priority: selectedTrainType.defaultPriority,
-                    lineId: rLineId,
+                let returnTrain = manager.instantiateTrain(
+                    number: finalNumber,
+                    category: selectedTrainType,
                     departureTime: departureTime,
-                    stops: returnStops
+                    line: rLineObj,
+                    stationSequence: stationSequence.reversed(),
+                    acceleration: physics.acceleration,
+                    deceleration: physics.deceleration,
+                    preferredTrack: "2"
                 )
                 generatedTrains.append(returnTrain)
             }
@@ -574,189 +466,31 @@ struct ScheduleCreationView: View {
         print("🚄 [GEN] Treni generati totali: \(generatedTrains.count). (Andata + Ritorno)")
         
         aiStatus = "starting_pipeline".localized
+        optimizationStartTime = Date()
         
         // PIGNOLO PROTOCOL: Integration of new unified pipeline
+        // PIGNOLO PROTOCOL: Capture thread-safe copies of nodes/edges while on MainActor
+        let nodesCopy = network.nodes
+        let edgesCopy = network.edges
+        
         let optimizedTrains = await RailwayScheduleOptimizer.shared.executePipeline(
             newTrains: generatedTrains,
             existingTrains: manager.trains,
-            network: network,
-            useAI: appState.useCloudAI && !forceLocal,
+            nodes: nodesCopy,
+            edges: edgesCopy,
+            useAI: appState.useCloudAI && useGA && !forceLocal, // AI depends on optimization being enabled
+            useGA: useGA,
             geneticOptimizer: geneticOptimizer
         )
         
         manager.trains.append(contentsOf: optimizedTrains)
-        manager.validateSchedules(with: network)
+        manager.validateSchedules()
         
         aiStatus = nil
         dismiss()
     }
     
-    @MainActor
-    private func optimizeWithCloudAI(_ newTrains: [Train]) async {
-        aiStatus = "preparation".localized
-        let service = RailwayAIService.shared
-        
-        // 1. We must calculate proper arrival/departure times for NEW trains before AI can see conflicts
-        // We use a temporary local copy to avoid modifying the main manager until AI responds
-        var tempTrains = manager.trains + newTrains
-        
-        // PIGNOLO PROTOCOL: Refreshing times for the whole set so AI has valid schedule data
-        let tempManager = TrainManager()
-        tempManager.trains = tempTrains
-        tempManager.refreshSchedules(with: network)
-        
-        let initialConflicts = tempManager.conflictManager.calculateConflicts(network: network, trains: tempManager.trains)
-        print("🌐🌐🌐 [AI DEBUG] Rilevati \(initialConflicts.count) conflitti iniziali. Preparazione richiesta...")
-        
-        let request = service.createRequest(network: network, trains: tempManager.trains, conflicts: initialConflicts)
-        print("🌐🌐🌐 [AI DEBUG] Richiesta creata per \(tempManager.trains.count) treni totali (\(newTrains.count) nuovi).")
-        
-        aiStatus = "sending_to_cloud".localized
-        print("🌐🌐🌐 [AI DEBUG] Avvio chiamata di rete...")
-        
-        // Execute request using AsyncPublisher to avoid continuation hangs
-        let startTime = Date()
-        let timerTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 10_000_000_000) // 10 secondi
-                let elapsed = Int(Date().timeIntervalSince(startTime))
-                print("🌐🌐🌐 [AI DEBUG] In attesa da \(elapsed)s...")
-            }
-        }
-        
-        do {
-            let optimizedValues = service.optimize(request: request).values
-            
-            // Check for cancellation before entering the wait
-            if Task.isCancelled { return }
-            
-            let response = try await optimizedValues.first(where: { _ in true })
-            
-            // Check for cancellation after response
-            if Task.isCancelled { return }
-            
-            guard let response = response else {
-                print("🌐🌐🌐 [AI DEBUG] Risposta nulla/vuota dal Cloud.")
-                throw NSError(domain: "Nessuna risposta ricevuta dall'AI Cloud", code: 0)
-            }
-            
-            print("🌐🌐🌐 [AI DEBUG] Risposta ricevuta in \(Int(Date().timeIntervalSince(startTime)))s: \(response.resolutions?.count ?? 0) risoluzioni.")
-            aiStatus = "applying".localized
-            
-            // 3. APPLY AND REFRESH
-            aiStatus = "validation".localized
-            var optimizedTrains = newTrains
-            
-            if let resolutions = response.resolutions, !resolutions.isEmpty {
-                print("🌐🌐🌐 [AI DIAGNOSIS] Ricevute \(resolutions.count) risoluzioni:")
-                for res in resolutions {
-                    guard let uuid = service.getTrainUUID(optimizerId: res.train_id) else { 
-                        print("   ❌ [ERROR] Impossibile mappare AI ID \(res.train_id) a un UUID locale.")
-                        continue 
-                    }
-                    
-                    let trainName = manager.trains.first(where: { $0.id == uuid })?.name ?? newTrains.first(where: { $0.id == uuid })?.name ?? "Sconosciuto"
-                    print("   🔹 Treno \(trainName): Shift=\(res.time_adjustment_min)m, Track=\(res.track_assignment ?? -1)")
-                    
-                    if let index = optimizedTrains.firstIndex(where: { $0.id == uuid }) {
-                        applyResolution(res, to: &optimizedTrains[index])
-                    } else if let mIdx = manager.trains.firstIndex(where: { $0.id == uuid }) {
-                        applyResolution(res, to: &manager.trains[mIdx])
-                    }
-                }
-            } else {
-                print("🌐🌐🌐 [AI DEBUG] Nessuna risoluzione ricevuta dal Cloud AI. Aggiungo i treni non ottimizzati.")
-                optimizedTrains = newTrains // Keep original trains if no resolutions
-            }
-            
-            // 4. HYBRID REFINEMENT: Run a quick BUT POTENT local GA to fix remaining track/platform conflicts
-            // after the Cloud AI has settled the global timings.
-            aiStatus = "final_refinement".localized
-            let refinedTrains = await geneticOptimizer.optimize(
-                newTrains: optimizedTrains,
-                existingTrains: manager.trains,
-                network: network,
-                iterations: 120 // PIGNOLO PROTOCOL: Balanced refinement (User requested not too low)
-            )
-            
-            // PIGNOLO PROTOCOL: Total verification
-            let verificationManager = TrainManager()
-            verificationManager.trains = manager.trains + refinedTrains
-            verificationManager.refreshSchedules(with: network)
-            let postConflicts = verificationManager.conflictManager.calculateConflicts(network: network, trains: verificationManager.trains)
-            
-            print("\n" + String(repeating: "", count: 20))
-            print("🌐🌐🌐 [AI HYBRID SUCCESS] Ottimizzazione Completata:")
-            print("   📊 Conflitti Originali: \(initialConflicts.count)")
-            print("   📊 Conflitti Residui: \(postConflicts.count)")
-            
-            if !postConflicts.isEmpty {
-                print("   🚩 [AVVISO] Rimangono \(postConflicts.count) conflitti non risolvibili matematicamente:")
-                for (idx, c) in postConflicts.enumerated() {
-                    print("     \(idx+1). \(c.trainAName) vs \(c.trainBName) @ \(c.locationName)")
-                }
-            }
-            print(String(repeating: "🏆", count: 20) + "\n")
-            
-            manager.trains.append(contentsOf: refinedTrains)
-            manager.refreshSchedules(with: network) // Final global refresh
-            manager.conflictManager.detectConflicts(network: network, trains: manager.trains)
-            
-            // 5. FINAL REPORT
-            if postConflicts.isEmpty {
-                print("🏆🏆🏆 [AI HYBRID SUCCESS] Tutti i conflitti sono stati risolti!")
-            } else {
-                print("🚩🚩🚩 [AI HYBRID WARNING] Rimangono \(postConflicts.count) conflitti dopo l'ottimizzazione.")
-                for (idx, c) in postConflicts.enumerated() where idx < 5 {
-                    print("   ⚠️ Conflitto \(idx+1): \(c.description) (Treni: \(c.trainAName) e \(c.trainBName))")
-                }
-            }
-            
-            aiStatus = postConflicts.isEmpty ? "optimized".localized : String(format: "almost_resolved_fmt".localized, postConflicts.count)
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
-            aiStatus = nil
-        } catch {
-            timerTask.cancel()
-            print("🌐🌐🌐 [AI DEBUG] ERRORE: \(error.localizedDescription)")
-            aiStatus = "error".localized
-            // Fallback: just add them anyway or alert
-            manager.trains.append(contentsOf: newTrains)
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            aiStatus = nil
-        }
-        timerTask.cancel() // [FIX] Stop debug logs
-    }
-    
-    private func applyResolution(_ res: RailwayAIResolution, to train: inout Train) {
-        // 1. Time Shift (Base Departure)
-        // PIGNOLO PROTOCOL: Apply ALL adjustments, even micro-seconds, to respect AI precision
-        if let dep = train.departureTime {
-            train.departureTime = dep.addingTimeInterval(res.time_adjustment_min * 60)
-        }
-        
-        // 2. Track Assignment (Platform)
-        // [AI FIX] L'ID ritornato (es. 29, 44) è un Graph Track ID, non un numero di piattaforma (1-12).
-        // Non possiamo mapparlo direttamente a una piattaforma senza una lookup table inversa.
-        // Ignoriamo questo dato e ci affidiamo alla logica "Andata=1/Ritorno=2" e alla rifinitura GA locale.
-        /*
-        if let trackId = res.track_assignment {
-            // ... Logic removed to prevent data corruption ...
-        }
-        */
-        
-        // 3. Dwell extensions (Wait Strategy)
-        // Fondamentale: Aggiorniamo 'minDwellTime' affinché il ricalcolo degli orari rispetti l'attesa.
-        if let extraDwells = res.dwell_delays {
-            for (sIdx, extra) in extraDwells.enumerated() where sIdx < train.stops.count {
-                if extra > 0 {
-                    let minutesToAdd = Int(ceil(extra))
-                    train.stops[sIdx].minDwellTime += minutesToAdd
-                    // Optional: store in extraDwellTime for UI visualization if needed
-                    train.stops[sIdx].extraDwellTime += extra
-                }
-            }
-        }
-    }
+
     
     private func presetTrainType() {
         // 1. Match existing trains on line
@@ -798,7 +532,11 @@ struct ScheduleCreationView: View {
         return f.string(from: date)
     }
     
-    private func estimateAccurateTravelTime() -> Int {
+    private func updateEstimatedTravelTime() {
+        estimatedTravelTime = calculateAccurateTravelTime()
+    }
+    
+    private func calculateAccurateTravelTime() -> Int {
         guard stationSequence.count >= 2 else { return 0 }
         
         let dummyTrain = Train(
@@ -806,7 +544,13 @@ struct ScheduleCreationView: View {
             number: 0,
             name: "Tempo Stimato",
             type: selectedTrainType.rawValue,
-            maxSpeed: selectedTrainType.defaultMaxSpeed,
+            lineId: nil,
+            departureTime: nil,
+            stops: [],
+            vehicleId: nil,
+            maxSpeed: Double(selectedTrainType.defaultMaxSpeed),
+            acceleration: 0.5,
+            deceleration: 0.5,
             priority: selectedTrainType.defaultPriority
         )
         
@@ -868,11 +612,336 @@ struct ScheduleCreationView: View {
     }
 
 
+    private var formContent: some View {
+        ScrollView {
+            formScrollContent
+        }
+        .navigationTitle("schedule_generation".localized)
+        .onAppear {
+            handleOnAppear()
+        }
+        .sheet(item: $activePicker) { item in
+            Group {
+                switch item {
+                case .start:
+                    StationPickerView(selectedStationId: $startStationId, whitelistIds: line.stations)
+                case .via(let idx):
+                    StationPickerView(selectedStationId: $viaStationIds[idx], whitelistIds: line.stations)
+                case .end:
+                    StationPickerView(selectedStationId: $endStationId, whitelistIds: line.stations)
+                case .manual:
+                    StationPickerView(selectedStationId: $manualStationId, linkedToStationId: stationSequence.last, whitelistIds: line.stations)
+                }
+            }
+            .environmentObject(network)
+            .environmentObject(appState)
+            .environmentObject(manager)
+        }
+        .onChange(of: manualStationId) { old, new in
+            if !new.isEmpty {
+                stationSequence.append(new)
+                manualStationId = ""
+            }
+        }
+        .onChange(of: startStationId) { old, new in
+            if !new.isEmpty {
+                if stationSequence.isEmpty || !manualAddition {
+                    stationSequence = [new]
+                }
+            }
+        }
+        .onChange(of: mode) { _ in updatePreview() }
+        .onChange(of: startTime) { _ in updatePreview() }
+        .onChange(of: endTime) { _ in updatePreview() }
+        .onChange(of: intervalMinutes) { _ in updatePreview() }
+        .onChange(of: returnStartTime) { _ in updatePreview() }
+        .onChange(of: returnEndTime) { _ in updatePreview() }
+        .onChange(of: returnIntervalMinutes) { _ in updatePreview() }
+        .onChange(of: scheduleReturn) { _ in updatePreview() }
+        .onChange(of: stationSequence) { _, newSeq in
+            if appState.useCloudAI && newSeq.count >= 2 {
+                triggerLineAnalysis()
+            }
+            // Sync terminals with sequence
+            if let first = newSeq.first { startStationId = first }
+            if let last = newSeq.last { endStationId = last }
+            
+            updatePathCalculations()
+            updatePreview()
+        }
+    }
+    
+    private var formScrollContent: some View {
+        VStack(spacing: 20) {
+            headerSection
+            stationSelectSection
+            pathPickerSection
+            pathInfoRow
+            cadenceSelectionSection
+            previewSection
+            // optimizerStatusSection REMOVED: Now handled by Overlay
+            generateReturnToggle
+            Divider().padding(.top)
+            actionButtonsSection
+        }
+        .padding(.vertical)
+    }
+
+    private var optimizationOverlay: some View {
+        ZStack {
+            if geneticOptimizer.isRunning {
+                Color.black.opacity(0.7).edgesIgnoringSafeArea(.all)
+                
+                VStack(spacing: 20) {
+                    Text("Ottimizzazione in corso...")
+                        .font(.title2).bold()
+                        .foregroundColor(.white)
+                    
+                    ProgressView(value: geneticOptimizer.progress)
+                        .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                        .padding(.horizontal)
+                    
+                    HStack {
+                        Text("\(Int(geneticOptimizer.progress * 100))%")
+                            .bold()
+                            .foregroundColor(.white)
+                        Spacer()
+                        if let time = estimatedTimeRemaining {
+                            Text("Stima: \(time)")
+                                .foregroundColor(.white.opacity(0.8))
+                        }
+                    }
+                    .font(.caption)
+                    .padding(.horizontal)
+                    
+                    HStack(spacing: 15) {
+                        VStack {
+                            Text("CONFLITTI")
+                                .font(.caption2).bold().foregroundColor(.secondary)
+                            Text("\(geneticOptimizer.conflictCount)")
+                                .font(.title).bold()
+                                .foregroundColor(geneticOptimizer.conflictCount == 0 ? .green : .red)
+                        }
+                        .frame(minWidth: 80)
+                        
+                        Divider().background(Color.white)
+                        
+                        VStack {
+                            Text("GEN")
+                                .font(.caption2).bold().foregroundColor(.secondary)
+                            Text("\(geneticOptimizer.currentGeneration)")
+                                .font(.title).bold()
+                                .foregroundColor(.white)
+                        }
+                        .frame(minWidth: 80)
+                    }
+                    .padding()
+                    .background(Color(white: 0.15))
+                    .cornerRadius(12)
+                }
+                .padding(30)
+                .background(Color(UIColor.systemBackground))
+                .cornerRadius(20)
+                .shadow(radius: 20)
+                .padding(40)
+            }
+        }
+    }
+    
+    @State private var optimizationStartTime: Date? = nil
+    
+    private var estimatedTimeRemaining: String? {
+        guard let start = optimizationStartTime, geneticOptimizer.progress > 0.05 else { return nil }
+        let elapsed = Date().timeIntervalSince(start)
+        let totalEstimated = elapsed / geneticOptimizer.progress
+        let remaining = totalEstimated - elapsed
+        
+        if remaining < 0 { return "0s" }
+        
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.minute, .second]
+        formatter.unitsStyle = .abbreviated
+        return formatter.string(from: remaining)
+    }
+
+    private func handleOnAppear() {
+        startStationId = line.originId
+        endStationId = line.destinationId
+        stationSequence = line.stations
+        
+        // Sync return times
+        returnStartTime = startTime
+        returnEndTime = endTime
+        returnIntervalMinutes = intervalMinutes
+        
+        presetTrainType()
+        
+        // Propose numbers starting from 0 (range 0-999) for this line
+        let lineTrains = manager.trains.filter { $0.lineId == line.id }
+        let usedBaseNumbers = lineTrains.compactMap { t -> Int? in
+            guard let num = t.number else { return nil }
+            let prefix = line.numberPrefix ?? 0
+            return num - (prefix * 1000)
+        }.filter { $0 >= 0 && $0 < 1000 }
+        
+        let maxUsed = usedBaseNumbers.max() ?? -1
+        startNumber = (maxUsed + 1 < 1000) ? maxUsed + 1 : 0
+        
+        // If parità needs sync
+        if preferredParity == .even && startNumber % 2 != 0 { startNumber += 1 }
+        if preferredParity == .odd && startNumber % 2 == 0 { startNumber += 1 }
+        
+        returnStartNumber = (startNumber + 1 < 1000) ? startNumber + 1 : 1
+        
+        updatePreview()
+        
+        // Trigger AI Line Analysis if enabled
+        if appState.useCloudAI {
+            triggerLineAnalysis()
+        }
+        updatePathCalculations()
+    }
+    
+    private var pathPickerSection: some View {
+        PathPickerComponent(
+            startStationId: $startStationId,
+            viaStationIds: $viaStationIds,
+            endStationId: $endStationId,
+            stationSequence: $stationSequence,
+            manualAddition: $manualAddition,
+            activePicker: $activePicker,
+            manualStationId: $manualStationId,
+            lineContext: line,
+            lineAnalysis: lineAnalysis,
+            isAnalyzing: isAnalyzingLine
+        )
+        .padding(.horizontal)
+    }
+    
+    private var cadenceSelectionSection: some View {
+        HStack(alignment: .top, spacing: 20) {
+            cadenceColumn(title: directionTitle(isReturn: false), 
+                         isReturn: false,
+                         sTime: $startTime, 
+                         eTime: $endTime, 
+                         interv: $intervalMinutes,
+                         sNum: $startNumber)
+            
+            Divider()
+            
+            cadenceColumn(title: directionTitle(isReturn: true), 
+                         isReturn: true,
+                         sTime: $returnStartTime, 
+                         eTime: $returnEndTime, 
+                         interv: $returnIntervalMinutes,
+                         sNum: $returnStartNumber)
+            .opacity(scheduleReturn ? 1.0 : 0.4)
+            .disabled(!scheduleReturn)
+        }
+        .padding()
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(12)
+        .padding(.horizontal)
+    }
+    
+    private var optimizerStatusSection: some View {
+        Group {
+            if geneticOptimizer.isRunning {
+                VStack(spacing: 8) {
+                    ProgressView(value: geneticOptimizer.progress)
+                    HStack {
+                        Text(String(format: "genetic_opt_gen_fmt".localized, geneticOptimizer.currentGeneration))
+                        Spacer()
+                        Text(String(format: "conflicts_count_fmt".localized, geneticOptimizer.conflictCount))
+                            .foregroundColor(geneticOptimizer.conflictCount == 0 ? .green : .red)
+                            .bold()
+                    }
+                    .font(.caption2)
+                }
+                .padding()
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(8)
+                .padding(.horizontal)
+            }
+        }
+    }
+    
+    private var generateReturnToggle: some View {
+        Toggle(isOn: $scheduleReturn) {
+            Label {
+                Text("generate_return_trips".localized)
+                    .font(.headline)
+            } icon: {
+                Image(systemName: "arrow.left.arrow.right")
+                    .foregroundColor(.blue)
+            }
+        }
+        .padding()
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(12)
+        .padding(.horizontal)
+    }
+    
+    private var actionButtonsSection: some View {
+        HStack {
+            Button("cancel".localized.uppercased()) { dismiss() }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+            
+            Spacer()
+            
+            Button(action: {
+                if aiStatus != nil || geneticOptimizer.isRunning {
+                    // STOP EVERYTHING - Cancel and reset
+                    aiTask?.cancel()
+                    aiTask = nil
+                    aiStatus = "cancelling".localized
+                    
+                    // Wait for cleanup before resetting UI
+                    Task { @MainActor in
+                        // Give the pipeline time to detect cancellation and exit
+                        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+                        aiStatus = nil
+                    }
+                } else {
+                    aiTask = Task {
+                        await generateSchedule()
+                    }
+                }
+            }) {
+                if geneticOptimizer.isRunning || aiStatus != nil {
+                    ProgressView().controlSize(.small).padding(.trailing, 4)
+                }
+                if aiStatus != nil || geneticOptimizer.isRunning {
+                    Text("stop".localized.uppercased())
+                } else {
+                    Text("generate".localized.uppercased())
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+        }
+        .padding()
+    }
+    
     private func estimateTravelTimeBetween(_ fromId: String, _ toId: String, in network: RailwayNetwork) -> Int {
         let stations = network.findShortestPath(from: fromId, to: toId)?.0 ?? []
         guard stations.count >= 2 else { return 0 }
         
-        let dummyTrain = Train(id: UUID(), number: 0, name: "", type: selectedTrainType.rawValue, maxSpeed: selectedTrainType.defaultMaxSpeed, priority: selectedTrainType.defaultPriority)
+        let dummyTrain = Train(
+            id: UUID(),
+            number: 0,
+            name: "",
+            type: selectedTrainType.rawValue,
+            lineId: nil,
+            departureTime: nil,
+            stops: [],
+            vehicleId: nil,
+            maxSpeed: Double(selectedTrainType.defaultMaxSpeed),
+            acceleration: 0.5,
+            deceleration: 0.5,
+            priority: selectedTrainType.defaultPriority
+        )
         var totalSeconds: TimeInterval = 0
         var prevId = stations[0]
         
@@ -900,5 +969,17 @@ struct ScheduleCreationView: View {
         return Int(ceil(totalSeconds / 60.0))
     }
 
-    
+    private func directionTitle(isReturn: Bool) -> String {
+        if stationSequence.count >= 2 {
+            let start = stationName(stationSequence.first ?? "")
+            let end = stationName(stationSequence.last ?? "")
+            if isReturn {
+                return "\(end) ➔ \(start) (\("return".localized))"
+            } else {
+                return "\(start) ➔ \(end) (\("outward".localized))"
+            }
+        } else {
+            return isReturn ? "B ➔ A (\("return".localized))" : "A ➔ B (\("outward".localized))"
+        }
+    }
 }

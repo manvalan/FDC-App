@@ -1,0 +1,24 @@
+import Foundation
+
+// MARK: - File I/O Extensions for NetworkModel
+extension NetworkModel {
+    static func loadFromFile(url: URL) throws -> NetworkModel {
+        let data = try Data(contentsOf: url)
+        let decoder = JSONDecoder()
+        let dto = try decoder.decode(RailwayNetworkDTO.self, from: data)
+        let network = NetworkModel()
+        // Assuming apply(dto:) is available on NetworkModel
+        network.apply(dto: dto)
+        return network
+    }
+    
+    func saveToFile(url: URL) throws {
+        // Basic infrastructure save using DTO
+        // Note: This saves only nodes and edges unless lines/trains are included correctly via LinesManager
+        let dto = RailwayNetworkDTO(name: name, nodes: nodes, edges: edges, lines: nil, trains: nil)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        let data = try encoder.encode(dto)
+        try data.write(to: url)
+    }
+}

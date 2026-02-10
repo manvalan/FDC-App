@@ -17,9 +17,9 @@ struct LineProposalView: View {
             VStack(spacing: 0) {
                 // Header
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Proposte AI")
+                    Text("ai_proposals_title".localized)
                         .font(.largeTitle.bold())
-                    Text("L'intelligenza artificiale ha analizzato la tua rete e propone \(proposals.count) nuove linee ottimizzate.")
+                    Text(String(format: "ai_proposals_desc_fmt".localized, proposals.count))
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -32,20 +32,20 @@ struct LineProposalView: View {
                     Button(action: {
                         selectedLineIds = Set(proposals.map { $0.id })
                     }) {
-                        Label("Seleziona Tutte", systemImage: "checkmark.circle.fill")
+                        Label("select_all".localized, systemImage: "checkmark.circle.fill")
                     }
                     .buttonStyle(.borderless)
                     
                     Button(action: {
                         selectedLineIds.removeAll()
                     }) {
-                        Label("Deseleziona Tutte", systemImage: "circle")
+                        Label("deselect_all".localized, systemImage: "circle")
                     }
                     .buttonStyle(.borderless)
                     
                     Spacer()
                     
-                    Text("\(selectedLineIds.count) selezionate")
+                    Text(String(format: "selected_count_fmt".localized, selectedLineIds.count))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -80,9 +80,9 @@ struct LineProposalView: View {
                 VStack(spacing: 8) {
                     Toggle(isOn: $createSampleTrains) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Crea anche treni di esempio")
+                            Text("create_sample_trains".localized)
                                 .font(.subheadline.bold())
-                            Text("Genera automaticamente treni cadenzati per ogni linea (6:00-22:00)")
+                            Text("create_sample_trains_desc".localized)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -95,14 +95,14 @@ struct LineProposalView: View {
                 
                 // Bottom actions
                 HStack(spacing: 16) {
-                    Button("Annulla") {
+                    Button("cancel".localized) {
                         dismiss()
                     }
                     .buttonStyle(.bordered)
                     
                     Spacer()
                     
-                    Button("Crea \(selectedLineIds.count) Linee") {
+                    Button(String(format: "create_lines_btn_fmt".localized, selectedLineIds.count)) {
                         let selectedProposals = proposals.filter { selectedLineIds.contains($0.id) }
                         onApply(selectedProposals, createSampleTrains)
                         dismiss()

@@ -3,6 +3,7 @@ import SwiftUI
 struct ConflictDashboardView: View {
     let conflicts: [ScheduleConflict]
     let network: RailwayNetwork
+    let trains: [Train] // PIGNOLO: Needed to calculate suggestions
     var onFocusConflict: (ScheduleConflict) -> Void
     
     @State private var selectedTab = 0
@@ -41,7 +42,10 @@ struct ConflictDashboardView: View {
     
     private var allConflictsList: some View {
         ForEach(conflicts) { conflict in
-            ConflictCard(conflict: conflict) {
+            ConflictCard(
+                conflict: conflict,
+                suggestedResolution: calculateSuggestion(for: conflict)
+            ) {
                 onFocusConflict(conflict)
             }
         }
@@ -71,7 +75,10 @@ struct ConflictDashboardView: View {
                     .padding(.leading, 4)
                 
                 ForEach(grouped[key] ?? []) { conflict in
-                    ConflictCard(conflict: conflict) {
+                    ConflictCard(
+                        conflict: conflict,
+                        suggestedResolution: calculateSuggestion(for: conflict)
+                    ) {
                         onFocusConflict(conflict)
                     }
                 }
@@ -88,6 +95,96 @@ struct ConflictDashboardView: View {
         return counts.map { id, count in
             HotspotInfo(id: id, count: count)
         }.sorted { $0.count > $1.count }
+    }
+    
+    private func calculateSuggestion(for conflict: ScheduleConflict) -> String? {
+        guard (conflict.locationType == .station || conflict.locationType == .routing),
+              let station = findStation(for: conflict) else {
+            return nil
+        }
+        
+        var suggestions: [String] = []
+        
+        func processTrain(_ train: Train) {
+            let currentStop = train.stops.first(where: { $0.stationId == station.id })
+            let currentTrack = currentStop?.track ?? "1"
+            let prevId = getPrevStation(for: train, currentStation: station)
+            
+            // Usa i criteri di provenienza
+            let candidates = station.getTracksByProvenance(from: prevId, forLine: train.lineId)
+            
+            for cand in candidates {
+                if cand == currentTrack { continue }
+                // Verifica disponibilità reale
+                if isTrackFree(stationId: station.id, track: cand, from: conflict.timeStart, to: conflict.timeEnd, excludingId: train.id) {
+                    suggestions.append("\(train.name): \("suggestion_move_to_track".localized) \(cand) (\("free".localized))")
+                    return // Trovato il primo libero, passiamo al prossimo treno
+                }
+            }
+            
+            // Se nessun preferito è libero, prova gli altri fisici
+            let maxP = station.platforms ?? 1
+            if maxP > 1 {
+                for p in 1...maxP {
+                    let track = "\(p)"
+                    if candidates.contains(track) || track == currentTrack { continue }
+                    if isTrackFree(stationId: station.id, track: track, from: conflict.timeStart, to: conflict.timeEnd, excludingId: train.id) {
+                        suggestions.append("\(train.name): \("suggestion_move_to_track".localized) \(track) (\("alternative".localized))")
+                        return
+                    }
+                }
+            }
+        }
+        
+        if let trainA = trains.first(where: { $0.id == conflict.trainAId }) {
+            processTrain(trainA)
+        }
+        
+        if let trainB = trains.first(where: { $0.id == conflict.trainBId }), conflict.trainAId != conflict.trainBId {
+            processTrain(trainB)
+        }
+        
+        return suggestions.isEmpty ? nil : suggestions.joined(separator: "\n")
+    }
+
+    private func isTrackFree(stationId: String, track: String, from: Date, to: Date, excludingId: UUID) -> Bool {
+        let buffer: TimeInterval = 30
+        for t in trains {
+            if t.id == excludingId { continue }
+            guard let stop = t.stops.first(where: { $0.stationId == stationId && ($0.track ?? "1") == track }) else { continue }
+            guard let arr = stop.arrival, let dep = stop.departure else { continue }
+            
+            let overlapStart = max(from, arr)
+            let overlapEnd = min(to, dep)
+            if overlapStart < overlapEnd.addingTimeInterval(-buffer) {
+                return false
+            }
+        }
+        return true
+    }
+    
+    private func getPrevStation(for train: Train, currentStation: Node) -> String? {
+        if let idx = train.stops.firstIndex(where: { $0.stationId == currentStation.id }), idx > 0 {
+            return train.stops[idx - 1].stationId
+        }
+        return nil
+    }
+    
+    private func getNextStation(for train: Train, currentStation: Node) -> String? {
+        if let idx = train.stops.firstIndex(where: { $0.stationId == currentStation.id }), idx < train.stops.count - 1 {
+            return train.stops[idx + 1].stationId
+        }
+        return nil
+    }
+    
+    private func findStation(for conflict: ScheduleConflict) -> Node? {
+        // LocationId formats: "STATION_GLOBAL::ID", "TRACK::ID::Num", "ROUTING::ID::UUID"
+        let parts = conflict.locationId.components(separatedBy: "::")
+        if parts.count >= 2 {
+            let stationId = parts[1]
+            return network.nodes.first(where: { $0.id == stationId })
+        }
+        return nil
     }
 }
 

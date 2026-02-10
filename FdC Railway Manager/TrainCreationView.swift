@@ -24,6 +24,7 @@ struct TrainCreationView: View {
     
     @State private var activePicker: PickerType?
     @State private var manualStationId: String = ""
+    @State private var vehicleId: UUID? = nil
 
     var body: some View {
         NavigationStack {
@@ -70,7 +71,7 @@ struct TrainCreationView: View {
                     .keyboardType(.numberPad)
                     .multilineTextAlignment(.trailing)
             }
-            TextField("name_optional".localized, text: $trainName)
+            TextField("name".localized, text: $trainName)
             
             Picker("train_type_picker".localized, selection: $trainType) {
                 ForEach(TrainCategory.allCases) { cat in
@@ -90,6 +91,15 @@ struct TrainCreationView: View {
             }
             
             DatePicker("departure_picker".localized, selection: $departureTime, displayedComponents: .hourAndMinute)
+            
+            Section(header: Text("materiale_rotante".localized)) {
+                Picker("Mezzo", selection: $vehicleId) {
+                    Text("-").tag(UUID?.none)
+                    ForEach(manager.vehicles) { vehicle in
+                        Text(vehicle.name).tag(UUID?.some(vehicle.id))
+                    }
+                }
+            }
         }
     }
     
@@ -193,12 +203,30 @@ struct TrainCreationView: View {
             endStationId = line.destinationId
             stationSequence = line.stops.map { $0.stationId }
             
-            // Smart Numbering with Prefixes
+            // Smart Numbering and Prefixes
             let prefix = line.numberPrefix ?? 0
-            let code = line.codePrefix ?? "regional_type".localized // Fallback name prefix
+            
+            // Use the line's code prefix (e.g., AV, RE, R) or infer it
+            let code = line.codePrefix ?? ""
+            
+            // Auto-detect train category from the code prefix
+            if let codePrefix = line.codePrefix {
+                let upperCode = codePrefix.uppercased()
+                if upperCode.contains("AV") || upperCode.contains("FR") {
+                    trainType = .highSpeed
+                } else if upperCode.contains("IC") || upperCode.contains("D") {
+                    trainType = .direct
+                } else if upperCode.contains("M") {
+                    trainType = .freight
+                } else if upperCode.contains("R") {
+                    trainType = .regional
+                }
+                // Refresh physics based on new category
+                updateMaxSpeed(for: trainType)
+            }
             
             let lineTrains = manager.trains.filter { $0.lineId == line.id }
-            let existingNumbers = lineTrains.map { $0.number }
+            let existingNumbers = lineTrains.compactMap { $0.number }
             
             // Determine base number to increment
             var nextBase = 1
@@ -211,71 +239,33 @@ struct TrainCreationView: View {
             let finalNum = (prefix * 1000) + nextBase
             trainNumber = finalNum
             
-            // Pre-fill Name
-            trainName = "\(code) \(finalNum)"
+            // Pre-fill Name following user preference: "Prefix Number" (e.g., AV 9500)
+            if code.isEmpty {
+                trainName = "\(finalNum)"
+            } else {
+                trainName = "\(code) \(finalNum)"
+            }
         }
     }
     
     private func saveTrain() {
-        let stops = stationSequence.map { sid -> RelationStop in
-            let node = network.nodes.first(where: { $0.id == sid })
-            let defaultDwell = (node?.type == .interchange) ? 5 : 3
-            return RelationStop(stationId: sid, minDwellTime: defaultDwell)
-        }
+        let physics = appState.getPhysics(for: trainType)
         
-        let config = getTrainConfig()
-        
-        let newTrain = Train(
-            id: UUID(),
+        let newTrain = manager.instantiateTrain(
             number: trainNumber,
-            name: trainName.isEmpty ? String(format: "train_name_default".localized, trainNumber) : trainName,
-            type: trainType.rawValue,
-            maxSpeed: config.maxSpeed,
-            priority: config.priority,
-            acceleration: config.acceleration,
-            deceleration: config.deceleration,
-            lineId: line?.id,
-            departureTime: departureTime.normalized(),
-            stops: stops
+            name: trainName,
+            category: trainType,
+            departureTime: departureTime,
+            line: line,
+            stationSequence: stationSequence,
+            acceleration: physics.acceleration,
+            deceleration: physics.deceleration,
+            vehicleId: vehicleId
         )
+        
         manager.trains.append(newTrain)
         dismiss()
     }
     
-    private struct TrainConfig {
-        let acceleration: Double
-        let deceleration: Double
-        let priority: Int
-        let maxSpeed: Int
-    }
-    
-    private func getTrainConfig() -> TrainConfig {
-        switch trainType {
-        case .regional:
-            return TrainConfig(
-                acceleration: appState.regionalAcceleration,
-                deceleration: appState.regionalDeceleration,
-                priority: Int(appState.regionalPriority),
-                maxSpeed: Int(appState.regionalMaxSpeed)
-            )
-        case .direct:
-            return TrainConfig(
-                acceleration: appState.intercityAcceleration,
-                deceleration: appState.intercityDeceleration,
-                priority: Int(appState.intercityPriority),
-                maxSpeed: Int(appState.intercityMaxSpeed)
-            )
-        case .highSpeed:
-            return TrainConfig(
-                acceleration: appState.highSpeedAcceleration,
-                deceleration: appState.highSpeedDeceleration,
-                priority: Int(appState.highSpeedPriority),
-                maxSpeed: Int(appState.highSpeedMaxSpeed)
-            )
-        case .freight:
-            return TrainConfig(acceleration: 0.3, deceleration: 0.3, priority: 3, maxSpeed: 100)
-        case .support:
-            return TrainConfig(acceleration: 0.4, deceleration: 0.4, priority: 1, maxSpeed: 80)
-        }
-    }
+
 }

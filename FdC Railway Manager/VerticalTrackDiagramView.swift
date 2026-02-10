@@ -153,7 +153,8 @@ struct VerticalTrackDiagramView: View {
                         } else {
                             print("🔘 [UI] VerticalTrackDiagramView: Segment tapped but NO EDGE found from \(stop.stationId) to \(nextId ?? "nil")")
                         }
-                    }
+                    },
+                    leadingInfo: { EmptyView() }
                 )
                 
                 // Add intermediate station insertion button

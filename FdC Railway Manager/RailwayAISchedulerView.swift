@@ -238,6 +238,7 @@ struct RailwayAISchedulerView: View {
                 ConflictDashboardView(
                     conflicts: conflicts,
                     network: network,
+                    trains: trainManager.trains,
                     onFocusConflict: { conflict in
                         // Future: Map highlighting integration
                     }
@@ -312,7 +313,7 @@ struct RailwayAISchedulerView: View {
     // MARK: - Helpers
     
     private func runOptimization() {
-        guard let request = try? service.createRequest(network: network, trains: trainManager.trains, conflicts: trainManager.conflictManager.conflicts) else {
+        guard let request = try? service.createRequest(nodes: network.nodes, edges: network.edges, trains: trainManager.trains, conflicts: trainManager.conflictManager.conflicts) else {
             errorMessage = "Errore creazione richiesta"
             return
         }

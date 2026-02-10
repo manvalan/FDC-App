@@ -42,14 +42,15 @@ struct LineVerticalDiagram: View {
                             isLast: isLast,
                             nextStationId: nextId,
                             lineColor: Color(hex: line.color ?? "") ?? .green,
-                            isTransit: line.stops.first(where: { $0.stationId == station.id })?.minDwellTime == 0
+                            isTransit: line.stops.first(where: { $0.stationId == station.id })?.minDwellTime == 0,
+                            onStationTap: {
+                                withAnimation {
+                                    selectedStation = LineScheduleView.StationSelection(id: station.id)
+                                }
+                            },
+                            leadingInfo: { EmptyView() }
                         )
                         .contentShape(Rectangle())
-                        .onTapGesture {
-                            withAnimation {
-                                selectedStation = LineScheduleView.StationSelection(id: station.id)
-                            }
-                        }
                         .overlay(alignment: .leading) {
                             if selectedStation?.id == station.id {
                                 Rectangle()

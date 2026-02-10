@@ -30,6 +30,8 @@ struct LineScheduleView: View {
     }
     @State private var selectedStation: StationSelection? = nil
     
+    @EnvironmentObject var appState: AppState
+    
     var body: some View {
         HStack(spacing: 0) {
             // Main Content (Left)
@@ -87,26 +89,71 @@ struct LineScheduleView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: exportPDF) {
+                        Label("Esporta PDF", systemImage: "doc.plaintext.fill")
+                    }
+                }
+            }
             
             Divider()
             
-            // Side Column: Graphical Line Diagram (Right)
-            LineVerticalDiagram(
-                line: line,
-                orderedStations: orderedStations,
-                selectedStation: $selectedStation,
-                onLineClick: {
-                    withAnimation { selectedStation = nil }
+            // Side Column: Details or Graphical Line Diagram (Right)
+            Group {
+                if appState.selectedTrainIds.count == 1,
+                   let trainId = appState.selectedTrainIds.first,
+                   let train = manager.trains.first(where: { $0.id == trainId }) {
+                    
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text("Dettagli Treno").font(.headline)
+                            Spacer()
+                            Button(action: { appState.selectedTrainIds = [] }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding()
+                        
+                        TrainDetailView(train: train)
+                    }
+                    .frame(width: 350)
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .transition(.move(edge: .trailing))
+                } else {
+                    LineVerticalDiagram(
+                        line: line,
+                        orderedStations: orderedStations,
+                        selectedStation: $selectedStation,
+                        onLineClick: {
+                            withAnimation { selectedStation = nil }
+                        }
+                    )
+                    .frame(width: 250)
+                    .background(Color(UIColor.secondarySystemBackground))
                 }
-            )
-            .frame(width: 250)
-            .background(Color(UIColor.secondarySystemBackground))
+            }
         }
         .navigationTitle("Orario: \(line.name)")
         .onAppear {
             calculateLineGeometry()
         }
         .id(line.id) // Ensure state refresh on line change
+    }
+    
+    private func exportPDF() {
+        let pdfView = LinePDFExportView(
+            line: line,
+            orderedStations: orderedStations,
+            trains: manager.trains,
+            network: network
+        )
+        
+        if let url = ExportUtils.exportViewAsPDF(content: pdfView, fileName: "Orario_\(line.name)") {
+            ExportUtils.shareItem(url)
+        }
     }
     
     // MARK: - Geometry Calculation

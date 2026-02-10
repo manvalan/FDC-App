@@ -19,13 +19,13 @@ struct AdminUserListView: View {
         NavigationStack {
             List {
                 if let error = errorMessage {
-                    Section("Stato Errore") {
+                    Section("error_status".localized) {
                         Label(error, systemImage: "exclamationmark.triangle.fill")
                             .foregroundColor(.red)
                             .font(.caption)
                         
                         if error.contains("401") || error.contains("403") {
-                            Text("Suggerimento: Se il database è stato resettato, effettua un nuovo 'Test Login' nelle Impostazioni per rinnovare il token.")
+                            Text("auth_reset_suggestion".localized)
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                                 .italic()
@@ -34,16 +34,16 @@ struct AdminUserListView: View {
                 }
                 
                 if users.isEmpty && !isLoading {
-                    Text("Nessun utente trovato.")
+                    Text("no_users_found".localized)
                         .foregroundColor(.secondary)
                 } else {
-                    Section("Utenti di Sistema") {
+                    Section("system_users".localized) {
                         ForEach(users) { user in
                             HStack {
                                 VStack(alignment: .leading) {
                                     Text(user.username)
                                         .font(.headline)
-                                    Text(user.is_active ? "Attivo" : "Inattivo")
+                                    Text(user.is_active ? "active".localized : "inactive".localized)
                                         .font(.caption)
                                         .foregroundColor(user.is_active ? .green : .red)
                                 }
@@ -59,14 +59,14 @@ struct AdminUserListView: View {
                                 } else {
                                     Image(systemName: "lock.shield.fill")
                                         .foregroundColor(.orange)
-                                        .help("Admin protetto")
+                                        .help("admin_protected".localized)
                                 }
                             }
                         }
                     }
                 }
             }
-            .navigationTitle("Gestione Utenti")
+            .navigationTitle("user_management_title".localized)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
@@ -105,23 +105,23 @@ struct AdminUserListView: View {
     private var addUserSheet: some View {
         NavigationStack {
             Form {
-                Section("Credenziali Nuovo Utente") {
-                    TextField("Username", text: $newUsername)
+                Section("new_user_credentials".localized) {
+                    TextField("username".localized, text: $newUsername)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
-                    SecureField("Password", text: $newPassword)
+                    SecureField("password".localized, text: $newPassword)
                 }
             }
-            .navigationTitle("Aggiungi Utente")
+            .navigationTitle("add_user_title".localized)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Annulla") {
+                    Button("cancel".localized) {
                         showAddUser = false
                         resetAddForm()
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Salva") {
+                    Button("save".localized) {
                         performAddUser()
                     }
                     .disabled(newUsername.isEmpty || newPassword.isEmpty || isAdding)

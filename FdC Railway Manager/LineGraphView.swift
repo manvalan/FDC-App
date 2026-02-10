@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct LineGraphView: View {
     @EnvironmentObject var network: RailwayNetwork
@@ -19,26 +20,25 @@ struct LineGraphView: View {
     
     var body: some View {
         GeometryReader { geometry in
-            HStack(spacing: 0) {
-                ScrollView([.horizontal, .vertical]) {
-                    HStack(alignment: .top, spacing: 0) {
-                        
-                        // 1. Station Names Column
-                        StationLabelsView(
-                            stations: orderedStations,
-                            distances: stationDistances,
-                            pixelsPerKm: pixelsPerKm,
-                            selectedStation: $selectedStation
-                        )
-                        .frame(width: 120) // Fixed width for labels
-                        .background(Color(UIColor.systemBackground))
-                        .zIndex(1) 
-                        
-                        // 2. The Graph
+            ScrollView(.vertical) {
+                HStack(alignment: .top, spacing: 0) {
+                    // 1. Station Names Column (Fixed Horizontally)
+                    StationLabelsView(
+                        stations: orderedStations,
+                        distances: stationDistances,
+                        pixelsPerKm: pixelsPerKm,
+                        selectedStation: $selectedStation
+                    )
+                    .frame(width: 120)
+                    .background(Color(UIColor.systemBackground))
+                    .zIndex(1)
+                    
+                    // 2. The Graph (Scrollable Horizontally)
+                    ScrollView(.horizontal, showsIndicators: true) {
                         ZStack(alignment: .topLeading) {
                             // Background Grid
                             let graphHeight = max(geometry.size.height, maxDistance * pixelsPerKm + 100)
-                            let graphWidth = max(geometry.size.width - 120, 24 * timeScale)
+                            let graphWidth = 24 * timeScale
                             
                             drawGrid(width: graphWidth, height: graphHeight)
                             
@@ -48,8 +48,11 @@ struct LineGraphView: View {
                             // Conflict Markers
                             drawConflicts(width: graphWidth)
                         }
-                        .frame(width: max(geometry.size.width - 120, 24 * timeScale), 
+                        .frame(width: 24 * timeScale, 
                                height: maxDistance * pixelsPerKm + 100)
+                        .onTapGesture { location in
+                            findTrainAtLocation(location)
+                        }
                     }
                 }
             }
@@ -73,6 +76,9 @@ struct LineGraphView: View {
                     Button(action: { timeScale = min(200, timeScale + 10) }) { Image(systemName: "plus.magnifyingglass") }
                 }
             }
+        }
+        .onReceive(manager.objectWillChange) { _ in
+            // Forza il ridisegno quando cambiano gli orari dei treni
         }
         // Sheet removed - Parent handles split view
     }
@@ -109,57 +115,51 @@ struct LineGraphView: View {
     
     private func drawConflicts(width: CGFloat) -> some View {
         Canvas { context, size in
-            let calendar = Calendar.current
-            
             for conflict in manager.conflictManager.conflicts {
-                // Determine Y coordinate
+                let resId = conflict.locationId
                 var y: CGFloat? = nil
-                
                 if conflict.locationType == .station {
-                    let stationId = conflict.locationId.components(separatedBy: "::").first ?? ""
+                    // Match TRACK::[stationId]::[track] or STATION_GLOBAL::[stationId]
+                    let stationId = resId.components(separatedBy: "::").first { id in
+                         orderedStations.contains { $0.id == id }
+                    } ?? ""
+                    
                     if let idx = orderedStations.firstIndex(where: { $0.id == stationId }) {
                          y = stationDistances[idx] * pixelsPerKm + 50
                     }
-                } else {
-                    // Line Conflict: Try to approximate Y based on Edge?
-                    // Skipping visual mapping for simple line conflicts if we don't have endpoints easily
-                    // Could try to find station previous to this edge?
                 }
                 
                 if let y = y {
                     // Time X
                     let startX = xFor(conflict.timeStart)
-                    let endX = xFor(conflict.timeEnd)
                     
-                    if endX >= startX {
-                        let conflictWidth = max(8, endX - startX)
-                        let rect = CGRect(x: startX - conflictWidth/2, y: y - 10, width: conflictWidth, height: 20)
-                        context.fill(Path(roundedRect: rect, cornerRadius: 4), with: .color(.red.opacity(0.6)))
-                    } else {
-                        // Wraps Midnight
-                        let maxX = 24 * timeScale
-                        // Part 1: startX to 24:00
-                        let rect1 = CGRect(x: startX, y: y - 10, width: maxX - startX, height: 20)
-                        context.fill(Path(roundedRect: rect1, cornerRadius: 4), with: .color(.red.opacity(0.6)))
-                        // Part 2: 00:00 to endX
-                        let rect2 = CGRect(x: 0, y: y - 10, width: endX, height: 20)
-                        context.fill(Path(roundedRect: rect2, cornerRadius: 4), with: .color(.red.opacity(0.6)))
-                    }
+                    // CERCHIETTO ROSSO (Red Circle) for Station Conflict
+                    let radius: CGFloat = 12
+                    let circleRect = CGRect(x: startX - radius, y: y - radius, width: radius * 2, height: radius * 2)
+                    
+                    context.fill(Path(ellipseIn: circleRect), with: .color(.red))
+                    context.stroke(Path(ellipseIn: circleRect), with: .color(.white), lineWidth: 1.5) // White border for contrast
+                    
                     context.draw(Image(systemName: "exclamationmark.triangle.fill"), at: CGPoint(x: startX, y: y))
-                } else if conflict.locationType == .line {
-                    if conflict.locationId.hasPrefix("EDGE::") {
-                        let parts = conflict.locationId.replacingOccurrences(of: "EDGE::", with: "").components(separatedBy: "-")
-                        if parts.count == 2 {
-                            if let idx1 = orderedStations.firstIndex(where: { $0.id == parts[0] }),
-                               let idx2 = orderedStations.firstIndex(where: { $0.id == parts[1] }) {
-                                let y1 = stationDistances[idx1] * pixelsPerKm + 50
-                                let y2 = stationDistances[idx2] * pixelsPerKm + 50
-                                let midY = (y1 + y2) / 2
-                                let startX = xFor(conflict.timeStart)
-                                
-                                context.fill(Path(ellipseIn: CGRect(x: startX - 8, y: midY - 8, width: 16, height: 16)), with: .color(.red.opacity(0.8)))
-                                context.draw(Image(systemName: "bolt.fill"), at: CGPoint(x: startX, y: midY))
-                            }
+                } else if conflict.locationType == .line || resId.hasPrefix("SEGMENT") {
+                    let content = resId.replacingOccurrences(of: "SEGMENT::", with: "")
+                    let parts = content.components(separatedBy: "--")
+                    if parts.count == 2 {
+                        if let idx1 = orderedStations.firstIndex(where: { $0.id == parts[0] }),
+                           let idx2 = orderedStations.firstIndex(where: { $0.id == parts[1] }) {
+                            let y1 = stationDistances[idx1] * pixelsPerKm + 50
+                            let y2 = stationDistances[idx2] * pixelsPerKm + 50
+                            let midY = (y1 + y2) / 2
+                            let startX = xFor(conflict.timeStart)
+                            
+                            // CERCHIETTO ROSSO (Red Circle) for Line Conflict
+                            let radius: CGFloat = 10
+                            let circleRect = CGRect(x: startX - radius, y: midY - radius, width: radius * 2, height: radius * 2)
+                            
+                            context.fill(Path(ellipseIn: circleRect), with: .color(.red))
+                            context.stroke(Path(ellipseIn: circleRect), with: .color(.white), lineWidth: 1.5)
+                            
+                            context.draw(Image(systemName: "bolt.fill"), at: CGPoint(x: startX, y: midY))
                         }
                     }
                 }
@@ -192,11 +192,15 @@ struct LineGraphView: View {
                         // MATH: Add small Y offset based on track (platform) to distinguish occupancy
                         let y = CGFloat(stationDistances[idx]) * pixelsPerKm + 50.0
                         
-                        if let arrival = stop.arrival {
+                        // Use planned times if available, otherwise use calculated times
+                        let arrivalTime = stop.plannedArrival ?? stop.arrival
+                        let departureTime = stop.plannedDeparture ?? stop.departure
+                        
+                        if let arrival = arrivalTime {
                             points.append(CGPoint(x: xFor(arrival), y: y))
                         }
                         
-                        if let departure = stop.departure {
+                        if let departure = departureTime {
                             points.append(CGPoint(x: xFor(departure), y: y))
                         }
                     } else {
@@ -267,8 +271,70 @@ struct LineGraphView: View {
     
     private func strokePath(_ path: Path, for train: Train, in context: GraphicsContext) {
         guard !path.isEmpty else { return }
-        let color: Color = train.priority > 7 ? .red : .primary
-        context.stroke(path, with: .color(color), lineWidth: 2)
+        let isSelected = appState.selectedTrainIds.contains(train.id)
+        let color: Color = train.priority > 7 ? .red : (isSelected ? .yellow : .primary)
+        let lineWidth: CGFloat = isSelected ? 4 : 2
+        
+        context.drawLayer { subgroup in
+            if isSelected {
+                subgroup.addFilter(.shadow(color: Color.yellow.opacity(0.8), radius: 6))
+            }
+            subgroup.stroke(path, with: .color(color), lineWidth: lineWidth)
+        }
+    }
+    
+    @EnvironmentObject var appState: AppState
+    
+    private func findTrainAtLocation(_ location: CGPoint) {
+        let lineStationIds = Set(orderedStations.map { $0.id })
+        let trains = manager.trains.filter { train in
+            train.stops.contains { lineStationIds.contains($0.stationId) }
+        }
+        
+        var bestTrain: Train? = nil
+        var minDistance: CGFloat = 20.0 // Detection threshold in pixels
+        
+        for train in trains {
+            var points: [CGPoint] = []
+            for stop in train.stops {
+                if let idx = orderedStations.firstIndex(where: { $0.id == stop.stationId }) {
+                    let y = CGFloat(stationDistances[idx]) * pixelsPerKm + 50.0
+                    if let arrival = stop.arrival { points.append(CGPoint(x: xFor(arrival), y: y)) }
+                    if let departure = stop.departure { points.append(CGPoint(x: xFor(departure), y: y)) }
+                } else {
+                    if points.count >= 2 { checkSegments(points, for: train, at: location, minDist: &minDistance, best: &bestTrain) }
+                    points = []
+                }
+            }
+            if points.count >= 2 { checkSegments(points, for: train, at: location, minDist: &minDistance, best: &bestTrain) }
+        }
+        
+        if let found = bestTrain {
+            appState.selectTrain(found.id)
+        }
+    }
+    
+    private func checkSegments(_ points: [CGPoint], for train: Train, at location: CGPoint, minDist: inout CGFloat, best: inout Train?) {
+        for i in 0..<(points.count - 1) {
+            let p1 = points[i]
+            let p2 = points[i+1]
+            
+            // MATH: Distance from point to line segment
+            let d = distanceToSegment(p: location, a: p1, b: p2)
+            if d < minDist {
+                minDist = d
+                best = train
+            }
+        }
+    }
+    
+    private func distanceToSegment(p: CGPoint, a: CGPoint, b: CGPoint) -> CGFloat {
+        let l2 = pow(a.x - b.x, 2) + pow(a.y - b.y, 2)
+        if l2 == 0 { return sqrt(pow(p.x - a.x, 2) + pow(p.y - a.y, 2)) }
+        var t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2
+        t = max(0, min(1, t))
+        let proj = CGPoint(x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y))
+        return sqrt(pow(p.x - proj.x, 2) + pow(p.y - proj.y, 2))
     }
 }
 

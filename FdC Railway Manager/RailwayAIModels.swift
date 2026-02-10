@@ -10,13 +10,38 @@ struct RailwayAIRequest: Codable {
     let max_iterations: Int
     let ga_max_iterations: Int?
     let ga_population_size: Int?
+    let active_agent_ids: [Int]?
+    let temporal_obstacles: [TemporalObstacle]?
+    let current_time_minutes: Int?
+    
+    init(trains: [RailwayAITrainInfo], tracks: [RailwayAITrackInfo], stations: [RailwayAIStationInfo], max_iterations: Int, ga_max_iterations: Int? = nil, ga_population_size: Int? = nil, active_agent_ids: [Int]? = nil, temporal_obstacles: [TemporalObstacle]? = nil, current_time_minutes: Int? = nil) {
+        self.trains = trains
+        self.tracks = tracks
+        self.stations = stations
+        self.max_iterations = max_iterations
+        self.ga_max_iterations = ga_max_iterations
+        self.ga_population_size = ga_population_size
+        self.active_agent_ids = active_agent_ids
+        self.temporal_obstacles = temporal_obstacles
+        self.current_time_minutes = current_time_minutes
+    }
     
     enum CodingKeys: String, CodingKey {
         case trains, tracks, stations
         case max_iterations = "max_iterations"
         case ga_max_iterations = "ga_max_iterations"
         case ga_population_size = "ga_population_size"
+        case active_agent_ids = "active_agent_ids"
+        case temporal_obstacles = "temporal_obstacles"
+        case current_time_minutes = "current_time_minutes"
     }
+}
+
+struct TemporalObstacle: Codable {
+    let track_id: Int
+    let start_minute: Int
+    let end_minute: Int
+    let reason: String
 }
 
 struct RailwayAIStationInfo: Codable {
@@ -31,6 +56,7 @@ struct RailwayAITrackInfo: Codable {
     let length_km: Double
     let is_single_track: Bool
     let capacity: Int
+    let max_speed_kmh: Int
 }
 
 struct RailwayAITrainInfo: Codable {
@@ -65,6 +91,7 @@ struct RailwayAIResponse: Codable {
     let inference_time_ms: Double?
     let conflicts_detected: Int?
     let conflicts_resolved: Int?
+    let total_travel_time_min: Double?
     let error_message: String?
     
     // Legacy support for V1 UI components
@@ -80,6 +107,7 @@ struct RailwayAIResponse: Codable {
         case inference_time_ms = "inference_time_ms"
         case conflicts_detected = "conflicts_detected"
         case conflicts_resolved = "conflicts_resolved"
+        case total_travel_time_min = "total_travel_time_min"
         case error_message = "error_message"
         case ml_confidence = "ml_confidence"
         case modifications

@@ -9,16 +9,19 @@ struct RailwayMapView: View {
         case lines   // Shows commercial lines (Colored paths)
     }
 
-    @ObservedObject var network: RailwayNetwork
     @EnvironmentObject var appState: AppState
     @State private var position: MapCameraPosition = .automatic
     @Binding var selectedNode: Node?
     @Binding var selectedLine: RailwayLine?
-    @Binding var selectedEdgeId: String? // Added binding
-    @Binding var showGrid: Bool // Added binding
-    @Binding var isMoveModeEnabled: Bool // Added binding
-    @Binding var highlightedConflictLocation: String? // Added binding for conflict highlighting
-    var mode: MapVisualizationMode // Added mode
+    @Binding var selectedEdgeId: String?
+    @Binding var showGrid: Bool
+    @Binding var isMoveModeEnabled: Bool
+    @Binding var highlightedConflictLocation: String?
+    var mode: MapVisualizationMode
+    
+    private var railroad: RailroadNetwork { appState.railroad }
+    private var network: NetworkModel { railroad.network }
+    private var lines: LinesManager { railroad.lines }
     
     @State private var isExporting = false
 
@@ -29,8 +32,6 @@ struct RailwayMapView: View {
     var body: some View {
         ZStack {
             SchematicRailwayView(
-                network: network,
-                appState: appState,
                 selectedNode: $selectedNode,
                 selectedLine: $selectedLine,
                 selectedEdgeId: $selectedEdgeId,
@@ -94,7 +95,7 @@ struct RailwayMapView: View {
         let gSize = appState.globalFontSize
         let gWidth = appState.globalLineWidth
         
-        let lns = network.lines
+        let lns = lines.lines
         let schs = appState.simulator.schedules
         
         Task {
@@ -150,7 +151,7 @@ struct RailwayMapView: View {
         let gSize = appState.globalFontSize
         let gWidth = appState.globalLineWidth
         
-        let lns = network.lines
+        let lns = lines.lines
         let schs = appState.simulator.schedules
         
         Task {
@@ -411,6 +412,7 @@ struct RailwayMapView: View {
         
         // Static helpers (Sendable)
         static func calculateTrainPosition(schedule: TrainSchedule, now: Date, nodes: [Node], bounds: MapBounds, snapshotSize: CGSize) -> CGPoint? {
+            guard schedule.stops.count >= 2 else { return nil }
             for i in 0..<(schedule.stops.count - 1) {
                 let s1 = schedule.stops[i]; let s2 = schedule.stops[i+1]
                 guard let d1 = s1.departureTime, let a2 = s2.arrivalTime else { continue }
@@ -551,14 +553,14 @@ struct RailwayMapView: View {
             .background(Color.white)
         }
     }
-
-    @EnvironmentObject var trainManager: TrainManager
 }
 
-// MARK: - Schematic View Component
 struct SchematicRailwayView: View {
-    @ObservedObject var network: RailwayNetwork
-    @ObservedObject var appState: AppState
+    @EnvironmentObject var appState: AppState
+    private var railroad: RailroadNetwork { appState.railroad }
+    private var network: NetworkModel { railroad.network }
+    private var lines: LinesManager { railroad.lines }
+    
     @Binding var selectedNode: Node?
     @Binding var selectedLine: RailwayLine?
     @Binding var selectedEdgeId: String?
@@ -622,8 +624,9 @@ struct SchematicRailwayView: View {
     }
     
     private var mapBounds: MapBounds {
-        let lats = network.nodes.compactMap { $0.latitude }
-        let lons = network.nodes.compactMap { $0.longitude }
+        let nodes = network.nodes
+        let lats = nodes.compactMap { $0.latitude }
+        let lons = nodes.compactMap { $0.longitude }
         
         // Better defaults for Italy area if empty
         let minLat = lats.min() ?? 38.0
@@ -702,302 +705,53 @@ struct SchematicRailwayView: View {
                         ForEach(network.nodes) { node in
                              Color.clear
                                  .frame(width: 1, height: 1)
-                                 .position(finalPosition(for: node, in: canvasSize, bounds: bounds))
+                                 .position(MapGeometry.finalPosition(for: node, in: canvasSize, bounds: bounds, network: network))
                                  .id("node-\(node.id)")
                         }
                         
-                        // 1. Draw Map Content
-                        Canvas { context, size in
-                            let bounds = mapBounds
-
-                            // Helper struct for segment mapping
-                            struct SegmentKey: Hashable {
-                                let from: String
-                                let to: String
-                                init(_ a: String, _ b: String) {
-                                    if a < b { from = a; to = b }
-                                    else { from = b; to = a }
-                                }
-                            }
-                            
-                            // Map segments to lines for offsetting
-                            var segmentLineMap: [SegmentKey: [RailwayLine]] = [:]
-                            for line in network.lines {
-                                if hiddenLineIds.contains(line.id) { continue }
-                                let count = line.stations.count
-                                if count > 1 {
-                                    for i in 0..<(count - 1) {
-                                        let key = SegmentKey(line.stations[i], line.stations[i+1])
-                                        segmentLineMap[key, default: []].append(line)
-                                    }
-                                }
-                            }
-
-                            // Pre-calculate all node positions for performance and collision avoidance
-                            var allNodePoints: [String: CGPoint] = [:]
-                            for node in network.nodes {
-                                allNodePoints[node.id] = finalPosition(for: node, in: size, bounds: bounds)
-                            }
-                            
-                            // Structure for neighbor lookup
-                            var nodeNeighbors: [String: Set<String>] = [:]
-                            for edge in network.edges {
-                                nodeNeighbors[edge.from, default: []].insert(edge.to)
-                                nodeNeighbors[edge.to, default: []].insert(edge.from)
-                            }
-                            
-                            // 1. Draw RAW Infrastructure (Edges) - Deduplicated visually
-                            var drawnKeys = Set<String>()
-                            for edge in network.edges {
-                                let key = edge.canonicalKey
-                                if drawnKeys.contains(key) { continue }
-                                drawnKeys.insert(key)
-                                
-                                guard let p1 = allNodePoints[edge.from],
-                                      let p2 = allNodePoints[edge.to] else { continue }
-                                      
-                                // Filter out start/end nodes from obstacles
-                                let avoid = allNodePoints.values.filter { $0 != p1 && $0 != p2 }
-                                
-                                // Get neighbor positions for angle checks
-                                let neighborIdsStart = nodeNeighbors[edge.from]?.filter { $0 != edge.to } ?? []
-                                let neighborIdsEnd = nodeNeighbors[edge.to]?.filter { $0 != edge.from } ?? []
-                                let nPosStart = neighborIdsStart.compactMap { allNodePoints[$0] }
-                                let nPosEnd = neighborIdsEnd.compactMap { allNodePoints[$0] }
-                                
-                                // Base Track Path with Obstacle Avoidance and Angle Constraints
-                                let points = generateSchematicPoints(
-                                    from: p1, 
-                                    to: p2, 
-                                    avoidPoints: Array(avoid),
-                                    neighborsStart: nPosStart,
-                                    neighborsEnd: nPosEnd
-                                )
-                                let path = Path { p in
-                                    guard let first = points.first else { return }
-                                    p.move(to: first)
-                                    for pt in points.dropFirst() {
-                                        p.addLine(to: pt)
-                                    }
-                                }
-                                
-                                // Styles based on physical properties
-                                let effectiveType = edge.trackType
-                                var lineWidth: CGFloat = 1.0
-                                
-                                if effectiveType == .highSpeed {
-                                    // High-Speed: Bold red with white dashed spine
-                                    lineWidth = appState.trackWidthHighSpeed
-                                    context.stroke(path, with: .color(.red), style: StrokeStyle(lineWidth: lineWidth, lineCap: .square))
-                                    context.stroke(path, with: .color(.white.opacity(0.8)), style: StrokeStyle(lineWidth: lineWidth * 0.4, lineCap: .round, dash: [3, 3]))
-                                } else if effectiveType == .double {
-                                    // Double Track: Dark gray with parallel appearance
-                                    lineWidth = appState.trackWidthDouble
-                                    context.stroke(path, with: .color(.black.opacity(0.7)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                                    context.stroke(path, with: .color(.gray.opacity(0.5)), style: StrokeStyle(lineWidth: lineWidth - 1.5, lineCap: .round))
-                                    context.stroke(path, with: .color(.black.opacity(0.9)), style: StrokeStyle(lineWidth: lineWidth * 0.23, lineCap: .round))
-                                } else if effectiveType == .regional {
-                                    // Regional: Blue-tinted medium track
-                                    lineWidth = appState.trackWidthRegional
-                                    context.stroke(path, with: .color(.blue.opacity(0.6)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                                } else {
-                                    // Single: Simple single line (thin gray)
-                                    lineWidth = appState.trackWidthSingle
-                                    context.stroke(path, with: .color(.gray.opacity(0.6)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                                }
-                                
-                                // If mode is network, we also draw the edges that might have been selected
-                                if mode == .network && selectedEdgeId == edge.id.uuidString {
-                                    context.stroke(path, with: .color(.blue.opacity(0.5)), style: StrokeStyle(lineWidth: lineWidth + 4, lineCap: .round))
-                                }
-                            }
-
-                            // 1. Interchange Visualization (Explicit Hubs)
-                            // We group nodes by their parentHubId.
-                            // A node is part of a hub if:
-                            // a) it has a parentHubId
-                            // b) its ID is used as a parentHubId by others
-                            let hubNodes = network.nodes.filter { node in
-                                node.parentHubId != nil || network.nodes.contains(where: { $0.parentHubId == node.id })
-                            }
-                            
-                            // Group nodes by their "Effective Hub ID" (the ID of the parent/root)
-                            var hubGroups: [String: [Node]] = [:]
-                            for node in hubNodes {
-                                let hubId = node.parentHubId ?? node.id
-                                hubGroups[hubId, default: []].append(node)
-                            }
-                            
-                            // Sort each group to ensure drawing order (parent first usually better)
-                            for key in hubGroups.keys {
-                                hubGroups[key]?.sort { ($0.parentHubId == nil) && ($1.parentHubId != nil) }
-                            }
-
-                            for (hubId, nodes) in hubGroups {
-                                let positions = nodes.map { finalPosition(for: $0, in: size, bounds: bounds) }
-                                
-                                // Draw Tube-style Connection (Corridor) ONLY for multi-node hubs
-                                if nodes.count > 1 {
-                                    for i in 0..<nodes.count {
-                                        for j in (i+1)..<nodes.count {
-                                            let p1 = positions[i]
-                                            let p2 = positions[j]
-                                            
-                                            let hPath = Path { p in p.move(to: p1); p.addLine(to: p2) }
-                                            
-                                            context.stroke(hPath, with: .color(.red), style: StrokeStyle(lineWidth: 22, lineCap: .round))
-                                            context.stroke(hPath, with: .color(.white), style: StrokeStyle(lineWidth: 14, lineCap: .round))
-                                        }
-                                    }
-                                    
-                                    // Unified Name for the hub
-                                    let maxY = positions.map { $0.y }.max() ?? positions[0].y
-                                    let labelY = maxY + 35
-                                    let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
-                                    
-                                    // Name source: Use the parent node name if available, otherwise first node
-                                    let parentNode = nodes.first(where: { $0.id == hubId }) ?? nodes.first
-                                    let nameToDisplay = parentNode?.name ?? ""
-                                    
-                                    let text = Text(nameToDisplay)
-                                        .font(.system(size: appState.globalFontSize, weight: .bold))
-                                        .foregroundColor(.red)
-                                    
-                                    let resolvedText = context.resolve(text)
-                                    let textSize = resolvedText.measure(in: CGSize(width: 200, height: 50))
-                                    
-                                    let textRect = CGRect(
-                                        x: centerX - textSize.width/2 - 4,
-                                        y: labelY - textSize.height/2 - 2,
-                                        width: textSize.width + 8,
-                                        height: textSize.height + 4
-                                    )
-                                    let pill = Path(roundedRect: textRect, cornerRadius: 4)
-                                    context.fill(pill, with: .color(.white.opacity(0.8)))
-                                    context.draw(resolvedText, at: CGPoint(x: centerX, y: labelY))
-                                }
-                            }
-                            
-                            // 1.1 Handle labels for interchange nodes that are NOT in a multi-node hub
-                            let orphanInterchanges = network.nodes.filter { node in
-                                node.type == .interchange && 
-                                hubGroups[node.parentHubId ?? node.id]?.count ?? 0 <= 1
-                            }
-                            
-                            for node in orphanInterchanges {
-                                let p = finalPosition(for: node, in: size, bounds: bounds)
-                                let labelY = p.y + 35
-                                
-                                let text = Text(node.name)
-                                   .font(.system(size: appState.globalFontSize, weight: .bold))
-                                   .foregroundColor(.red)
-                                
-                                let resolvedText = context.resolve(text)
-                                let textSize = resolvedText.measure(in: CGSize(width: 200, height: 50))
-                                
-                                let textRect = CGRect(
-                                    x: p.x - textSize.width/2 - 4,
-                                    y: labelY - textSize.height/2 - 2,
-                                    width: textSize.width + 8,
-                                    height: textSize.height + 4
-                                )
-                                let pill = Path(roundedRect: textRect, cornerRadius: 4)
-                                context.fill(pill, with: .color(.white.opacity(0.8)))
-                                context.draw(resolvedText, at: CGPoint(x: p.x, y: labelY))
-                            }
-                            
-                            if mode == .lines {
-                                // Draw Commercial Lines following Schematic Path
-                                for (key, lines) in segmentLineMap {
-                                    guard let n1 = network.nodes.first(where: { $0.id == key.from }),
-                                          let n2 = network.nodes.first(where: { $0.id == key.to }) else { continue }
-                                    
-                                    let p1 = finalPosition(for: n1, in: size, bounds: bounds)
-                                    let p2 = finalPosition(for: n2, in: size, bounds: bounds)
-                                    
-                                    // 1. Generate Schematic Path (0, 45, 90)
-                                    let points = generateSchematicPoints(from: p1, to: p2)
-                                    
-                                    // 2. Iterate segments
-                                    for j in 0..<(points.count - 1) {
-                                        let sp1 = points[j]
-                                        let sp2 = points[j+1]
-                                        let angle = atan2(sp2.y - sp1.y, sp2.x - sp1.x)
-                                        let offsetBase: CGFloat = 4.0
-                                        
-                                        for (i, line) in lines.enumerated() {
-                                            let offset = CGFloat(i) * offsetBase - (CGFloat(lines.count - 1) * offsetBase / 2.0)
-                                            let offX = -sin(angle) * offset
-                                            let offY = cos(angle) * offset
-                                            
-                                            let lp1 = CGPoint(x: sp1.x + offX, y: sp1.y + offY)
-                                            let lp2 = CGPoint(x: sp2.x + offX, y: sp2.y + offY)
-                                            
-                                            let segPath = Path { p in p.move(to: lp1); p.addLine(to: lp2) }
-                                            let lineColor = Color(hex: line.color ?? "#000000") ?? .black
-                                            let isSelected = (line.id == selectedLine?.id)
-                                            let lineWidth: CGFloat = isSelected ? appState.globalLineWidth * 1.5 : appState.globalLineWidth
-                                            
-                                            if isSelected {
-                                                context.stroke(segPath, with: .color(lineColor.opacity(0.3)), style: StrokeStyle(lineWidth: lineWidth + 4, lineCap: .round))
-                                            }
-                                            context.stroke(segPath, with: .color(lineColor), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        .frame(width: canvasSize.width, height: canvasSize.height)
+                        // 1. Draw Map Content (Infrastructure)
+                        InfrastructureCanvas(
+                            mode: mode,
+                            selectedLine: selectedLine,
+                            selectedEdgeId: selectedEdgeId,
+                            hiddenLineIds: hiddenLineIds,
+                            bounds: bounds,
+                            size: canvasSize
+                        )
                         .allowsHitTesting(false)
                         
                         // 2. Draw Active Trains (Animated Overlay)
-                        // Only show trains if there are active schedules
                         if !appState.simulator.schedules.isEmpty {
-                            TimelineView(.animation) { timelineContext in
-                                Canvas { context, size in
-                                    let bounds = mapBounds
-                                    let now = timelineContext.date.normalized()
-                                    
-                                    // Only show trains if there are schedules
-                                    if !appState.simulator.schedules.isEmpty {
-                                        for schedule in appState.simulator.schedules {
-                                            if let pos = currentSchematicTrainPos(for: schedule, in: size, now: now, bounds: bounds) {
-                                                let trainDot = Path(ellipseIn: CGRect(x: pos.x - 6, y: pos.y - 6, width: 12, height: 12))
-                                                context.fill(trainDot, with: .color(.yellow))
-                                                context.stroke(trainDot, with: .color(.black), lineWidth: 1)
-                                                // Label? Only on high zoom
-                                                if totalZoom > 2.0 {
-                                                    let label = Text(schedule.trainName).font(.caption2).bold()
-                                                    context.draw(label, at: CGPoint(x: pos.x, y: pos.y - 15))
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                .frame(width: canvasSize.width, height: canvasSize.height)
-                                .allowsHitTesting(false)
-                            }
+                            TrainOverlayCanvas(
+                                bounds: bounds,
+                                canvasSize: canvasSize,
+                                totalZoom: totalZoom
+                            )
+                            .allowsHitTesting(false)
                         }
                         
-                        // 2. Interactive Nodes
-                        ForEach($network.nodes) { $node in
-                            StationNodeView(
-                                node: $node,
-                                network: network,
-                                canvasSize: canvasSize,
-                                isSelected: selectedNode?.id == node.id,
-                                snapToGrid: showGrid,
-                                gridUnit: coordinateGridStep,
-                                bounds: bounds,
-                                onTap: { handleStationTap(node) },
-                                isMoveModeEnabled: $isMoveModeEnabled,
-                                onDragStarted: { network.createCheckpoint() }
-                            )
-                            .position(finalPosition(for: node, in: canvasSize, bounds: bounds))
-                            .id("node-\(node.id)")
-                        }
+                        // 3. Interactive Nodes (Stations)
+                        StationMarkersView(
+                            selectedNode: $selectedNode,
+                            selectedLine: $selectedLine,
+                            selectedEdgeId: $selectedEdgeId,
+                            canvasSize: canvasSize,
+                            bounds: bounds,
+                            showGrid: showGrid,
+                            coordinateGridStep: coordinateGridStep,
+                            isMoveModeEnabled: $isMoveModeEnabled,
+                            onTap: { handleStationTap($0) }
+                        )
                     }
                     .frame(width: canvasSize.width, height: canvasSize.height)
+                    .onChange(of: selectedNode) { node in
+                        if let node = node { withAnimation { proxy.scrollTo("node-\(node.id)", anchor: .center) } }
+                    }
+                    .onChange(of: selectedEdgeId) { edgeId in
+                        if let edgeId = edgeId, let edge = network.edges.first(where: { $0.id.uuidString == edgeId }) {
+                             withAnimation { proxy.scrollTo("node-\(edge.from)", anchor: .center) }
+                        }
+                    }
                 }
                 .simultaneousGesture(
                     MagnificationGesture()
@@ -1009,15 +763,7 @@ struct SchematicRailwayView: View {
                             magnification = 1.0
                         }
                 )
-                .onChange(of: selectedNode) { node in
-                    if let node = node { withAnimation { proxy.scrollTo("node-\(node.id)", anchor: .center) } }
-                }
-                .onChange(of: selectedEdgeId) { edgeId in
-                    if let edgeId = edgeId, let edge = network.edges.first(where: { $0.id.uuidString == edgeId }) {
-                         withAnimation { proxy.scrollTo("node-\(edge.from)", anchor: .center) }
-                    }
-                }
-            } // End ScrollViewReader
+            } // End ScrollView
                 
                 // Consolidated Controls Toolbar (Right Side)
                 // Consolidated Controls Toolbar (Right Side)
@@ -1025,7 +771,6 @@ struct SchematicRailwayView: View {
                     isEditToolbarVisible: $isEditToolbarVisible,
                     editMode: $editMode,
                     isMoveModeEnabled: $isMoveModeEnabled,
-                    network: network,
                     zoomLevel: $zoomLevel,
                     onExport: onExport,
                     onPrint: onPrint
@@ -1184,7 +929,7 @@ struct SchematicRailwayView: View {
                 Menu {
                     Text("lines_visibility".localized)
                     Divider()
-                    ForEach(network.sortedLines) { line in
+                    ForEach(lines.lines) { line in
                         Button(action: {
                             if hiddenLineIds.contains(line.id) {
                                 hiddenLineIds.remove(line.id)
@@ -1260,7 +1005,7 @@ struct SchematicRailwayView: View {
         }
         
         let newEdge = Edge(from: n1.id, to: n2.id, distance: newTrackDistance, trackType: newTrackType, maxSpeed: speed, capacity: 10)
-        network.edges.append(newEdge)
+        network.addEdge(newEdge)
         
         // Note: Pathfinding treats all edges as bidirectional, so no need to create return edge
         
@@ -1274,81 +1019,61 @@ struct SchematicRailwayView: View {
     }
     
     private func handleCanvasTap(at location: CGPoint, in size: CGSize) {
-        if editMode == .addStation {
-            let newNode = createStation(at: location, in: size)
-            // Select the new node immediately to open the Inspector
-            selectedNode = newNode
-            // Auto-switch back to explore mode
-            editMode = .explore 
-            return
-        }
+        let bounds = self.mapBounds
         
-        // Reset selections if tapping empty space (start with a threshold)
-        var bestHitDist: CGFloat = 15.0
-        var newSelectedNode: Node? = nil
-        var newSelectedLine: RailwayLine? = nil
-        var newSelectedEdgeId: String? = nil
-        
-        // 1. Hit Test for Nodes (Stations)
+        // 1. Check Stations (using MapGeometry)
         for node in network.nodes {
-            let pNode = finalPosition(for: node, in: size, bounds: self.mapBounds)
-            let dist = hypot(location.x - pNode.x, location.y - pNode.y)
-            if dist < 30 { // Increased hit radius
-                newSelectedNode = node
-                break
+            let p = MapGeometry.finalPosition(for: node, in: size, bounds: bounds, network: network)
+            if hypot(p.x - location.x, p.y - location.y) < 20 {
+                handleStationTap(node)
+                return
             }
         }
         
-        if newSelectedNode == nil {
-            // 2. Hit Test for Lines (Commercial)
-            if mode == .lines {
-                    for line in network.lines {
-                        if hiddenLineIds.contains(line.id) { continue }
-                        let count = line.stations.count
-                        if count > 1 {
-                            for i in 0..<(count - 1) {
-                                guard let n1 = network.nodes.first(where: { $0.id == line.stations[i] }),
-                                      let n2 = network.nodes.first(where: { $0.id == line.stations[i+1] }) else { continue }
-                                let p1 = finalPosition(for: n1, in: size, bounds: self.mapBounds)
-                                let p2 = finalPosition(for: n2, in: size, bounds: self.mapBounds)
-                                let dist = distanceToSegment(p: location, v: p1, w: p2)
-                                
-                                if dist < 15 { // Line hit threshold
-                                     if dist < bestHitDist {
-                                         bestHitDist = dist
-                                         newSelectedLine = line
-                                     }
-                                }
-                            }
-                        }
-                    }
-            }
+        // 2. Check Track Segments (Edges) - Visual hit testing
+        var newSelectedEdgeId: String? = nil
+        for edge in network.edges {
+            guard let p1 = network.nodes.first(where: { $0.id == edge.from }).map({ MapGeometry.finalPosition(for: $0, in: size, bounds: bounds, network: network) }),
+                  let p2 = network.nodes.first(where: { $0.id == edge.to }).map({ MapGeometry.finalPosition(for: $0, in: size, bounds: bounds, network: network) }) else { continue }
             
-            // 3. Hit Test for Edges (Infrastructure)
-            if newSelectedLine == nil {
-                for edge in network.edges {
-                    guard let n1 = network.nodes.first(where: { $0.id == edge.from }),
-                          let n2 = network.nodes.first(where: { $0.id == edge.to }) else { continue }
-                    
-                    let p1 = finalPosition(for: n1, in: size, bounds: self.mapBounds)
-                    let p2 = finalPosition(for: n2, in: size, bounds: self.mapBounds)
-                    
-                    let dist = distanceToSegment(p: location, v: p1, w: p2)
-                    if dist < bestHitDist {
-                        bestHitDist = dist
-                        newSelectedEdgeId = edge.id.uuidString
-                    }
+            let points = MapGeometry.generateSchematicPoints(from: p1, to: p2)
+            for i in 0..<(points.count - 1) {
+                if distanceToSegment(p: location, v: points[i], w: points[i+1]) < 10 {
+                    newSelectedEdgeId = edge.id.uuidString
+                    break
                 }
             }
+            if newSelectedEdgeId != nil { break }
         }
         
-        // Update bindings
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            if let node = newSelectedNode {
-                selectedNode = node
-                selectedLine = nil
-                selectedEdgeId = nil
-                print("🎯 [Map] Selected Station: \(node.name)")
+        // 3. Check Commercial Lines
+        var newSelectedLine: RailwayLine? = nil
+        if mode == .lines {
+            for line in lines.lines {
+                if hiddenLineIds.contains(line.id) { continue }
+                guard line.stations.count >= 2 else { continue }
+                for i in 0..<(line.stations.count - 1) {
+                    guard let n1 = network.nodes.first(where: { $0.id == line.stations[i] }),
+                          let n2 = network.nodes.first(where: { $0.id == line.stations[i+1] }) else { continue }
+                    let p1 = MapGeometry.finalPosition(for: n1, in: size, bounds: bounds, network: network)
+                    let p2 = MapGeometry.finalPosition(for: n2, in: size, bounds: bounds, network: network)
+                    let points = MapGeometry.generateSchematicPoints(from: p1, to: p2)
+                    for j in 0..<(points.count - 1) {
+                        if distanceToSegment(p: location, v: points[j], w: points[j+1]) < 8 {
+                            newSelectedLine = line
+                            break
+                        }
+                    }
+                    if newSelectedLine != nil { break }
+                }
+                if newSelectedLine != nil { break }
+            }
+        }
+        
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            if editMode == .addStation {
+                let newNode = createStation(at: location, in: size)
+                handleStationTap(newNode)
             } else if let line = newSelectedLine {
                 selectedLine = line
                 selectedNode = nil
@@ -1360,7 +1085,6 @@ struct SchematicRailwayView: View {
                 selectedLine = nil
                 print("🎯 [Map] Selected Track Segment: \(edgeId)")
             } else if editMode == .explore {
-                // Deselect all ONLY in explore mode
                 selectedNode = nil
                 selectedLine = nil
                 selectedEdgeId = nil
@@ -1400,279 +1124,11 @@ struct SchematicRailwayView: View {
         let lat = minLat + (1.0 - (location.y - 50) / safeDrawHeight) * safeYRange
         
         let name = String(format: "station_default_name".localized, network.nodes.count + 1)
-        // If Snap enabled, maybe optional snap here? Usually explicit drag handles snap well enough.
-        // We can just add it and let user drag to snap.
         
         let newNode = Node(id: UUID().uuidString, name: name, type: .station, latitude: lat, longitude: lon, capacity: 10, platforms: 2)
-        network.nodes.append(newNode)
+        network.addNode(newNode)
         print("📍 Nuova stazione creata: \(name) a [\(lat), \(lon)]")
         return newNode
-    }
-
-    private func schematicPoint(for node: Node, in size: CGSize, bounds: MapBounds) -> CGPoint {
-        let lon = node.longitude ?? 0
-        let lat = node.latitude ?? 0
-        let x = (lon - bounds.minLon) / bounds.xRange * (size.width - 100) + 50
-        let y = (1.0 - (lat - bounds.minLat) / bounds.yRange) * (size.height - 100) + 50
-        return CGPoint(x: x, y: y)
-    }
-    
-    private func finalPosition(for node: Node, in size: CGSize, bounds: MapBounds) -> CGPoint {
-        // HUB VISUALIZATION LOGIC:
-        // If this node is a satellite (has parentHubId) and has a visual offset direction,
-        // we calculate its position relative to the PARENT HUB's position.
-        // This avoids overlapping dots when coordinates are identical.
-        if let parentId = node.parentHubId,
-           let parent = network.nodes.first(where: { $0.id == parentId }) {
-            
-            // 1. Calculate Parent's Base Position
-            let pPos = schematicPoint(for: parent, in: size, bounds: bounds)
-            
-            // 2. Apply Visual Offset based on Direction
-            // 25 pixels is a good visual distance for the "Hub Square" effect
-            let offset: CGFloat = 25.0
-            
-            // Default to BottomRight if direction is missing but parent exists (fallback)
-            let direction = node.hubOffsetDirection ?? .bottomRight
-            
-            switch direction {
-            case .topLeft:
-                return CGPoint(x: pPos.x - offset, y: pPos.y - offset)
-            case .topRight:
-                return CGPoint(x: pPos.x + offset, y: pPos.y - offset)
-            case .bottomLeft:
-                return CGPoint(x: pPos.x - offset, y: pPos.y + offset)
-            case .bottomRight:
-                return CGPoint(x: pPos.x + offset, y: pPos.y + offset)
-            }
-        }
-        
-        return schematicPoint(for: node, in: size, bounds: bounds)
-    }
-    
-    // Create London Underground-style path with rounded corners
-    private func createRoundedPath(from start: CGPoint, to end: CGPoint, cornerRadius: CGFloat) -> Path {
-        return Path { path in
-            // For now, simple straight line
-            // TODO: Detect direction changes and add rounded corners at junctions
-            path.move(to: start)
-            path.addLine(to: end)
-        }
-    }
-
-    // Helper: Generate Octilinear Path (0, 45, 90 degrees)
-    // Tries to use "Centered Diagonal" approach: Horizontal/Vertical -> Diagonal -> Horizontal/Vertical
-    private func generateSchematicPoints(
-        from p1: CGPoint, 
-        to p2: CGPoint, 
-        avoidPoints: [CGPoint] = [],
-        neighborsStart: [CGPoint] = [],
-        neighborsEnd: [CGPoint] = []
-    ) -> [CGPoint] {
-        let candidates = generateSchematicCandidates(from: p1, to: p2)
-        
-        // If no constraints, return the first preference (Centered)
-        if avoidPoints.isEmpty && neighborsStart.isEmpty && neighborsEnd.isEmpty {
-            return candidates.first?.points ?? [p1, p2]
-        }
-        
-        var bestCandidate: (points: [CGPoint], cost: Double)? = nil
-        
-        for cand in candidates {
-            let cost = calculatePathCost(
-                path: cand.points, 
-                avoid: avoidPoints,
-                neighborsStart: neighborsStart,
-                neighborsEnd: neighborsEnd
-            )
-            
-            if cost == 0 { return cand.points } // Found perfect path
-            
-            if bestCandidate == nil || cost < bestCandidate!.cost {
-                bestCandidate = (cand.points, cost)
-            }
-        }
-        
-        return bestCandidate?.points ?? [p1, p2]
-    }
-    
-    private struct SchematicCandidate {
-        let points: [CGPoint]
-        let type: String
-    }
-    
-    private func generateSchematicCandidates(from p1: CGPoint, to p2: CGPoint) -> [SchematicCandidate] {
-        var candidates: [SchematicCandidate] = []
-        
-        let dx = p2.x - p1.x
-        let dy = p2.y - p1.y
-        let adx = abs(dx)
-        let ady = abs(dy)
-        let minDiff = min(adx, ady)
-        let sx: CGFloat = dx > 0 ? 1 : -1
-        let sy: CGFloat = dy > 0 ? 1 : -1
-        
-        if minDiff < 5 || abs(adx - ady) < 5 {
-             return [SchematicCandidate(points: [p1, p2], type: "Direct")]
-        }
-        
-        let diagLen = minDiff
-        let straightLen = max(adx, ady) - diagLen
-        
-        // 1. Centered Diagonal
-        if adx > ady {
-            let hSeg = straightLen / 2.0
-            let m1 = CGPoint(x: p1.x + sx * hSeg, y: p1.y)
-            let m2 = CGPoint(x: m1.x + sx * diagLen, y: m1.y + sy * diagLen)
-            candidates.append(SchematicCandidate(points: [p1, m1, m2, p2], type: "Centered"))
-            
-            // 2. Late Diagonal (Horizontal then Diagonal)
-            let m_late = CGPoint(x: p1.x + sx * straightLen, y: p1.y)
-            candidates.append(SchematicCandidate(points: [p1, m_late, p2], type: "Late"))
-            
-            // 3. Early Diagonal (Diagonal then Horizontal)
-            let m_early = CGPoint(x: p1.x + sx * diagLen, y: p1.y + sy * diagLen)
-            candidates.append(SchematicCandidate(points: [p1, m_early, p2], type: "Early"))
-            
-        } else {
-            let vSeg = straightLen / 2.0
-            let m1 = CGPoint(x: p1.x, y: p1.y + sy * vSeg)
-            let m2 = CGPoint(x: m1.x + sx * diagLen, y: m1.y + sy * diagLen)
-            candidates.append(SchematicCandidate(points: [p1, m1, m2, p2], type: "Centered"))
-            
-            // Late Diagonal (Vertical then Diagonal)
-            let m_late = CGPoint(x: p1.x, y: p1.y + sy * straightLen)
-            candidates.append(SchematicCandidate(points: [p1, m_late, p2], type: "Late"))
-            
-            // Early Diagonal (Diagonal then Vertical)
-            let m_early = CGPoint(x: p1.x + sx * diagLen, y: p1.y + sy * diagLen)
-            candidates.append(SchematicCandidate(points: [p1, m_early, p2], type: "Early"))
-        }
-        
-        // 4. L-Shapes (90 degrees, no diagonal) - Fallback
-        candidates.append(SchematicCandidate(points: [p1, CGPoint(x: p2.x, y: p1.y), p2], type: "L-HV"))
-        candidates.append(SchematicCandidate(points: [p1, CGPoint(x: p1.x, y: p2.y), p2], type: "L-VH"))
-        
-        return candidates
-    }
-    
-    private func calculatePathCost(path: [CGPoint], avoid: [CGPoint], neighborsStart: [CGPoint], neighborsEnd: [CGPoint]) -> Double {
-        var cost: Double = 0
-        let collisionThreshold: CGFloat = 25.0
-        
-        // 1. Collision Cost
-        for i in 0..<path.count-1 {
-            let s1 = path[i]
-            let s2 = path[i+1]
-            
-            for p in avoid {
-                 let d = distanceToSegment(p, s1, s2)
-                 if d < collisionThreshold {
-                     cost += (collisionThreshold - d) * 100
-                 }
-            }
-        }
-        
-        // 2. Angle Cost (Neighbors)
-        // Check start node angles
-        if path.count > 1 {
-            let vStart = normalize(vector: CGPoint(x: path[1].x - path[0].x, y: path[1].y - path[0].y))
-            for n in neighborsStart {
-                let vN = normalize(vector: CGPoint(x: n.x - path[0].x, y: n.y - path[0].y))
-                let dotProd = vStart.x * vN.x + vStart.y * vN.y
-                // If dotProd >= 0, angle <= 90 degrees (Acute or Right). We want > 90 (Obtuse), so dotProd < 0.
-                if dotProd > -0.01 { 
-                    cost += 500 // Penalty for angles <= 90
-                }
-            }
-        }
-        
-        // Check end node angles
-        if path.count > 1 {
-            let last = path[path.count-1]
-            let prev = path[path.count-2]
-            // Vector leaving the end node back onto the track
-            let vEnd = normalize(vector: CGPoint(x: prev.x - last.x, y: prev.y - last.y))
-            for n in neighborsEnd {
-                // Vector leaving the end node towards neighbor
-                let vN = normalize(vector: CGPoint(x: n.x - last.x, y: n.y - last.y))
-                let dotProd = vEnd.x * vN.x + vEnd.y * vN.y
-                if dotProd > -0.01 {
-                    cost += 500
-                }
-            }
-        }
-        
-        return cost
-    }
-    
-    private func normalize(vector: CGPoint) -> CGPoint {
-        let len = sqrt(vector.x*vector.x + vector.y*vector.y)
-        return len > 0 ? CGPoint(x: vector.x/len, y: vector.y/len) : CGPoint(x: 1, y: 0)
-    }
-
-    private func distanceToSegment(_ p: CGPoint, _ v: CGPoint, _ w: CGPoint) -> CGFloat {
-        let l2 = (v.x - w.x)*(v.x - w.x) + (v.y - w.y)*(v.y - w.y)
-        if l2 == 0 { return hypot(p.x - v.x, p.y - v.y) }
-        var t = ((p.x - v.x)*(w.x - v.x) + (p.y - v.y)*(w.y - v.y)) / l2
-        t = max(0, min(1, t))
-        
-        return hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)))
-    }
-
-    private func currentSchematicTrainPos(for schedule: TrainSchedule, in size: CGSize, now: Date, bounds: MapBounds) -> CGPoint? {
-        for i in 0..<(schedule.stops.count - 1) {
-            let s1 = schedule.stops[i]
-            let s2 = schedule.stops[i+1]
-            guard let d1 = s1.departureTime, let a2 = s2.arrivalTime else { continue }
-            
-            if now >= d1 && now <= a2 {
-                let duration = a2.timeIntervalSince(d1)
-                let elapsed = now.timeIntervalSince(d1)
-                let progress = duration > 0 ? elapsed / duration : 0.0
-                
-                guard let n1 = network.nodes.first(where: { $0.id == s1.stationId }),
-                      let n2 = network.nodes.first(where: { $0.id == s2.stationId }) else { return nil }
-                
-                // Use same schematic path as tracks
-                let p1 = schematicPoint(for: n1, in: size, bounds: bounds)
-                let p2 = schematicPoint(for: n2, in: size, bounds: bounds)
-                let points = generateSchematicPoints(from: p1, to: p2)
-                
-                // Walk the polyline to find the point at 'progress'
-                // 1. Calculate total length
-                var totalLen: CGFloat = 0
-                var segmentLens: [CGFloat] = []
-                for j in 0..<(points.count - 1) {
-                    let d = hypot(points[j+1].x - points[j].x, points[j+1].y - points[j].y)
-                    totalLen += d
-                    segmentLens.append(d)
-                }
-                
-                if totalLen == 0 { return p1 }
-                
-                // 2. Find segment
-                let targetDist = totalLen * CGFloat(progress)
-                var currentDist: CGFloat = 0
-                
-                for j in 0..<(points.count - 1) {
-                    let sl = segmentLens[j]
-                    if currentDist + sl >= targetDist {
-                        // In this segment
-                        let localProg = (targetDist - currentDist) / (sl > 0 ? sl : 1)
-                        let sp1 = points[j]
-                        let sp2 = points[j+1]
-                        return CGPoint(
-                            x: sp1.x + (sp2.x - sp1.x) * localProg,
-                            y: sp1.y + (sp2.y - sp1.y) * localProg
-                        )
-                    }
-                    currentDist += sl
-                }
-                return points.last
-            }
-        }
-        return nil
     }
 }
 
@@ -1680,7 +1136,7 @@ struct SchematicRailwayView: View {
 struct StationNodeView: View {
     @EnvironmentObject var appState: AppState
     @Binding var node: Node
-    var network: RailwayNetwork
+    private var network: NetworkModel { appState.railroad.network }
     var canvasSize: CGSize
     var isSelected: Bool
     var snapToGrid: Bool
@@ -1688,111 +1144,93 @@ struct StationNodeView: View {
     var bounds: SchematicRailwayView.MapBounds
     var onTap: () -> Void
     @Binding var isMoveModeEnabled: Bool
-    var onDragStarted: (() -> Void)? = nil // Added callback
+    var onDragStarted: (() -> Void)? = nil
     @State private var dragOffset: CGSize = .zero
     
     var body: some View {
-        let isHubOrInterchange = node.type == .interchange
-        
+        stationContent
+            .frame(width: 44, height: 44)
+            .contentShape(Circle())
+            .background(Circle().fill(Color.white).opacity(0.001))
+            .overlay(selectionOverlay)
+            .overlay(alignment: .top) { labelOverlay }
+            .onLongPressGesture(minimumDuration: 0.6) {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                    isMoveModeEnabled.toggle()
+                }
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            }
+            .onTapGesture { onTap() }
+            .gesture(dragGesture)
+    }
+
+    @ViewBuilder
+    private var stationContent: some View {
+        if node.type == .interchange {
+            ZStack {
+                Circle().fill(Color.white).frame(width: 14, height: 14)
+                Circle().stroke(Color.red, lineWidth: 5).frame(width: 19, height: 19)
+            }
+        } else {
+            let color = Color(hex: node.customColor ?? node.defaultColor) ?? .black
+            let visualType = node.visualType ?? node.defaultVisualType
+            ZStack {
+                Circle().fill(Color.white).frame(width: 20, height: 20)
+                symbolView(type: visualType, color: color).frame(width: 24, height: 24)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var selectionOverlay: some View {
         Group {
-            if isHubOrInterchange {
-                // Tube Style: White Circle with Thick Red Border
-                ZStack {
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 14, height: 14)
-                    Circle()
-                        .stroke(Color.red, lineWidth: 5)
-                        .frame(width: 19, height: 19)
-                }
-            } else {
-                let color = Color(hex: node.customColor ?? node.defaultColor) ?? .black
-                let visualType = node.visualType ?? node.defaultVisualType
+            if isSelected {
+                Circle().stroke(Color.blue, lineWidth: 2).scaleEffect(1.4)
+            }
+            if isMoveModeEnabled {
+                Circle().stroke(Color.blue.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [4, 2])).scaleEffect(1.3)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var labelOverlay: some View {
+        let isPartOfMultiNodeHub = network.nodes.contains { 
+            ($0.parentHubId == node.id || (node.parentHubId != nil && $0.parentHubId == node.parentHubId && $0.id != node.id))
+        }
+        if !isPartOfMultiNodeHub {
+            Text(node.name)
+                .font(.system(size: appState.globalFontSize, weight: .black))
+                .fixedSize()
+                .foregroundColor(.black)
+                .shadow(color: .white, radius: 2)
+                .offset(y: 28)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private var dragGesture: some Gesture {
+        isMoveModeEnabled ?
+        DragGesture(minimumDistance: 5)
+            .onChanged { val in
+                if dragOffset == .zero { onDragStarted?() }
+                let deltaX = val.translation.width - dragOffset.width
+                let deltaY = val.translation.height - dragOffset.height
+                dragOffset = val.translation
                 
-                ZStack {
-                    // White backing to cover track lines
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 20, height: 20)
-                    
-                    symbolView(type: visualType, color: color)
-                        .frame(width: 24, height: 24)
-                }
-            }
-        }
-        .frame(width: 44, height: 44) // Larger interactive area
-        .contentShape(Circle())
-        .background(Circle().fill(Color.white).opacity(0.001))
-        .overlay(
-            Group {
-                if isSelected {
-                    Circle().stroke(Color.blue, lineWidth: 2).scaleEffect(1.4)
-                }
+                let drawWidth = max(canvasSize.width - 100, 1)
+                let drawHeight = max(canvasSize.height - 100, 1)
+                let dLon = (deltaX / drawWidth) * bounds.xRange
+                let dLat = -(deltaY / drawHeight) * bounds.yRange
                 
-                if isMoveModeEnabled {
-                    Circle()
-                        .stroke(Color.blue.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [4, 2]))
-                        .scaleEffect(1.3)
-                }
+                node.latitude = (node.latitude ?? 0) + dLat
+                node.longitude = (node.longitude ?? 0) + dLon
             }
-        )
-        .overlay(alignment: .top) {
-            // Hide label if it's part of a multi-node hub (Canvas handles Red Label for hubs)
-            let isPartOfMultiNodeHub = network.nodes.contains { 
-                ($0.parentHubId == node.id || (node.parentHubId != nil && $0.parentHubId == node.parentHubId && $0.id != node.id))
+            .onEnded { _ in
+                dragOffset = .zero
+                if snapToGrid { snapNodeToGrid() }
             }
-            
-            if !isPartOfMultiNodeHub {
-                Text(node.name)
-                    .font(.system(size: appState.globalFontSize, weight: .black))
-                    .fixedSize()
-                    .foregroundColor(.black)
-                    .shadow(color: .white, radius: 2)
-                    .offset(y: 28)
-                    .allowsHitTesting(false)
-            }
-        }
-        .onLongPressGesture(minimumDuration: 0.6) {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                isMoveModeEnabled.toggle()
-            }
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        }
-        .onTapGesture {
-            onTap()
-        }
-            .gesture(
-                isMoveModeEnabled ?
-                DragGesture(minimumDistance: 5)
-                    .onChanged { val in
-                        if dragOffset == .zero {
-                            onDragStarted?()
-                        }
-                        let deltaX = val.translation.width - dragOffset.width
-                        let deltaY = val.translation.height - dragOffset.height
-                        dragOffset = val.translation
-                        
-                        let drawWidth = canvasSize.width - 100
-                        let drawHeight = canvasSize.height - 100
-                        let safeDrawWidth = drawWidth > 0 ? drawWidth : 1
-                        let safeDrawHeight = drawHeight > 0 ? drawHeight : 1
-                        
-                        let dLon = (deltaX / safeDrawWidth) * bounds.xRange
-                        let dLat = -(deltaY / safeDrawHeight) * bounds.yRange
-                        
-                        // Move this node
-                        node.latitude = (node.latitude ?? 0) + dLat
-                        node.longitude = (node.longitude ?? 0) + dLon
-                        
-                    }
-                    .onEnded { val in
-                        dragOffset = .zero
-                        if snapToGrid {
-                            snapNodeToGrid()
-                        }
-                    }
-                : nil
-            )
+        : nil
     }
     
     // Helper to snap ACTUAL lat/lon based on coordinate units
@@ -1866,10 +1304,12 @@ struct CoordinateGridShape: Shape {
  
 
 struct MapControlsView: View {
+    @EnvironmentObject var appState: AppState
+    private var network: NetworkModel { appState.railroad.network }
+    
     @Binding var isEditToolbarVisible: Bool
     @Binding var editMode: SchematicRailwayView.EditMode
     @Binding var isMoveModeEnabled: Bool
-    @ObservedObject var network: RailwayNetwork
     @Binding var zoomLevel: CGFloat
     
     var onExport: (RailwayMapView.ExportFormat) -> Void
@@ -1960,5 +1400,369 @@ struct MapControlsView: View {
             .shadow(radius: 4)
         }
         .padding()
+    }
+}
+
+// MARK: - Extracted Map Views (Self-contained for performance)
+
+struct InfrastructureCanvas: View {
+    @EnvironmentObject var appState: AppState
+    private var network: NetworkModel { appState.railroad.network }
+    private var lines: LinesManager { appState.railroad.lines }
+    
+    let mode: RailwayMapView.MapVisualizationMode
+    let selectedLine: RailwayLine?
+    let selectedEdgeId: String?
+    let hiddenLineIds: Set<String>
+    let bounds: SchematicRailwayView.MapBounds
+    let size: CGSize
+    
+    var body: some View {
+        Canvas { context, size in
+            // Pre-calculate all node positions
+            var allNodePoints: [String: CGPoint] = [:]
+            for node in network.nodes {
+                allNodePoints[node.id] = MapGeometry.finalPosition(for: node, in: size, bounds: bounds, network: network)
+            }
+            
+            // Structure for neighbor lookup (needed for smart angles)
+            var nodeNeighbors: [String: Set<String>] = [:]
+            for edge in network.edges {
+                nodeNeighbors[edge.from, default: []].insert(edge.to)
+                nodeNeighbors[edge.to, default: []].insert(edge.from)
+            }
+            
+            // Helper struct for commercial line segment mapping
+            struct SegmentKey: Hashable {
+                let from: String; let to: String
+                init(_ a: String, _ b: String) { if a < b { from = a; to = b } else { from = b; to = a } }
+            }
+            var segmentLineMap: [SegmentKey: [RailwayLine]] = [:]
+            for line in lines.lines {
+                if hiddenLineIds.contains(line.id) { continue }
+                guard line.stations.count >= 2 else { continue }
+                for i in 0..<(line.stations.count - 1) {
+                    let key = SegmentKey(line.stations[i], line.stations[i+1])
+                    segmentLineMap[key, default: []].append(line)
+                }
+            }
+            
+            // PIGNOLO GEOMETRY CACHE: Store calculated paths to ensure Lines match Tracks exactly
+            var computedGeometries: [SegmentKey: [CGPoint]] = [:]
+            
+            // 1. Draw Edges (Physical Infrastructure)
+            var drawnKeys = Set<String>()
+            for edge in network.edges {
+                let key = edge.canonicalKey
+                if drawnKeys.contains(key) { continue }
+                drawnKeys.insert(key)
+                
+                guard let p1 = allNodePoints[edge.from], let p2 = allNodePoints[edge.to] else { continue }
+                let avoid = allNodePoints.values.filter { $0 != p1 && $0 != p2 }
+                let nPosStart = (nodeNeighbors[edge.from]?.filter { $0 != edge.to } ?? []).compactMap { allNodePoints[$0] }
+                let nPosEnd = (nodeNeighbors[edge.to]?.filter { $0 != edge.from } ?? []).compactMap { allNodePoints[$0] }
+                
+                let points = MapGeometry.generateSchematicPoints(from: p1, to: p2, avoidPoints: Array(avoid), neighborsStart: nPosStart, neighborsEnd: nPosEnd)
+                let path = Path { p in
+                    guard let first = points.first else { return }
+                    p.move(to: first)
+                    for pt in points.dropFirst() { p.addLine(to: pt) }
+                }
+                
+                // Save computed geometry for reuse by Lines layer
+                computedGeometries[SegmentKey(edge.from, edge.to)] = points
+                
+                let effectiveType = edge.trackType
+                var lineWidth: CGFloat = 1.0
+                if effectiveType == .highSpeed {
+                    lineWidth = appState.trackWidthHighSpeed
+                    // PIGNOLO FIX: Use .round cap to match the dashed overlay and avoid ugly corners
+                    context.stroke(path, with: .color(.red), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    context.stroke(path, with: .color(.white.opacity(0.8)), style: StrokeStyle(lineWidth: lineWidth * 0.4, lineCap: .round, dash: [3, 3]))
+                } else if effectiveType == .double {
+                    lineWidth = appState.trackWidthDouble
+                    context.stroke(path, with: .color(.black.opacity(0.7)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    context.stroke(path, with: .color(.gray.opacity(0.5)), style: StrokeStyle(lineWidth: lineWidth - 1.5, lineCap: .round))
+                    context.stroke(path, with: .color(.black.opacity(0.9)), style: StrokeStyle(lineWidth: lineWidth * 0.23, lineCap: .round))
+                } else if effectiveType == .regional {
+                    lineWidth = appState.trackWidthRegional
+                    context.stroke(path, with: .color(.blue.opacity(0.6)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                } else {
+                    lineWidth = appState.trackWidthSingle
+                    context.stroke(path, with: .color(.gray.opacity(0.6)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                }
+                
+                if mode == .network && selectedEdgeId == edge.id.uuidString {
+                    context.stroke(path, with: .color(.blue.opacity(0.5)), style: StrokeStyle(lineWidth: lineWidth + 4, lineCap: .round))
+                }
+            }
+
+            // Hubs Visualization
+            let hubNodes = network.nodes.filter { node in
+                node.parentHubId != nil || network.nodes.contains(where: { $0.parentHubId == node.id })
+            }
+            var hubGroups: [String: [Node]] = [:]
+            for node in hubNodes {
+                let hubId = node.parentHubId ?? node.id
+                hubGroups[hubId, default: []].append(node)
+            }
+            for (hubId, nodes) in hubGroups {
+                if nodes.count > 1 {
+                    let positions = nodes.map { MapGeometry.finalPosition(for: $0, in: size, bounds: bounds, network: network) }
+                    for i in 0..<nodes.count {
+                        for j in (i+1)..<nodes.count {
+                            let hPath = Path { p in p.move(to: positions[i]); p.addLine(to: positions[j]) }
+                            context.stroke(hPath, with: .color(.red), style: StrokeStyle(lineWidth: 22, lineCap: .round))
+                            context.stroke(hPath, with: .color(.white), style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                        }
+                    }
+                    let maxY = positions.map { $0.y }.max() ?? positions[0].y
+                    let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
+                    let parentNode = nodes.first(where: { $0.id == hubId }) ?? nodes.first
+                    MapDrawing.drawNodeLabel(context: context, text: parentNode?.name ?? "", at: CGPoint(x: centerX, y: maxY + 35), color: .red, fontSize: appState.globalFontSize)
+                }
+            }
+            
+            // Commercial Lines (Mode Lines)
+            if mode == .lines {
+                for (key, lines) in segmentLineMap {
+                    guard let n1 = network.nodes.first(where: { $0.id == key.from }),
+                          let n2 = network.nodes.first(where: { $0.id == key.to }) else { continue }
+                    
+                    // PIGNOLO FIX: Reuse physical geometry if available to avoid misalignment
+                    let points: [CGPoint]
+                    if let cached = computedGeometries[key] {
+                        points = cached
+                    } else {
+                        // Fallback (Should rarely happen if tracks exist)
+                        let p1 = allNodePoints[n1.id]!
+                        let p2 = allNodePoints[n2.id]!
+                        // PIGNOLO FIX: Use FULL avoidance logic even in fallback to match visual style better
+                        let avoid = allNodePoints.values.filter { $0 != p1 && $0 != p2 }
+                        points = MapGeometry.generateSchematicPoints(from: p1, to: p2, avoidPoints: Array(avoid))
+                    }
+                    
+                    for j in 0..<(points.count - 1) {
+                        let sp1 = points[j]; let sp2 = points[j+1]
+                        let angle = atan2(sp2.y - sp1.y, sp2.x - sp1.x)
+                        let offsetBase: CGFloat = 6.0
+                        
+                        for (i, line) in lines.enumerated() {
+                            let offset = CGFloat(i) * offsetBase - (CGFloat(lines.count - 1) * offsetBase / 2.0)
+                            let lp1 = CGPoint(x: sp1.x - sin(angle) * offset, y: sp1.y + cos(angle) * offset)
+                            let lp2 = CGPoint(x: sp2.x - sin(angle) * offset, y: sp2.y + cos(angle) * offset)
+                            
+                            let path = Path { p in p.move(to: lp1); p.addLine(to: lp2) }
+                            let isSelected = (line.id == selectedLine?.id)
+                            let lineWidth = isSelected ? appState.globalLineWidth * 1.5 : appState.globalLineWidth
+                            context.stroke(path, with: .color(Color(hex: line.color ?? "#000000") ?? .black), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                        }
+                    }
+                }
+            }
+        }
+        .frame(width: size.width, height: size.height)
+    }
+}
+
+struct TrainOverlayCanvas: View {
+    @EnvironmentObject var appState: AppState
+    private var network: NetworkModel { appState.railroad.network }
+    
+    let bounds: SchematicRailwayView.MapBounds
+    let canvasSize: CGSize
+    let totalZoom: CGFloat
+    
+    var body: some View {
+        TimelineView(.animation) { timelineContext in
+            Canvas { context, size in
+                let now = timelineContext.date.normalized()
+                for schedule in appState.simulator.schedules {
+                    if let pos = MapGeometry.currentSchematicTrainPos(for: schedule, in: size, now: now, bounds: bounds, network: network) {
+                        let trainDot = Path(ellipseIn: CGRect(x: pos.x - 6, y: pos.y - 6, width: 12, height: 12))
+                        context.fill(trainDot, with: .color(.yellow))
+                        context.stroke(trainDot, with: .color(.black), lineWidth: 1)
+                        if totalZoom > 2.0 {
+                            let label = Text(schedule.trainName).font(.caption2).bold()
+                            context.draw(label, at: CGPoint(x: pos.x, y: pos.y - 15))
+                        }
+                    }
+                }
+            }
+        }
+        .frame(width: canvasSize.width, height: canvasSize.height)
+    }
+}
+
+struct StationMarkersView: View {
+    @EnvironmentObject var appState: AppState
+    private var network: NetworkModel { appState.railroad.network }
+    
+    @Binding var selectedNode: Node?
+    @Binding var selectedLine: RailwayLine?
+    @Binding var selectedEdgeId: String?
+    let canvasSize: CGSize
+    let bounds: SchematicRailwayView.MapBounds
+    let showGrid: Bool
+    let coordinateGridStep: Double
+    @Binding var isMoveModeEnabled: Bool
+    let onTap: (Node) -> Void
+    
+    var body: some View {
+        ForEach(network.nodes.indices, id: \.self) { index in
+            StationNodeView(
+                node: Binding(
+                    get: { network.nodes[index] },
+                    set: { network.nodes[index] = $0 }
+                ),
+                canvasSize: canvasSize,
+                isSelected: selectedNode?.id == network.nodes[index].id,
+                snapToGrid: showGrid,
+                gridUnit: coordinateGridStep,
+                bounds: bounds,
+                onTap: { onTap(network.nodes[index]) },
+                isMoveModeEnabled: $isMoveModeEnabled,
+                onDragStarted: { network.createCheckpoint() }
+            )
+            .position(MapGeometry.finalPosition(for: network.nodes[index], in: canvasSize, bounds: bounds, network: network))
+            .id("node-\(network.nodes[index].id)")
+        }
+    }
+}
+
+struct MapGeometry {
+    static func schematicPoint(for node: Node, in size: CGSize, bounds: SchematicRailwayView.MapBounds) -> CGPoint {
+        let lon = node.longitude ?? 0; let lat = node.latitude ?? 0
+        let x = (lon - bounds.minLon) / bounds.xRange * (size.width - 100) + 50
+        let y = (1.0 - (lat - bounds.minLat) / bounds.yRange) * (size.height - 100) + 50
+        return CGPoint(x: x, y: y)
+    }
+    
+    static func finalPosition(for node: Node, in size: CGSize, bounds: SchematicRailwayView.MapBounds, network: NetworkModel) -> CGPoint {
+        if let parentId = node.parentHubId, let parent = network.nodes.first(where: { $0.id == parentId }) {
+            let pPos = schematicPoint(for: parent, in: size, bounds: bounds)
+            let offset: CGFloat = 25.0
+            let direction = node.hubOffsetDirection ?? .bottomRight
+            switch direction {
+            case .topLeft: return CGPoint(x: pPos.x - offset, y: pPos.y - offset)
+            case .topRight: return CGPoint(x: pPos.x + offset, y: pPos.y - offset)
+            case .bottomLeft: return CGPoint(x: pPos.x - offset, y: pPos.y + offset)
+            case .bottomRight: return CGPoint(x: pPos.x + offset, y: pPos.y + offset)
+            }
+        }
+        return schematicPoint(for: node, in: size, bounds: bounds)
+    }
+    
+    static func generateSchematicPoints(from p1: CGPoint, to p2: CGPoint, avoidPoints: [CGPoint] = [], neighborsStart: [CGPoint] = [], neighborsEnd: [CGPoint] = []) -> [CGPoint] {
+        let candidates = generateSchematicCandidates(from: p1, to: p2)
+        if avoidPoints.isEmpty && neighborsStart.isEmpty && neighborsEnd.isEmpty { return candidates.first?.points ?? [p1, p2] }
+        var best: (points: [CGPoint], cost: Double)? = nil
+        for cand in candidates {
+            let cost = calculatePathCost(path: cand.points, avoid: avoidPoints, neighborsStart: neighborsStart, neighborsEnd: neighborsEnd)
+            if cost == 0 { return cand.points }
+            if best == nil || cost < best!.cost { best = (cand.points, cost) }
+        }
+        return best?.points ?? [p1, p2]
+    }
+    
+    private struct SchematicCandidate { let points: [CGPoint]; let type: String }
+    
+    private static func generateSchematicCandidates(from p1: CGPoint, to p2: CGPoint) -> [SchematicCandidate] {
+        var cands: [SchematicCandidate] = []
+        let dx = p2.x - p1.x; let dy = p2.y - p1.y
+        let adx = abs(dx); let ady = abs(dy)
+        let minD = min(adx, ady); let sx: CGFloat = dx > 0 ? 1 : -1; let sy: CGFloat = dy > 0 ? 1 : -1
+        if minD < 5 || abs(adx - ady) < 5 { return [SchematicCandidate(points: [p1, p2], type: "Direct")] }
+        let diag = minD; let str = max(adx, ady) - diag
+        if adx > ady {
+            let h = str / 2.0; let m1 = CGPoint(x: p1.x + sx * h, y: p1.y); let m2 = CGPoint(x: m1.x + sx * diag, y: m1.y + sy * diag)
+            cands.append(SchematicCandidate(points: [p1, m1, m2, p2], type: "Centered"))
+            cands.append(SchematicCandidate(points: [p1, CGPoint(x: p1.x + sx * str, y: p1.y), p2], type: "Late"))
+            cands.append(SchematicCandidate(points: [p1, CGPoint(x: p1.x + sx * diag, y: p1.y + sy * diag), p2], type: "Early"))
+        } else {
+            let v = str / 2.0; let m1 = CGPoint(x: p1.x, y: p1.y + sy * v); let m2 = CGPoint(x: m1.x + sx * diag, y: m1.y + sy * diag)
+            cands.append(SchematicCandidate(points: [p1, m1, m2, p2], type: "Centered"))
+            cands.append(SchematicCandidate(points: [p1, CGPoint(x: p1.x, y: p1.y + sy * str), p2], type: "Late"))
+            cands.append(SchematicCandidate(points: [p1, CGPoint(x: p1.x + sx * diag, y: p1.y + sy * diag), p2], type: "Early"))
+        }
+        cands.append(SchematicCandidate(points: [p1, CGPoint(x: p2.x, y: p1.y), p2], type: "L-HV"))
+        cands.append(SchematicCandidate(points: [p1, CGPoint(x: p1.x, y: p2.y), p2], type: "L-VH"))
+        return cands
+    }
+    
+    private static func calculatePathCost(path: [CGPoint], avoid: [CGPoint], neighborsStart: [CGPoint], neighborsEnd: [CGPoint]) -> Double {
+        var cost: Double = 0
+        for i in 0..<path.count-1 {
+            for p in avoid { if distanceToSegment(p, path[i], path[i+1]) < 25 { cost += 500 } }
+        }
+        if path.count > 1 {
+            let start = path[0]; let first = path[1]
+            let vS = normalize(vector: CGPoint(x: first.x - start.x, y: first.y - start.y))
+            for n in neighborsStart {
+                let vN = normalize(vector: CGPoint(x: n.x - start.x, y: n.y - start.y))
+                if (vS.x * vN.x + vS.y * vN.y) > -0.01 { cost += 500 }
+            }
+            
+            let last = path.last!; let prev = path[path.count-2]
+            let vE = normalize(vector: CGPoint(x: prev.x - last.x, y: prev.y - last.y))
+            for n in neighborsEnd {
+                let vN = normalize(vector: CGPoint(x: n.x - last.x, y: n.y - last.y))
+                if (vE.x * vN.x + vE.y * vN.y) > -0.01 { cost += 500 }
+            }
+        }
+        return cost
+    }
+    
+    private static func normalize(vector: CGPoint) -> CGPoint {
+        let l = hypot(vector.x, vector.y); return l > 0 ? CGPoint(x: vector.x/l, y: vector.y/l) : CGPoint(x: 1, y: 0)
+    }
+    
+    private static func distanceToSegment(_ p: CGPoint, _ v: CGPoint, _ w: CGPoint) -> CGFloat {
+        let l2 = (v.x-w.x)*(v.x-w.x)+(v.y-w.y)*(v.y-w.y); if l2 == 0 { return hypot(p.x-v.x, p.y-v.y) }
+        var t = ((p.x-v.x)*(w.x-v.x)+(p.y-v.y)*(w.y-v.y))/l2; t = max(0, min(1, t))
+        return hypot(p.x-(v.x+t*(w.x-v.x)), p.y-(v.y+t*(w.y-v.y)))
+    }
+    
+    static func currentSchematicTrainPos(for schedule: TrainSchedule, in size: CGSize, now: Date, bounds: SchematicRailwayView.MapBounds, network: NetworkModel) -> CGPoint? {
+        guard schedule.stops.count >= 2 else { return nil }
+        for i in 0..<(schedule.stops.count - 1) {
+            let s1 = schedule.stops[i]; let s2 = schedule.stops[i+1]
+            guard let d1 = s1.departureTime, let a2 = s2.arrivalTime else { continue }
+            if now >= d1 && now <= a2 {
+                let duration = a2.timeIntervalSince(d1); let elapsed = now.timeIntervalSince(d1)
+                let progress = duration > 0 ? elapsed / duration : 0.0
+                guard let n1 = network.nodes.first(where: { $0.id == s1.stationId }),
+                      let n2 = network.nodes.first(where: { $0.id == s2.stationId }) else { return nil }
+                let p1 = schematicPoint(for: n1, in: size, bounds: bounds); let p2 = schematicPoint(for: n2, in: size, bounds: bounds)
+                let points = generateSchematicPoints(from: p1, to: p2)
+                var totalLen: CGFloat = 0; var segmentLens: [CGFloat] = []
+                for j in 0..<(points.count - 1) {
+                    let d = hypot(points[j+1].x-points[j].x, points[j+1].y-points[j].y); totalLen += d; segmentLens.append(d)
+                }
+                if totalLen == 0 { return p1 }
+                let targetDist = totalLen * CGFloat(progress); var currentDist: CGFloat = 0
+                for j in 0..<(points.count - 1) {
+                    let sl = segmentLens[j]
+                    if currentDist + sl >= targetDist {
+                        let lp = (targetDist - currentDist) / (sl > 0 ? sl : 1)
+                        return CGPoint(x: points[j].x + (points[j+1].x - points[j].x) * lp, y: points[j].y + (points[j+1].y - points[j].y) * lp)
+                    }
+                    currentDist += sl
+                }
+                return points.last
+            }
+        }
+        return nil
+    }
+}
+
+struct MapDrawing {
+    static func drawNodeLabel(context: GraphicsContext, text: String, at: CGPoint, color: Color, fontSize: CGFloat) {
+        let textObj = Text(text).font(.system(size: fontSize, weight: .bold)).foregroundColor(color)
+        let resolved = context.resolve(textObj)
+        let sz = resolved.measure(in: CGSize(width: 200, height: 50))
+        let rect = CGRect(x: at.x-sz.width/2-4, y: at.y-sz.height/2-2, width: sz.width+8, height: sz.height+4)
+        context.fill(Path(roundedRect: rect, cornerRadius: 4), with: .color(.white.opacity(0.8)))
+        context.draw(resolved, at: at)
     }
 }

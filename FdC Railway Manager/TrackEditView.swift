@@ -16,6 +16,8 @@ struct TrackEditView: View {
         network.nodes.first(where: { $0.id == edge.to })
     }
     
+    @EnvironmentObject var appState: AppState
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -122,6 +124,10 @@ struct TrackEditView: View {
                 }
             }
             .padding()
+            .disabled(!appState.isInspectorEditingMode)
+        }
+        .onLongPressGesture(minimumDuration: 1.0) {
+            appState.isInspectorEditingMode.toggle()
         }
         .alert("delete_track".localized, isPresented: $showDeleteConfirmation) {
             Button("cancel".localized, role: .cancel) { }

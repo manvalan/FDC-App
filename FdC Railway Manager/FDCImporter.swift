@@ -25,145 +25,50 @@ class FDCImportViewModel: ObservableObject {
 
     func importBundledFDC(named name: String = "fdc2.fdc") async {
         status = .loading
-        print("[FDCImportViewModel] Starting import of bundled file: \(name)")
         do {
-            var fileURL: URL? = nil
-            // direct lookup first
-            if let u = Bundle.main.url(forResource: name, withExtension: nil) {
-                fileURL = u
-            } else {
+            var fileURL: URL? = Bundle.main.url(forResource: name, withExtension: nil)
+            
+            if fileURL == nil {
                 // fallback: search resources for any .fdc file
-                if let resourceRoot = Bundle.main.resourceURL {
-                    print("[FDCImportViewModel] resourceURL: \(resourceRoot.path), searching for .fdc files...")
-                    let fm = FileManager.default
-                    let enumerator = fm.enumerator(at: resourceRoot, includingPropertiesForKeys: nil)
-                    while let item = enumerator?.nextObject() as? URL {
+                if let resourceRoot = Bundle.main.resourceURL,
+                   let enumerator = FileManager.default.enumerator(at: resourceRoot, includingPropertiesForKeys: nil) {
+                    while let item = enumerator.nextObject() as? URL {
                         if item.pathExtension.lowercased() == "fdc" {
-                            print("[FDCImportViewModel] Found .fdc file in bundle: \(item.path)")
                             fileURL = item
                             break
                         }
                     }
-                } else {
-                    print("[FDCImportViewModel] Bundle.resourceURL is nil; cannot search bundle resources")
                 }
             }
 
             guard let url = fileURL else {
-                status = .failure(error: "File \(name) non trovato nel bundle (neanche con ricerca)")
-                print("[FDCImportViewModel] File not found in bundle after fallback search: \(name)")
+                status = .failure(error: "File \(name) non trovato nel bundle")
                 return
             }
 
             let data = try Data(contentsOf: url)
-            print("[FDCImportViewModel] Read \(data.count) bytes from bundle file: \(url.path)")
-
-            // Parse using FDCParser
-            let parsed = try FDCParser.parse(data: data)
-            print("[FDCImportViewModel] Parsed network: \(parsed.name) stations=\(parsed.stations.count) edges=\(parsed.edges.count) trains=\(parsed.trains.count)")
-
-            // Map parsed into RailwayNetwork
-            let nodes = parsed.stations.map { fdcStation in
-                let type: Node.NodeType = {
-                    switch fdcStation.type?.lowercased() {
-                    case "interchange": return .interchange
-                    case "depot": return .depot
-                    default: return .station
-                    }
-                }()
-                return Node(id: fdcStation.id, name: fdcStation.name, type: type, latitude: fdcStation.latitude, longitude: fdcStation.longitude, capacity: fdcStation.capacity, platforms: fdcStation.platformCount ?? 2)
-            }
-            let edges = parsed.edges.map { fdcEdge in
-                let trackType: Edge.TrackType = {
-                    switch fdcEdge.trackType?.lowercased() {
-                    case "highspeed", "high_speed": return .highSpeed
-                    case "single": return .single
-                    case "double": return .double
-                    default: return .regional
-                    }
-                }()
-                return Edge(from: fdcEdge.from, to: fdcEdge.to, distance: fdcEdge.distance ?? 1.0, trackType: trackType, maxSpeed: Int(fdcEdge.maxSpeed ?? 120.0), capacity: fdcEdge.capacity)
+            
+            // Delegate logic to aggregate root
+            guard let railroad = appState?.railroad else {
+                status = .failure(error: "Stato applicazione non disponibile")
+                return
             }
             
-            // Mapping for train IDs (FDC String -> Swift UUID)
-            var trainIdMap: [String: UUID] = [:]
+            try railroad.io.importFromFDC(data: data)
             
-            // Map trains
-            let trains = parsed.trains.enumerated().map { (idx, fdcTrain) -> Train in
-                let newId = UUID()
-                trainIdMap[fdcTrain.id] = newId
+            // Sync back to legacy models
+            if let network = self.network, let tm = self.trainManager {
+                network.nodes = railroad.network.nodes
+                network.edges = railroad.network.edges
+                // network.lines has been migrated to railroad.lines
+                tm.trains = railroad.lines.trains
                 
-                // Heuristic: try to extract numeric ID from name if it's like "R 1234"
-                let components = fdcTrain.name.components(separatedBy: .whitespaces)
-                let number = components.compactMap { Int($0) }.first ?? (1000 + idx)
-                
-                return Train(id: newId, 
-                      number: number,
-                      name: fdcTrain.name, 
-                      type: fdcTrain.type ?? "Regionale", 
-                      maxSpeed: fdcTrain.maxSpeed ?? 120, 
-                      priority: fdcTrain.priority ?? 5,
-                      acceleration: fdcTrain.acceleration ?? 0.5,
-                      deceleration: fdcTrain.deceleration ?? 0.5)
-            }
-
-            // Map schedules with correct UUIDs and Names
-            let df = ISO8601DateFormatter()
-            var tCopy = trains
-            let mappedSchedules = parsed.rawSchedules.map { sch -> TrainSchedule in
-                let swiftTrainId = trainIdMap[sch.train_id] ?? UUID()
-                let trainName = tCopy.first(where: { $0.id == swiftTrainId })?.name ?? sch.train_id
-                
-                let stops = sch.stops.map { stop -> ScheduleStop in
-                    let stationName = nodes.first(where: { $0.id == stop.node_id })?.name ?? stop.node_id
-                    return ScheduleStop(stationId: stop.node_id, 
-                                       arrivalTime: df.date(from: stop.arrival), 
-                                       departureTime: df.date(from: stop.departure), 
-                                       platform: stop.platform,
-                                       dwellsMinutes: 2,
-                                       stationName: stationName)
-                }
-                
-                // POPOLAMENTO TRENO: Importante per l'ottimizzatore
-                if let tIdx = tCopy.firstIndex(where: { $0.id == swiftTrainId }) {
-                    tCopy[tIdx].departureTime = stops.first?.departureTime
-                    tCopy[tIdx].stops = stops.map { s in
-                        RelationStop(stationId: s.stationId, 
-                                     minDwellTime: s.dwellsMinutes, 
-                                     track: s.platform.map { "\($0)" }, 
-                                     arrival: s.arrivalTime, 
-                                     departure: s.departureTime)
-                    }
-                }
-                
-                return TrainSchedule(trainId: swiftTrainId, trainName: trainName, stops: stops)
-            }
-            let updatedTrains = tCopy
-
-            if let network = self.network {
-                network.name = parsed.name
-                network.nodes = nodes
-                network.edges = edges
-                network.lines = parsed.lines
-                print("[FDCImportViewModel] Applied \(nodes.count) nodes, \(edges.count) edges, \(parsed.lines.count) lines")
+                // Update simulator view
+                appState?.simulator.schedules = railroad.lines.generateSchedulesPreview()
             }
             
-            if let trainManager = self.trainManager {
-                trainManager.trains = updatedTrains
-                print("[FDCImportViewModel] Applied \(updatedTrains.count) trains to TrainManager")
-            }
-            
-            // Populate simulator
-            if let appState = self.appState {
-                appState.simulator.schedules = mappedSchedules
-            }
-            
-            let summary = "Importati \(nodes.count) stazioni, \(edges.count) binari, \(parsed.lines.count) linee, \(trains.count) treni, \(mappedSchedules.count) orari"
+            let summary = "Importati \(railroad.network.nodes.count) stazioni, \(railroad.network.edges.count) binari, \(railroad.lines.lines.count) linee, \(railroad.lines.trains.count) treni"
             status = .success(summary: summary)
-            print("[FDCImportViewModel] Import success: \(summary)")
-        } catch let err as NSError {
-            status = .failure(error: err.localizedDescription)
-            print("[FDCImportViewModel] Import failed NSError: \(err.localizedDescription)")
         } catch {
             status = .failure(error: error.localizedDescription)
             print("[FDCImportViewModel] Import failed: \(error.localizedDescription)")

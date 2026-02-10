@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct BatchTrainEditView: View {
-    let selectedIds: Set<UUID>
+    @Binding var selectedIds: Set<UUID>
     @EnvironmentObject var manager: TrainManager
     @EnvironmentObject var network: RailwayNetwork
     
@@ -62,10 +62,6 @@ struct BatchTrainEditView: View {
     
     private func deleteSelected() {
         manager.trains.removeAll { selectedIds.contains($0.id) }
-        // Selection clearing should be handled by parent or bindings, 
-        // but since selectedIds is a let here, the parent view needs to react to changes 
-        // or we need a binding. 
-        // Ideally we should pass Binding<Set<UUID>>? 
-        // For now, ContentView's onChange will handle invalidation if we remove them from manager.
+        selectedIds.removeAll()
     }
 }

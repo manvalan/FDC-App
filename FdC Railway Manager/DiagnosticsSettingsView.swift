@@ -24,7 +24,7 @@ struct DiagnosticsSettingsView: View {
             
             Section(header: Text("debug_data_json".localized)) {
                 Button(action: {
-                    showJsonInspector(for: network.lines, title: String(format: "show_json_lines".localized, network.lines.count))
+                    showJsonInspector(for: trainManager.lines, title: String(format: "show_json_lines".localized, trainManager.lines.count))
                 }) {
                     Label("show_json_lines".localized, systemImage: "curlybraces")
                 }

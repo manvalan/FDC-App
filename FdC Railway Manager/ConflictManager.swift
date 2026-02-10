@@ -13,14 +13,16 @@ struct ScheduleConflict: Identifiable, Hashable {
     enum LocationType: String {
         case station = "Stazione"
         case line = "Linea"
+        case routing = "Instradamento"
     }
     
     let locationType: LocationType
     let locationName: String 
     let locationId: String 
-    
     let timeStart: Date
     let timeEnd: Date
+    let capacity: Int
+    let occupantsCount: Int
     
     var id: String {
         "\(trainAId.uuidString)_\(trainBId.uuidString)_\(locationId)_\(Int(timeStart.timeIntervalSince1970))"
@@ -31,7 +33,20 @@ struct ScheduleConflict: Identifiable, Hashable {
         formatter.dateFormat = "HH:mm:ss"
         let start = formatter.string(from: timeStart)
         let end = formatter.string(from: timeEnd)
-        return "Binario/Tratta occupata contemporaneamente da \(trainAName) e \(trainBName) presso \(locationName) [\(start) - \(end)]"
+        
+        if locationType == .routing {
+            return "instradamento_non_consentito_fmt".localizedFormat(trainAName, locationName)
+        }
+        
+        let typeStr: String = {
+            if locationId.hasPrefix("STATION_GLOBAL") { return "Stazione (Totale Binari)" }
+            if locationId.hasPrefix("TRACK") { return "Binario Specifico" }
+            if locationId.hasPrefix("SEGMENT") { return "Tratta / Segmento" }
+            return "Risorsa"
+        }()
+        
+        return String(format: "conflitto_capacita_fmt".localized, 
+                      trainAName, trainBName, locationName, typeStr, capacity, start, end)
     }
 }
 
@@ -41,31 +56,93 @@ class ConflictManager: ObservableObject {
     @Published var conflicts: [ScheduleConflict] = []
     @Published var lastResourceCapacities: [String: Int] = [:]
     
-    func detectConflicts(network: RailwayNetwork, trains: [Train]) {
-        let (newConflicts, newCapacities) = calculateConflictsWithCapacities(network: network, trains: trains)
-        DispatchQueue.main.async {
-            self.conflicts = Array(Set(newConflicts))
-            self.lastResourceCapacities = newCapacities
+    // PIGNOLO: Cache for static resource capacities to avoid recomputing in GA loops
+    private var cachedCapacities: [String: Int] = [:]
+    private var lastNetworkId: String = ""
+    
+    func getResourceCapacities(nodes: [Node], edges: [Edge]) -> [String: Int] {
+        var capacities: [String: Int] = [:]
+        for node in nodes {
+            let p = node.platforms ?? 2
+            capacities["STATION_GLOBAL::\(node.id)"] = max(1, p)
+        }
+        
+        var segmentEdges: [String: [Edge]] = [:]
+        for edge in edges {
+            let s1Id = edge.from < edge.to ? edge.from : edge.to
+            let s2Id = edge.from < edge.to ? edge.to : edge.from
+            segmentEdges["\(s1Id)--\(s2Id)", default: []].append(edge)
+        }
+        
+        for (key, edges) in segmentEdges {
+            let s1 = key.components(separatedBy: "--").first ?? ""
+            let fwdEdges = edges.filter { $0.from == s1 }
+            let bwdEdges = edges.filter { $0.to == s1 }
+            
+            let capFwd = fwdEdges.reduce(0) { sum, edge in
+                let slots: Int
+                switch edge.trackType {
+                case .single, .regional: slots = 1
+                case .double, .highSpeed: slots = 2
+                }
+                return sum + slots
+            }
+            
+            let capBwd = bwdEdges.reduce(0) { sum, edge in
+                let slots: Int
+                switch edge.trackType {
+                case .single, .regional: slots = 1
+                case .double, .highSpeed: slots = 2
+                }
+                return sum + slots
+            }
+            
+            var totalCap = capFwd + capBwd
+            if totalCap == 0 { totalCap = 1 }
+            
+            capacities["SEGMENT::\(key)"] = totalCap
+        }
+        
+        return capacities
+    }
+    
+    func detectConflicts(nodes: [Node], edges: [Edge], trains: [Train], pathCache: [String: [Edge]]? = nil) {
+        let nodesCopy = nodes
+        let edgesCopy = edges
+        let trainsCopy = trains
+        var localCache = pathCache
+        
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            let (newConflicts, newCapacities) = self.calculateConflictsWithCapacities(
+                nodes: nodesCopy,
+                edges: edgesCopy,
+                trains: trainsCopy,
+                pathCache: &localCache
+            )
+            
+            DispatchQueue.main.async {
+                let sortedNew = Array(Set(newConflicts)).sorted(by: { $0.id < $1.id })
+                if self.conflicts != sortedNew {
+                    self.conflicts = sortedNew
+                }
+                self.lastResourceCapacities = newCapacities
+            }
         }
     }
 
     func calculateConflicts(network: RailwayNetwork, trains: [Train]) -> [ScheduleConflict] {
         var dummyCache: [String: [Edge]]? = nil
-        return calculateConflictsWithCapacities(network: network, trains: trains, pathCache: &dummyCache).0
+        return calculateConflictsWithCapacities(nodes: network.nodes, edges: network.edges, trains: trains, pathCache: &dummyCache).0
     }
 
     func calculateConflicts(network: RailwayNetwork, trains: [Train], pathCache: inout [String: [Edge]]?) -> [ScheduleConflict] {
-        return calculateConflictsWithCapacities(network: network, trains: trains, pathCache: &pathCache).0
+        return calculateConflictsWithCapacities(nodes: network.nodes, edges: network.edges, trains: trains, pathCache: &pathCache).0
     }
 
-    func calculateConflictsWithCapacities(network: RailwayNetwork, trains: [Train]) -> ([ScheduleConflict], [String: Int]) {
-        var dummyCache: [String: [Edge]]? = nil
-        return calculateConflictsWithCapacities(network: network, trains: trains, pathCache: &dummyCache)
-    }
-
-    func calculateConflictsWithCapacities(network: RailwayNetwork, trains: [Train], pathCache: inout [String: [Edge]]?) -> ([ScheduleConflict], [String: Int]) {
+    func calculateConflictsWithCapacities(nodes: [Node], edges: [Edge], trains: [Train], pathCache: inout [String: [Edge]]?) -> ([ScheduleConflict], [String: Int]) {
         var newConflicts: [ScheduleConflict] = []
-        // Swift.print("Starting capacity-aware conflict detection for \(trains.count) trains...")
         
         struct ResourceEvent: Comparable {
             let time: Date
@@ -75,7 +152,7 @@ class ConflictManager: ObservableObject {
             
             static func < (lhs: ResourceEvent, rhs: ResourceEvent) -> Bool {
                 if lhs.time != rhs.time { return lhs.time < rhs.time }
-                return lhs.isEntry && !rhs.isEntry // Entry before exit on same time to be conservative
+                return lhs.isEntry && !rhs.isEntry
             }
         }
         
@@ -84,121 +161,82 @@ class ConflictManager: ObservableObject {
             let trainName: String
             let entry: Date
             let exit: Date
+            let resId: String
             
-            // For safety buffer: 60 seconds interval requirement
-            var effectiveExit: Date {
-                exit.addingTimeInterval(30) // PIGNOLO PROTOCOL: 30s buffer for stabilization
+            func effectiveExit() -> Date {
+                if resId.contains("TRACK") || resId.contains("STATION") {
+                    return exit.addingTimeInterval(5)
+                }
+                return exit.addingTimeInterval(30)
             }
         }
         
         var resourceOccupations: [String: [Occupation]] = [:]
-        var resourceCapacities: [String: Int] = [:]
-        
-        var calendar = Calendar.current
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        
-        func normalizeToRefDate(_ date: Date) -> Date {
-            let components = calendar.dateComponents([.hour, .minute, .second], from: date)
-            let dateAt2000 = calendar.date(from: DateComponents(year: 2000, month: 1, day: 1, hour: components.hour, minute: components.minute, second: components.second)) ?? date
-            
-            // PIGNOLO PROTOCOL: Synchronize with AI Service precision (1 second)
-            // This prevents aliasing where AI resolves at 1s but local rounds to 5s.
-            let roundedSeconds = floor(dateAt2000.timeIntervalSinceReferenceDate + 0.5)
-            return Date(timeIntervalSinceReferenceDate: roundedSeconds)
-        }
-        
-        // 1. Pre-calculate Resource Capacities
-        // Stations have node.platforms, tracks have 1 (single) or 2 (double)
-        for node in network.nodes {
-            resourceCapacities["STATION::\(node.id)"] = node.platforms ?? 2
-            resourceCapacities["STATION::\(node.id)::GLOBAL"] = node.platforms ?? 2
-        }
-        
-        // Groups edges by station pairs to determine physical track capacity
-        var segmentEdges: [String: [Edge]] = [:]
-        for edge in network.edges {
-            let s1Id = edge.from < edge.to ? edge.from : edge.to
-            let s2Id = edge.from < edge.to ? edge.to : edge.from
-            let key = "\(s1Id)--\(s2Id)"
-            segmentEdges[key, default: []].append(edge)
-        }
-        
-        for (key, edges) in segmentEdges {
-            let resId = "SEGMENT::\(key)"
-            guard let firstEdge = edges.first else { continue }
-            
-            // PIGNOLO PROTOCOL: Unified capacity calculation (Sync with RailwayGraphManager)
-            // 1. One bidirectional pair (A->B, B->A) = 1 track by default.
-            // 2. If it's a Double Track type, it's at least 2.
-            let isDual = firstEdge.trackType == .double || firstEdge.trackType == .highSpeed
-            var cap = isDual ? 2 : 1
-            
-            // 3. Parallel tracks: If we have more than 2 edges, it implies multiple physical tracks
-            if edges.count > 2 {
-                cap = max(cap, edges.count / 2)
-            }
-            
-            // 4. Manual override has highest priority
-            if let explicitCap = firstEdge.capacity, explicitCap > 0 {
-                cap = explicitCap
-            }
-            
-            resourceCapacities[resId] = cap
-        }
-        
-        // 2. Generate all occupations using PRE-CALCULATED times from Train objects
-        for train in trains {
-            guard !train.stops.isEmpty else { continue }
-            
-            var prevId: String? = nil
-            
-            for stop in train.stops {
-                // 1. Specific Track Occupation (Capacity 1)
-                let track = stop.track ?? "1"
-                let trackResId = "STATION::\(stop.stationId)::TRACK::\(track)"
-                
-                // 2. Global Station Occupation (Capacity = node.platforms)
-                let stationGlobalResId = "STATION::\(stop.stationId)::GLOBAL"
+        var resourceCapacities = getResourceCapacities(nodes: nodes, edges: edges)
 
-                // Station Occupation window (NORMALIZED and ROUNDED)
+        // Pre-raggruppamento treni per mezzo per gestire la sosta al capolinea
+        let vehicleGroups = Dictionary(grouping: trains.filter { $0.vehicleId != nil }, by: { $0.vehicleId! })
+        var vehicleMissions: [UUID: [(trainId: UUID, stationId: String, arrival: Date?, departure: Date?, track: String?)]] = [:]
+        
+        for (vId, vTrains) in vehicleGroups {
+            let missions = vTrains.flatMap { t in
+                t.stops.map { s in (trainId: t.id, stationId: s.stationId, arrival: s.arrival, departure: s.departure, track: s.track) }
+            }.sorted { 
+                ($0.arrival ?? $0.departure ?? Date.distantPast) < ($1.arrival ?? $1.departure ?? Date.distantPast)
+            }
+            vehicleMissions[vId] = missions
+        }
+
+        for train in trains {
+            var prevId: String? = nil
+            for (stopIdx, stop) in train.stops.enumerated() {
+                if stop.isSkipped { continue }
+                
+                let track = stop.track ?? "1"
+                let trackResId = "TRACK::\(stop.stationId)::\(track)"
+                let stationGlobalResId = "STATION_GLOBAL::\(stop.stationId)"
+
                 if let arrival = stop.arrival, let departure = stop.departure {
-                    let occ = Occupation(
-                        trainId: train.id, 
-                        trainName: train.name, 
-                        entry: normalizeToRefDate(arrival), 
-                        exit: normalizeToRefDate(departure))
-                    
+                    let occ = Occupation(trainId: train.id, trainName: train.name, entry: arrival.normalized(), exit: departure.normalized(), resId: trackResId)
                     resourceOccupations[trackResId, default: []].append(occ)
                     resourceOccupations[stationGlobalResId, default: []].append(occ)
                     resourceCapacities[trackResId] = 1
-                } else if let departure = stop.departure, stop.arrival == nil {
-                    let entry = departure.addingTimeInterval(-30) 
-                    let occ = Occupation(
-                        trainId: train.id, 
-                        trainName: train.name, 
-                        entry: normalizeToRefDate(entry), 
-                        exit: normalizeToRefDate(departure))
+                } 
+                else if let departure = stop.departure, stop.arrival == nil {
+                    // ORIGINE: Controlla se il mezzo arriva da un altro treno
+                    var entry = departure.addingTimeInterval(-30)
+                    if let vId = train.vehicleId, let missions = vehicleMissions[vId] {
+                        if let myIdx = missions.firstIndex(where: { $0.trainId == train.id && $0.departure == departure }) {
+                            if myIdx > 0 && missions[myIdx-1].stationId == stop.stationId {
+                                entry = missions[myIdx-1].arrival ?? entry
+                            }
+                        }
+                    }
                     
+                    let occ = Occupation(trainId: train.id, trainName: train.name, entry: entry.normalized(), exit: departure.normalized(), resId: trackResId)
                     resourceOccupations[trackResId, default: []].append(occ)
                     resourceOccupations[stationGlobalResId, default: []].append(occ)
                     resourceCapacities[trackResId] = 1
                 } else if let arrival = stop.arrival, stop.departure == nil {
-                    let exit = arrival.addingTimeInterval(30)
-                    let occ = Occupation(
-                        trainId: train.id, 
-                        trainName: train.name, 
-                        entry: normalizeToRefDate(arrival), 
-                        exit: normalizeToRefDate(exit))
+                    // CAPOLINEA: Controlla se il mezzo riparte con un altro treno
+                    var exit = arrival.addingTimeInterval(30)
+                    if let vId = train.vehicleId, let missions = vehicleMissions[vId] {
+                        if let myIdx = missions.firstIndex(where: { $0.trainId == train.id && $0.arrival == arrival }) {
+                            if myIdx < missions.count - 1 && missions[myIdx+1].stationId == stop.stationId {
+                                exit = missions[myIdx+1].departure ?? exit
+                            }
+                        }
+                    }
                     
+                    let occ = Occupation(trainId: train.id, trainName: train.name, entry: arrival.normalized(), exit: exit.normalized(), resId: trackResId)
                     resourceOccupations[trackResId, default: []].append(occ)
                     resourceOccupations[stationGlobalResId, default: []].append(occ)
                     resourceCapacities[trackResId] = 1
                 }
                 
-                // Line Segment Occupation (Iterate through individual edges)
                 if let pId = prevId, let arrival = stop.arrival, let arrivalPrev = train.stops.first(where: { $0.stationId == pId })?.departure {
                     let pathKey = "\(pId)--\(stop.stationId)"
-                    let path = pathCache?[pathKey] ?? network.findPathEdges(from: pId, to: stop.stationId)
+                    let path = pathCache?[pathKey] ?? NetworkModel.findPathEdges(from: pId, to: stop.stationId, edges: edges)
                     
                     if let actualPath = path {
                         pathCache?[pathKey] = actualPath
@@ -210,18 +248,11 @@ class ConflictManager: ObservableObject {
                         for edge in actualPath {
                             let transitTime = avgSpeed > 0 ? (edge.distance / avgSpeed * 3600.0) : 0.0
                             let exitTime = currentTime.addingTimeInterval(transitTime)
-                            
-                            // Direction-agnostic resource ID for segments
                             let s1Id = edge.from < edge.to ? edge.from : edge.to
                             let s2Id = edge.from < edge.to ? edge.to : edge.from
                             let resId = "SEGMENT::\(s1Id)--\(s2Id)"
                             
-                            let occ = Occupation(
-                                trainId: train.id, 
-                                trainName: train.name, 
-                                entry: normalizeToRefDate(currentTime), 
-                                exit: normalizeToRefDate(exitTime))
-                            
+                            let occ = Occupation(trainId: train.id, trainName: train.name, entry: currentTime.normalized(), exit: exitTime.normalized(), resId: resId)
                             resourceOccupations[resId, default: []].append(occ)
                             currentTime = exitTime
                         }
@@ -229,10 +260,43 @@ class ConflictManager: ObservableObject {
                 }
                 
                 prevId = stop.stationId
+                
+                if let node = nodes.first(where: { $0.id == stop.stationId }) {
+                    let nextStopStationId: String? = {
+                        if let idx = train.stops.firstIndex(where: { $0.id == stop.id }), idx < train.stops.count - 1 {
+                            return train.stops[idx + 1].stationId
+                        }
+                        return nil
+                    }()
+                    let prevStopStationId: String? = {
+                        if let idx = train.stops.firstIndex(where: { $0.id == stop.id }), idx > 0 {
+                            return train.stops[idx - 1].stationId
+                        }
+                        return nil
+                    }()
+                    
+                    if !node.isTrackAllowed(track: stop.track, lineId: train.lineId ?? "", prevStationId: prevStopStationId, nextStationId: nextStopStationId) {
+                        let start = stop.arrival ?? stop.departure ?? Date()
+                        let end = stop.departure ?? stop.arrival?.addingTimeInterval(30) ?? Date()
+                        
+                        newConflicts.append(ScheduleConflict(
+                            trainAId: train.id,
+                            trainBId: train.id,
+                            trainAName: train.name,
+                            trainBName: train.name,
+                            locationType: .routing,
+                            locationName: node.name,
+                            locationId: "ROUTING::\(node.id)::\(train.id)",
+                            timeStart: start,
+                            timeEnd: end,
+                            capacity: 0,
+                            occupantsCount: 1
+                        ))
+                    }
+                }
             }
         }
         
-        // 2. Check for capacity violations per resource
         for (resId, occupations) in resourceOccupations {
             let capacity = resourceCapacities[resId] ?? 1
             if occupations.count <= capacity { continue }
@@ -240,7 +304,7 @@ class ConflictManager: ObservableObject {
             var events: [ResourceEvent] = []
             for occ in occupations {
                 events.append(ResourceEvent(time: occ.entry, isEntry: true, trainId: occ.trainId, trainName: occ.trainName))
-                events.append(ResourceEvent(time: occ.effectiveExit, isEntry: false, trainId: occ.trainId, trainName: occ.trainName))
+                events.append(ResourceEvent(time: occ.effectiveExit(), isEntry: false, trainId: occ.trainId, trainName: occ.trainName))
             }
             events.sort()
             
@@ -253,31 +317,42 @@ class ConflictManager: ObservableObject {
                     activeNames[event.trainId] = event.trainName
                     
                     if activeOccupants.count > capacity {
-                        // Conflict found! Create reports between the new arrival and ALL current occupants
                         let others = activeOccupants.filter { $0 != event.trainId }
                         for otherId in others {
                             let otherName = activeNames[otherId] ?? "Train"
-                            
-                            // Find overlap window
-                            let otherOcc = occupations.first(where: { $0.trainId == otherId && $0.entry <= event.time && $0.effectiveExit > event.time })
+                            let otherOcc = occupations.first(where: { $0.trainId == otherId && $0.entry <= event.time && $0.effectiveExit() > event.time })
                             guard let occA = otherOcc else { continue }
                             
                             let startOverlap = max(occA.entry, event.time)
-                            let endOverlap = occA.effectiveExit // Until the first one leaves (buffered)
+                            let endOverlap = occA.effectiveExit()
                             
-                            // Resolve Names for human-readable report
                             var locName = ""
+                            var locType: ScheduleConflict.LocationType = .line
+                            
                             if resId.hasPrefix("STATION") {
-                                let parts = resId.components(separatedBy: "::")
-                                let sid = parts.count > 1 ? parts[1] : "?"
-                                let track = parts.count > 3 ? parts[3] : "1"
-                                let name = network.nodes.first(where: { $0.id == sid })?.name ?? sid
-                                locName = "Stazione \(name) (Bin. \(track))"
+                                 locType = .station
+                                 let parts = resId.components(separatedBy: "::")
+                                 let sid = parts.count > 1 ? parts[1] : "?"
+                                 let name = nodes.first(where: { $0.id == sid })?.name ?? sid
+                                if resId.contains("TRACK") {
+                                    let track = parts.count > 2 ? parts[2] : "1"
+                                    locName = "Stazione \(name) [SOVRAPPOSIZIONE BINARIO \(track)]"
+                                } else {
+                                    locName = "Stazione \(name) [TUTTI I BINARI OCCUPATI]"
+                                }
                             } else if resId.hasPrefix("SEGMENT::") {
-                                let content = resId.replacingOccurrences(of: "SEGMENT::", with: "")
-                                let parts = content.components(separatedBy: "--")
-                                let names = parts.map { id in network.nodes.first(where: { $0.id == id })?.name ?? id }
-                                locName = "Tratta \(names.joined(separator: " - "))"
+                                 locType = .line
+                                 let content = resId.replacingOccurrences(of: "SEGMENT::", with: "")
+                                 let parts = content.components(separatedBy: "--")
+                                 let names = parts.map { id in nodes.first(where: { $0.id == id })?.name ?? id }
+                                 locName = "Tratta \(names.joined(separator: "-")) [LINEA SATURA]"
+                            } else if resId.hasPrefix("TRACK::") {
+                                 locType = .station
+                                 let parts = resId.components(separatedBy: "::")
+                                 let sid = parts.count > 1 ? parts[1] : "?"
+                                 let track = parts.count > 2 ? parts[2] : "1"
+                                 let name = nodes.first(where: { $0.id == sid })?.name ?? sid
+                                locName = "Binario \(track) a \(name) [OCCUPAZIONE DOPPIA]"
                             } else {
                                 locName = "Risorsa \(resId)"
                             }
@@ -287,11 +362,13 @@ class ConflictManager: ObservableObject {
                                 trainBId: event.trainId,
                                 trainAName: otherName,
                                 trainBName: event.trainName,
-                                locationType: resId.hasPrefix("STATION") ? .station : .line,
+                                locationType: locType,
                                 locationName: locName,
                                 locationId: resId,
                                 timeStart: startOverlap,
-                                timeEnd: endOverlap
+                                timeEnd: endOverlap,
+                                capacity: capacity,
+                                occupantsCount: activeOccupants.count
                             ))
                         }
                     }
@@ -301,28 +378,60 @@ class ConflictManager: ObservableObject {
             }
         }
         
-        // 3. GROUP CONFLICTS: If two trains conflict on multiple contiguous line segments, 
-        // count them as one "Logical Incident" to avoid overwhelming the user (28 -> ~5-8 real problems)
         var grouped: [ScheduleConflict] = []
         var seenIncidents = Set<String>() 
-        
         for c in newConflicts {
-            // Identifier for a pair of trains meeting in a specific time window
-            // Round time to nearest 30 mins to group sequential segment conflicts
             let timeBucket = Int(c.timeStart.timeIntervalSince1970 / 1800)
-            let incidentId = [c.trainAId.uuidString, c.trainBId.uuidString].sorted().joined() + "_\(timeBucket)"
+            // PIGNOLO: Include locationId to avoid hiding different conflicts for same trains in same window
+            let incidentId = [c.trainAId.uuidString, c.trainBId.uuidString].sorted().joined() + "_\(c.locationId)_\(timeBucket)"
             
-            if c.locationType == .station {
-                // Stations are always distinct critical points
+            if c.locationType == .station || c.locationType == .routing {
                 grouped.append(c)
             } else if !seenIncidents.contains(incidentId) {
-                // For lines, we only report the FIRST segment where they clash in that window
                 grouped.append(c)
                 seenIncidents.insert(incidentId)
             }
         }
-        
         return (grouped, resourceCapacities)
     }
+    
+    func calculateSuggestion(for conflict: ScheduleConflict, network: NetworkModel, trains: [Train]) -> String {
+        if conflict.locationId.contains("TRACK") || conflict.locationType == .station || conflict.locationType == .routing {
+            let parts = conflict.locationId.components(separatedBy: "::")
+            let sid = parts.count >= 2 ? parts[1] : conflict.locationId.replacingOccurrences(of: "STATION_GLOBAL::", with: "")
+            guard let node = network.nodes.first(where: { $0.id == sid }), let trainA = trains.first(where: { $0.id == conflict.trainAId }) else {
+                return "consider_track_reassignment".localized
+            }
+            let stopAIdx = trainA.stops.firstIndex(where: { $0.stationId == sid }) ?? 0
+            let prevId = stopAIdx > 0 ? trainA.stops[stopAIdx - 1].stationId : nil
+            let candidates = node.getTracksByProvenance(from: prevId, forLine: trainA.lineId)
+            let currentTrack = trainA.stops[stopAIdx].track ?? "1"
+            for cand in candidates {
+                if cand == currentTrack { continue }
+                if isTrackFree(stationId: sid, track: cand, from: conflict.timeStart, to: conflict.timeEnd, trains: trains, excludingId: trainA.id) {
+                    return String(format: "suggestion_move_to_track_fmt".localized, trainA.name, cand)
+                }
+            }
+            return "consider_track_reassignment".localized
+        }
+        if conflict.locationId.contains("SEGMENT") {
+            return "suggest_shift_fmt".localized
+        }
+        return "consider_time_shift".localized
+    }
+    
+    private func isTrackFree(stationId: String, track: String, from: Date, to: Date, trains: [Train], excludingId: UUID) -> Bool {
+        let buffer: TimeInterval = 30
+        for t in trains {
+            if t.id == excludingId { continue }
+            guard let stop = t.stops.first(where: { $0.stationId == stationId && ($0.track ?? "1") == track }) else { continue }
+            guard let arr = stop.arrival, let dep = stop.departure else { continue }
+            let overlapStart = max(from, arr)
+            let overlapEnd = min(to, dep)
+            if overlapStart < overlapEnd.addingTimeInterval(-buffer) {
+                return false
+            }
+        }
+        return true
+    }
 }
-

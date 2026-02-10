@@ -25,9 +25,12 @@ struct StationScheduleView: View {
         let departureTime: Date?
         let track: String?
         let isTerminus: Bool
+        let stopIndex: Int
+        let vehicleName: String?
     }
     
     @State private var arrivals: [StationArrival] = []
+    @State private var editingArrival: StationArrival? = nil // For track selection sheet
     @EnvironmentObject var appState: AppState
     
     var body: some View {
@@ -62,7 +65,7 @@ struct StationScheduleView: View {
                                 VStack(alignment: .trailing) {
                                     Text("Arr.")
                                         .font(.system(size: 8)).foregroundColor(.secondary)
-                                    Text(format(arr))
+                                    Text(arr.timeFormat)
                                         .font(.system(size: 14)).bold()
                                 }
                                 .frame(width: 45)
@@ -74,7 +77,7 @@ struct StationScheduleView: View {
                                 VStack(alignment: .leading) {
                                     Text("Part.")
                                         .font(.system(size: 8)).foregroundColor(.secondary)
-                                    Text(format(dep))
+                                    Text(dep.timeFormat)
                                         .font(.system(size: 14)).bold()
                                         .foregroundColor(.green)
                                 }
@@ -96,6 +99,13 @@ struct StationScheduleView: View {
                                 .cornerRadius(4)
                         }
                         .frame(width: 80, alignment: .leading)
+                        .padding(.vertical, 4)
+                        .background(
+                            appState.selectedTrainIds.contains(item.trainId) 
+                            ? Color.blue.opacity(0.2) 
+                            : Color.clear
+                        )
+                        .cornerRadius(4)
                         .contentShape(Rectangle()) // Better tap area
                         .onTapGesture {
                             appState.jumpToTrainId = item.trainId
@@ -107,15 +117,31 @@ struct StationScheduleView: View {
                             Text(item.relationName)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
+                            
+                            if let vName = item.vehicleName {
+                                Text(vName)
+                                    .font(.system(size: 9, weight: .bold))
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .background(Color.purple.opacity(0.1))
+                                    .foregroundColor(.purple)
+                                    .cornerRadius(3)
+                            }
                         }
                         
                         Spacer()
                         
-                        Text(item.track ?? "-")
-                            .font(.title2)
-                            .bold()
-                            .frame(width: 40)
-                            .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange.opacity(0.2)))
+                        Button(action: {
+                            editingArrival = item
+                        }) {
+                            Text(item.track ?? "-")
+                                .font(.title2)
+                                .bold()
+                                .frame(width: 40)
+                                .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange.opacity(0.2)))
+                                .foregroundColor(.orange)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -123,8 +149,18 @@ struct StationScheduleView: View {
         }
         .onAppear(perform: calculateArrivals)
         .onChange(of: station.id) { _ in calculateArrivals() }
-        .onReceive(manager.objectWillChange) { _ in
+        .onReceive(appState.railroad.lines.objectWillChange.debounce(for: .milliseconds(100), scheduler: RunLoop.main)) { _ in
             calculateArrivals()
+        }
+        .sheet(item: $editingArrival) { item in
+            if let train = manager.trains.first(where: { $0.id == item.trainId }),
+               let binding = manager.binding(for: train) {
+                TrackSelectionSheet(
+                    train: binding,
+                    stopIndex: item.stopIndex,
+                    network: network
+                )
+            }
         }
     }
     
@@ -154,58 +190,53 @@ struct StationScheduleView: View {
         return list
     }
     
-    func format(_ date: Date?) -> String {
-        guard let date = date else { return "--:--" }
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm"
-        return f.string(from: date)
-    }
     
     func calculateArrivals() {
+        let currentStationId = station.id
+        let allNodes = network.nodes
+        let nodeMap = Dictionary(uniqueKeysWithValues: allNodes.map { ($0.id, $0.name) })
+        
         var results: [StationArrival] = []
         
-        // Scan all trains
         for train in manager.trains {
             // Check if departures/arrivals are populated. If not, trigger a refresh.
-            let hasTimes = train.stops.contains { $0.arrival != nil || $0.departure != nil }
-            if !hasTimes && !train.stops.isEmpty {
-                // If we are here, something is desynced. 
-                // However, we shouldn't trigger a full validateSchedules on EVERY view refresh.
-                // We assume manager.refreshSchedules was called during import/optimization.
-            }
-
-            // Relation description lookup
+            guard let stopIndex = train.stops.firstIndex(where: { $0.stationId == currentStationId }) else { continue }
+            
+            let stop = train.stops[stopIndex]
             let relationName: String = {
-                if let lId = train.lineId, let line = network.lines.first(where: { $0.id == lId }) {
+                if let lId = train.lineId, let line = manager.lines.first(where: { $0.id == lId }) {
                     return line.name
                 }
                 return train.type
             }()
             
-            let originName = getName(train.stops.first?.stationId ?? "")
-            let destName = getName(train.stops.last?.stationId ?? "")
+            let isTerminus = stopIndex == train.stops.count - 1
+            let isOrigin = stopIndex == 0
             
-            // Check if the train stops at this station
-            if let stop = train.stops.first(where: { $0.stationId == station.id }) {
-                let isTerminus = train.stops.last?.stationId == station.id
-                let isOrigin = train.stops.first?.stationId == station.id
-                
-                results.append(StationArrival(
-                    trainId: train.id,
-                    trainType: train.type, // New
-                    trainName: train.name,
-                    relationName: relationName,
-                    origin: originName,
-                    destination: destName,
-                    arrivalTime: isOrigin ? nil : stop.arrival,
-                    departureTime: isTerminus ? nil : stop.departure,
-                    track: stop.track,
-                    isTerminus: isTerminus
-                ))
-            }
+            let originId = train.stops.first?.stationId ?? ""
+            let destId = train.stops.last?.stationId ?? ""
+            
+            results.append(StationArrival(
+                trainId: train.id,
+                trainType: train.type, 
+                trainName: train.name,
+                relationName: relationName,
+                origin: nodeMap[originId] ?? originId,
+                destination: nodeMap[destId] ?? destId,
+                arrivalTime: isOrigin ? nil : (stop.plannedArrival ?? stop.arrival),
+                departureTime: isTerminus ? nil : (stop.plannedDeparture ?? stop.departure),
+                track: stop.track,
+                isTerminus: isTerminus,
+                stopIndex: stopIndex,
+                vehicleName: {
+                    if let vId = train.vehicleId, let v = manager.vehicles.first(where: { $0.id == vId }) {
+                        return v.name
+                    }
+                    return nil
+                }()
+            ))
         }
         
-        // Sorting by time correctly handles 2000 vs current dates as long as they are consistent
         self.arrivals = results
     }
     

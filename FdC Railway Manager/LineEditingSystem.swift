@@ -49,39 +49,6 @@ struct StationSequenceSection: View {
                     .foregroundColor(.blue)
             }
             
-            Divider().padding(.vertical, 4)
-            
-            if !suggestions.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Consigliate (Tocca per aggiungere):")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(suggestions) { node in
-                                Button(action: {
-                                    withAnimation {
-                                        stationSequence.append(node.id)
-                                    }
-                                }) {
-                                    HStack {
-                                        Image(systemName: "plus.circle.fill")
-                                        Text(node.name)
-                                    }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(Color.blue.opacity(0.1))
-                                    .cornerRadius(20)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                }
-                .padding(.vertical, 4)
-            }
-            
             Text("Trascina le maniglie a destra per riordinare.").font(.caption).foregroundColor(.secondary)
         }
     }

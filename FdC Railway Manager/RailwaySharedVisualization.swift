@@ -70,7 +70,7 @@ struct RouteTrackSegment: View {
 
 /// 🚄 **VerticalDiagramStep**
 /// Represents ONE complete step in the diagram: the station AND the following segment.
-struct VerticalDiagramStep<ExtraInfo: View, SegmentInfo: View>: View {
+struct VerticalDiagramStep<LeadingInfo: View, ExtraInfo: View, SegmentInfo: View>: View {
     let stationId: String
     let isLast: Bool
     let nextStationId: String?
@@ -78,6 +78,7 @@ struct VerticalDiagramStep<ExtraInfo: View, SegmentInfo: View>: View {
     let lineColor: Color
     var isTransit: Bool = false
     let isEditing: Bool
+    let leadingInfo: LeadingInfo // FIXED TYPE
     let extraInfo: ExtraInfo
     let segmentMetadata: SegmentInfo
     
@@ -104,6 +105,7 @@ struct VerticalDiagramStep<ExtraInfo: View, SegmentInfo: View>: View {
         onInsertAfter: (() -> Void)? = nil,
         onStationTap: (() -> Void)? = nil,
         onSegmentTap: (() -> Void)? = nil,
+        @ViewBuilder leadingInfo: () -> LeadingInfo,
         @ViewBuilder extraInfo: () -> ExtraInfo = { EmptyView() },
         @ViewBuilder segmentMetadata: () -> SegmentInfo = { EmptyView() }
     ) {
@@ -119,6 +121,7 @@ struct VerticalDiagramStep<ExtraInfo: View, SegmentInfo: View>: View {
         self.onInsertAfter = onInsertAfter
         self.onStationTap = onStationTap
         self.onSegmentTap = onSegmentTap
+        self.leadingInfo = leadingInfo() // NEW
         self.extraInfo = extraInfo()
         self.segmentMetadata = segmentMetadata()
     }
@@ -194,6 +197,10 @@ struct VerticalDiagramStep<ExtraInfo: View, SegmentInfo: View>: View {
                     onStationTap?()
                 }) {
                     HStack(alignment: .center, spacing: 20) {
+                        
+                        leadingInfo // NEW: Info on the LEFT
+                            .frame(minWidth: 50, alignment: .trailing)
+                        
                         ZStack {
                             StationNodeSymbol(node: node, defaultColor: lineColor, size: 20, isTransit: isTransit)
                         }
@@ -391,6 +398,7 @@ struct TrainSegmentMetadataView: View {
     private func formatTime(_ date: Date) -> String {
         let f = DateFormatter()
         f.dateFormat = "HH:mm"
+        f.locale = Locale(identifier: "en_US_POSIX")
         return f.string(from: date)
     }
 }

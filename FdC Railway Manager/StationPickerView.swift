@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct StationPickerView: View {
-    @EnvironmentObject var network: RailwayNetwork
+    @EnvironmentObject var appState: AppState
+    private var network: NetworkModel { appState.railroad.network }
     @Environment(\.dismiss) var dismiss
     @Binding var selectedStationId: String
     var linkedToStationId: String? = nil
@@ -11,31 +12,43 @@ struct StationPickerView: View {
     @State private var ignoreFilters = false
     
     var filteredStations: [Node] {
-        var stations = network.nodes
+        var allStations = network.nodes.sorted { $0.name < $1.name }
         
-        if !ignoreFilters {
-            // Priority 1: Whitelist (usually means stations restricted to a Line)
-            if let whitelist = whitelistIds {
-                stations = stations.filter { whitelist.contains($0.id) }
-            }
+        if ignoreFilters {
+            return searchText.isEmpty ? allStations : allStations.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        }
+        
+        var connectionFiltered = allStations
+        var isFiltering = false
+        
+        // Priority 1: Whitelist (specific Line stations)
+        if let whitelist = whitelistIds {
+            connectionFiltered = connectionFiltered.filter { whitelist.contains($0.id) }
+            isFiltering = true
+        }
+        
+        // Priority 2: Connectivity
+        if let originId = linkedToStationId {
+            let connectedIds = network.getNeighborStations(for: originId)
+            let result = connectionFiltered.filter { connectedIds.contains($0.id) }
             
-            // Priority 2: Connectivity (finding the 'next' station via tracks)
-            if let originId = linkedToStationId {
-                let connectedIds = network.edges.compactMap { edge -> String? in
-                    if edge.from == originId { return edge.to }
-                    if edge.to == originId { return edge.from }
-                    return nil
-                }
-                stations = stations.filter { connectedIds.contains($0.id) }
+            // PIGNOLO: Se il filtro di connettività non produce nulla, 
+            // mostriamo tutte le stazioni (altrimenti l'utente è bloccato)
+            // ma indichiamo che il filtro è fallito.
+            if result.isEmpty && !connectionFiltered.isEmpty {
+                // Return all but maybe they will be sorted differently? 
+                // For now just return all available.
+                return filterBySearch(connectionFiltered)
             }
+            return filterBySearch(result)
         }
         
-        let result = stations.sorted { $0.name < $1.name }
-        if searchText.isEmpty {
-            return result
-        } else {
-            return result.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
-        }
+        return filterBySearch(connectionFiltered)
+    }
+    
+    private func filterBySearch(_ list: [Node]) -> [Node] {
+        if searchText.isEmpty { return list }
+        return list.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
     }
     
     var body: some View {

@@ -39,60 +39,71 @@ final class RailwayScheduleOptimizer {
     ///   - useAI: Flag per abilitare l'AI Cloud
     ///   - geneticOptimizer: Opzionale. Se passato, viene usato questo oggetto (utile per aggiornare la UI progress).
     /// - Returns: La lista di treni ottimizzati pronti per l'inserimento
-    private var localPathCache: [String: [Edge]] = [:]
-    
     func executePipeline(
         newTrains: [Train],
         existingTrains: [Train],
-        network: RailwayNetwork,
+        nodes: [Node],
+        edges: [Edge],
         useAI: Bool = true,
+        useGA: Bool = true,
         geneticOptimizer: GeneticOptimizer? = nil
     ) async -> [Train] {
         if Task.isCancelled { return newTrains }
-        localPathCache.removeAll() // Reset per nuova esecuzione
+        var localPathCache: [String: [Edge]] = [:] 
         
         print("\n🚀 [PIPELINE] AVVIO PIPELINE DI OTTIMIZZAZIONE (7 STEP) per \(newTrains.count) treni")
         
         // --- STEP 1: Time Optimization (Orari di Partenza) ---
         // Cerchiamo di evitare i conflitti più banali spostando la partenza di +/- 15 minuti.
-        print("🕒 [STEP 1] Ottimizzazione Orari di Partenza...")
-        try? await Task.yield()
-        if Task.isCancelled { return newTrains }
-        var workingTrains = optimizeDepartureTimes(newTrains, existingTrains: existingTrains, network: network)
+        var workingTrains = newTrains
+        if useGA {
+            print("🕒 [STEP 1] Ottimizzazione Orari di Partenza...")
+            try? await Task.yield()
+            if Task.isCancelled { return newTrains }
+            workingTrains = optimizeDepartureTimes(newTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache)
+        } else {
+            print("🕒 [STEP 1] SKIP: Ottimizzazione Orari di Partenza disabilitata.")
+        }
         
         // --- STEP 2: Generazione Orario (Refresh) ---
         // Assicuriamoci che i dati fisici (arrivi/partenze fermate) siano coerenti.
         print("⚙️ [STEP 2] Calcolo Fisico Orari...")
         if Task.isCancelled { return workingTrains }
-        workingTrains = refreshPhysicalSchedules(workingTrains, existingTrains: existingTrains, network: network)
+        workingTrains = refreshPhysicalSchedules(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache)
         
         // --- STEP 3: Analisi Criticità ---
         // Analizziamo dove avvengono i conflitti residui per capire quali sono i colli di bottiglia.
         print("🔍 [STEP 3] Analisi Conflitti Residui...")
         if Task.isCancelled { return workingTrains }
-        let conflicts = detectConflicts(workingTrains, existingTrains: existingTrains, network: network)
+        let conflicts = detectConflicts(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache)
         
         if !conflicts.isEmpty {
             print("   ⚠️ Rilevati \(conflicts.count) conflitti residui. Avvio Analisi Hotspot.")
             
             // Identifica le stazioni dove avvengono più conflitti o le tratte sature
-            let hotspots = analyzeHotspots(conflicts: conflicts, network: network)
+            let hotspots = analyzeHotspots(conflicts: conflicts, nodes: nodes)
             let hotspotNames = hotspots.keys.sorted { hotspots[$0]! > hotspots[$1]! }.prefix(5)
             print("   📍 Hotspots identificati: \(hotspotNames.joined(separator: ", "))")
             
             // --- STEP 5: CTC Single Track Resolution (DETERMINISTIC) ---
             // Invece di indovinare "soste tattiche", calcoliamo gli incroci esatti.
-            print("🚦 [STEP 5] Risoluzione Conflitti CTC (Binario Unico)...")
-            if Task.isCancelled { return workingTrains }
-            workingTrains = await resolveSingleTrackConflicts(
-                trains: workingTrains,
-                existingTrains: existingTrains,
-                network: network,
-                conflicts: conflicts
-            )
+            if useGA {
+                print("🚦 [STEP 5] Risoluzione Conflitti CTC (Binario Unico)...")
+                if Task.isCancelled { return workingTrains }
+                workingTrains = await resolveSingleTrackConflicts(
+                    trains: workingTrains,
+                    existingTrains: existingTrains,
+                    nodes: nodes,
+                    edges: edges,
+                    conflicts: conflicts,
+                    pathCache: &localPathCache
+                )
+            } else {
+                print("🚦 [STEP 5] SKIP: Risoluzione CTC disabilitata.")
+            }
             
             // Refresh post-CTC
-            workingTrains = refreshPhysicalSchedules(workingTrains, existingTrains: existingTrains, network: network)
+            workingTrains = refreshPhysicalSchedules(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache)
         } else {
             print("   ✅ Nessun conflitto rilevato dopo Step 1. Skipping Step 3-5.")
         }
@@ -102,11 +113,11 @@ final class RailwayScheduleOptimizer {
         if useAI {
             print("🧠 [STEP 6] AI Cloud Optimization...")
             if Task.isCancelled { return workingTrains }
-            let conflictsBeforeAI = detectConflicts(workingTrains, existingTrains: existingTrains, network: network).count
+            let conflictsBeforeAI = detectConflicts(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache).count
             print("   🔍 Conflitti pre-AI: \(conflictsBeforeAI)")
             
             let preAITrains = workingTrains // BACKUP for rollback
-            let aiResponse = await performCloudOptimization(workingTrains, existingTrains: existingTrains, network: network)
+            let aiResponse = await performCloudOptimization(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache)
             
             if let response = aiResponse, let resolutions = response.resolutions, !resolutions.isEmpty {
                 // PIGNOLO PROTOCOL: Calculate average confidence across all resolutions
@@ -121,9 +132,9 @@ final class RailwayScheduleOptimizer {
                 } else {
                     workingTrains = applyAIResolutions(workingTrains, resolutions: resolutions)
                     // Refresh post-AI
-                    workingTrains = refreshPhysicalSchedules(workingTrains, existingTrains: existingTrains, network: network)
+                    workingTrains = refreshPhysicalSchedules(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache)
                     
-                    let conflictsAfterAI = detectConflicts(workingTrains, existingTrains: existingTrains, network: network).count
+                    let conflictsAfterAI = detectConflicts(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache).count
                     
                     // Solo se migliora davvero i conflitti o mantiene lo status quo senza creare caos
                     if conflictsAfterAI > conflictsBeforeAI + 2 {
@@ -142,24 +153,30 @@ final class RailwayScheduleOptimizer {
         
         // --- STEP 7: Genetic Refinement ---
         // Pulizia finale per limare i dettagli o risolvere conflitti minori ignorati dall'AI.
-        print("🧬 [STEP 7] Genetic Algorithm Refinement...")
-        if Task.isCancelled { return workingTrains }
-        // Usiamo l'optimizer passato (per la UI) o quello interno
-        let ga = geneticOptimizer ?? self.geneticOptimizer
-        
-        let finalTrains = await ga.optimize(
-            newTrains: workingTrains,
-            existingTrains: existingTrains,
-            network: network,
-            iterations: 250 // PIGNOLO BOOST: Raised from 100 to 250 for final conflict clearance
-        )
+        var finalTrains = workingTrains
+        if useGA {
+            print("🧬 [STEP 7] Genetic Algorithm Refinement...")
+            if Task.isCancelled { return workingTrains }
+            // Usiamo l'optimizer passato (per la UI) o quello interno
+            let ga = geneticOptimizer ?? self.geneticOptimizer
+            
+            finalTrains = await ga.optimize(
+                newTrains: workingTrains,
+                existingTrains: existingTrains,
+                nodes: nodes,
+                edges: edges,
+                iterations: 250 // PIGNOLO BOOST: Raised from 100 to 250 for final conflict clearance
+            )
+        } else {
+            print("🧬 [STEP 7] SKIP: Genetic Refinement disabilitata.")
+        }
         
         
         // --- STEP 8: Final Verification & Reporting ---
         print("📊 [STEP 8] Verifica Finale...")
         // Refresh finale per sicurezza
-        let verifiedTrains = refreshPhysicalSchedules(finalTrains, existingTrains: existingTrains, network: network)
-        let finalConflicts = detectConflicts(verifiedTrains, existingTrains: existingTrains, network: network)
+        let verifiedTrains = refreshPhysicalSchedules(finalTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache)
+        let finalConflicts = detectConflicts(verifiedTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache)
         
         if finalConflicts.isEmpty {
             print("\n✨ 🏆 OTTIMIZZAZIONE PERFETTA! 0 Conflitti residui. 🏆 ✨")
@@ -169,7 +186,7 @@ final class RailwayScheduleOptimizer {
             print("   🚂 Treni coinvolti: \(uniqueConflictingTrains.count) (su \(verifiedTrains.count) totali)")
             
             // Log per Stazione
-            let perStation = analyzeHotspots(conflicts: finalConflicts, network: network)
+            let perStation = analyzeHotspots(conflicts: finalConflicts, nodes: nodes)
             let sortedStations = perStation.sorted { $0.value > $1.value }
             for (station, count) in sortedStations.prefix(5) {
                 print("      • \(station): \(count)")
@@ -187,66 +204,93 @@ final class RailwayScheduleOptimizer {
     
     // MARK: - Step 1: Time Optimization
     
-    private func optimizeDepartureTimes(_ newTrains: [Train], existingTrains: [Train], network: RailwayNetwork) -> [Train] {
+    private func optimizeDepartureTimes(_ newTrains: [Train], existingTrains: [Train], nodes: [Node], edges: [Edge], pathCache: inout [String: [Edge]]) -> [Train] {
         var optimized: [Train] = []
-        let tempManager = TrainManager()
         
-        // Iteriamo su ogni nuovo treno.
-        // NOTA: È fondamentale ottimizzarli uno alla volta accumulando il risultato in 'optimized'.
+        // PIGNOLO BOOST: 2-Phase Optimization (Coarse -> Fine)
+        // Drastically reduces simulations from ~32 per train to ~10 per train
+        
         for (idx, train) in newTrains.enumerated() {
             if Task.isCancelled { break }
             var bestTrain = train
             var minConflicts = Int.max
             var initialConflicts = 0
             
-            // Calcolo baseline
-            tempManager.trains = existingTrains + optimized + [train]
-            tempManager.refreshSchedules(with: network)
-            initialConflicts = conflictManager.calculateConflicts(network: network, trains: tempManager.trains).count
+            // Baseline calculation
+            var candidate = train
+            refreshSingleTrainSchedule(&candidate, nodes: nodes, edges: edges, pathCache: &pathCache)
+            let all = existingTrains + optimized + [candidate]
+            var dummyCache: [String: [Edge]]? = pathCache
+            initialConflicts = conflictManager.calculateConflictsWithCapacities(nodes: nodes, edges: edges, trains: all, pathCache: &dummyCache).0.count
+            if let updated = dummyCache { pathCache = updated }
             minConflicts = initialConflicts
             
-            // Range di shift da testare (in minuti) ESTESO e AGGRESSIVO
-            // Privilegiamo lo 0, poi piccoli spostamenti, poi grandi fino a 1 ora.
-            let shifts = [1,-1,2,-2,3,-3,4,-4,5, -5, 10, -10, 15, -15, 20, -20, 25,-25,30, -30, 35,-35,40,-40,45, -45, 50,-50, 55,-55, 60, -60]
+            // IF base is perfect, skip optimization
+            if minConflicts == 0 {
+                optimized.append(bestTrain)
+                continue
+            }
             
-            // Se partiamo già da 0, proviamo a migliorare solo se necessario
-            if minConflicts > 0 {
-                for shift in shifts {
-                    var candidate = train
-                    if let dep = train.departureTime {
-                        candidate.departureTime = Calendar.current.date(byAdding: .minute, value: shift, to: dep)
-                    }
-                    
-                    // Testiamo il candidato contro: Treni Esistenti + Treni Nuovi GIA' Ottimizzati
-                    tempManager.trains = existingTrains + optimized + [candidate]
-                    tempManager.refreshSchedules(with: network)
-                    
-                    let count = conflictManager.calculateConflicts(network: network, trains: tempManager.trains).count
-                    
-                    if count < minConflicts {
-                        minConflicts = count
-                        bestTrain = candidate
-                        if count == 0 { break } // Ottimo locale trovato
-                    }
+            // Phase 1: Coarse Search (Steps of 10 mins)
+            // Range: -60 to +60
+            let coarseShifts = [-10, 10, -20, 20, -30, 30, -50, 50]
+            var bestCoarseShift = 0
+            
+            for shift in coarseShifts {
+                var candidate = train
+                if let dep = train.departureTime {
+                    candidate.departureTime = Calendar.current.date(byAdding: .minute, value: shift, to: dep)
                 }
+                
+                refreshSingleTrainSchedule(&candidate, nodes: nodes, edges: edges, pathCache: &pathCache)
+                let all = existingTrains + optimized + [candidate]
+                var dc: [String: [Edge]]? = pathCache
+                let count = conflictManager.calculateConflictsWithCapacities(nodes: nodes, edges: edges, trains: all, pathCache: &dc).0.count
+                if let u = dc { pathCache = u }
+                
+                if count < minConflicts {
+                    minConflicts = count
+                    bestTrain = candidate
+                    bestCoarseShift = shift
+                }
+            }
+            
+            // Phase 2: Fine Refinement (Around best coarse shift)
+            // Range: +/- 5 mins around the winner
+            if minConflicts > 0 {
+                 let fineShifts = [-5, -2, -1, 1, 2, 5]
+                 for fine in fineShifts {
+                     let totalShift = bestCoarseShift + fine
+                     var candidate = train
+                     if let dep = train.departureTime {
+                         candidate.departureTime = Calendar.current.date(byAdding: .minute, value: totalShift, to: dep)
+                     }
+                     
+                     refreshSingleTrainSchedule(&candidate, nodes: nodes, edges: edges, pathCache: &pathCache)
+                     let all = existingTrains + optimized + [candidate]
+                     var dc: [String: [Edge]]? = pathCache
+                     let count = conflictManager.calculateConflictsWithCapacities(nodes: nodes, edges: edges, trains: all, pathCache: &dc).0.count
+                     if let u = dc { pathCache = u }
+                     
+                     if count < minConflicts {
+                         minConflicts = count
+                         bestTrain = candidate
+                     }
+                 }
             }
             
             optimized.append(bestTrain)
             
             let finalShift = minutesDiff(train, bestTrain)
             if finalShift != 0 || minConflicts != initialConflicts {
-                print("   🔹 Treno \(idx+1)/\(newTrains.count): Partenza ottimizzata per numero conflitti da \(initialConflicts) a \(minConflicts). Shift: \(finalShift)m.")
-            } else {
-                 print("   🔹 Treno \(idx+1)/\(newTrains.count): Nessun miglioramento possibile (Conflitti: \(minConflicts)).")
+                print("   🔹 Treno \(idx+1)/\(newTrains.count): Shift \(finalShift)m (Conf: \(initialConflicts)->\(minConflicts))")
             }
         }
         
         return optimized
     }
     
-    /// Identifica le Stazioni o Tratte dove avvengono i conflitti.
-    /// Ritorna una mappa [ReadableName: Int] che indica la frequenza dei conflitti in quel punto.
-    private func analyzeHotspots(conflicts: [ScheduleConflict], network: RailwayNetwork) -> [String: Int] {
+    private func analyzeHotspots(conflicts: [ScheduleConflict], nodes: [Node]) -> [String: Int] {
         var heatmap: [String: Int] = [:]
         
         for conflict in conflicts {
@@ -257,19 +301,17 @@ final class RailwayScheduleOptimizer {
                 let content = resId.replacingOccurrences(of: "SEGMENT::", with: "")
                 let parts = content.components(separatedBy: "--")
                 for stationId in parts {
-                    let stationName = network.nodes.first(where: { $0.id == stationId })?.name ?? stationId
+                    let stationName = nodes.first(where: { $0.id == stationId })?.name ?? stationId
                     heatmap[stationName, default: 0] += 1
                 }
             } else if resId.hasPrefix("STATION::") {
                 let stationId = resId.components(separatedBy: "::")[1]
-                let stationName = network.nodes.first(where: { $0.id == stationId })?.name ?? stationId
+                let stationName = nodes.first(where: { $0.id == stationId })?.name ?? stationId
                 heatmap[stationName, default: 0] += 1
             } else {
                 heatmap[name, default: 0] += 1
             }
         }
-        
-        // Filtriamo solo quelli rilevanti (> 0)
         return heatmap
     }
     
@@ -278,38 +320,28 @@ final class RailwayScheduleOptimizer {
     private func resolveSingleTrackConflicts(
         trains: [Train],
         existingTrains: [Train],
-        network: RailwayNetwork,
-        conflicts: [ScheduleConflict]
+        nodes: [Node],
+        edges: [Edge],
+        conflicts: [ScheduleConflict],
+        pathCache: inout [String: [Edge]]
     ) async -> [Train] {
         var processedTrains = trains
-        let tempManager = TrainManager()
-        
-        // Limite di sicurezza per evitare loop infiniti
-        let maxPasses = 20
+        let maxPasses = 8
         
         for pass in 1...maxPasses {
             if Task.isCancelled { break }
-            await Task.yield() // Permettiamo alla UI di respirare ad ogni iterazione CTC
+            await Task.yield()
             
-            // 1. Refresh stato attuale
-            tempManager.trains = existingTrains + processedTrains
-            tempManager.refreshSchedules(with: network, pathCache: &localPathCache) // Aggiorna orari fisici con cache
+            var all = existingTrains + processedTrains
+            refreshMultipleSchedules(&all, nodes: nodes, edges: edges, pathCache: &pathCache)
+            processedTrains = Array(all.suffix(processedTrains.count))
             
-            // Reimportiamo i treni aggiornati dal manager (importante per avere i tempi corretti)
-            let updatedMap = Dictionary(uniqueKeysWithValues: tempManager.trains.map { ($0.id, $0) })
-            for i in processedTrains.indices {
-                if let up = updatedMap[processedTrains[i].id] {
-                    processedTrains[i] = up
-                }
-            }
-            
-            // 2. Calcola conflitti
-            var cacheWrapper: [String: [Edge]]? = localPathCache
-            let (currentConflicts, capacities) = conflictManager.calculateConflictsWithCapacities(network: network, trains: tempManager.trains, pathCache: &cacheWrapper)
-            if let updatedCache = cacheWrapper { localPathCache = updatedCache }
+            var cacheWrapper: [String: [Edge]]? = pathCache
+            let (lineConflictsFull, capacities) = conflictManager.calculateConflictsWithCapacities(nodes: nodes, edges: edges, trains: all, pathCache: &cacheWrapper)
+            if let updatedCache = cacheWrapper { pathCache = updatedCache }
             
             // Filtra solo conflitti su BINARIO UNICO (Track Capacity = 1)
-            let lineConflicts = currentConflicts.filter { c in
+            let lineConflicts = lineConflictsFull.filter { c in
                 let cap = capacities[c.locationId] ?? 1
                 return cap == 1 && (c.locationId.contains("--") || c.locationId.contains("SEGMENT"))
             }.sorted { $0.timeStart < $1.timeStart } // Risolviamo il primo che accade
@@ -327,9 +359,9 @@ final class RailwayScheduleOptimizer {
                   let idxB = processedTrains.firstIndex(where: { $0.id == conflict.trainBId }) else {
                 // Uno dei treni è "existing" (immutabile). Dobbiamo spostare l'altro.
                 if let idxMutable = processedTrains.firstIndex(where: { $0.id == conflict.trainAId } ) {
-                    solveConflict(mutableIdx: idxMutable, immutableId: conflict.trainBId, conflict: conflict, trains: &processedTrains, network: network)
+                    solveConflict(mutableIdx: idxMutable, immutableId: conflict.trainBId, conflict: conflict, trains: &processedTrains, nodes: nodes)
                 } else if let idxMutable = processedTrains.firstIndex(where: { $0.id == conflict.trainBId }) {
-                    solveConflict(mutableIdx: idxMutable, immutableId: conflict.trainAId, conflict: conflict, trains: &processedTrains, network: network)
+                solveConflict(mutableIdx: idxMutable, immutableId: conflict.trainAId, conflict: conflict, trains: &processedTrains, nodes: nodes)
                 }
                 continue
             }
@@ -353,26 +385,24 @@ final class RailwayScheduleOptimizer {
             let arrivalB = stopB?.arrival ?? trainB.departureTime ?? Date.distantPast
             
             if arrivalA <= arrivalB {
-                solveCrossing(winnerIdx: idxA, loserIdx: idxB, conflict: conflict, trains: &processedTrains, network: network)
+                solveCrossing(winnerIdx: idxA, loserIdx: idxB, conflict: conflict, trains: &processedTrains, nodes: nodes)
             } else {
-                solveCrossing(winnerIdx: idxB, loserIdx: idxA, conflict: conflict, trains: &processedTrains, network: network)
+                solveCrossing(winnerIdx: idxB, loserIdx: idxA, conflict: conflict, trains: &processedTrains, nodes: nodes)
             }
         }
         
         return processedTrains
     }
     
-    private func solveConflict(mutableIdx: Int, immutableId: UUID, conflict: ScheduleConflict, trains: inout [Train], network: RailwayNetwork) {
-         // Il treno mutable deve aspettare che l'immutable liberi la risorsa.
-         delayTrainBeforeConflict(trainIdx: mutableIdx, conflict: conflict, trains: &trains, network: network)
+    private func solveConflict(mutableIdx: Int, immutableId: UUID, conflict: ScheduleConflict, trains: inout [Train], nodes: [Node]) {
+         delayTrainBeforeConflict(trainIdx: mutableIdx, conflict: conflict, trains: &trains, nodes: nodes)
     }
     
-    private func solveCrossing(winnerIdx: Int, loserIdx: Int, conflict: ScheduleConflict, trains: inout [Train], network: RailwayNetwork) {
-        // Il winner passa. Il loser aspetta.
-        delayTrainBeforeConflict(trainIdx: loserIdx, conflict: conflict, trains: &trains, network: network)
+    private func solveCrossing(winnerIdx: Int, loserIdx: Int, conflict: ScheduleConflict, trains: inout [Train], nodes: [Node]) {
+        delayTrainBeforeConflict(trainIdx: loserIdx, conflict: conflict, trains: &trains, nodes: nodes)
     }
     
-    private func delayTrainBeforeConflict(trainIdx: Int, conflict: ScheduleConflict, trains: inout [Train], network: RailwayNetwork) {
+    private func delayTrainBeforeConflict(trainIdx: Int, conflict: ScheduleConflict, trains: inout [Train], nodes: [Node]) {
         let train = trains[trainIdx]
         
         // Cerchiamo la stazione di incrocio ideale (quella con > 1 binario)
@@ -386,7 +416,7 @@ final class RailwayScheduleOptimizer {
         if let currentIdx = bestStopIndex {
             for i in (0...currentIdx).reversed() {
                 let sid = train.stops[i].stationId
-                if let node = network.nodes.first(where: { $0.id == sid }), (node.platforms ?? 2) > 1 {
+                if let node = nodes.first(where: { $0.id == sid }), (node.platforms ?? 2) > 1 {
                     bestStopIndex = i
                     break
                 }
@@ -410,8 +440,8 @@ final class RailwayScheduleOptimizer {
                 let newMinDwell = oldMinDwell + addedMinutes
                 
                 if newMinDwell < 60 && newMinDwell > oldMinDwell {
-                    let stationName = network.nodes.first(where: { $0.id == train.stops[stopIndex].stationId })?.name ?? train.stops[stopIndex].stationId
-                    print("      🛑 CTC Incrocio: \(train.name) aspetta a \(stationName) (+ \(addedMinutes)m)")
+                    let stationName = nodes.first(where: { $0.id == trains[trainIdx].stops[stopIndex].stationId })?.name ?? trains[trainIdx].stops[stopIndex].stationId
+                    print("      🛑 CTC Incrocio: \(trains[trainIdx].name) aspetta a \(stationName) (+ \(addedMinutes)m)")
                     trains[trainIdx].stops[stopIndex].minDwellTime = newMinDwell
                     
                     // PIGNOLO PROTOCOL: Resolve the plannedDeparture bottleneck.
@@ -431,18 +461,29 @@ final class RailwayScheduleOptimizer {
     
     // MARK: - Helpers & Step 6 Integation
     
-    private func performCloudOptimization(_ trains: [Train], existingTrains: [Train], network: RailwayNetwork) async -> RailwayAIResponse? {
-        // Prepara il payload completo
-        let tempManager = TrainManager()
-        tempManager.trains = existingTrains + trains
-        tempManager.refreshSchedules(with: network)
-        let currentConflicts = conflictManager.calculateConflicts(network: network, trains: tempManager.trains)
+    private func performCloudOptimization(_ trains: [Train], existingTrains: [Train], nodes: [Node], edges: [Edge], pathCache: inout [String: [Edge]]) async -> RailwayAIResponse? {
+        var all = existingTrains + trains
+        refreshMultipleSchedules(&all, nodes: nodes, edges: edges, pathCache: &pathCache)
+        var dc: [String: [Edge]]? = pathCache
+        let currentConflicts = conflictManager.calculateConflictsWithCapacities(nodes: nodes, edges: edges, trains: all, pathCache: &dc).0
+        if let u = dc { pathCache = u }
         
         if currentConflicts.isEmpty { return nil }
         
         // PIGNOLO PROTOCOL: Pass fixed train IDs to AI so it treats them as immutable constraints
+        // Also specify activeAgentIds (the mobile ones) to enable Focus mode on the server
         let fixedIds = Set(existingTrains.map { $0.id })
-        let req = aiService.createRequest(network: network, trains: tempManager.trains, fixedTrainIds: fixedIds, conflicts: currentConflicts)
+        let activeIds = Set(trains.map { $0.id })
+        
+        let req = aiService.createRequest(
+            nodes: nodes,
+            edges: edges,
+            trains: all, 
+            fixedTrainIds: fixedIds, 
+            activeAgentIds: activeIds,
+            temporalObstacles: nil,
+            conflicts: currentConflicts
+        )
         
         do {
             // PIGNOLO PROTOCOL: Combine Publisher to Async/Await bridge
@@ -477,20 +518,70 @@ final class RailwayScheduleOptimizer {
         return updated
     }
     
-    private func refreshPhysicalSchedules(_ trains: [Train], existingTrains: [Train], network: RailwayNetwork) -> [Train] {
-        let tempManager = TrainManager()
-        tempManager.trains = existingTrains + trains
-        tempManager.refreshSchedules(with: network, pathCache: &localPathCache)
+    private func refreshPhysicalSchedules(_ trains: [Train], existingTrains: [Train], nodes: [Node], edges: [Edge], pathCache: inout [String: [Edge]]) -> [Train] {
+        var all = existingTrains + trains
+        refreshMultipleSchedules(&all, nodes: nodes, edges: edges, pathCache: &pathCache)
         
-        // Estraiamo solo i nostri treni aggiornati
-        // (Assumendo che refreshSchedules modifichi in-place gli oggetti nel manager)
         let updatedIds = Set(trains.map { $0.id })
-        return tempManager.trains.filter { updatedIds.contains($0.id) }
+        return all.filter { updatedIds.contains($0.id) }
     }
     
-    private func detectConflicts(_ trainSubset: [Train], existingTrains: [Train], network: RailwayNetwork) -> [ScheduleConflict] {
+    private func detectConflicts(_ trainSubset: [Train], existingTrains: [Train], nodes: [Node], edges: [Edge], pathCache: inout [String: [Edge]]) -> [ScheduleConflict] {
         let allTrains = existingTrains + trainSubset
-        return conflictManager.calculateConflicts(network: network, trains: allTrains)
+        var dc: [String: [Edge]]? = pathCache
+        let res = conflictManager.calculateConflictsWithCapacities(nodes: nodes, edges: edges, trains: allTrains, pathCache: &dc).0
+        if let u = dc { pathCache = u }
+        return res
+    }
+    
+    // MARK: - Local Schedule Helpers (Replacing TrainManager)
+    
+    private func refreshMultipleSchedules(_ trains: inout [Train], nodes: [Node], edges: [Edge], pathCache: inout [String: [Edge]]) {
+        for i in trains.indices {
+            refreshSingleTrainSchedule(&trains[i], nodes: nodes, edges: edges, pathCache: &pathCache)
+        }
+    }
+    
+    private func refreshSingleTrainSchedule(_ train: inout [Train].Element, nodes: [Node], edges: [Edge], pathCache: inout [String: [Edge]]) {
+        guard let depTime = train.departureTime else { return }
+        var currentTime = depTime.normalized()
+        
+        for j in train.stops.indices {
+            let stop = train.stops[j]
+            if j == 0 {
+                train.stops[j].arrival = nil
+                train.stops[j].departure = currentTime
+            } else {
+                let prevId = train.stops[j-1].stationId
+                let pathKey = "\(prevId)--\(stop.stationId)"
+                let pathEdges = pathCache[pathKey] ?? NetworkModel.findPathEdges(from: prevId, to: stop.stationId, edges: edges)
+                
+                if let actualPath = pathEdges {
+                    pathCache[pathKey] = actualPath
+                    let dist = actualPath.reduce(0.0) { $0 + $1.distance }
+                    let speed = actualPath.map { Double($0.maxSpeed) }.min() ?? 100.0
+                    
+                    let hours = FDCSchedulerEngine.calculateTravelTime(
+                        distanceKm: dist,
+                        maxSpeedKmh: speed,
+                        train: train,
+                        initialSpeedKmh: 0,
+                        finalSpeedKmh: 0
+                    )
+                    
+                    currentTime = currentTime.addingTimeInterval(hours * 3600)
+                    
+                    train.stops[j].arrival = currentTime
+                    // PIGNOLO FIX: Include extraDwellTime (CTC/AI/GA offsets)
+                    let baseDwell = Double(stop.minDwellTime)
+                    let extraDwell = stop.extraDwellTime
+                    let dwellDuration = (baseDwell + extraDwell) * 60
+                    
+                    currentTime = currentTime.addingTimeInterval(dwellDuration)
+                    train.stops[j].departure = (j < train.stops.count - 1) ? currentTime : nil
+                }
+            }
+        }
     }
     
     private func minutesDiff(_ t1: Train, _ t2: Train) -> Int {

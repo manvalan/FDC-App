@@ -5,14 +5,15 @@ import Foundation
 import Charts
 
 struct SchedulerView: View {
-    @ObservedObject var network: RailwayNetwork
-    @EnvironmentObject var trainManager: TrainManager
+    @EnvironmentObject var appState: AppState
+    private var railroad: RailroadNetwork { appState.railroad }
+    private var network: NetworkModel { railroad.network }
+    private var lines: LinesManager { railroad.lines }
 
     @State private var schedulerResult: String = ""
     @State private var isLoading = false
     @State private var errorMessage: String? = nil
     @State private var showTrains = false
-    @EnvironmentObject var appState: AppState
     @State private var selectedSchedule: TrainSchedule? = nil
     @State private var showExport = false
     @State private var showChart = false
@@ -29,7 +30,7 @@ struct SchedulerView: View {
             Form {
                 Section(header: Text("trains_to_schedule".localized)) {
                     Button("manage_trains".localized) { showTrains = true }
-                    ForEach(trainManager.trains) { train in
+                    ForEach(lines.trains) { train in
                         VStack(alignment: .leading) {
                             Text(train.name).font(.headline)
                             Text(String(format: "type_speed_label".localized, train.type, train.maxSpeed)).font(.caption)
@@ -41,7 +42,8 @@ struct SchedulerView: View {
                         isLoading = true
                         schedulerResult = "calculating_in_progress".localized
                         errorMessage = nil
-                        sendToScheduler(network: network, trains: trainManager.trains) { result in
+                        let dto = RailwayNetworkDTO(name: "Temp", nodes: network.nodes, edges: network.edges, lines: lines.lines, trains: lines.trains)
+                        sendToScheduler(dto: dto, trains: lines.trains) { result in
                             DispatchQueue.main.async {
                                 isLoading = false
                                 switch result {
@@ -53,7 +55,7 @@ struct SchedulerView: View {
                                 }
                             }
                         }
-                    }.disabled(isLoading || trainManager.trains.isEmpty)
+                    }.disabled(isLoading || lines.trains.isEmpty)
                     Button("export_result".localized) {
                         showExport = true
                     }.disabled(schedulerResult.isEmpty)
@@ -64,7 +66,7 @@ struct SchedulerView: View {
                 Section(header: Text("local_infrastructure".localized)) {
                     Button("simulate_full_network".localized) {
                         simulateLocally()
-                    }.disabled(trainManager.trains.isEmpty || network.lines.isEmpty)
+                    }.disabled(lines.trains.isEmpty || lines.lines.isEmpty)
                     
                     if !appState.simulator.schedules.isEmpty {
                         ForEach(appState.simulator.schedules) { schedule in
@@ -72,11 +74,11 @@ struct SchedulerView: View {
                                 HStack {
                                     VStack(alignment: .leading) {
                                         Text(schedule.trainName).font(.headline)
-                                        Text("\(schedule.stops.count) fermate").font(.caption)
+                                        Text(String(format: "stops_count_label".localized, schedule.stops.count)).font(.caption)
                                     }
                                     Spacer()
                                     if schedule.totalDelayMinutes > 0 {
-                                        Text("+\(schedule.totalDelayMinutes)m")
+                                        Text("+\(schedule.totalDelayMinutes)\("min_short".localized)")
                                             .font(.caption).padding(4).background(Color.red.opacity(0.1)).cornerRadius(4)
                                     }
                                     Image(systemName: "chevron.right")
@@ -92,16 +94,19 @@ struct SchedulerView: View {
                                 ScheduleConflict(
                                     trainAId: c.trainIds.first ?? UUID(),
                                     trainBId: c.trainIds.last ?? UUID(),
-                                    trainAName: c.trainNames.first ?? "Sconosciuto",
-                                    trainBName: c.trainNames.last ?? "Sconosciuto",
+                                    trainAName: c.trainNames.first ?? "unknown_train".localized,
+                                    trainBName: c.trainNames.last ?? "unknown_train".localized,
                                     locationType: c.type == .stationOverlap ? .station : .line,
                                     locationName: network.nodes.first(where: { $0.id == c.locationId })?.name ?? c.locationId,
                                     locationId: c.locationId,
                                     timeStart: c.startTime,
-                                    timeEnd: c.endTime
+                                    timeEnd: c.endTime,
+                                    capacity: 1,
+                                    occupantsCount: 2
                                 )
                             },
                             network: network,
+                            trains: lines.trains,
                             onFocusConflict: { conflict in
                                 // Optional: logic to center map on conflict
                             }
@@ -177,7 +182,7 @@ struct SchedulerView: View {
                 }
             }
             .sheet(isPresented: $showTrains) {
-                TrainsDetailView(manager: trainManager)
+                TrainsDetailView(manager: lines)
             }
             .fileExporter(isPresented: $showExport, document: SchedulerResultDocument(result: schedulerResult), contentType: .plainText, defaultFilename: "orari_conflitti.txt") { _ in }
             .sheet(isPresented: $showChart) {
@@ -211,26 +216,8 @@ struct SchedulerView: View {
         
         // Use a MainActor task for simulation to safely access @Published properties
         Task { @MainActor in
-            var newSchedules: [TrainSchedule] = []
-            
-            // For each line in the network, try to assign a train and build a schedule
-            for (index, train) in trainManager.trains.enumerated() {
-                // Use the train's own stored stops and departure time
-                let route = train.stops.map { $0.stationId }
-                let startTime = train.departureTime ?? Date()
-                
-                if let schedule = FDCSchedulerEngine.buildSchedule(train: train, network: network, route: route, startTime: startTime) {
-                    newSchedules.append(schedule)
-                }
-                
-                // Ensure train has a number for simulation if it doesn't
-                if trainManager.trains[index].number == 0 {
-                    trainManager.trains[index].number = 100 + index
-                }
-            }
-            
-            appState.simulator.schedules = newSchedules
-            appState.simulator.resolveConflicts(trains: trainManager.trains, network: network)
+            lines.refreshSchedules()
+            lines.validateSchedules()
             isLoading = false
         }
     }
@@ -256,13 +243,13 @@ struct TimetableChartView: View {
 
 struct TimetableChart: View {
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var trainManager: TrainManager
+    private var lines: LinesManager { appState.railroad.lines }
     let data: [TimetableChartData] // Fallback for remote results
     
     var body: some View {
         Chart {
             // Only show simulator data if there are actual trains
-            if !appState.simulator.schedules.isEmpty && !trainManager.trains.isEmpty {
+            if !appState.simulator.schedules.isEmpty && !lines.trains.isEmpty {
                 // Professional view from simulator data
                 ForEach(appState.simulator.schedules) { schedule in
                     ForEach(schedule.stops) { stop in
@@ -423,7 +410,7 @@ struct TimetableChartData: Identifiable {
 
 // MARK: - TrainsDetailView
 struct TrainsDetailView: View {
-    @ObservedObject var manager: TrainManager
+    @ObservedObject var manager: LinesManager
     @State private var showAdd = false
     @State private var newName = ""
     @State private var newType = "Regionale"
@@ -462,7 +449,20 @@ struct TrainsDetailView: View {
                         ToolbarItem(placement: .confirmationAction) {
                             Button("add_button".localized) {
                                 guard !newName.isEmpty else { return }
-                                 manager.trains.append(Train(id: UUID(), number: 100 + manager.trains.count, name: newName, type: newType, maxSpeed: newMaxSpeed, priority: 5, acceleration: 0.5, deceleration: 0.5))
+                                 manager.trains.append(Train(
+                                    id: UUID(), 
+                                    number: 100 + manager.trains.count, 
+                                    name: newName, 
+                                    type: newType, 
+                                    lineId: nil,
+                                    departureTime: nil,
+                                    stops: [],
+                                    vehicleId: nil,
+                                    maxSpeed: Double(newMaxSpeed), 
+                                    acceleration: 0.5, 
+                                    deceleration: 0.5, 
+                                    priority: 5
+                                 ))
                                  newName = ""
                                 newType = "Regionale"
                                 newMaxSpeed = 120
@@ -516,7 +516,7 @@ struct FDCFileDocument: FileDocument {
 
 // Funzione per chiamare il backend FDC_Scheduler
 @MainActor
-func sendToScheduler(network: RailwayNetwork, trains: [Train], completion: @escaping (Result<String, Error>) -> Void) {
+func sendToScheduler(dto: RailwayNetworkDTO, trains: [Train], completion: @escaping (Result<String, Error>) -> Void) {
     // 1. Usa la baseURL corretta dal Service (che è http :8080)
     let baseURL = RailwayAIService.shared.baseURL
     // Se baseURL finisce con /api/v1, torniamo indietro al root o appendiamo scheduler se esposto lì.
@@ -542,7 +542,7 @@ func sendToScheduler(network: RailwayNetwork, trains: [Train], completion: @esca
     struct SchedulerResponse: Codable {
         let result: String
     }
-    let payload = Payload(network: network.toDTO(), trains: trains)
+    let payload = Payload(network: dto, trains: trains)
     guard let data = try? JSONEncoder().encode(payload) else {
         completion(.failure(NSError(domain: "Serializzazione JSON fallita", code: 0)))
         return

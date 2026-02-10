@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ConflictCard: View {
     let conflict: ScheduleConflict
+    var suggestedResolution: String? = nil
     var onFocus: (() -> Void)? = nil
     
     var body: some View {
@@ -42,6 +43,10 @@ struct ConflictCard: View {
                 .padding(.vertical, 6)
                 .background(Color.secondary.opacity(0.1))
                 .cornerRadius(8)
+                
+                Image(systemName: "chevron.right")
+                    .font(.caption2.bold())
+                    .foregroundColor(.secondary)
             }
             
             Divider()
@@ -56,21 +61,11 @@ struct ConflictCard: View {
                 TrainParticipantView(name: conflict.trainBName, id: conflict.trainBId)
             }
             
-            if let onFocus = onFocus {
-                Button(action: onFocus) {
-                    HStack {
-                        Image(systemName: "scope")
-                        Text("Visualizza sulla mappa")
-                    }
-                    .font(.subheadline.bold())
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-                    .shadow(color: .blue.opacity(0.3), radius: 4, x: 0, y: 2)
-                }
-                .padding(.top, 4)
+            if let suggestions = suggestedResolution {
+                 Text("💡 \(suggestions)")
+                    .font(.caption)
+                    .foregroundColor(.green)
+                    .padding(.top, 4)
             }
         }
         .padding()
@@ -83,6 +78,10 @@ struct ConflictCard: View {
             RoundedRectangle(cornerRadius: 20)
                 .stroke(Color.white.opacity(0.5), lineWidth: 1)
         )
+        .contentShape(RoundedRectangle(cornerRadius: 20))
+        .onTapGesture {
+            onFocus?()
+        }
     }
     
     private func formatTime(_ date: Date) -> String {
@@ -128,7 +127,9 @@ struct ConflictCard_Previews: PreviewProvider {
                 locationName: "Firenze S.M.N.",
                 locationId: "FI_SMN",
                 timeStart: Date(),
-                timeEnd: Date().addingTimeInterval(120)
+                timeEnd: Date().addingTimeInterval(120),
+                capacity: 1,
+                occupantsCount: 2
             ))
             .padding()
         }
