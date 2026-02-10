@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Train Director</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta charset="UTF-8"> 
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel='stylesheet' type='text/css' href='font-awesome-4.3.0/css/font-awesome.css'/>
+	<link rel='stylesheet' type='text/css' href='bootstrap/css/bootstrap.css'/>
+
+    <script src="js/jquery-1.11.2.js"></script>
+	<script type="text/javascript" src="js/yaml.js"></script>
+
+	<link rel='stylesheet' type='text/css' href='style.css'/>
+
+	
+	
+    <script>
+    var ctx;
+    var shapes = { };
+    var NORTH = { x: 4, y: 0 };
+    var SOUTH = { x: 4, y: 9 };
+    var WEST = { x: 0, y: 4 };
+    var EAST = { x: 9, y: 4 };
+    var NORTHWEST = { x: 0, y: 0 };
+    var NORTHEAST = { x: 9, y: 0 };
+    var SOUTHWEST = { x: 0, y: 9 };
+    var SOUTHEAST = { x: 9, y: 9 };
+    var CENTER = { x: 4, y: 4 };
+    var tdOptions;
+    var bgColor;
+
+    function drawSegs(x, y, segs) {
+        var xpos = x * 9;
+        var ypos = y * 9;
+        var i;
+        ctx.strokeStyle = 'rgba(0, 0, 255, 1)';
+        // TODO: use path instead of segs
+        for (i = 0; i < segs.length; i += 2) {
+	        ctx.beginPath();
+            ctx.moveTo(xpos + segs[i].x, ypos + segs[i].y);
+            ctx.lineTo(xpos + segs[i + 1].x, ypos + segs[i + 1].y);
+	        ctx.stroke();
+        }
+    }
+    function drawTrack(t, dir) {
+		switch(dir) {
+		case 8:		// n-s
+			drawSegs(t.x, t.y, [ NORTH, SOUTH ])
+			break;
+		case 1:		// w-e
+			drawSegs(t.x, t.y, [ WEST, EAST ])
+			break;
+		case 2:		// nw-se
+			drawSegs(t.x, t.y, [ NORTHWEST, SOUTHEAST ]);
+			break;
+		case 3:		// sw-ne
+			drawSegs(t.x, t.y, [ SOUTHWEST, NORTHEAST ]);
+			break;
+		case 4:		// w-ne
+			drawSegs(t.x, t.y, [ WEST, CENTER, CENTER, NORTHEAST ]);
+			break;
+		case 5:		// w-se
+			drawSegs(t.x, t.y, [ WEST, CENTER, CENTER, SOUTHEAST ]);
+			break;
+		case 6:		// nw-e
+			drawSegs(t.x, t.y, [ NORTHWEST, CENTER, CENTER, EAST ]);
+			break;
+		case 7:		// sw-e
+			drawSegs(t.x, t.y, [ SOUTHWEST, CENTER, CENTER, EAST ]);
+			break;
+		case 12:		// nw-s
+			drawSegs(t.x, t.y, [ NORTHWEST, CENTER, CENTER, SOUTH ]);
+			break;
+		case 11:		// sw-n
+			drawSegs(t.x, t.y, [ SOUTHWEST, CENTER, CENTER, NORTH ]);
+			break;
+		case 14:		// s-ne
+			drawSegs(t.x, t.y, [ SOUTH, CENTER, CENTER, NORTHEAST ]);
+			break;
+		case 13:		// n-se
+			drawSegs(t.x, t.y, [ NORTH, CENTER, CENTER, SOUTHEAST ]);
+			break;
+		case 20:		// w-e-nw-se
+			drawSegs(t.x, t.y, [ WEST, EAST, NORTHWEST, SOUTHEAST ]);
+			break;
+		case 21:		// w-e-sw-ne
+			drawSegs(t.x, t.y, [ WEST, EAST, SOUTHWEST, NORTHEAST ]);
+			break;
+		case 22:		// nw-se-sw-ne
+			drawSegs(t.x, t.y, [ NORTHWEST, SOUTHEAST, SOUTHWEST, NORTHEAST ]);
+			break;
+		case 23:		// w-e-n-s
+			drawSegs(t.x, t.y, [ WEST, EAST, NORTH, SOUTH ]);
+			break;
+		case 24:		// n-s-sw-ne
+			drawSegs(t.x, t.y, [ NORTH, SOUTH, SOUTHWEST, NORTHEAST ]);
+			break;
+		case 25:		// n-s-nw-se
+			drawSegs(t.x, t.y, [ NORTH, SOUTH, NORTHWEST, SOUTHEAST ]);
+			break;
+		}
+    }
+
+    function drawSwitch(t) {
+        var xpos = t.x * 9;
+        var ypos = t.y * 9;
+        ctx.strokeStyle = 'rgba(0, 0, 255, 1)';
+        ctx.beginPath();
+        ctx.moveTo(xpos, ypos);
+        ctx.lineTo(xpos + 9, ypos);
+        ctx.lineTo(xpos + 9, ypos + 9);
+        ctx.lineTo(xpos, ypos + 9);
+        ctx.lineTo(xpos, ypos);
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+        ctx.lineWidth = 2;
+        
+		switch(t.dir) {
+		case 0:		// w-e/w-ne
+		    drawTrack(t, t.switched ? 4 : 1);
+			break;
+		case 1:		// w-e/nw-e
+		    drawTrack(t, t.switched ? 6 : 1);
+			break;
+		case 2:		// w-e/w-se
+		    drawTrack(t, t.switched ? 5 : 1);
+			break;
+		case 3:		// w-e/sw-e
+		    drawTrack(t, t.switched ? 7 : 1);
+			break;
+		case 4:		// sw-ne/sw-e
+		    drawTrack(t, t.switched ? 7 : 3);
+			break;
+		case 5:		// sw-se/w-ne
+		    drawTrack(t, t.switched ? 4 : 3);
+			break;
+		case 6:		// nw-se/nw-e
+		    drawTrack(t, t.switched ? 6 : 2);
+			break;
+		case 7:		// nw-se/w-se
+		    drawTrack(t, t.switched ? 5 : 2);
+			break;
+		case 8:		// w-e/sw-ne/w-ne/sw-e
+			if(t.switched) {
+			    drawSegs(t.x, t.y, [ WEST, NORTHEAST, SOUTHWEST, EAST ]);
+			} else {
+			    drawTrack(t, 21);
+			}
+			break;
+		case 9:		// w-e/nw-se/w-se/nw-e
+			if(t.switched) {
+			    drawSegs(t.x, t.y, [ WEST, SOUTHEAST, NORTHWEST, EAST ]);
+			} else {
+			    drawTrack(t, 20);
+			}
+			break;
+		case 10:		// w-se/w-ne
+		    drawTrack(t, t.switched ? 5 : 4);
+			break;
+		case 11:		// nw-e/sw-e
+		    drawTrack(t, t.switched ? 7 : 6);
+			break;
+		case 12:		// n-s/n-sw
+		    drawTrack(t, t.switched ? 11 : 8);
+			break;
+		case 13:		// n-s/n-se
+		    drawTrack(t, t.switched ? 13 : 8);
+			break;
+		case 14:		// n-s/nw-s
+		    drawTrack(t, t.switched ? 12 : 8);
+			break;
+		case 15:		// n-s/ne-s
+		    drawTrack(t, t.switched ? 14 : 8);
+			break;
+		case 16:		// n-s/sw-ne/sw-n/s-ne
+			if(t.switched) {
+			    drawSegs(t.x, t.y, [ SOUTHWEST, NORTH, SOUTH, NORTHEAST ]);
+			} else {
+			    drawTrack(t, 24);
+			}
+			break;
+		case 17:		// n-s/nw-se/nw-s/n-se
+			if(t.switched) {
+			    drawSegs(t.x, t.y, [ NORTHWEST, SOUTH, NORTH, SOUTHEAST ]);
+			} else {
+			    drawTrack(t, 25);
+			}
+			break;
+		case 18:		// sw-ne/sw-n
+		    drawTrack(t, t.switched ? 11 : 3);
+			break;
+		case 19:		// sw-ne/s-ne
+		    drawTrack(t, t.switched ? 14 : 3);
+			break;
+		case 20:		// nw-se/n-se
+		    drawTrack(t, t.switched ? 13 : 2);
+			break;
+		case 21:		// nw-se/nw-s
+		    drawTrack(t, t.switched ? 12 : 2);
+			break;
+		case 22:		// s-ne/s-nw
+		    drawTrack(t, t.switched ? 12 : 14);
+			break;
+		case 23:		// n-se/n-sw
+		    drawTrack(t, t.switched ? 11 : 13);
+			break;
+		}
+    }
+
+    function drawSignal(s) {
+        
+    }
+    function drawElement(t) {
+        switch(t.type) {
+        case 1:		// Track
+        	drawTrack(t, t.dir);
+        	break;
+        case 2:
+            drawSwitch(t, t.dir);
+            break;
+        case 4:
+            drawSignal(t);
+        default:
+            return;
+        }
+    }
+    
+    function getLayout() {
+        
+        /*
+		$.get("/war/layout.yaml", function(data, status) {
+			var c = document.getElementById("myCanvas");
+			ctx = c.getContext("2d");
+			ctx.fillStyle = bgColor;
+			ctx.fillRect(0, 0, 1600, 1024);
+			var result = YAML.parse(data);
+			var s;
+			for(s = 0; s < result.layout.length; ++s) {
+				var shp = result.layout[s];
+				var img = shapes[shp.shape];
+				if(img) {
+					ctx.putImageData(img.imagedata, shp.x * 9, shp.y * 9);
+					continue;
+				}
+				drawElement(shp);
+			}
+		});
+        */
+		$.get("/war/layout.json", function(data, status) {
+			var c = document.getElementById("myCanvas");
+			ctx = c.getContext("2d");
+			ctx.fillStyle = bgColor;
+			ctx.fillRect(0, 0, 1600, 1024);
+			var result = JSON.parse(data);
+			var s;
+			for(s = 0; s < result.layout.length; ++s) {
+				var shp = result.layout[s];
+				var img = shapes[shp.shape];
+				if(img) {
+					ctx.fillStyle = bgColor;
+					ctx.putImageData(img.imagedata, shp.x * 9, shp.y * 9);
+					continue;
+				}
+				drawElement(shp);
+			}
+		});
+    }
+    
+    function getOptions() {
+		$.get("/war/options.yaml", function(data, status) {
+			tdOptions = YAML.parse(data).options
+			var s;
+			for (s = 0; s < tdOptions.length; ++s) {
+			    var opt = tdOptions[s];
+			    if(opt.id == 'background') {
+			        bgColor = 'rgba(' + opt.value + ', 1)';
+			    }
+			}
+			getLayout();
+		});
+    }
+    
+    	$(document).ready(function() {
+    		$.get("/war/shapes.yaml", function(data, status) {
+    			var c = document.getElementById("myCanvas");
+    			ctx = c.getContext("2d");
+    			var result = YAML.parse(data);
+    			var s;
+    			for(s = 0; s < result.shapes.length; ++s) {
+    				var shp = result.shapes[s];
+    				var r;
+        			var img = ctx.createImageData(shp.width, shp.height);
+    				for(r = 0; r < shp.rows.length; ++r) {
+    					var row = shp.rows[r].row;
+    					var pxls = row.split(",");
+    					var i;
+    					for(i = 0; i < shp.width * 4; ++i) {
+    						img.data[r * shp.width * 4 + i] = pxls[i];
+    					}
+    				}
+    				shp.imagedata = img;
+    				shapes[shp.id] = shp;
+    			}
+    			getOptions();
+    	    });
+    	});
+
+
+    </script>
+</head>
+<body>
+	<div id="divLayout" role="tabpanel" class="tab-pane" height="100%" width="100%" aria-hidden="true">
+	  <center>
+		<canvas id="myCanvas" width="3000px" height="1600px"> </canvas>
+	  </center>
+	</div>
+	<div id="text">
+	</div>
+</body>
+</html>

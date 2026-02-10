@@ -1,0 +1,377 @@
+4,32,29,0,Section between Sig1 and Sig2 allows both 3000V and 10000V50Hz,0,0,0,0
+4,43,22,1,Sig2,0,0,0,0
+4,52,16,1,Sig1,0,0,0,0
+2,30,11,1,30,12
+4,20,5,0,D,0,0,21,8
+4,72,19,0,E10k,68,19,0,0
+4,10,12,0,E3k,0,0,15,12
+4,44,9,0,Y3k,0,0,0,0
+4,29,22,0,Y10k,0,0,0,0
+4,48,21,0,S10k,0,0,0,0
+4,27,14,0,S3k,0,0,0,0
+2,58,20,0,58,19
+2,44,20,0,44,19
+2,24,20,256,24,19,@
+2,40,13,0,40,12
+2,21,13,0,21,12
+2,20,9,256,20,8,@
+2,35,18,1,35,19
+2,52,18,1,52,19
+2,49,11,257,49,12,@
+2,39,11,1,39,12
+2,27,7,1,27,8
+2,19,11,1,19,12
+1,41,19,1,0,0noname
+1,34,12,9,0,0noname
+0,29,8,1,0,100,0,0,0,0,noname
+0,28,8,1,0,1,0,0,0,0,noname
+0,27,8,1,0,1,0,0,0,0,noname
+0,26,8,1,0,1,0,0,0,0,noname
+0,25,8,1,0,1,0,0,0,0,noname
+0,24,8,1,1,400,0,0,0,0,SD
+0,23,8,1,0,1,0,0,0,0,noname
+0,22,8,1,0,1,0,0,0,0,noname
+0,21,8,1,0,1,0,0,0,0,noname
+0,20,8,1,0,1,0,0,0,0,noname
+0,30,8,5,0,1,0,0,0,0,noname
+0,31,9,2,0,1,0,0,0,0,noname
+0,32,10,2,0,1,0,0,0,0,noname
+0,33,11,2,0,1,0,0,0,0,noname
+0,40,18,2,0,1,0,0,0,0,noname
+0,39,17,2,0,1,0,0,0,0,noname
+0,38,16,2,0,1,0,0,0,0,noname
+0,37,15,2,0,100,0,0,0,0,noname
+0,36,14,2,0,1,0,0,0,0,noname
+0,35,13,2,0,1,0,0,0,0,noname
+4,10,19,0,10000V 50Hz,0,0,0,0
+0,68,19,1,0,1,0,0,0,0,noname
+0,67,19,1,0,1,0,0,0,0,noname
+0,66,19,1,0,1,0,0,0,0,noname
+0,65,19,1,0,1,0,0,0,0,noname
+0,64,19,1,0,1,0,0,0,0,noname
+0,63,19,1,0,1000,0,0,0,0,noname
+0,61,19,1,0,1,0,0,0,0,noname
+0,62,19,1,0,1,0,0,0,0,noname
+0,60,19,1,0,1,0,0,0,0,noname
+0,59,19,1,0,1,0,0,0,0,noname
+0,58,19,1,0,1,0,0,0,0,noname
+0,57,19,1,0,1,0,0,0,0,noname
+0,56,19,1,0,1,0,0,0,0,noname
+0,55,19,1,0,250,0,0,0,0,noname
+0,53,19,1,0,1,0,0,0,0,noname
+0,54,19,1,0,1,0,0,0,0,noname
+0,52,19,1,0,1,0,0,0,0,noname
+0,51,19,1,0,1,0,0,0,0,noname
+0,50,19,1,0,1,0,0,0,0,noname
+0,49,19,1,0,1,0,0,0,0,noname
+0,48,19,1,1,500,0,0,0,0,S10k
+0,47,19,1,0,1,0,0,0,0,noname
+0,45,19,1,0,1,0,0,0,0,noname
+0,46,19,1,0,1,0,0,0,0,noname
+0,44,19,1,0,1,0,0,0,0,noname
+0,43,19,1,0,150,0,0,0,0,noname
+0,42,19,1,0,1,0,0,0,0,noname
+0,40,19,1,0,1,0,0,0,0,noname
+0,39,19,1,0,1,0,0,0,0,noname
+0,38,19,1,0,150,0,0,0,0,noname
+0,37,19,1,0,1,0,0,0,0,noname
+0,36,19,1,0,1,0,0,0,0,noname
+0,35,19,1,0,1,0,0,0,0,noname
+0,34,19,1,0,1,0,0,0,0,noname
+0,33,19,1,0,1,0,0,0,0,noname
+0,32,19,1,0,1,0,0,0,0,noname
+0,31,19,1,0,1,0,0,0,0,noname
+0,30,19,1,0,1,0,0,0,0,noname
+0,29,19,1,1,500,0,0,0,0,Y10k
+0,28,19,1,0,1,0,0,0,0,noname
+0,27,19,1,0,1,0,0,0,0,noname
+0,26,19,1,0,1,0,0,0,0,noname
+0,25,19,1,0,1,0,0,0,0,noname
+0,24,19,1,0,1,0,0,0,0,noname
+4,59,12,0,3000V,0,0,0,0
+0,52,12,1,0,1,0,0,0,0,noname
+0,51,12,1,0,1,0,0,0,0,noname
+0,50,12,1,0,1,0,0,0,0,noname
+0,48,12,1,0,1,0,0,0,0,noname
+0,49,12,1,0,1,0,0,0,0,noname
+0,47,12,1,0,1,0,0,0,0,noname
+0,46,12,1,0,1,0,0,0,0,noname
+0,45,12,1,0,1,0,0,0,0,noname
+0,44,12,1,1,300,0,0,0,0,Y3k
+0,43,12,1,0,1,0,0,0,0,noname
+0,42,12,1,0,1,0,0,0,0,noname
+0,41,12,1,0,1,0,0,0,0,noname
+0,40,12,1,0,1,0,0,0,0,noname
+0,39,12,1,0,1,0,0,0,0,noname
+0,38,12,1,0,1,0,0,0,0,noname
+0,37,12,1,0,250,0,0,0,0,noname
+0,36,12,1,0,1,0,0,0,0,noname
+0,35,12,1,0,1,0,0,0,0,noname
+0,33,12,1,0,1,0,0,0,0,noname
+0,32,12,1,0,1,0,0,0,0,noname
+0,31,12,1,0,1,0,0,0,0,noname
+0,30,12,1,0,1,0,0,0,0,noname
+0,29,12,1,0,1,0,0,0,0,noname
+0,28,12,1,0,1,0,0,0,0,noname
+0,27,12,1,1,250,0,0,0,0,S3k
+0,26,12,1,0,1,0,0,0,0,noname
+0,25,12,1,0,1,0,0,0,0,noname
+0,24,12,1,0,1,0,0,0,0,noname
+0,23,12,1,0,300,0,0,0,0,noname
+0,22,12,1,0,1,0,0,0,0,noname
+0,21,12,1,0,1,0,0,0,0,noname
+0,20,12,1,0,100,0,0,0,0,noname
+0,19,12,1,0,1,0,0,0,0,noname
+0,18,12,1,0,1,0,0,0,0,noname
+0,17,12,1,0,1,0,0,0,0,noname
+0,16,12,1,0,1000,0,0,0,0,noname
+0,15,12,1,0,1,0,0,0,0,noname
+(attributes 41,19
+power:10000V50Hz
+)
+(attributes 34,12
+power:3000V
+)
+(attributes 68,19
+power:10000V50Hz
+)
+(attributes 67,19
+power:10000V50Hz
+)
+(attributes 66,19
+power:10000V50Hz
+)
+(attributes 65,19
+power:10000V50Hz
+)
+(attributes 64,19
+power:10000V50Hz
+)
+(attributes 63,19
+power:10000V50Hz
+)
+(attributes 61,19
+power:10000V50Hz
+)
+(attributes 62,19
+power:10000V50Hz
+)
+(attributes 60,19
+power:10000V50Hz
+)
+(attributes 59,19
+power:10000V50Hz
+)
+(attributes 58,19
+power:10000V50Hz
+)
+(attributes 57,19
+power:10000V50Hz
+)
+(attributes 56,19
+power:10000V50Hz
+)
+(attributes 55,19
+power:10000V50Hz
+)
+(attributes 53,19
+power:10000V50Hz
+)
+(attributes 54,19
+power:10000V50Hz
+)
+(attributes 52,19
+power:10000V50Hz
+)
+(attributes 51,19
+power:10000V50Hz,3000V
+)
+(attributes 50,19
+power:10000V50Hz,3000V
+)
+(attributes 49,19
+power:10000V50Hz,3000V
+)
+(attributes 48,19
+power:10000V50Hz,3000V
+)
+(attributes 47,19
+power:10000V50Hz,3000V
+)
+(attributes 45,19
+power:10000V50Hz,3000V
+)
+(attributes 46,19
+power:10000V50Hz,3000V
+)
+(attributes 44,19
+power:10000V50Hz,3000V
+)
+(attributes 43,19
+power:10000V50Hz,3000V
+)
+(attributes 42,19
+power:10000V50Hz,3000V
+)
+(attributes 40,19
+power:10000V50Hz
+)
+(attributes 39,19
+power:10000V50Hz
+)
+(attributes 38,19
+power:10000V50Hz
+)
+(attributes 37,19
+power:10000V50Hz
+)
+(attributes 36,19
+power:10000V50Hz
+)
+(attributes 35,19
+power:10000V50Hz
+)
+(attributes 34,19
+power:10000V50Hz
+)
+(attributes 33,19
+power:10000V50Hz
+)
+(attributes 32,19
+power:10000V50Hz
+)
+(attributes 31,19
+power:10000V50Hz
+)
+(attributes 30,19
+power:10000V50Hz
+)
+(attributes 29,19
+power:10000V50Hz
+)
+(attributes 28,19
+power:10000V50Hz
+)
+(attributes 27,19
+power:10000V50Hz
+)
+(attributes 26,19
+power:10000V50Hz
+)
+(attributes 25,19
+power:10000V50Hz
+)
+(attributes 24,19
+power:10000V50Hz
+)
+(attributes 52,12
+power:3000V
+)
+(attributes 51,12
+power:3000V
+)
+(attributes 50,12
+power:3000V
+)
+(attributes 48,12
+power:3000V
+)
+(attributes 49,12
+power:3000V
+)
+(attributes 47,12
+power:3000V
+)
+(attributes 46,12
+power:3000V
+)
+(attributes 45,12
+power:3000V
+)
+(attributes 44,12
+power:3000V
+)
+(attributes 43,12
+power:3000V
+)
+(attributes 42,12
+power:1500
+)
+(attributes 41,12
+power:3000V
+)
+(attributes 40,12
+power:3000V
+)
+(attributes 39,12
+power:3000V
+)
+(attributes 38,12
+power:3000V
+)
+(attributes 37,12
+power:3000V
+)
+(attributes 36,12
+power:3000V
+)
+(attributes 35,12
+power:3000V
+)
+(attributes 33,12
+power:3000V
+)
+(attributes 32,12
+power:3000V
+)
+(attributes 31,12
+power:3000V
+)
+(attributes 30,12
+power:3000V
+)
+(attributes 29,12
+power:3000V
+)
+(attributes 28,12
+power:3000V
+)
+(attributes 27,12
+power:3000V
+)
+(attributes 26,12
+power:3000V
+)
+(attributes 25,12
+power:3000V
+)
+(attributes 24,12
+power:3000V
+)
+(attributes 23,12
+power:3000V
+)
+(attributes 22,12
+power:3000V
+)
+(attributes 21,12
+power:3000V
+)
+(attributes 20,12
+power:3000V
+)
+(attributes 19,12
+power:3000V
+)
+(attributes 18,12
+power:3000V
+)
+(attributes 17,12
+power:3000V
+)
+(attributes 16,12
+power:3000V
+)
+(attributes 15,12
+power:3000V
+)

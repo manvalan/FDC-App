@@ -1,0 +1,56 @@
+#  Segnale di avviso puro a vela quadra con freccia, seguito da segnale imperativo
+#  Aspetti consentiti: G, G·, V
+#
+#  P.Rosati 7/4/2008
+
+Aspect: yellow
+	IconE: NN_y_E.xpm
+	IconW: NN_y_W.xpm
+	IconN: NN_y_N.xpm
+	IconS: NN_y_S.xpm
+	Action: none
+
+Aspect: yellow_flashing
+	IconE: NN_y_E.xpm NN_b_E.xpm
+	IconW: NN_y_W.xpm NN_b_W.xpm
+	IconN: NN_y_N.xpm NN_b_N.xpm
+	IconS: NN_y_S.xpm NN_b_S.xpm
+	Action: none
+
+Aspect: green
+	IconE: NN_g_E.xpm
+	IconW: NN_g_W.xpm
+	IconN: NN_g_N.xpm
+	IconS: NN_g_S.xpm
+	Action: none
+
+# initial aspect
+
+OnInit:
+	.aspect = yellow
+end
+
+# user clicked on the signal
+
+OnCleared:
+	return
+end
+
+# another signal changed aspect
+
+OnUpdate:
+	if next.aspect = red
+		.aspect = yellow
+	else 
+		if next.aspect = yellow or next.switchThrown = 1
+			if next.nextLength < 1200
+				.aspect = yellow_flashing
+			else
+				.aspect = green
+			end
+		else # any other case
+			.aspect = green
+		end
+	end
+end
+

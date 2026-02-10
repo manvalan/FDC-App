@@ -1,0 +1,6 @@
+# user clicked on the signal
+
+OnShunt:
+    .aspect = red
+end
+

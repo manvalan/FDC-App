@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftUI
 
 @MainActor
 final class AppState: ObservableObject {
@@ -9,17 +10,26 @@ final class AppState: ObservableObject {
     @Published var didAutoImport: Bool = false
     @Published var importMessage: String? = nil
     @Published var simulator = FDCSimulator()
+    @Published var liveSim = LiveSimulationManager()
+    private var cancellables = Set<AnyCancellable>()
     
     // Navigation State (Global)
     @Published var sidebarSelection: SidebarItem? = .lines
     @Published var jumpToTrainId: UUID? = nil
     
+    // New Minimalist Navigation State
+    @Published var currentMode: AppMode = .design
+    @Published var isModeBarVisible: Bool = false
+    @Published var isSideMenuVisible: Bool = false
+    @Published var isInspectorVisible: Bool = false
+    
     // Selection State (Global)
-    @Published var selectedLineId: String? = nil
-    @Published var selectedNodeId: String? = nil
-    @Published var selectedEdgeId: String? = nil
-    @Published var selectedTrainIds: Set<UUID> = []
+    @Published var selectedLineId: String? = nil { didSet { withAnimation { if selectedLineId != nil { isInspectorVisible = true } else if !isSomethingSelected { isInspectorVisible = false } } } }
+    @Published var selectedNodeId: String? = nil { didSet { withAnimation { if selectedNodeId != nil { isInspectorVisible = true } else if !isSomethingSelected { isInspectorVisible = false } } } }
+    @Published var selectedEdgeId: String? = nil { didSet { withAnimation { if selectedEdgeId != nil { isInspectorVisible = true } else if !isSomethingSelected { isInspectorVisible = false } } } }
+    @Published var selectedTrainIds: Set<UUID> = [] { didSet { withAnimation { if !selectedTrainIds.isEmpty { isInspectorVisible = true } else if !isSomethingSelected { isInspectorVisible = false } } } }
     @Published var isInspectorEditingMode: Bool = false
+    @Published var lastVehicleAssignmentLineId: String? = nil
     
     var selectedLine: RailwayLine? {
         railroad.lines.lines.first { $0.id == selectedLineId }
@@ -48,6 +58,11 @@ final class AppState: ObservableObject {
         selectedNodeId = nil
         selectedEdgeId = nil
         selectedTrainIds = []
+        isInspectorVisible = false
+    }
+    
+    var isSomethingSelected: Bool {
+        selectedLineId != nil || selectedNodeId != nil || selectedEdgeId != nil || !selectedTrainIds.isEmpty
     }
     
     // MARK: - New Architecture (Code That Fits in Your Head)
@@ -262,6 +277,21 @@ final class AppState: ObservableObject {
     }
     
     private func setupBindings() {
+        // Propagate changes from RailroadNetwork to AppState
+        railroad.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+            
+        liveSim.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
         railroad.lines.onSchedulesChanged = { [weak self] in
             guard let self = self else { return }
             self.simulator.schedules = self.railroad.lines.generateSchedulesPreview()
@@ -289,9 +319,10 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     case network = "network"
     case lines = "lines"
     case trains = "trains"
-    case vehicles = "materiale_rotante"
+    case vehicles = "materiale_rotabile"
     case ai = "railway_ai"
     case io = "io"
+    case simulation = "simulation"
     case settings = "settings"
     
     var id: String { rawValue }
@@ -305,10 +336,24 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .network: return "map"
         case .lines: return "point.topleft.down.to.point.bottomright.curvepath"
         case .trains: return "train.side.front.car"
-        case .vehicles: return "bus.doubledecker"
+        case .vehicles: return "train.side.front.car"
         case .ai: return "sparkles"
         case .io: return "doc.badge.arrow.up"
+        case .simulation: return "play.desktopcomputer"
         case .settings: return "gear"
+        }
+    }
+}
+
+enum AppMode: String, CaseIterable, Identifiable {
+    case design, schedule, live
+    var id: String { rawValue }
+    
+    var title: String {
+        switch self {
+        case .design: return "Progetto"
+        case .schedule: return "Programmazione"
+        case .live: return "Esercizio"
         }
     }
 }

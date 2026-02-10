@@ -115,6 +115,53 @@ struct TrainDetailView: View {
                 .background(Color.secondary.opacity(0.05))
                 .cornerRadius(12)
                 
+                // 1.5 VEHICLE ASSIGNMENT
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "bus.doubledecker.fill")
+                            .foregroundColor(.purple)
+                        Text("materiale_rotabile".localized).font(.headline)
+                    }
+                    
+                    Picker("Mezzo", selection: train.vehicleId) {
+                        Text("nessun_mezzo".localized).tag(UUID?.none)
+                        ForEach(manager.vehicles) { v in
+                            Text(v.name).tag(UUID?.some(v.id))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .disabled(!appState.isInspectorEditingMode)
+                    
+                    if let vId = train.wrappedValue.vehicleId, let vehicle = manager.vehicles.first(where: { $0.id == vId }) {
+                        HStack {
+                            Text(vehicle.model).font(.caption).foregroundColor(.secondary)
+                            Spacer()
+                            Text("\(Int(vehicle.length))m").font(.caption).foregroundColor(.secondary)
+                        }
+                        
+                        // Check for conflicts involving THIS train
+                        let conflicts = manager.getVehicleConflicts(for: vId).filter { 
+                            $0.trainA.id == train.wrappedValue.id || $0.trainB.id == train.wrappedValue.id 
+                        }
+                        
+                        if let firstConflict = conflicts.first {
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                Text(firstConflict.description)
+                                    .font(.system(size: 10, weight: .bold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(8)
+                            .background(Color.red)
+                            .cornerRadius(6)
+                            .padding(.top, 4)
+                        }
+                    }
+                }
+                .padding()
+                .background(Color.secondary.opacity(0.05))
+                .cornerRadius(12)
+                
                 // 2. TIMETABLE & ITINERARY
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {

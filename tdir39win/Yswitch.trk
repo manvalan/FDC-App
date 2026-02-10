@@ -1,0 +1,103 @@
+4,44,10,0,Z,0,0,0,0
+4,44,7,0,X,0,0,0,0
+4,30,19,0,E,0,0,0,0
+4,30,21,0,D,0,0,0,0
+4,30,17,0,B,0,0,0,0
+4,11,21,0,C,0,0,0,0
+4,11,17,0,A,0,0,0,0
+0,40,10,1,0,1,0,0,0,0,noname
+0,40,7,1,0,1,0,0,0,0,noname
+8,19,9,0,@A>B  C>D / A>E
+1,19,21,0,0,0
+1,19,17,2,0,0
+0,20,20,3,0,1,0,0,0,0,noname
+0,20,18,2,0,1,0,0,0,0,noname
+1,21,19,11,0,0
+0,21,21,1,0,1,0,0,0,0,noname
+0,20,21,1,0,1,0,0,0,0,noname
+0,18,21,1,0,1,0,0,0,0,noname
+0,17,21,1,0,1,0,0,0,0,noname
+0,16,21,1,0,1,0,0,0,0,noname
+0,15,21,1,0,1,0,0,0,0,noname
+0,27,21,1,0,1,0,0,0,0,noname
+0,26,21,1,0,1,0,0,0,0,noname
+0,25,21,1,0,1,0,0,0,0,noname
+0,23,21,1,0,1,0,0,0,0,noname
+0,24,21,1,0,1,0,0,0,0,noname
+0,22,21,1,0,1,0,0,0,0,noname
+0,27,19,1,0,1,0,0,0,0,noname
+0,27,17,1,0,1,0,0,0,0,noname
+0,26,17,1,0,1,0,0,0,0,noname
+0,25,19,1,0,1,0,0,0,0,noname
+0,26,19,1,0,1,0,0,0,0,noname
+0,24,19,1,0,1,0,0,0,0,noname
+0,23,19,1,0,1,0,0,0,0,noname
+0,22,19,1,0,1,0,0,0,0,noname
+0,25,17,1,0,1,0,0,0,0,noname
+0,24,17,1,0,1,0,0,0,0,noname
+0,23,17,1,0,1,0,0,0,0,noname
+0,22,17,1,0,1,0,0,0,0,noname
+0,21,17,1,0,1,0,0,0,0,noname
+0,20,17,1,0,1,0,0,0,0,noname
+0,18,17,1,0,1,0,0,0,0,noname
+0,17,17,1,0,1,0,0,0,0,noname
+0,16,17,1,0,1,0,0,0,0,noname
+0,15,17,1,0,1,0,0,0,0,noname
+(script 40,10
+OnClicked:
+  if Track(19,21).thrown = 0
+      do click 19,21
+      if Track(21,19).thrown = 0
+          do click 21,19
+     end
+  else
+     do click 19,21
+  end
+end
+
+)
+(script 40,7
+OnClicked:
+  if Track(19,17).thrown = 0
+      do click 19,17
+      if Track(21,19).thrown ! 0
+          do click 21,19
+     end
+  else
+     do click 19,17
+  end
+end
+
+)
+(script 19,9
+OnClicked:
+  do click 19,17
+end
+
+)
+(script 19,21
+OnClicked:
+  if Track(19,21).thrown = 0
+      if Track(21,19).thrown = 0
+          do click 21,19
+     end
+     if Track(19,17).thrown ! 0
+        do click 19,17
+     end
+  end
+end
+
+)
+(script 19,17
+OnClicked:
+  if Track(19,17).thrown = 0
+      if Track(21,19).thrown ! 0
+          do click 21,19
+     end
+     if Track(19,21).thrown ! 0
+        do click 19,21
+     end
+  end
+end
+
+)

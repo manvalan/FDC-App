@@ -20,7 +20,7 @@ extension ContentView {
             case .trains:
                 TrainsListView(selectedTrains: $appState.selectedTrainIds)
             case .vehicles:
-                RollingStockView()
+                RollingStockView(manager: lines)
             case .ai:
                 RailwayAIView(
                     network: network,
@@ -33,6 +33,8 @@ extension ContentView {
                 )
             case .io:
                 IOManagementView()
+            case .simulation:
+                LiveSimulationDashboard()
             case .settings:
                 SettingsView(showGrid: $showGrid)
             }

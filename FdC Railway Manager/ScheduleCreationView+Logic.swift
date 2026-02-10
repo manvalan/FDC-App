@@ -24,7 +24,8 @@ extension ScheduleCreationView {
             // Analisi preliminare dei conflitti con orario base
             tempManager.trains = existingTrains + optimizedTrains + [train]
             tempManager.refreshSchedules()
-            let initialConflicts = cm.calculateConflicts(network: network, trains: tempManager.trains)
+            var dummyCache: [String: [Edge]]? = nil
+            let initialConflicts = cm.calculateConflictsWithCapacities(nodes: network.nodes, edges: network.edges, trains: tempManager.trains, pathCache: &dummyCache).0
             
             if !initialConflicts.isEmpty {
                 // Strategia SMART: Se ci scontriamo in linea, proviamo a spostare l'incrocio alla stazione precedente o successiva
@@ -53,7 +54,8 @@ extension ScheduleCreationView {
                 tempManager.trains = existingTrains + optimizedTrains + [testTrain]
                 tempManager.refreshSchedules()
                 
-                let conflicts = cm.calculateConflicts(network: network, trains: tempManager.trains)
+                var dCache: [String: [Edge]]? = nil
+                let conflicts = cm.calculateConflictsWithCapacities(nodes: network.nodes, edges: network.edges, trains: tempManager.trains, pathCache: &dCache).0
                 let count = conflicts.count
                 
                 // Penalizziamo gli shift grandi se i conflitti sono uguali
@@ -80,7 +82,8 @@ extension ScheduleCreationView {
         tempManager.refreshSchedules()
         
         let cm = ConflictManager()
-        let conflicts = cm.calculateConflicts(network: network, trains: tempManager.trains)
+        var dummyCache: [String: [Edge]]? = nil
+        let conflicts = cm.calculateConflictsWithCapacities(nodes: network.nodes, edges: network.edges, trains: tempManager.trains, pathCache: &dummyCache).0
         
         let pairConflict = conflicts.first { c in
             let match1 = (c.trainAId == out.id && c.trainBId == ret.id)

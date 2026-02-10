@@ -43,6 +43,8 @@ struct RailwayMapView: View {
                 onPrint: { printMap() }
             )
             
+            // Internal Simulation Controls removed - now handled by Floating shelf in ContentView
+            
             if isExporting {
                 Color.black.opacity(0.3)
                     .ignoresSafeArea()
@@ -716,7 +718,8 @@ struct SchematicRailwayView: View {
                             selectedEdgeId: selectedEdgeId,
                             hiddenLineIds: hiddenLineIds,
                             bounds: bounds,
-                            size: canvasSize
+                            size: canvasSize,
+                            totalZoom: totalZoom
                         )
                         .allowsHitTesting(false)
                         
@@ -744,6 +747,16 @@ struct SchematicRailwayView: View {
                         )
                     }
                     .frame(width: canvasSize.width, height: canvasSize.height)
+                    .gesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                magnification = value
+                            }
+                            .onEnded { value in
+                                zoomLevel *= value
+                                magnification = 1.0
+                            }
+                    )
                     .onChange(of: selectedNode) { node in
                         if let node = node { withAnimation { proxy.scrollTo("node-\(node.id)", anchor: .center) } }
                     }
@@ -1416,6 +1429,7 @@ struct InfrastructureCanvas: View {
     let hiddenLineIds: Set<String>
     let bounds: SchematicRailwayView.MapBounds
     let size: CGSize
+    let totalZoom: CGFloat
     
     var body: some View {
         Canvas { context, size in
@@ -1495,6 +1509,11 @@ struct InfrastructureCanvas: View {
                 if mode == .network && selectedEdgeId == edge.id.uuidString {
                     context.stroke(path, with: .color(.blue.opacity(0.5)), style: StrokeStyle(lineWidth: lineWidth + 4, lineCap: .round))
                 }
+                
+                // 1b. Draw Detailed Infrastructure (Segments & Signals) if zoomed in
+                if totalZoom > 3.0 && !edge.segments.isEmpty {
+                    drawDetailedEdge(context: context, edge: edge, points: points, lineWidth: lineWidth)
+                }
             }
 
             // Hubs Visualization
@@ -1563,6 +1582,75 @@ struct InfrastructureCanvas: View {
         }
         .frame(width: size.width, height: size.height)
     }
+    
+    // MARK: - Detailed Drawing Helpers
+    
+    private func drawDetailedEdge(context: GraphicsContext, edge: Edge, points: [CGPoint], lineWidth: CGFloat) {
+        let totalLength = points.dropFirst().enumerated().reduce(0.0) { sum, pair in
+            sum + hypot(pair.element.x - points[pair.offset].x, pair.element.y - points[pair.offset].y)
+        }
+        
+        var currentDist: CGFloat = 0
+        var segmentIdx = 0
+        let segments = edge.segments
+        
+        for i in 0..<(points.count - 1) {
+            let p1 = points[i]; let p2 = points[i+1]
+            let segDist = hypot(p2.x - p1.x, p2.y - p1.y)
+            let angle = atan2(p2.y - p1.y, p2.x - p1.x)
+            
+            while segmentIdx < segments.count {
+                let segmentEndDist = totalLength * CGFloat(segments[0...segmentIdx].reduce(0.0) { $0 + $1.length } / edge.distance)
+                
+                if segmentEndDist >= currentDist && segmentEndDist <= currentDist + segDist {
+                    let ratio = (segmentEndDist - currentDist) / segDist
+                    let endPoint = CGPoint(
+                        x: p1.x + (p2.x - p1.x) * ratio,
+                        y: p1.y + (p2.y - p1.y) * ratio
+                    )
+                    
+                    let crossLen: CGFloat = lineWidth + 6
+                    var crossPath = Path()
+                    crossPath.move(to: CGPoint(x: -crossLen/2, y: 0))
+                    crossPath.addLine(to: CGPoint(x: crossLen/2, y: 0))
+                    
+                    var crossContext = context
+                    crossContext.translateBy(x: endPoint.x, y: endPoint.y)
+                    crossContext.rotate(by: .radians(Double(angle + .pi/2)))
+                    crossContext.stroke(crossPath, with: .color(.black.opacity(0.4)), lineWidth: 2)
+                    
+                    if let signal = segments[segmentIdx].signal {
+                        let signalOffset: CGFloat = lineWidth + 8
+                        let signalPoint = CGPoint(
+                            x: endPoint.x + cos(angle + .pi/2) * signalOffset,
+                            y: endPoint.y + sin(angle + .pi/2) * signalOffset
+                        )
+                        
+                        let signalAspectColor: Color = {
+                            switch signal.aspect {
+                            case .stop: return .red
+                            case .proceed: return .green
+                            case .caution: return .yellow
+                            }
+                        }()
+                        
+                        let signalCircle = Path(ellipseIn: CGRect(x: signalPoint.x - 4, y: signalPoint.y - 4, width: 8, height: 8))
+                        context.fill(signalCircle, with: .color(signalAspectColor))
+                        context.stroke(signalCircle, with: .color(.black), lineWidth: 1)
+                        
+                        if totalZoom > 4.5 {
+                            let label = Text(signal.name).font(.system(size: 8)).bold()
+                            context.draw(label, at: CGPoint(x: signalPoint.x, y: signalPoint.y - 12))
+                        }
+                    }
+                }
+                
+                if segmentEndDist > currentDist + segDist { break }
+                segmentIdx += 1
+            }
+            currentDist += segDist
+        }
+    }
 }
 
 struct TrainOverlayCanvas: View {
@@ -1576,7 +1664,7 @@ struct TrainOverlayCanvas: View {
     var body: some View {
         TimelineView(.animation) { timelineContext in
             Canvas { context, size in
-                let now = timelineContext.date.normalized()
+                let now = appState.liveSim.currentSimTime
                 for schedule in appState.simulator.schedules {
                     if let pos = MapGeometry.currentSchematicTrainPos(for: schedule, in: size, now: now, bounds: bounds, network: network) {
                         let trainDot = Path(ellipseIn: CGRect(x: pos.x - 6, y: pos.y - 6, width: 12, height: 12))

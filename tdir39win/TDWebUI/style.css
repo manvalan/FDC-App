@@ -1,0 +1,243 @@
+html { height: 100% }
+body {
+	height: 100%;
+	width: 100%;
+	margin: 0px;
+	padding: 0px;
+	font-family: Arial, Helvetica, sans-serif;
+}
+
+a {
+	color: #0000ff;
+}
+
+layout {
+	height: 100%;
+	width: 100%;
+	position: absolute;
+	left: 0;
+	top: 0;
+	background-color: #00c0c0;
+	overflow: scroll;
+}
+
+#scheduleDiv {
+	background-color: white;
+}
+
+.grip {
+	background: grey;
+	color: grey;
+}
+
+.timerClock {
+	font-size: 14px;
+	font-weight: bold;
+	margin-right: 20px;
+}
+
+.toolbarButton {
+	margin-right: 30px;
+}
+
+#timeMult {
+	width: 120px;
+	margin-right: 20px;
+}
+
+#stationSchedule {
+	background-color: white;
+}
+
+#trainSchedule {
+	background-color: white;
+}
+
+#scheduleDiv {
+	background-color: white;
+	width: 100%;
+	height: 100%;
+}
+
+#canvasDiv {
+	background-color: #c0c000;
+	width: 100%;
+	height: 100%;
+}
+
+#schedTab {
+	background-color: white;
+}
+
+#trStopsTable {
+	background-color: white;
+}
+
+.sbcell {
+	background-color: white;
+	height: 100px;
+	width: 100px;
+	margin-left: 10px;
+	margin-bottom: 10px;
+	border: 1px solid #c0c0c0;
+	vertical-align: text-center;
+	text-align: center;
+}
+
+.sb-empty {
+	background-color: white;
+}
+
+.sb-available {
+	background-color: lightgreen;
+}
+
+.sb-selected {
+	background-color: lightblue;
+}
+
+.sb-locked {
+	background-color: orange;
+}
+
+.table-striped tbody tr.highlight td {
+	background-color: red;
+}
+
+.selectorItem {
+	list-style-type: none;
+	background-color: white;
+	padding-bottom: 5px;
+	padding-right: 8px;
+	border-bottom: 1px solid #c0c0c0;
+}
+
+.selectorItem:hover {
+	background-color: cyan;
+}
+
+
+.stationListItem {
+	list-style-type: none;
+	background-color: white;
+	padding-bottom: 5px;
+	padding-right: 8px;
+	border-bottom: 1px solid #c0c0c0;
+	background-color: #f0f0f0; 
+}
+
+.stationListItem:hover {
+	background-color: yellow;
+}
+
+.trainSelector {
+	background-color: cyan;
+}
+.trainListItem {
+	list-style-type: none;
+	background-color: white;
+	padding-bottom: 5px;
+	padding-right: 8px;
+	border-bottom: 1px solid #c0c0c0;
+	background-color: #f0f0f0; 
+}
+
+.trainListItem:hover {
+	background-color: yellow;
+}
+
+.plainItem {
+	list-style-type: none;
+	background-color: cyan;
+	padding-bottom: 5px;
+	padding-right: 8px;
+	padding-left: 20px;
+	border-bottom: 1px solid #c0c0c0;
+}
+
+.plainItem:hover {
+	background-color: #c0ffc0;
+}
+
+.topMenuItem {
+	padding-left: 16px;
+}
+
+.tdMenuBar {
+	padding-top: 2px;
+	padding-bottom: 2px;
+	background-color: #d0d0d0;
+}
+
+.selectedItem {
+	background-color: #b0ffb0;
+}
+
+.selectedItem:hover {
+	background-color: #80ff80;
+}
+
+#ready
+#scheduleTab tbody>tr.class0  {
+  background-color: #80ff80;
+}
+# running
+.class1 {
+	background-color: white;
+	color: blue;
+}
+# stopped
+.class2 {
+	background-color: white;
+	color: black;
+}
+# delayed
+.class3 {
+	background-color: orange;
+	color: black;
+}
+# waiting
+.class4 {
+	background-color: white;
+	color: red;
+}
+# derailed
+.class5 {
+	background-color: red;
+	color: white;
+}
+# arrived
+.class6 {
+	background-color: white;
+	color: green;
+}
+# starting
+.class7 {
+	background-color: white;
+	color: gray;
+}
+
+body .modal-dialog {
+    /* new custom width */
+    width: 1000px;
+}
+
+
+#assignDialog zthead, ztbody { display: block; }
+
+#assignDialog ztbody {
+    height: 500px;       /* Just for the demo          */
+    overflow-y: auto;    /* Trigger vertical scroll    */
+    overflow-x: hidden;  /* Hide the horizontal scroll */
+}
+
+.tdheadrow {
+	position: fixed;
+	top: 0px;
+	height: 50px;
+}
+
+.tdcontent {
+	position: fixed;
+	top: 50px;
+}

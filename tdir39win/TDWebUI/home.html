@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Title</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="split-pane.css" />
+  <script src="js/jquery-1.11.2.js"></script>
+  <script src="js/windows.js"></script>
+  <script src="split-pane.js"></script>
+        <style type="text/css">
+            html, body {
+                height: 100%;
+                min-height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            .split-pane-divider {
+                background: #aaa;
+            }
+            #left-component {
+                width: 30em;
+            }
+            #right-component {
+                left: 30em;  /* Same as left component width */
+                margin-left: 5px;  /* Same as divider width */
+            }
+            #top-component {
+                // height: 20em;
+            }
+            #h-divider {
+                //top: 20em; /* Same as top component height*/
+                height: 5px;
+            }
+            #bottom-component {
+                //top: 20em;  /* Same as top component height */
+                margin-top: 5px;  /* Same as divider height */
+            }
+            .tabbed-view {
+                background-color: #ddd;
+                width: 100%;
+                height: 100%;
+            }
+        </style>
+        <script>
+            $(function() {
+                $('div.split-pane').splitPane();
+                $('a.splitcmd').click(function (event) {
+                	event.preventDefault();
+                	splitVert($(this).parent("div.tabbed-view"));
+                });
+            });
+        </script>
+    </head>
+    <body>
+      <div id="testBox" width="100%" height="40px">
+      <a href="#" onclick="saveLayout()">Save layout</a> - <a href="#" onclick="restoreLayout()">Restore Layout</a>
+      </div>
+      <div id='mainArea' style="width: 100%; height: 100%">
+        <div class="tabbed-view">
+          <a class='splitcmd' href='#1'>Split vertically</a> -
+          <a class='splitcmd' href='#2'>Split horizontally</a>
+        </div>
+        <!-- 
+        <div class="split-pane fixed-left">
+            <div class="split-pane-component" id="left-component">
+                This is the left component
+            </div>
+            <div class="split-pane-divider" style="left: 30em; width: 5px;" ></div>
+            <div class="split-pane-component" id="right-component">
+		        <div class="split-pane fixed-top">
+		            <div class="split-pane-component" id="top-component">
+		                This is the left component
+		            </div>
+		            <div class="split-pane-divider" id="h-divider"></div>
+		            <div class="split-pane-component" id="bottom-component">
+		                This is the right component
+		            </div>
+		        </div>
+            </div>
+        </div>
+         -->
+      </div>
+    </body>
+</html>

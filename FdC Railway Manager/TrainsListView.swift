@@ -40,19 +40,15 @@ struct TrainsListView: View {
             Section("unassigned_trains".localized) {
                 let unassigned = manager.trains.filter { $0.lineId == nil }
                 ForEach(unassigned) { train in
-                    Button(action: {
-                        selectedTrains = [train.id]
-                    }) {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle").foregroundColor(.orange)
-                            Text(train.name)
-                            Spacer()
-                            Text(train.type.localized).font(.caption)
+                    TrainRow(
+                        train: train,
+                        selectedIds: selectedTrains,
+                        onSelectTrain: { t in selectedTrains = [t.id] },
+                        onToggleSelection: { t in
+                            if selectedTrains.contains(t.id) { selectedTrains.remove(t.id) }
+                            else { selectedTrains.insert(t.id) }
                         }
-                        .background(selectedTrains.contains(train.id) ? Color.accentColor.opacity(0.2) : Color.clear)
-                        .cornerRadius(4)
-                    }
-                    .buttonStyle(.plain)
+                    )
                 }
                 .onDelete { idx in
                     let toDel = idx.map { unassigned[$0] }
@@ -148,6 +144,8 @@ struct TrainRow: View {
     let onSelectTrain: (Train) -> Void
     let onToggleSelection: (Train) -> Void
     
+    @EnvironmentObject var manager: LinesManager
+    
     var body: some View {
         Button(action: { onSelectTrain(train) }) {
             HStack {
@@ -160,8 +158,19 @@ struct TrainRow: View {
                         Text("\(train.number ?? 0)").font(.subheadline).bold().foregroundColor(.blue)
                         Text(train.name).font(.subheadline)
                     }
-                    if let dep = train.departureTime {
-                        Text("Partenza: \(formatTime(dep))").font(.caption2).foregroundColor(.secondary)
+                    HStack(spacing: 6) {
+                        if let dep = train.departureTime {
+                            Text("Partenza: \(formatTime(dep))").font(.caption2).foregroundColor(.secondary)
+                        }
+                        if let vId = train.vehicleId, let v = manager.vehicles.first(where: { $0.id == vId }) {
+                            Text(v.name)
+                                .font(.system(size: 8, weight: .bold))
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(Color.purple.opacity(0.1))
+                                .foregroundColor(.purple)
+                                .cornerRadius(3)
+                        }
                     }
                 }
                 Spacer()

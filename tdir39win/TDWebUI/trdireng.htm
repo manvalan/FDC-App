@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+  <head>
+	<title>Train Director Railroad Simulation</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Bootstrap -->
+    <link href="bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+	<meta name="description" content="traindirector railways dispatcher simulator for Linux and Windows">
+	<meta name="keywords" content="Railways simulator, simulator, railroad, railroad network, train, train director, simulation, switch, ctc traffic controller, train operation, train dispatcher">
+	<style>
+	.side-menu {
+		width: 100%;
+		height: 100%;
+		background-color: green;
+		list-style: outside none none;
+    	margin: 0;
+    	padding: 0;
+	}
+	.side-menu li {
+		height: 40px;
+	  	background-color: #f0f0f0;
+	    font-weight: normal;
+	    padding: 8px;
+	}
+	.side-menu li:hover {
+		background-color: white;
+		font-weight: bold;
+	}
+	.headerRow {
+		background-color: red;
+		width: 100%;
+		height: 48px;
+		padding: 14px;
+		color: white;
+		font-weight: bold;
+		font-size: 180%;
+	}
+	.languagesRow {
+		background-color: white;
+		width: 100%;
+		height: 40px;
+		align: center;
+	}
+	</style>
+  </head>
+  <body>
+  <div class="container" height="100%">
+  <div class="row">
+    <div class="col-xsm-12" >
+	    <div class='headerRow'>
+		Train Director 3
+	    </div>
+	    <div class='languagesRow'>
+			<!-- languages -->
+			</p><center>
+				<img src="./trdireng_files/uk_small.gif">&nbsp;<b>English</b>&nbsp;&nbsp;&nbsp;-&nbsp;&nbsp;&nbsp;<img src="./trdireng_files/spain_small.gif">&nbsp;<a href="http://www.backerstreet.com/traindir/es/TutorialTrainDirector.pdf">EspaÃ±ol</a>&nbsp;&nbsp;&nbsp;-&nbsp;&nbsp;&nbsp;<img src="./trdireng_files/france_small.gif">&nbsp;<a href="http://xtsl.free.fr/spip/">FranÃ§aise</a>&nbsp;&nbsp;&nbsp;-&nbsp;&nbsp;&nbsp;<img src="./trdireng_files/italy_small.gif">&nbsp;<a href="http://www.backerstreet.com/traindir/trdirita.htm">Italiano</a>&nbsp;&nbsp;&nbsp;-&nbsp;&nbsp;&nbsp;<img src="./trdireng_files/hungary_small.gif">&nbsp;<a href="http://traindir.uw.hu/">Magyar</a>&nbsp;&nbsp;&nbsp;-&nbsp;&nbsp;&nbsp;<img src="./trdireng_files/russia_small.gif">&nbsp;<a href="http://www.climbatized.narod.ru/traindir.html">Ð ÑƒÑ�Ñ�ÐºÐ¸Ð¹</a>
+			</center>
+		</div>
+    </div>
+  </div>
+  <div class="row" height="100%">
+    <div class="col-sm-2"  height="100%">
+    	<div height="100%">
+		   <img name="ETR 460" src="./trdireng_files/esetr460.jpg" width="100%"></img>&nbsp;<font size="-1">ETR 460 at Alessandria station</font>
+    	<ul class='side-menu'>
+    	<li><b>Main Page</b></li>
+    	<li><a href="trackse.htm">Territory Directory</a></li>
+    	<li><a href="iconse.htm">Icons Directory</a></li>
+    	<li><a href="en/resources.php">Other Resources</a></li>
+    	<li><a href="tdirfaqe.htm">FAQ</a></li>
+    	<li><a href="tdirmane.htm">User's Manual</a></li>
+    	<li><a href="editor_en.htm">Scenario Creation</a></li>
+    	<li><a href="tdirsche.htm">Time Table Creation</a></li>
+    	<li><a href="scripts_en_main.htm">Scripts</a></li>
+    	<li><a href="en/switchboard.php">Switchboard</a></li>
+    	<li><a href="en/linked_scenarios.php">Linked Scenarios</a></li>
+    	<li><a href="en/architecture">Program Architecture</a></li>
+    	<li><a href="en/server.php">Server Mode</a></li>
+    	<li><a href="en/files.php">Files Area</a></li>
+    	<li><a href="localeng.htm">Localizations</a></li>
+    	<li><a href="tdirblde.htm">Build Instructions</a></li>
+    	<li><a href="discussion_group.htm">Discussion Group</a></li>
+    	<!-- 
+			<script type="text/javascript"><!--
+			google_ad_client = "pub-5261171589659998";
+			/* tdir leftmenu 120x600 */
+			google_ad_slot = "2470991494";
+			google_ad_width = 120;
+			google_ad_height = 600;
+			//-->
+			<!-- 
+			</script>
+			<script type="text/javascript" src="./trdireng_files/show_ads.js">
+			</script>
+    	 -->
+   
+    	</ul>
+    	</div>
+
+	</div> <!--  end col-sm-2 -->
+
+    <div class="col-sm-8">
+
+
+<!-- page content -->
+
+  <div class="main-content">
+<p>
+
+Last update: <b>October 19, 2014</b> - Version 3.8v
+</p><p><b>Train Director</b> is a clone of the popular
+<a href="http://www.signalcc.com/train2/">Train Dispatcher</a>
+simulation software.
+With Train Director you can simulate the work of the Centralized Traffic
+Control (CTC). Your task is to direct trains running in a territory
+to their final destination, by throwing switches and clearing signals.
+Penalties are collected for incorrect or inefficient operations,
+or for trains arriving late.
+You can also create your own territories with the
+included track layout editor.
+Train Director is available for <b>Windows</b>, <strong>Mac OS X</strong> and <b>Linux</b>.
+
+</p><h3><img alt="Windows Icon" src="./trdireng_files/win.gif" width="21" height="23">&nbsp; 
+Installing on Windows</h3>
+ 
+ <div class="install">
+ 
+    Download the file <a href="http://www.backerstreet.com/traindir/tdir38win.zip">tdir38win.zip</a> (8 MB).<br>
+    Create a directory (e.g. <tt>C:\TRAINDIR3</tt>).<br>
+    Unzip the content of the file using a decompressor that can handle
+    long file names, such as <a href="http://www.rarlabs.com/">WinRar</a>.<br>
+    Run the file <tt>TRAINDIR3.EXE</tt> from the same directory.
+ </div>
+
+ <h3><img alt="Linux icon" src="./trdireng_files/linux.gif" width="22" height="23">&nbsp; 
+	Installing on Linux</h3>
+
+ <div class="install">
+	Download the file <a href="http://www.backerstreet.com/traindir/tdir38Ubuntu.zip">tdir38Ubuntu.zip</a> 
+	(1.6 MB).<br>
+    Create a directory (e.g. <tt>~/traindir3/</tt>).<br>
+    Extract the content of the file with the command
+    <tt>unzip tdir38Ubuntu.zip</tt> in the created directory.<br>
+    Run the file <tt>~/traindir3/traindir3</tt> from the same directory.
+ </div>
+ <h3><img alt="MacOS Icon" src="./trdireng_files/mac.gif" width="23" height="23">&nbsp; 
+	Installing on Mac OS X</h3>
+ <div class="install">
+	Download the file <a href="http://www.backerstreet.com/traindir/tdir38mac.tar.gz">tdir38mac.tar.gz</a> (1.8 MB).<br>
+    Create a directory (e.g. <tt>~/traindir3/</tt>).<br>
+    Extract the content of the file with the command
+    <tt>tar zxf tdir38mac.tar.gz</tt> in the created directory (in case
+    your browser didn't uncompress the file automatically).<br>
+	Then open the file <tt>~/traindir3/td3.app</tt> from MacOS's Finder.
+ </div>
+
+<br><b>Note</b>: if you downloaded a previous version to version 3.0 on
+the same computer, it's advisable to download Train Director 3 in a
+different directory, since the executable and the run-time libraries
+are not compatible. It is not necessary to re-download the scenarios.
+<br>
+<br>
+<hr>
+<a name="NewVersion3"></a>
+<h3>New in Version 3</h3>
+<p>
+Version 3 of Train Director features a new and more modern look-and-feel,
+closer to that of other native Windows or Linux applications.
+The following image shows the welcome page, from where you can
+load a previous simulation or start a new simulation.
+</p><p>
+</p><center><img src="./trdireng_files/welcome.jpg"></center></a>
+<p>
+Once loaded a scenario, the most relevant data to the execution
+of the simulation are shown in the same window frame.
+In the following image you can see the layout, the time table
+in the lower left corner, and information about a train in
+the lower right corner.
+</p><p>
+<a name="screenshot"></a></p><center><a name="screenshot"><img src="./trdireng_files/treviso.jpg"></a></center>
+<p>
+It's also possible to remove undesired elements from the
+screen, such as the toolbar at the top or the status bar at the
+bottom, so as to maximize the area used to show the layout.
+</p><p>
+It is now possible to show and print the summary pages (such
+as the performance page, the station schedule and the train timetable)
+directly from inside the program.
+</p><p>
+It is also possible to scroll the view of the layout using the
+arrow keys (use Ctrl+arrow for bigger scrolls).
+</p><p>
+Lastly, it's possible to load a scenario directly from the .zip
+file, without the need to expand the scenario in its own directory.
+</p><p>
+In version <b>3.1</b> it is now possible to zoom in/out the layout;
+this is very useful when looking at very packed territories.
+</p><p>
+Also new in version 3.1 is the possibility of always showing
+the layout coordinates, and also the ability to insert/delete lines/columns
+or move blocks during the editing of the layout.
+</p><p>
+In version <b>3.2</b> you can define up to 8 train types.
+Also a new action has been added to the trigger: "assign @".
+With this new command, one can automate almost every operation,
+allowing for full unattended simulation of a scenario.
+A lot of minor bugs have also been fixed.
+</p><p>
+In version <b>3.3</b> you can define approach signals and define
+signals with multiple aspects. This is accomplished by writing
+separate scripts that are associated with each signal, and that
+provide the logic for changing the signal's aspect according to
+the traffic conditions.
+</p><p>
+Version <b>3.4</b> introduces the management of rolling stock
+that is separate from running trains. It is now possible to
+split and join trains, thus increasing the simulation
+realism, especially when trains have the length information.
+</p><p>
+Version <strong>3.5</strong> is the first version that can be compiled and run 
+on Mac OS X. This version uses Unicode support for the Mac OS X and Linux 
+versions. I fixed a few bugs and I introduced the possibility of saving the 
+performance report in a text file, as well as the possibility to select an 
+itinerary from a list or using the Shift+Click on the beginning and ending 
+signal of the itinerary (as in version 1.19).</p><p>
+Version <strong>3.6</strong> extends the scripting capabilities to
+cover tracks, signals and trains. See the <a href="http://www.backerstreet.com/traindir/scripts_en_main.htm">
+scripts page</a> for more information. It also introduces the ability
+to automatically display information about the simulation from HTML
+pages in the "Scenario Info" window.
+</p>
+<p>
+Version <strong>3.7</strong> allows scenario creators to specify random delays 
+for the entrance time and departure time of trains. Moreover it is now possible 
+to connect to Train Director from another program and to control its behavior 
+and receive user-generated events. Also, it is now possible to save an image of 
+the layout as a BMP, JPG, GIF or PNG file through the File + Print menu. Finally 
+many bugs caused by the split and join train feature have been fixed.</p>
+<p>
+Consult the <a href="http://www.backerstreet.com/traindir/tdirmane.htm">user's manual</a> for further information.
+</p><h3>Bugs and To-do</h3>
+Since version 3 has required a rewrite of most of the graphical user
+interface to use the new run-time libraries <a href="http://www.wxwidgets.org/">wxWidgets</a>,
+it's possible that new bugs had been introduced with respect to the
+previous version.
+<p>
+The layout editor still requires more enhancements. At this moment
+it's necessary some practice to use the editor.
+
+</p><hr>
+This page is maintained by g_caprino@gmail.com
+<br>(<b>Remove the _ before sending your message.</b>)
+<br>Created on <b>June 1, 2000</b>
+<p>&nbsp;</p>
+
+</div>
+<div class='col-sm-2'>
+<td class="top_right">
+	<p>
+	<script src="./trdireng_files/ifr"></script>
+	</p>
+	<p>&nbsp;</p>
+	<script type="text/javascript"><!--
+	google_ad_client = "pub-5261171589659998";
+	//RedVertRight
+	google_ad_slot = "4764626074";
+	google_ad_width = 160;
+	google_ad_height = 600;
+	//--></script>
+	<script type="text/javascript" src="./trdireng_files/show_ads.js">
+	</script>
+</div>  <!--  end main content -->
+</div>  <!--  end col-sm-9 -->
+</div>  <!--  end row -->
+</div>  <!--  end container -->
+
+<!--  
+ <script type="text/javascript" src="./trdireng_files/getHtml.js"></script>
+<script type="text/javascript">
+function callback() {
+}
+getData("en/nav_menu_h.htm", "navMenu", callback);
+</script>
+
+<script type="text/javascript">
+var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+</script><script src="./trdireng_files/ga.js" type="text/javascript"></script>
+<script type="text/javascript">
+try {
+var pageTracker = _gat._getTracker("UA-9142177-1");
+pageTracker._trackPageview();
+} catch(err) {}</script>
+
+ -->
+
+
+
+</body></html>

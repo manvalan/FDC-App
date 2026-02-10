@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Train Director</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta charset="UTF-8"> 
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 
+   <link rel="stylesheet" href="split-pane.css" />
+ -->
+	<link rel='stylesheet' type='text/css' href='js/jquery.contextMenu.css'/>
+	<link rel='stylesheet' type='text/css' href='font-awesome-4.3.0/css/font-awesome.css'/>
+	<link rel='stylesheet' type='text/css' href='bootstrap/css/bootstrap.css'/>
+	<link rel='stylesheet' type='text/css' href='bootstrap3-dialog/css/bootstrap-dialog.css'/>
+
+    <script src="js/jquery-1.11.2.js"></script>
+	<script src='js/jquery.contextMenu.js'></script>
+	<script src='js/jquery.ui.position.js'></script>
+	<script src='js/colResizable-1.5.source.js'></script>
+	<script type="text/javascript" src="js/yaml.js"></script>
+
+	<script type='text/javascript' src="js/spectrum.js"></script>
+	<link rel='stylesheet' type='text/css' href='js/spectrum.css'/>  <!-- color picker -->
+	<link rel='stylesheet' type='text/css' href='style.css'/>
+	<script src='js/td.js'></script>
+
+	<script src='js/td/stationSchedule.js'></script>
+	<script src='js/td/trainStops.js'></script>
+
+	<script src="js/highcharts.js"></script>
+	<script src="js/modules/exporting.js"></script>
+	<script src='js/td/layout.js'></script>
+	<script src='js/td/lategraph.js'></script>
+	<script src='js/td/timeDistanceGraph.js'></script>
+	<script src='js/td/platformGraph.js'></script>
+
+	<script src="bootstrap/js/bootstrap.js"></script>
+	<script src="bootstrap3-dialog/js/bootstrap-dialog.js"></script>
+	
+	<link rel="stylesheet" type="text/css" href="js/jquery-easyui/themes/default/easyui.css">
+	<link rel="stylesheet" type="text/css" href="js/jquery-easyui/themes/icon.css">
+	<link rel="stylesheet" type="text/css" href="js/jquery-easyui/demo/demo.css">
+	<script type="text/javascript" src="js/jquery-easyui/jquery.easyui.min.js"></script>
+	<script type="text/javascript" src="js/jquery-easyui/datagrid-scrollview.js"></script>
+	
+    <script>
+    var websocket;
+    var wsUri = "ws://127.0.0.1:8900";
+    var timer;
+    var wsreply = '';
+
+    	$(document).ready(function() {
+    	    initIcons();
+    	    initButtons();
+    	});
+    	
+    	function doPerformance() {
+    	}
+    	
+    	function onMenu() {
+    	}
+ //   	var nativeObject = YAML.parse("status:\n- a: 1\n  b: 2\n- c: 3\n  d: 4\n");
+ //   	var yamlString = YAML.stringify(nativeObject);
+ //   	console.log(yamlString);
+    </script>
+</head>
+<body onload='initTables();'>
+
+  <div id="clientArea">
+    <div id="statusArea"><span id='simTimeSpan' width='80px'>Caricamento in corso - Attendere...</span><span id='curStatus'>&nbsp;</span><br>&nbsp;</div>
+
+	<ul class="nav nav-tabs" role='tablist'>
+	  <li role="presentation" id='tabGlobal' class="active"><a href="#divGlobal" role="tab" data-toggle="tab">Orario Generale</a></li>
+	  <li role="presentation" id='tabLayout'><a href="#divLayout" role="tab" data-toggle="tab">Tracciato</a></li>
+	  <li role="presentation" id='tabStation'><a href="#divStation" role="tab" data-toggle="tab">Orario per Stazioni</a></li>
+	  <li role="presentation" id='tabStops'><a href="#divStops" role="tab" data-toggle="tab">Orario per Treni</a></li>
+	  <li role="presentation" id='tabInfoScenario'><a href="#infoScenario" role="tab" data-toggle="tab">Informazioni Scenario</a></li>
+	  <li role="presentation" id='tabLateMin'><a href="#lateMinuteGraph" role="tab" data-toggle="tab">Grafico Ritardi</a></li>
+	  <li role="presentation" id='tabTimeDistance'><a href="#timeDistance" role="tab" data-toggle="tab">Orario Grafico</a></li>
+	  <li role="presentation" id='tabPlatforms'><a href="#platformsOccupancy" role="tab" data-toggle="tab">Grafico Binari</a></li>
+	  <li role="presentation" id='tabPlatforms'><a href="#alertsDiv" role="tab" data-toggle="tab">Eventi</a></li>
+	  <li role="presentation" id='tabPlatforms'><a href="#prefsDiv" role="tab" data-toggle="tab">Preferenze</a></li>
+	</ul>
+  <!-- Tab panes -->
+  <div class="tab-content">
+
+    <!--
+    	Global Schedule 
+     -->
+    <div id="divGlobal" role="tabpanel" class="tab-pane active" height="100%" width="100%" aria-hidden="true">
+    <div id="reply"></div>
+		<div id="scheduleDiv" style="valign: top">
+		    <div class="row">
+		      <div class="col-md-6">
+		      </div>
+		      <div class="col-md-3">
+		      <!-- 
+				  <span class='pull-right'><input type="checkbox" name="vehicle" id='showArrived'> Show arrived&nbsp;&nbsp;<input type="checkbox" name="vehicle" id='showCanceled'> Show canceled</span>
+		       -->
+		      </div>
+		      <div class="col-md-3">
+		        <div class="input-group input-group-sm">
+		          <span class='input-group-addon'><i class="glyphicon glyphicon-filter"></i></span>
+		          <input width="100%" type="text" id="schedSearchInput" class="form-control search-query" placeholder="Filtra">
+		        </div>
+		      </div>
+		    </div>
+	    
+			<table id='schedTab' class='table table-condensed '>
+			<thead>
+				<tr><th>Train</th><th>Orario ingresso</th><th>Punto ingresso</th><th>Orario uscita</th><th>Punto uscita</th><th>Velocit&agrave;</th><th>Stato</th><th>Min. Ritardo</th><th>Rit. Ingresso</th></tr>
+			</thead>
+			<tbody>
+			</tbody>
+			</table>
+		</div>
+    </div>
+
+	<!--
+		Layout 
+	 -->
+
+	<div id="divLayout" role="tabpanel" class="tab-pane" height="100%" width="100%" aria-hidden="true">
+	  <center>
+		<!--  
+		 <img id="canvas" src="/war/canvas"> </img>
+		 -->
+ 		<canvas id="canvas" width="3000px" height="1600px"> </canvas>
+	  </center>
+	</div>
+    
+    <!--
+    	Station Schedule 
+     -->
+    
+    <div id="divStation"  role="tabpanel" class="tab-pane" height="100%" width="100%" aria-hidden="true">
+		<div id="stationSchedule" height="100%" width="100%">
+		    <table width="100%" height="100%">
+		       <tr width="100%" height="100%">
+		          <td width="25%" height="100%" valign='top' style='background-color: white'>
+			        <p class="form-control-static">
+			        &nbsp;
+			        </p>
+			        <div class="input-group input-group-sm">
+			          <span class='input-group-addon'><i class="glyphicon glyphicon-filter"></i></span>
+			          <input width="100%" type="text" id="stationSelectorSearchInput" class="form-control search-query" placeholder="Filtra">
+			        </div>
+		       		<div id="stationSelector" valign="top" height="100%"></div>
+		       	  </td>
+		       	  <td width="75%" height="100%" valign='top'>
+		       		<div id="stationTrains" valign="top">
+					    <div class="row">
+					      <div class="col-md-6">
+					      </div>
+					      <div class="col-md-3">
+								<span class='pull-right'>
+									<input type="checkbox" name="vehicle" id='splitArrivalsDepartures'> Separa Arrivi/Partenze&nbsp;&nbsp;
+									<!-- <input type="checkbox" name="vehicle" id='showArrived'>Show arrived&nbsp;&nbsp;
+									<input type="checkbox" name="vehicle" id='showCanceled'> Show canceled -->
+								</span>
+					      </div>
+					      <div class="col-md-3">
+					        <div class="input-group input-group-sm">
+					          <span class='input-group-addon'><i class="glyphicon glyphicon-filter"></i></span>
+					          <input width="100%" type="text" id="statSchedSearchInput" class="form-control search-query" placeholder="Filtra">
+					        </div>
+					      </div>
+					    </div>
+	    
+					    <table class="table table-bordered table-condensed table-hover" style="background-color: white" id="stTrainsTable">
+					      <thead>
+					        <tr>
+					            <th>Treno</th>
+					            <th>Arrivo</th>
+					            <th>Provenienza</th>
+					            <th>Partenza</th>
+					            <th>Destinazione</th>
+					        </tr>
+					      </thead>
+					      <tbody>
+					      </tbody>
+						</table>
+					    <table class="table table-bordered table-condensed table-hover" style="background-color: white" id="stTrainsTableSplit">
+							<thead>
+								<tr>
+									<th>Treno</th>
+									<th>Arrivo</th>
+									<th>Provenienza</th>
+									<th>Binario</th>
+									<th>Treno</th>
+									<th>Partenza</th>
+									<th>Destinazione</th>
+									<th>Binario</th>
+								</tr>
+							</thead>
+							<tbody>
+							</tbody>
+						</table>
+					</div> <!--  end stationTrains -->
+		       	  </td>
+		       </tr>
+		    </table>
+		</div>
+    </div>
+    
+    <!--
+    	Train Stops
+     -->
+    
+    <div id="divStops" role="tabpanel" class="tab-pane" height="100%" width="100%" aria-hidden="true" >
+		<div id="trainSchedule" height="100%" width="100%">
+		    <table width="100%" height="100%">
+		       <tr width="100%" height="100%">
+		          <td width="25%" height="100%" valign='top'>
+			        <p class="form-control-static">
+			        &nbsp;
+			        </p>
+			        <div class="input-group input-group-sm">
+			          <span class='input-group-addon'><i class="glyphicon glyphicon-filter"></i></span>
+			          <input width="100%" type="text" id="trainSelectorSearchInput" class="form-control search-query" placeholder="Filtra">
+			        </div>
+		       		<div id="trainSelector" valign="top" height="100%" style="overflow: scroll;"></div>
+		       	  </td>
+		       	  <td width="75%" height="100%" valign='top'>
+		       		<div id="trainStops" valign="top" style="background-color: white" style="overflow: scroll;">
+					    <div class="row">
+					      <div class="col-md-6">
+					      </div>
+					      <div class="col-md-3">
+					      <!-- 
+							  <span class='pull-right'><input type="checkbox" name="vehicle" id='showArrived'> Show arrived&nbsp;&nbsp;<input type="checkbox" name="vehicle" id='showCanceled'> Show canceled</span>
+					       -->
+					      </div>
+					      <div class="col-md-3">
+					        <div class="input-group input-group-sm">
+					          <span class='input-group-addon'><i class="glyphicon glyphicon-filter"></i></span>
+					          <input width="100%" type="text" id="trainStopsSearchInput" class="form-control search-query" placeholder="Filtra">
+					        </div>
+					      </div>
+					    </div>
+
+					    <table class="table table-bordered table-condensed table-hover" style="background-color: white" id="trStopsTable">
+					      <thead>
+					        <tr>
+					            <th>Stazione</th>
+					            <th>Arrivo</th>
+					            <th>Partenza</th>
+					        </tr>
+					      </thead>
+					      <tbody>
+					      </tbody>
+					    </table>
+		       		
+		       		</div>
+		       	  </td>
+		       </tr>
+		    </table>
+		</div>
+    </div>
+
+   	<div class="modal fade" id="assignDialog" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+	  <div class="modal-dialog">
+	    <div class="modal-content">
+	      <div class="modal-header">
+	        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+	        <h4 class="modal-title">Assegnazione Treni</h4>
+	      </div>
+	      <div class="modal-body" >
+	        <table>
+	          <tr valign='top'>
+	          <td width="100%">
+		      	<table id="assignCandidatesTable" class='table table-condensed table-hover' style="overflow: scroll;">
+		      		<thead>
+		      		  <tr><th>Treno</th><th>Ora</th><th>Ingresso</th><th>Partenza</th><th>Uscita</th><th>Note</th></tr>
+		      		</thead>
+		      	   <tbody>
+		      	   </tbody>
+		      	</table>
+		      </td>
+		      <td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+		      </td>
+		      <td> <!--  buttons columns -->
+		        <div class='span2'>
+		         <button type="button" id="btnAssign" class="btn btn-default btn-sm btn-block" data-dismiss="modal">Assegna</button><br>
+		         <button type="button" id="btnAssignShunt" class="btn btn-default btn-sm btn-block" data-dismiss="modal">Assegna + Manovra</button><br>
+		         <button type="button" id="btnAssignReverse" class="btn btn-default btn-sm btn-block" data-dismiss="modal">Inverti direzione + Assegna</button><br>
+		         <button type="button" id="btnShunt" class="btn btn-default btn-sm btn-block" data-dismiss="modal">Manovra</button><br>
+		         <button type="button" id="btnReverse" class="btn btn-default btn-sm btn-block" data-dismiss="modal">Inverti direzione</button><br>
+		         <button type="button" id="btnSplit" class="btn btn-default btn-sm btn-block" data-dismiss="modal">Spezza</button><br>
+		         <button type="button" id="btnCancel" class="btn btn-default btn-sm btn-block" data-dismiss="modal">Cancella</button><br>
+		        </div>
+		      </td>
+	        </table>
+	      </div>
+		  <div class="modal-footer" style="display:none"></div>
+	    </div><!-- /.modal-content -->
+	  </div><!-- /.modal-dialog -->
+	</div><!-- /.modal -->
+
+    <div id="infoScenario" aria-hidden="true" height="100%" width="100%" role="tabpanel" class="tab-pane">
+	  <p>Nessuna informazione disponibile</p>
+	</div>
+
+	<div id="lateMinuteGraph" aria-hidden="true" height="100%" width="100%" role="tabpanel" class="tab-pane">
+	  <p></p>
+	</div>
+
+	<div id="timeDistance" aria-hidden="true" height="100%" width="100%" role="tabpanel" class="tab-pane" >
+	  <canvas id='timeDistanceCanvas' width='6200px' height='2000px' style="overflow: scroll;" ></canvas>
+	</div>
+
+	<div id="platformsOccupancy" aria-hidden="true" height="100%" width="100%" role="tabpanel" class="tab-pane">
+	  <canvas id='platformsCanvas' width='3100px' height='2000px' style="overflow: scroll;" ></canvas>
+	</div>
+    
+	<div id="alertsDiv" aria-hidden="true" height="100%" width="100%" role="tabpanel" class="tab-pane">
+	</div>
+    
+	<div id="prefsDiv" aria-hidden="true" height="100%" width="100%" role="tabpanel" class="tab-pane">
+	    <div class="row">
+	      <div class="col-md-3">&nbsp;
+	      </div>
+	      <div class="col-md-6">
+	        <p>&nbsp;
+			<div class="form-group row">
+				<div class="col-sm-10">
+				<h4>Scegli le tue preferenze e clicca su "Aggiorna"...</h4>
+				</div>
+			    <div class="col-sm-2">
+			      <button type="submit" id='savePreferencesButton' class="btn btn-primary">Aggiorna</button>
+			    </div>
+			</div>	
+			<div id="preferencesBody">
+			</div>
+		  </div>
+		</div>
+	</div>
+    
+  </div>
+  
+	<div class="modal fade" id="itineraryDialog" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" height="480px">
+	  <div class="modal-dialog">
+	    <div class="modal-content">
+	      <div class="modal-header">
+	        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+	        <h4 class="modal-title">Scelta Itinerario</h4>
+	      </div>
+	      <div class="modal-body" >
+	      	<table id="itineraryDialogTable" class='table table-condensed table-hover' style="height: 400px; overflow-y: auto;">
+	      		<thead>
+	      		  <tr><th>Nome</th><th>Dal segnale</th><th>Al segnale</th><th>Prossimo itinerario</th></tr>
+	      		</thead>
+	      	   <tbody>
+	      	   </tbody>
+	      	</table>
+	      </div>
+	      <div class="modal-footer">
+	        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+	        <button type="button" class="btn btn-primary">Scegli</button>
+	      </div>
+	    </div><!-- /.modal-content -->
+	  </div><!-- /.modal-dialog -->
+	</div><!-- /.modal -->
+
+	<div class="modal fade" id="splitDialog" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" height="300px">
+	  <div class="modal-dialog">
+	    <div class="modal-content">
+	      <div class="modal-header">
+	        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+	        <h4 class="modal-title">Spezza Treno</h4>
+	      </div>
+	      <div class="modal-body">
+	        <div id="splitBody">
+	            Distanza dalla testa del treno del punto di separazione in metri
+	            <input type="text" id="splitText">
+	        </div>
+	      </div>
+	      <div class="modal-footer">
+	        <button id="doSplitButton" type="button" class="btn btn-default" data-dismiss="modal">Spezza</button>
+	        <button type="button" class="btn btn-primary" data-dismiss="modal">Cancella</button>
+	      </div>
+	    </div><!-- /.modal-content -->
+	  </div><!-- /.modal-dialog -->
+	</div><!-- /.modal -->
+	
+
+<!-- 
+	<div id="switchBoardDiv" aria-hidden="true" height="100%" width="100%">
+	</div>
+ -->	
+   </div>
+</body>
+</html>

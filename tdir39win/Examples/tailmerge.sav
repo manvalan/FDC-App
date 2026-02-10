@@ -1,0 +1,257 @@
+Layout: C:\CG\projects\traindir3\html\tdir38win\tailmerge.sav
+CurrentTimeMultiplier:0
+StartTime:0
+ShowSpeeds:0
+ShowBlocks:1
+BeenOnAlert:1
+RunPoints:240
+TotalDelay:0
+TotalLate:0
+TimeMultiplier:0
+SimulatedTime:790
+
+
+Train:T1
+  Status:6
+  Direction:6
+  Exited:
+  TimeExited:0
+  WrondDest:0
+  Speed:0
+  MaxSpeed:0
+  CurMaxSpeed:60
+  TrackPos:0
+  TimeLate:0
+  TimeDelay:0
+  TimeRed:0
+  TimeDep:240
+  PathPos:0
+  PathTraveled:0
+  DistanceToStop:-8.000000
+  Shunting:0
+  NeedFIndStop:0
+  WaitTime:0
+  Flags:0
+  Arrived:0
+  OldStatus:0
+  OutOf:S1
+    Stop:S1
+    Stopped:1
+    Delay:-1
+
+  Length:250
+
+Train:T2
+  Status:6
+  Direction:2
+  Exited:
+  TimeExited:0
+  WrondDest:0
+  Speed:0
+  MaxSpeed:0
+  CurMaxSpeed:60
+  TrackPos:0
+  TimeLate:0
+  TimeDelay:0
+  TimeRed:0
+  TimeDep:0
+  PathPos:0
+  PathTraveled:468
+  DistanceToStop:1.555556
+  Shunting:0
+  StopPoint:19,9
+  DistanceToStop:1.555556
+  NeedFIndStop:0
+  Position:18,10
+  WaitTime:0
+  Flags:0
+  Arrived:0
+  OldStatus:0
+  OutOf:
+  Length:150
+    TailPos:0
+    TailTrackPos:0
+    TailEntry:0
+    TailExit:0
+    TailTrack:15,10
+    TailDir:2
+    TailTrack:16,10
+    TailDir:2
+    TailTrack:17,10
+    TailDir:2
+    TailTrack:18,10
+    TailDir:2
+
+Train:T3
+  Status:6
+  Direction:2
+  Exited:
+  TimeExited:0
+  WrondDest:0
+  Speed:0
+  MaxSpeed:0
+  CurMaxSpeed:60
+  TrackPos:0
+  TimeLate:0
+  TimeDelay:0
+  TimeRed:0
+  TimeDep:0
+  PathPos:0
+  PathTraveled:370
+  DistanceToStop:2.833333
+  Shunting:0
+  StopPoint:13,9
+  DistanceToStop:2.833333
+  NeedFIndStop:0
+  Position:11,10
+  WaitTime:0
+  Flags:0
+  Arrived:0
+  OldStatus:0
+  OutOf:
+  Length:150
+    TailPos:0
+    TailTrackPos:0
+    TailEntry:0
+    TailExit:0
+    TailTrack:8,10
+    TailDir:2
+    TailTrack:9,10
+    TailDir:2
+    TailTrack:10,10
+    TailDir:2
+    TailTrack:11,10
+    TailDir:2
+    TailTrack:12,10
+    TailDir:2
+
+.
+WhiteTrack:14,10
+WhiteTrack:13,10
+LateMinutes
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+ 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+RunDay:0
+TerseStatus:0
+StatusOnTop:0
+ShowSeconds:1
+TraditionalSignals:1
+AutoLink:1
+ShowGrid:0
+WrongDest:0
+LateTrains:0
+ThrownSwitches:0
+ClearedSignals:0
+Denied:0
+TurnedTrains:0
+WaitingTrains:0
+WrongPlatform:0
+NTrainsLate:0
+NTrainsWrong:0
+NMissedStops:0
+NWrongAssign:0
+HardCounters:1
+ShowCanceled:0
+ShowLinks:1
+BeepOnEnter:1
+ShowCoords:0
+ShowIcons:1
+ShowToolTip:0
+ShowScripts:0
+RandomDelays:1
+LinkToLeft:0
+PlaySynchronously:1

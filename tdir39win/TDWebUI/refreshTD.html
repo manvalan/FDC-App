@@ -1,0 +1,14 @@
+<html>
+<body>
+<img id='canvas' src="http://127.0.0.1:8999/war/canvas">
+<script>
+var baseUrl = "http://127.0.0.1:8999/war/canvas";
+function doReload() {
+	var canvas = document.getElementById("canvas");
+	canvas.src = baseUrl + "?i=" + (Math.random() * 1000);
+	setTimeout(doReload, 2000);
+}
+setTimeout(doReload, 2000);
+</script>
+</body>
+</html>

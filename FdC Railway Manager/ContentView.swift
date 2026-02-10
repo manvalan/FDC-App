@@ -38,53 +38,100 @@ struct ContentView: View {
     @Namespace var tabNameSpace
 
     var body: some View {
-        VStack(spacing: 0) {
-            topNavigationBar
+        ZStack {
+            // 1. BACKGROUND: THE MAP (Full Screen)
+            detailContent
+                .edgesIgnoringSafeArea(.all)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 30)
+                        .onEnded { value in
+                            let vertical = value.translation.height
+                            let horizontal = value.translation.width
+                            
+                            // Top to Bottom swipe anywhere (Mode Bar)
+                            if vertical > 50 && abs(horizontal) < 50 {
+                                withAnimation(.spring()) { appState.isModeBarVisible = true }
+                            }
+                        }
+                )
             
-            HStack(spacing: 0) {
-                // 1. MASTER LIST (Left)
-                if appState.sidebarSelection != nil {
-                    sidebarContent
-                        .frame(width: 300)
-                        .background(Color.secondary.opacity(0.05))
-                        .background(.ultraThinMaterial)
-                    
-                    Divider()
-                        .edgesIgnoringSafeArea(.all)
+            // 2. OVERLAYS: MODES & NAVIGATION
+            
+            // Top Mode Bar (Triggered by Swipe Down or Border Swipe)
+            if appState.isModeBarVisible {
+                VStack {
+                    FloatingModeBar()
+                        .padding(.top, 40)
+                    Spacer()
                 }
-                
-                // 2. MAIN VIEW (Center Map)
-                detailContent
-                    .layoutPriority(1)
-                
-                // 3. PROPERTIES / DIAGRAM (Right)
-                if isSomethingSelected {
-                    Divider()
-                        .edgesIgnoringSafeArea(.all)
-                    
-                    sidebarPropertiesContent
-                        .frame(width: 350)
-                        .background(Color.secondary.opacity(0.05))
-                        .background(.ultraThinMaterial)
-                        .transition(.move(edge: .trailing))
-                }
+                .zIndex(100)
             }
+            
+            // Left Side Menu (Border Swipe)
+            if appState.isSideMenuVisible {
+                HStack {
+                    FloatingSideMenu()
+                    Spacer()
+                }
+                .background(Color.black.opacity(0.2).onTapGesture { withAnimation { appState.isSideMenuVisible = false } })
+                .zIndex(100)
+            }
+            
+            // Right Inspector (Contextual)
+            if appState.isInspectorVisible {
+                HStack {
+                    Spacer()
+                    ContextualInspector()
+                }
+                .zIndex(90)
+            }
+            
+            // Simulation Controls (Only in Live Mode)
+            if appState.currentMode == .live {
+                VStack {
+                    Spacer()
+                    LiveSimulationShelf()
+                        .padding(.bottom, 20)
+                }
+                .zIndex(80)
+            }
+            
+            
+            // 3. EDGE GESTURE DETECTORS (Invisible strips on the edges)
+            HStack {
+                // Left edge strip (Side Menu)
+                Color.clear
+                    .frame(width: 20)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 10)
+                            .onEnded { value in
+                                if value.translation.width > 30 {
+                                    withAnimation(.spring()) { appState.isSideMenuVisible = true }
+                                }
+                            }
+                    )
+                
+                Spacer()
+                
+                // Right edge strip (Inspector)
+                Color.clear
+                    .frame(width: 40) // Wider for easier catch
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 10)
+                            .onEnded { value in
+                                if value.translation.width < -30 {
+                                    withAnimation(.spring()) { appState.isInspectorVisible = true }
+                                }
+                            }
+                    )
+            }
+            .edgesIgnoringSafeArea(.vertical)
         }
-        .animation(.spring(), value: appState.sidebarSelection)
-        .animation(.spring(), value: isSomethingSelected)
         .environmentObject(network)
-        .onChange(of: appState.sidebarSelection) { _ in
-            appState.clearSelection()
-        }
-        .onChange(of: appState.jumpToTrainId) { trainId in
-            if let tId = trainId {
-                appState.sidebarSelection = .trains
-                appState.selectTrain(tId)
-                appState.jumpToTrainId = nil
-            }
-        }
         .background {
-            Button("") { network.undo() }
+            Button("") { railroad.undo() }
                 .keyboardShortcut("z", modifiers: .command)
                 .opacity(0)
         }
@@ -98,5 +145,36 @@ struct ContentView: View {
         } message: {
             Text("L'algoritmo ha ridotto i conflitti da \(optimizationConflictDelta.before) a \(optimizationConflictDelta.after).\nVuoi applicare \(pendingOptimizedTrains.count) orari ottimizzati?")
         }
+    }
+}
+
+// Placeholder for Live Simulation controls shelf
+struct LiveSimulationShelf: View {
+    @EnvironmentObject var appState: AppState
+    var body: some View {
+        HStack(spacing: 15) {
+            Button(action: { appState.liveSim.toggle() }) {
+                Image(systemName: appState.liveSim.isRunning ? "pause.fill" : "play.fill")
+                    .font(.title2)
+            }
+            Divider().frame(height: 20)
+            Text(appState.liveSim.currentSimTime, style: .time)
+                .font(.system(.body, design: .monospaced))
+                .bold()
+            Divider().frame(height: 20)
+            Menu {
+                Button("1x") { appState.liveSim.timeMultiplier = 1 }
+                Button("5x") { appState.liveSim.timeMultiplier = 5 }
+                Button("10x") { appState.liveSim.timeMultiplier = 10 }
+                Button("30x") { appState.liveSim.timeMultiplier = 30 }
+            } label: {
+                Text("\(Int(appState.liveSim.timeMultiplier))x")
+                    .font(.caption).bold()
+            }
+        }
+        .padding(.horizontal, 20).padding(.vertical, 12)
+        .background(.ultraThinMaterial)
+        .cornerRadius(30)
+        .shadow(color: .black.opacity(0.15), radius: 10, y: 5)
     }
 }

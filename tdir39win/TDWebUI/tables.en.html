@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Train Director</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+<!--   <meta charset="UTF-8"> 
+ -->
+  <meta charset="Windows-1252"> 
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel='stylesheet' type='text/css' href='js/jquery.contextMenu.css'/>
+	<link rel='stylesheet' type='text/css' href='font-awesome-4.3.0/css/font-awesome.css'/>
+	<link rel='stylesheet' type='text/css' href='bootstrap/css/bootstrap.css'/>
+	<link rel='stylesheet' type='text/css' href='bootstrap3-dialog/css/bootstrap-dialog.css'/>
+
+    <script src="js/jquery-1.11.2.js"></script>
+	<script src='js/jquery.contextMenu.js'></script>
+	<script src='js/jquery.ui.position.js'></script>
+	<script src='js/colResizable-1.5.source.js'></script>
+	<script type="text/javascript" src="js/yaml.js"></script>
+
+	<script type='text/javascript' src="js/spectrum.js"></script>
+	<link rel='stylesheet' type='text/css' href='js/spectrum.css'/>  <!-- color picker -->
+	<link rel='stylesheet' type='text/css' href='style.css'/>
+	<script src='js/td.js'></script>
+	<script src='js/td/layout.js'></script>
+
+	<script src='js/td/stationSchedule.js'></script>
+	<script src='js/td/trainStops.js'></script>
+
+	<script src="js/highcharts.js"></script>
+	<script src="js/modules/exporting.js"></script>
+	<script src='js/td/layout.js'></script>
+	<script src='js/td/switchboards.js'></script>
+	<script src='js/td/lategraph.js'></script>
+	<script src='js/td/timeDistanceGraph.js'></script>
+	<script src='js/td/platformGraph.js'></script>
+
+	<script src="bootstrap/js/bootstrap.js"></script>
+	<script src="bootstrap3-dialog/js/bootstrap-dialog.js"></script>
+	
+	<link rel="stylesheet" type="text/css" href="js/jquery-easyui/themes/default/easyui.css">
+	<link rel="stylesheet" type="text/css" href="js/jquery-easyui/themes/icon.css">
+	<link rel="stylesheet" type="text/css" href="js/jquery-easyui/demo/demo.css">
+	<script type="text/javascript" src="js/jquery-easyui/jquery.easyui.min.js"></script>
+	<script type="text/javascript" src="js/jquery-easyui/datagrid-scrollview.js"></script>
+	
+    <script>
+	    var websocket;
+	    var wsUri = "ws://127.0.0.1:8900";
+	    var timer;
+	    var wsreply = '';
+
+    	$(document).ready(function() {
+    		initAll(false, 'en');
+    	});
+
+    	function doPerformance() {
+    	}
+    	
+    	function onMenu() {
+    	}
+
+    </script>
+</head>
+
+<body width="100%">
+
+    <!-- Fixed navbar -->
+    <nav class="navbar navbar-default navbar-fixed-top">
+      <div class="container-fluid">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+      	  <span class="navbar-brand timerClock" width='110px' id='simTimeSpan'>0:00:00</span>
+        </div>
+        <div id="navbar" class="navbar-collapse collapse">
+          <ul class="nav navbar-nav" id="simStatusRow">
+	        <li><a href="#" id='slowerButton'><span class="glyphicon glyphicon-backward" aria-hidden="true"></span></a></li>
+	        <li>
+	   	    <a href="#"  id='fasterButton'>
+			  <span class="glyphicon glyphicon-forward" aria-hidden="true"></span>
+	   	    </a>
+	        </li>
+	        <li>
+			  <a href='#' id='toNextButton'><span class="glyphicon glyphicon-fast-forward" ></span></a>
+	        </li>
+	        <li>
+			  <a href='#' id='startStopButton'><span class="glyphicon glyphicon-play" id='startStopIcon'></span></a>
+	        </li>
+	        <li>
+		    	<span class='navbar-brand' id="timeMult" >&nbsp; x</span>
+	        </li>
+	        <li>
+		    	<span class='navbar-brand' id='pointsRow' width='30%'>&nbsp;</span>
+		    	<span class='navbar-brand' id='curStatus' width='30%'>Loading page. Please wait...</span>
+		    	<span class='navbar-brand' id='simAlertRow' width='30%'>&nbsp;</span>
+	        </li>
+          </ul>
+          <ul class="nav navbar-nav navbar-right">
+            <li class="dropdown">
+	          <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
+				  <span class="glyphicon glyphicon-menu-hamburger"></span>
+			  </a>
+	          <ul class="dropdown-menu">
+	            <li><a href="#" class='tdlocal' id='setSigToGreenMenu'>Set sig. to green</a></li>
+	            <li><a href="#" class='tdlocal' id='selectItinMenu'>Itinerary</a></li>
+	            <li><a href="#" class='tdlocal' id='editMenu'>Edit</a></li>
+	            <li role="separator" class="divider"></li>
+	            <li><a href="#" class='tdlocal' id='restartMenu'>Restart...</a></li>
+	          </ul>
+	        </li>
+          </ul>
+        </div><!-- simStatusRow -->
+       </div>
+    </nav>
+
+	<p>&nbsp;<br>&nbsp;
+	
+    <div class='container-fluid'>
+	    <div>
+			<ul class="nav nav-tabs" role='tablist'>
+			  <li role="presentation" id='tabGlobal' class="active"><a href="#divGlobal" class="tdlocal" role="tab" data-toggle="tab">Schedule</a></li>
+			  <li role="presentation" id='tabLayout'><a href="#divLayout" class="tdlocal" role="tab" data-toggle="tab">Layout</a></li>
+			  <li role="presentation" id='tabStation'><a href="#divStation" class="tdlocal" role="tab" data-toggle="tab">Station schedule</a></li>
+			  <li role="presentation" id='tabStops'><a href="#divStops" class="tdlocal" role="tab" data-toggle="tab">Train Info</a></li>
+			  <li role="presentation" id='tabInfoScenario'><a href="#infoScenario" class="tdlocal" role="tab" data-toggle="tab">Scenario Info</a></li>
+			  <li role="presentation" id='tabLateMin'><a href="#lateMinuteGraph" class="tdlocal" role="tab" data-toggle="tab">Late Graph</a></li>
+			  <li role="presentation" id='tabTimeDistance'><a href="#timeDistance" class="tdlocal" role="tab" data-toggle="tab">Time-Distance Diagram</a></li>
+			  <li role="presentation" id='tabPlatforms'><a href="#platformsOccupancy" class="tdlocal" role="tab" data-toggle="tab">Platform Graph</a></li>
+			  <li role="presentation" id='tabAlerts'><a href="#alertsDiv" class="tdlocal" role="tab" data-toggle="tab">Alerts</a></li>
+			  <li role="presentation" id='tabSwitchboards'><a href="#switchboardsDiv" class="tdlocal" role="tab" data-toggle="tab">Switchboards</a></li>
+			  <li role="presentation" id='tabPreferences'><a href="#prefsDiv" class="tdlocal" role="tab" data-toggle="tab">Preferences</a></li>
+			</ul>
+		</div>
+		  
+	  <!-- Tab panes -->
+	  <div class="tab-content" width="100%">
+	  
+	    <div id="divGlobal" role="tabpanel" class="tab-pane active" height="100%" width="100%" aria-hidden="true">
+	        <div id="reply"></div>
+			<div id="scheduleDiv" style="valign: top">
+	
+		    <div class="row">
+		      <div class="col-md-6" id='scheduleStatusRow'>
+		      Loading data. Please wait...
+		      </div>
+		      <div class="col-md-3">
+		      <!-- 
+				  <span class='pull-right'><input type="checkbox" name="vehicle" id='showArrived'> Show arrived&nbsp;&nbsp;<input type="checkbox" name="vehicle" id='showCanceled'> Show canceled</span>
+		       -->
+		      </div>
+		      <div class="col-md-3">
+		        <div class="input-group input-group-sm">
+		          <span class='input-group-addon'><i class="glyphicon glyphicon-filter"></i></span>
+		          <input width="100%" type="text" id="schedSearchInput" class="form-control search-query" placeholder="Filter">
+		        </div>
+		      </div>
+		    </div>
+	    
+			  <span>
+				<table id='schedTab' class='table table-condensed '>
+				<thead>
+					<tr><th class='tdlocal'>Train</th>
+						<th class='tdlocal' width='100px'>Entry</th>
+						<th class='tdlocal'>From</th>
+						<th class='tdlocal' width='100px'>Exit</th>
+						<th class='tdlocal'>To</th>
+						<th class='tdlocal' width='100px'>Speed</th>
+						<th class='tdlocal'>Status</th>
+						<th class='tdlocal' width='80px'>Min.Late</th>
+						<th class='tdlocal' width='80px'>Min.Del.</th></tr>
+				</thead>
+				<tbody >
+				</tbody>
+				</table>
+			  </span>
+			</div>
+	    </div>
+	
+		<div id="divLayout" role="tabpanel" class="tab-pane" height="100%" width="100%" aria-hidden="true">
+		  <center>
+			<!--  
+			 <img id="canvas" src="/war/canvas"> </img>
+			 -->
+	 		<canvas id="canvas" width="3000px" height="1600px"> </canvas>
+	 
+		  </center>
+		</div>
+	    
+	    <div id="divStation"  role="tabpanel" class="tab-pane" height="100%" width="100%" aria-hidden="true">
+			<div id="stationSchedule" height="100%" width="100%">
+			    <table width="100%" height="100%">
+			       <tr width="100%" height="100%">
+			          <td width="25%" height="100%" valign='top' style='background-color: white'>
+				        <p class="form-control-static">
+				        &nbsp;
+				        </p>
+				        <div class="input-group input-group-sm">
+				          <span class='input-group-addon'><i class="glyphicon glyphicon-filter"></i></span>
+				          <input width="100%" type="text" id="stationSelectorSearchInput" class="form-control search-query" placeholder="Filter">
+				        </div>
+			       		<div id="stationSelector" valign="top" height="100%"></div>
+			       	  </td>
+			       	  <td width="75%" height="100%" valign='top'>
+			       		<div id="stationTrains" valign="top">
+						    <div class="row">
+						      <div class="col-md-6">
+						      </div>
+						      <div class="col-md-3">
+						      <!-- 
+								  <span class='pull-right'><input type="checkbox" name="vehicle" id='showArrived'> Show arrived&nbsp;&nbsp;<input type="checkbox" name="vehicle" id='showCanceled'> Show canceled</span>
+						       -->
+						      </div>
+						      <div class="col-md-3">
+						        <div class="input-group input-group-sm">
+						          <span class='input-group-addon'><i class="glyphicon glyphicon-filter"></i></span>
+						          <input width="100%" type="text" id="statSchedSearchInput" class="form-control search-query" placeholder="Filter">
+						        </div>
+						      </div>
+						    </div>
+	
+						    <table class="table table-bordered table-condensed table-hover" style="background-color: white" id="stTrainsTable">
+						      <thead>
+						        <tr>
+						            <th class='tdlocal'>Train</th>
+						            <th class='tdlocal'>Arrival</th>
+						            <th class='tdlocal'>From</th>
+						            <th class='tdlocal'>Departure</th>
+						            <th class='tdlocal'>To</th>
+						            <th class='tdlocal'>Runs on</th>
+						            <th class='tdlocal'>Platform</th>
+						            <th class='tdlocal'>Notes</th>
+						        </tr>
+						      </thead>
+						      <tbody>
+						      </tbody>
+						    </table>
+						</div> <!--  end stationTrains -->
+			       	  </td>
+			       </tr>
+			    </table>
+			</div>
+	    </div>
+	    
+	    <div id="divStops" role="tabpanel" class="tab-pane" height="100%" width="100%" aria-hidden="true" >
+			<div id="trainSchedule" height="100%" width="100%">
+			    <table width="100%" height="100%">
+			       <tr width="100%" height="100%">
+			          <td width="25%" height="100%" valign='top'>
+			            <p class="form-control-static">
+				        &nbsp;
+				        </p>
+				        <div class="input-group input-group-sm">
+				          <span class='input-group-addon'><i class="glyphicon glyphicon-filter"></i></span>
+				          <input width="100%" type="text" id="trainSelectorSearchInput" class="form-control search-query" placeholder="Filter">
+				        </div>
+			          
+			       		<div id="trainSelector" valign="top" height="100%" style="overflow: scroll;"></div>
+			       	  </td>
+			       	  <td width="75%" height="100%" valign='top'>
+			       		<div id="trainStops" valign="top" style="background-color: white" style="overflow: scroll;">
+						    <div class="row">
+						      <div class="col-md-6">
+						      </div>
+						      <div class="col-md-3">
+						      <!-- 
+								  <span class='pull-right'><input type="checkbox" name="vehicle" id='showArrived'> Show arrived&nbsp;&nbsp;<input type="checkbox" name="vehicle" id='showCanceled'> Show canceled</span>
+						       -->
+						      </div>
+						      <div class="col-md-3">
+						        <div class="input-group input-group-sm">
+						          <span class='input-group-addon'><i class="glyphicon glyphicon-filter"></i></span>
+						          <input width="100%" type="text" id="trainStopsSearchInput" class="form-control search-query" placeholder="Filter">
+						        </div>
+						      </div>
+						    </div>
+	
+			       		   <table class="table table-bordered table-condensed table-hover" style="background-color: white" id="trStopsTable">
+						      <thead>
+						        <tr>
+						            <th class='tdlocal'>Station</th>
+						            <th class='tdlocal'>Arrival</th>
+						            <th class='tdlocal'>Departure</th>
+						            <th class='tdlocal'>Min.stop</th>
+						        </tr>
+						      </thead>
+						      <tbody>
+						      </tbody>
+						    </table>
+			       		
+			       		</div>
+			       	  </td>
+			       </tr>
+			    </table>
+			</div>
+	    </div>
+
+		<div id="allDialogs">
+		</div>
+
+		<div id="alertsDiv" aria-hidden="true" height="100%" width="100%" role="tabpanel" class="tab-pane">
+		</div>
+
+	    <div id="infoScenario" aria-hidden="true" height="100%" width="100%" role="tabpanel" class="tab-pane">
+		  <p class='tdlocal'>No information available</p>
+		</div>
+
+		<div id="lateMinuteGraph" aria-hidden="true" height="100%" width="100%" role="tabpanel" class="tab-pane">
+		  <p></p>
+		</div>
+
+		<div id="platformsOccupancy" aria-hidden="true" height="100%" width="100%" role="tabpanel" class="tab-pane">
+		  <canvas id='platformsCanvas' width='3100px' height='2000px' style="overflow: scroll;" ></canvas>
+		</div>
+	
+		<div id="timeDistance" aria-hidden="true" height="100%" width="100%" role="tabpanel" class="tab-pane" >
+		  <canvas id='timeDistanceCanvas' width='6200px' height='2000px' style="overflow: scroll;" ></canvas>
+		</div>
+	
+		<div id="prefsDiv" aria-hidden="true" height="100%" width="100%" role="tabpanel" class="tab-pane">
+		    <div class="row">
+		      <div class="col-md-3">&nbsp;
+		      </div>
+		      <div class="col-md-6">
+		        <p>&nbsp;
+				<div class="form-group row">
+					<div class="col-sm-10">
+					<h4 class='tdlocal'>Change your preferences and click "Update"...</h4>
+					</div>
+				    <div class="col-sm-2">
+				      <button type="submit" id='savePreferencesButton' class="btn btn-primary tdlocal">Update</button>
+				    </div>
+				</div>	
+				<div id="preferencesBody">
+				</div>
+			  </div>
+			</div>
+		</div>
+
+	    <div id="switchboardsDiv"  role="tabpanel" class="tab-pane" height="100%" width="100%" aria-hidden="true">
+			<div id="switchboards" height="100%" width="100%">
+			    <table width="100%" height="100%">
+			       <tr width="100%" height="100%">
+			          <td width="25%" height="100%" valign='top' style='background-color: white'>
+				        <p class="form-control-static">
+				        &nbsp;
+				        </p>
+				        <div class="input-group input-group-sm">
+				          <span class='input-group-addon'><i class="glyphicon glyphicon-filter"></i></span>
+				          <input width="100%" type="text" id="switchboardSelectorSearchInput" class="form-control search-query selectorFilter" placeholder="Filter">
+				        </div>
+			       		<div class="selectorList" valign="top" height="100%"></div>
+			       	  </td>
+			       	  <td width="75%" height="100%" valign='top'>
+			       		<div class="details" valign="top">
+						    <div class="row">
+						      <div class="col-md-6">
+						      </div>
+						      <div class="col-md-3">
+						      <!-- 
+								  <span class='pull-right'><input type="checkbox" name="vehicle" id='showArrived'> Show arrived&nbsp;&nbsp;<input type="checkbox" name="vehicle" id='showCanceled'> Show canceled</span>
+						       -->
+						      </div>
+						      <div class="col-md-3">
+						        <div class="input-group input-group-sm">
+						          <span class='input-group-addon'><i class="glyphicon glyphicon-filter"></i></span>
+						          <input width="100%" type="text" class="form-control search-query detailsFilter" placeholder="Filter">
+						        </div>
+						      </div>
+						    </div>
+	
+						    <table class="table table-bordered table-condensed table-hover" style="background-color: white" class="details">
+						      <tbody>
+						      </tbody>
+						    </table>
+						</div> <!--  end .details -->
+			       	  </td>
+			       </tr>
+			    </table>
+			</div> <!--  end #switchboards -->
+		</div> <!--  end switchboardsDiv -->
+		
+		<!--  this is wrapped in a modal div so it can be localized and used either in a messagebox or in a panel -->
+		<div class="modal fade"tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" id="switchboardNone">
+			<div class='tdlocal'>There are no switchboards defined for this simulation</div>
+		</div>
+
+    </div> <!--  end tab-content  -->
+  </div> <!--  end container-fluid -->
+
+  
+</body>
+</html>

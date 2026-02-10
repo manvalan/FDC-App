@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Train Director</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta charset="UTF-8"> 
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 
+   <link rel="stylesheet" href="split-pane.css" />
+ -->
+	<link rel='stylesheet' type='text/css' href='js/jquery.contextMenu.css'/>
+	<link rel='stylesheet' type='text/css' href='font-awesome-4.3.0/css/font-awesome.css'/>
+	<link rel='stylesheet' type='text/css' href='bootstrap/css/bootstrap.css'/>
+	<link rel='stylesheet' type='text/css' href='bootstrap3-dialog/css/bootstrap-dialog.css'/>
+
+    <script src="js/jquery-1.11.2.js"></script>
+	<script src='js/jquery.contextMenu.js'></script>
+	<script src='js/jquery.ui.position.js'></script>
+	<script src='js/colResizable-1.5.source.js'></script>
+	<script type="text/javascript" src="js/yaml.js"></script>
+
+	<script type='text/javascript' src="js/spectrum.js"></script>
+	<link rel='stylesheet' type='text/css' href='js/spectrum.css'/>  <!-- color picker -->
+	<link rel="stylesheet" type="text/css" href="js/wcDocker.min.css"/>
+	<link rel='stylesheet' type='text/css' href='style.css'/>
+	<script src='js/td.js'></script>
+
+	<script src='js/td/stationSchedule.js'></script>
+	<script src='js/td/trainStops.js'></script>
+
+	<script src="js/highcharts.js"></script>
+	<script src="js/modules/exporting.js"></script>
+	<script src='js/td/layout.js'></script>
+	<script src='js/td/lategraph.js'></script>
+	<script src='js/td/timeDistanceGraph.js'></script>
+	<script src='js/td/platformGraph.js'></script>
+
+	<script src="js/wcDocker.min.js"></script>
+	<script src="bootstrap/js/bootstrap.js"></script>
+	<script src="bootstrap3-dialog/js/bootstrap-dialog.js"></script>
+    <script>
+        var myDocker;
+        var labels = [];
+
+    	$(document).ready(function() {
+  		  myDocker = new wcDocker($("#clientArea"), {
+  		    //themePath: 'My/themes/folder'
+  		  });
+  	      initIcons();
+  		});
+
+    	function initialize() {
+    	    labels['Schedule'] = "Orario";
+    	    labels['Alerts'] = "Eventi";
+    	    labels['Layout'] = "Tracciato";
+    	    labels['Station Schedule'] = "Orario per Stazioni";
+    	    labels['Train Schedule'] = "Orario per Treni";
+    	    labels['Switchboard'] = "Pulsantiera";
+    	    labels['Info Scenario'] = "Informazioni Scenario";
+    	    labels['Late Data'] = "Grafico Ritardi";
+    	    labels['Time Distance'] = "Orario Grafico";
+    	    labels['Platform Occupancy'] = "Grafico Binari";
+    	    initializeViews();
+    	}
+
+    	function doPerformance() {
+//    		var performance = myDocker.addPanel('statusBrowser', wcDocker.DOCK.RIGHT);
+    	}
+    	
+ //   	var nativeObject = YAML.parse("status:\n- a: 1\n  b: 2\n- c: 3\n  d: 4\n");
+ //   	var yamlString = YAML.stringify(nativeObject);
+ //   	console.log(yamlString);
+    </script>
+</head>
+<body onload='initialize();'>
+  <div class='tdMenuBar'>
+	<span class="dropdown">
+	  <span class="dropdown-toggle topMenuItem" type="button" id="dropdownMenu1" data-toggle="dropdown" aria-expanded="true">
+	    Edit
+	    <span class="caret"></span>
+	  </span>
+	  <ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu1">
+	    <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doPreferences(true);')>Preferenze...</a></li>
+	  </ul>
+	</span>
+	<span class="dropdown">
+	  <span class="dropdown-toggle topMenuItem" type="button" id="dropdownMenu1" data-toggle="dropdown" aria-expanded="true">
+	    Simula
+	    <span class="caret"></span>
+	  </span>
+	  <ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu1">
+          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doRunStop();'>Parti/Ferma</a></li>
+          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doFast();'>Veloce</a></li>
+          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doSlow();'>Lento</a></li>
+          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doSkip();'>Avanza Orologio</a></li>
+          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doSetSignals();'>Segnali autom. a verde</a></li>
+          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doSelectItinerary();'>Scelta itinerari</a></li>
+          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doPerformance();'>Prestazioni</a></li>
+          <li role="presentation" class="divider"></li>
+          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doRestart();'>Riparti...</a></li>
+	  </ul>
+	</span>
+	<span class="dropdown">
+	  <span class="dropdown-toggle topMenuItem" type="button" id="dropdownMenu1" data-toggle="dropdown" aria-expanded="true">
+	    Mostra
+	    <span class="caret"></span>
+	  </span>
+	  <ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu1">
+          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doZoomIn();'>Ingrandisci</a></li>
+          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doZoomOut();'>Rimpicciolisci</a></li>
+          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doCoordBars();'>Barre coordinate</a></li>
+          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='defaultLayout();'>Inizializza Pannelli</a></li>
+	  </ul>
+	</span>
+	<span class="dropdown">
+	  <span class="dropdown-toggle topMenuItem" type="button" id="dropdownMenu1" data-toggle="dropdown" aria-expanded="true">
+	    Aiuto
+	    <span class="caret"></span>
+	  </span>
+	  <ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu1">
+          <li role="presentation"><a role="menuitem" tabindex="-1" href="/TDWebUI/index.it.html">Pagina iniziale</a></li>
+<!-- 
+          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doCopyright()'>Copyright</a></li>
+          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doLanguage()'>Language</a></li>
+ -->
+	  </ul>
+	</span>
+  </div>
+
+  <div id="statusArea"><span id='simTimeSpan' width='80px'>0:00.00</span><span id='curStatus'>&nbsp;</span></div>
+
+  <div id="clientArea"></div>
+
+	<div class="modal fade" id="itineraryDialog" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" height="480px">
+	  <div class="modal-dialog">
+	    <div class="modal-content">
+	      <div class="modal-header">
+	        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+	        <h4 class="modal-title">Select Itinerary</h4>
+	      </div>
+	      <div class="modal-body" >
+	      	<table id="itineraryDialogTable" class='table table-condensed table-hover' style="height: 400px; overflow-y: auto;">
+	      		<thead>
+	      		  <tr><th>Name</th><th>From Signal</th><th>To Signal</th><th>Next Itinerary</th></tr>
+	      		</thead>
+	      	   <tbody>
+	      	   </tbody>
+	      	</table>
+	      </div>
+	      <div class="modal-footer">
+	        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+	        <button type="button" class="btn btn-primary">Select</button>
+	      </div>
+	    </div><!-- /.modal-content -->
+	  </div><!-- /.modal-dialog -->
+	</div><!-- /.modal -->
+
+   	<div class="modal fade" id="assignDialog" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+	  <div class="modal-dialog">
+	    <div class="modal-content">
+	      <div class="modal-header">
+	        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+	        <h4 class="modal-title">Assegnazione Treni</h4>
+	      </div>
+	      <div class="modal-body" >
+	        <table>
+	          <tr valign='top'>
+	          <td width="100%">
+		      	<table id="assignCandidatesTable" class='table table-condensed table-hover' style="overflow: scroll;">
+		      		<thead>
+		      		  <tr><th>Treno</th><th>Ora</th><th>Ingresso</th><th>Partenza</th><th>Uscita</th><th>Note</th></tr>
+		      		</thead>
+		      	   <tbody>
+		      	   </tbody>
+		      	</table>
+		      </td>
+		      <td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+		      </td>
+		      <td> <!--  buttons columns -->
+		        <div class='span2'>
+		         <button type="button" id="btnAssign" class="btn btn-default btn-sm btn-block" data-dismiss="modal">Assegna</button><br>
+		         <button type="button" id="btnAssignShunt" class="btn btn-default btn-sm btn-block" data-dismiss="modal">Assegna + Manovra</button><br>
+		         <button type="button" id="btnAssignReverse" class="btn btn-default btn-sm btn-block" data-dismiss="modal">Inverti direzione + Assegna</button><br>
+		         <button type="button" id="btnShunt" class="btn btn-default btn-sm btn-block" data-dismiss="modal">Manovra</button><br>
+		         <button type="button" id="btnReverse" class="btn btn-default btn-sm btn-block" data-dismiss="modal">Inverti direzione</button><br>
+		         <button type="button" id="btnSplit" class="btn btn-default btn-sm btn-block" data-dismiss="modal">Spezza</button><br>
+		         <button type="button" id="btnCancel" class="btn btn-default btn-sm btn-block" data-dismiss="modal">Cancella</button><br>
+		        </div>
+		      </td>
+	        </table>
+	      </div>
+		  <div class="modal-footer" style="display:none"></div>
+	    </div><!-- /.modal-content -->
+	  </div><!-- /.modal-dialog -->
+	</div><!-- /.modal -->
+
+	<div class="modal fade" id="preferencesDialog" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" height="600px">
+	  <div class="modal-dialog">
+	    <div class="modal-content">
+	      <div class="modal-header">
+	        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+	        <h4 class="modal-title">Preferenze</h4>
+	      </div>
+	      <div class="modal-body">
+	        <div id="preferencesBody">
+	        </div>
+	      </div>
+	      <div class="modal-footer">
+	        <button id="savePreferencesButton" type="button" class="btn btn-default" data-dismiss="modal">OK</button>
+	        <button type="button" class="btn btn-primary" data-dismiss="modal">Cancella</button>
+	      </div>
+	    </div><!-- /.modal-content -->
+	  </div><!-- /.modal-dialog -->
+	</div><!-- /.modal -->
+
+
+	<div class="modal fade" id="splitDialog" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" height="300px">
+	  <div class="modal-dialog">
+	    <div class="modal-content">
+	      <div class="modal-header">
+	        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+	        <h4 class="modal-title">Spezza Treno</h4>
+	      </div>
+	      <div class="modal-body">
+	        <div id="splitBody">
+	            Distanza dalla testa del treno del punto di separazione in metri
+	            <input type="text" id="splitText">
+	        </div>
+	      </div>
+	      <div class="modal-footer">
+	        <button id="doSplitButton" type="button" class="btn btn-default" data-dismiss="modal">Spezza</button>
+	        <button type="button" class="btn btn-primary" data-dismiss="modal">Cancella</button>
+	      </div>
+	    </div><!-- /.modal-content -->
+	  </div><!-- /.modal-dialog -->
+	</div><!-- /.modal -->
+	
+	<div id="stationSchedule" aria-hidden="true" height="100%" width="100%" valign='top'>
+	    <table width="100%" height="100%">
+	       <tr width="100%" height="100%">
+	          <td width="25%" height="100%" valign='top' style='background-color: white'>
+	            <span class="form-control">&nbsp;
+	            </span>
+		          <input width="100%" type="text" class="form-control" id="stationSelectorSearchInput" placeholder="Filtra Stazioni">
+	       		<div id="stationSelector" valign="top" height="100%"></div>
+	       	  </td>
+	       	  <td width="75%" height="100%" valign='top'>
+		        <input width="100%" type="text" class="form-control" id="statSchedSearchInput" placeholder="Filtra Treni">
+	       		<div id="stationTrains" valign="top">
+				    <table class="table table-bordered table-condensed table-hover" style="background-color: white" id="stTrainsTable">
+				      <thead>
+				        <tr>
+				            <th>Treno</th>
+				            <th>Arrivo</th>
+				            <th>Provenienza</th>
+				            <th>Partenza</th>
+				            <th>Destinazione</th>
+				        </tr>
+				      </thead>
+				      <tbody>
+				      </tbody>
+				    </table>
+				</div> <!--  end stationTrains -->
+	       	  </td>
+	       </tr>
+	    </table>
+	</div>
+
+	<div id="trainSchedule" aria-hidden="true" height="100%" width="100%" valign='top'>
+	    <table width="100%" height="100%">
+	       <tr width="100%" height="100%">
+	          <td width="25%" height="100%" valign='top' style="background-color: white">
+		        <span class="form-control">&nbsp;
+	            </span>
+		          <input width="100%" type="text" id="trainSelectorSearchInput" class="form-control search-query" placeholder="Filtra Treni">
+	       		<div id="trainSelector" valign="top" height="100%"></div>
+	       	  </td>
+	       	  <td width="75%" height="100%" valign='top'>
+		          <input width="100%" type="text" id="trainStopsSearchInput" class="form-control search-query" placeholder="Filtra Fermate">
+	       		<div id="trainStops" valign="top" style="background-color: white">
+	       		   <table class="table table-bordered table-condensed table-hover" style="background-color: white" id="trStopsTable">
+				      <thead>
+				        <tr>
+				            <th>Stazione</th>
+				            <th>Arrivo</th>
+				            <th>Partenza</th>
+				        </tr>
+				      </thead>
+				      <tbody>
+				      </tbody>
+				    </table>
+	       		
+	       		</div>
+	       	  </td>
+	       </tr>
+	    </table>
+	</div>
+
+	<div id="scheduleDiv" height='100%' style="valign: top">
+	  <div style='background-color: white; height: 100%'>
+        <div class="input-group-sm pull-right" style="background-color: white; width: 100%; ">
+	        <span style="float: right; width="150px">
+	          <input type="text" id="schedSearchInput" class="form-control " placeholder="Filtra">
+	        </span>
+        </div>
+		<table id='schedTab' class='table table-condensed table-hover'>
+		<thead>
+			<tr><th>Treno</th><th>Ora ingresso</th><th>Punto ingresso</th><th>Ora uscita</th><th>Punto uscita</th><th>Velocit&agrave;</th><th>Stato</th><th>Min. ritardo</th><th>Rit. ingresso</th></tr>
+		</thead>
+		<tbody>
+		</tbody>
+		</table>
+	  </div>
+	</div>
+	
+	<div id="infoScenario" aria-hidden="true" height="100%" width="100%">
+	  <p>nessuna informazione disponibile</p>
+	</div>
+
+	<div id="lateMinuteGraph" aria-hidden="true" height="100%" width="100%">
+	  <p></p>
+	</div>
+
+	<div id="switchBoardDiv" aria-hidden="true" height="100%" width="100%">
+	  
+	</div>
+
+	<div id="timeDistance" aria-hidden="true" height="100%" width="100%" style="overflow: scroll;">
+	  <canvas id='timeDistanceCanvas' width='6200px' height='2000px'></canvas>
+	</div>
+
+	<div id="platformsOccupancy" aria-hidden="true" height="100%" width="100%" style="overflow: scroll;">
+	  <canvas id='platformsCanvas' width='3100px' height='2000px'></canvas>
+	</div>
+
+	<div id="canvasDiv" style="width: 100%; height: 100%; background-color: #00ff00; ">
+ 		<canvas id="canvas" width="3000px" height="1600px"> </canvas>
+	</div>
+</body>
+</html>

@@ -1,0 +1,17 @@
+Name: pulsantiera 1
+Cell: 1,2
+Itinerary: A>B
+Text: da A a B
+
+Cell: 1,3
+Itinerary: A>C
+Text: da A a C
+
+Cell: 4,1
+Itinerary: A<B
+Text: da B ad A
+
+Cell: 4,4
+Itinerary: A<C
+Text: da C ad A
+

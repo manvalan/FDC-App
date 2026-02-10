@@ -1,0 +1,13 @@
+# user clicked on the signal
+
+OnEnter:
+    do showalert Train entered
+end
+
+OnUpdate:
+    if .direction = 1
+	end
+	if .trackdir = 1
+	end
+end
+

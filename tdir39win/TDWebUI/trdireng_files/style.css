@@ -1,0 +1,215 @@
+﻿/* CSS layout */
+#masthead {
+	position: relative;
+	width: 100%;
+}
+
+body {
+	background-color: white;
+	line-height: 140%;
+}
+
+#docbody {
+	width: 1100px;
+	background-color: #ffffff;
+}
+
+.headerRow {
+	text-align: left;
+	vertical-align: center;
+	color: rgb(255, 255, 255);
+	background-color: rgb(255, 0, 0);
+	width: 100%;
+}
+
+#top_left {
+	width: 180px;
+	left: 0px;
+	top: 0px;
+	vertical-align: top;
+	font-family: Arial, Helvetica, sans-serif;
+}
+
+#header {
+	padding: 10px;
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: x-large;
+	background-color: #ff0000;
+	color: #FFFFFF;
+	font-weight: bold;
+}
+
+#container {
+	padding: 10px;
+	position: relative;
+	margin-left: 20px;
+	margin-right: 20px;
+	vertical-align: top;
+	font-family: Arial, Helvetica, sans-serif;
+	line-height: 140%;
+}
+
+#menu_item {
+    background-color: aqua;
+    width: 160px;
+}
+
+.top_right {
+	width: 160px;
+	vertical-align: top;
+	right: 0px;
+	top: 0px;
+	font-family: Arial, Helvetica, sans-serif;
+}
+
+.tableHeader {
+	background-color: #00FFFF;
+}
+
+.style1 {
+	border-color: #00FFFF;
+	border-width: 0;
+}
+
+.style3 {
+	border-left: 1px solid #C0C0C0;
+	border-right-style: solid;
+	border-right-width: 1px;
+	border-top: 1px solid #C0C0C0;
+	border-bottom-style: solid;
+	border-bottom-width: 1px;
+	text-align: left;
+}
+
+.style4 {
+	text-align: right;
+	border-left: 1px solid #C0C0C0;
+	border-right-style: solid;
+	border-right-width: 1px;
+	border-top: 1px solid #C0C0C0;
+	border-bottom-style: solid;
+	border-bottom-width: 1px;
+}
+
+.style5 {
+	text-align: left;
+	border-left: 1px solid #C0C0C0;
+	border-right-style: solid;
+	border-right-width: 1px;
+	border-top: 1px solid #C0C0C0;
+	border-bottom-style: solid;
+	border-bottom-width: 1px;
+}
+
+.codeSample {
+	font-family: "Courier New", Courier, monospace;
+	background-color: #66FFFF;
+	border: thin solid #66CCFF;
+	left: (value)40;
+}
+
+.style6 {
+	font-family: "Courier New", Courier, monospace;
+}
+.countries {
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: small;
+}
+.side_menu {
+	padding: 2px;
+	margin: 0px;
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: 10pt;
+	color: #000000;
+	background-color: #c3d9ff;
+	background-color: #e6e6e6;
+}
+.side_active {
+	padding: 2px;
+	margin: 0px;
+	font-family: Arial, Helvetica, sans-serif;
+	font-weight: bold;
+	color: #000000;
+	background-color: #FFFFFF;
+}
+.side_elem {
+	padding-left: 8px;
+	padding-right: 8px;
+	padding-bottom: 10px;
+	margin: 0px;
+	font-family: Arial, Helvetica, sans-serif;
+	color: #000000;
+	background-color: #c3d9ff;
+	background-color: #e6e6e6;
+}
+.upcol {
+	padding: 4px;
+}
+.upheader {
+	padding: 4px;
+}
+
+.left_panel {
+	margin: 0px;
+	font-family: Arial, Helvetica, sans-serif;
+	color: #000000;
+	background-color: #e6e6e6;
+}
+.left_active {
+	padding: 2px;
+	margin: 0px;
+	font-family: Arial, Helvetica, sans-serif;
+	font-weight: bold;
+	color: #000000;
+	background-color: #00FFFF;
+}
+.install {
+	padding: 0px;
+	border: 0px none #FFFFFF;
+	margin: 0px 0px 0px 30px;
+	position: relative;
+}
+.warning {
+	background-color: #FFFF66;
+}
+#menu_active {
+	background-color: white;
+	width: 160px;
+	font-family: Verdana, Helvetica, sans-serif;
+	font-size: medium;
+	font-weight: bold;
+}
+a:link    {
+	/* Applies to all unvisited links */
+	text-decoration:  underline;
+	font-weight:      bold;
+	color:            #0000f8;
+	font-size: 10pt;
+	font-family: Verdana, Helvetica, sans-serif;
+} 
+a:visited {
+	/* Applies to all visited links */
+	text-decoration:  underline;
+	font-weight:      bold;
+	color:            #0000f8;
+	font-size: 10pt;
+	font-family: Verdana, Helvetica, sans-serif;
+} 
+a:hover   {
+	/* Applies to links under the pointer */
+	text-decoration:  none;
+	font-weight:      bold;
+	background-color: blue;
+	color:            #fff;
+	font-size: 10pt;
+	font-family: Verdana, Helvetica, sans-serif;
+} 
+a:active  {
+	/* Applies to activated links */
+	text-decoration:  underline;
+	font-weight:      bold;
+	background-color: black;
+	color: gray;
+	font-size: 10pt;
+}
+

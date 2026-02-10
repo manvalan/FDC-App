@@ -39,6 +39,9 @@ final class RailroadNetwork: ObservableObject {
         self.io = IOManager()
         self.ai = AIManager()
         
+        // Fully initialized, now safe to use 'self'
+        self.network.owner = self
+        self.lines.owner = self
         self.io.railroad = self
         self.ai.railroad = self
         
@@ -46,6 +49,76 @@ final class RailroadNetwork: ObservableObject {
         self.network.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
         self.lines.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
         self.settings.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
+    }
+    
+    // MARK: - Global Undo/Redo System
+    
+    struct RailroadSnapshot: Equatable {
+        let nodes: [Node]
+        let edges: [Edge]
+        let lines: [RailwayLine]
+        let trains: [Train]
+        let vehicles: [Vehicle]
+    }
+    
+    private var undoStack: [RailroadSnapshot] = []
+    private var redoStack: [RailroadSnapshot] = []
+    
+    var canUndo: Bool { !undoStack.isEmpty }
+    var canRedo: Bool { !redoStack.isEmpty }
+    
+    func createCheckpoint() {
+        let snapshot = RailroadSnapshot(
+            nodes: network.nodes,
+            edges: network.edges,
+            lines: lines.lines,
+            trains: lines.trains,
+            vehicles: lines.vehicles
+        )
+        // Only push if different from last
+        if undoStack.last != snapshot {
+            undoStack.append(snapshot)
+            if undoStack.count > 50 { undoStack.removeFirst() }
+            redoStack.removeAll()
+        }
+    }
+    
+    func undo() {
+        guard let last = undoStack.popLast() else { return }
+        let current = RailroadSnapshot(
+            nodes: network.nodes,
+            edges: network.edges,
+            lines: lines.lines,
+            trains: lines.trains,
+            vehicles: lines.vehicles
+        )
+        redoStack.append(current)
+        
+        applySnapshot(last)
+    }
+    
+    func redo() {
+        guard let next = redoStack.popLast() else { return }
+        let current = RailroadSnapshot(
+            nodes: network.nodes,
+            edges: network.edges,
+            lines: lines.lines,
+            trains: lines.trains,
+            vehicles: lines.vehicles
+        )
+        undoStack.append(current)
+        
+        applySnapshot(next)
+    }
+    
+    private func applySnapshot(_ snapshot: RailroadSnapshot) {
+        network.nodes = snapshot.nodes
+        network.edges = snapshot.edges
+        lines.lines = snapshot.lines
+        lines.trains = snapshot.trains
+        lines.vehicles = snapshot.vehicles
+        lines.validateSchedules()
+        objectWillChange.send()
     }
 }
 
@@ -57,14 +130,10 @@ final class NetworkModel: ObservableObject {
     @Published var nodes: [Node] = []
     @Published var edges: [Edge] = []
     
-    // Undo Support
-    private var undoStack: [UndoState] = []
-    private var redoStack: [UndoState] = []
+    /// Global system owner
+    weak var owner: RailroadNetwork?
     
-    struct UndoState {
-        let nodes: [Node]
-        let edges: [Edge]
-    }
+    // Undo stack is now managed globally by RailroadNetwork
     
     var sortedNodes: [Node] {
         nodes.sorted { $0.name < $1.name }
@@ -115,7 +184,12 @@ final class NetworkModel: ObservableObject {
     
     func addEdge(_ edge: Edge) {
         createCheckpoint()
-        edges.append(edge)
+        var newEdge = edge
+        if newEdge.segments.isEmpty {
+            // Se non ha segmenti, generiamoli ora
+            InfrastructureManager.shared.processNetwork(self)
+        }
+        edges.append(newEdge)
     }
     
     func removeNode(_ id: String) {
@@ -129,28 +203,15 @@ final class NetworkModel: ObservableObject {
         edges.removeAll { $0.from == from && $0.to == to }
     }
     
-    var canUndo: Bool { !undoStack.isEmpty }
-    var canRedo: Bool { !redoStack.isEmpty }
+    var canUndo: Bool { false } // Managed globally
+    var canRedo: Bool { false } // Managed globally
     
     func createCheckpoint() {
-        undoStack.append(UndoState(nodes: nodes, edges: edges))
-        if undoStack.count > 30 { undoStack.removeFirst() }
-        redoStack.removeAll()
+        owner?.createCheckpoint()
     }
     
-    func undo() {
-        guard let last = undoStack.popLast() else { return }
-        redoStack.append(UndoState(nodes: nodes, edges: edges))
-        self.nodes = last.nodes
-        self.edges = last.edges
-    }
-    
-    func redo() {
-        guard let next = redoStack.popLast() else { return }
-        undoStack.append(UndoState(nodes: nodes, edges: edges))
-        self.nodes = next.nodes
-        self.edges = next.edges
-    }
+    func undo() { }
+    func redo() { }
     
     func isTrackAllowed(stationId: String, track: String?, lineId: String, prevStationId: String?, nextStationId: String?) -> Bool {
         guard let node = nodes.first(where: { $0.id == stationId }) else { return true }
@@ -378,8 +439,11 @@ final class LinesManager: ObservableObject {
     private var pathCache: [String: [Edge]] = [:]
     private var cancellables = Set<AnyCancellable>()
     
+    /// Global system owner
+    weak var owner: RailroadNetwork?
+    
     func createCheckpoint() {
-        // Placeholder for Undo logic
+        owner?.createCheckpoint()
     }
     
     init(network: NetworkModel) {
@@ -416,7 +480,142 @@ final class LinesManager: ObservableObject {
         return conflictManager.conflicts
     }
     
-    // MARK: - Scheduling Operations
+    /// Checks for scheduling conflicts for a specific vehicle across all its assigned trains.
+    func getVehicleConflicts(for vehicleId: UUID) -> [VehicleConflict] {
+        let vehicleTrains = trains.filter { $0.vehicleId == vehicleId && $0.departureTime != nil }
+            .sorted { ($0.departureTime ?? Date.distantPast) < ($1.departureTime ?? Date.distantPast) }
+        
+        // Safety check: if less than 2 trains, no conflict possible
+        if vehicleTrains.count < 2 { return [] }
+        
+        var conflicts: [VehicleConflict] = []
+        
+        for i in 0..<vehicleTrains.count - 1 {
+            let trainA = vehicleTrains[i]
+            let trainB = vehicleTrains[i+1]
+            
+            // Get arrival at last stop for trainA
+            guard let arrivalA = trainA.stops.last?.arrival,
+                  let departureB = trainB.departureTime else { continue }
+            
+            // 15-minute minimum turnaround buffer
+            let minTurnaround: TimeInterval = 15 * 60
+            
+            if departureB < arrivalA.addingTimeInterval(minTurnaround) {
+                conflicts.append(VehicleConflict(
+                    trainA: trainA,
+                    trainB: trainB,
+                    arrivalA: arrivalA,
+                    departureB: departureB
+                ))
+            }
+        }
+        return conflicts
+    }
+    
+    // MARK: - Scheduling Operations (Vehicle Optimization)
+    
+    /// Algoritmo di assegnazione automatica con bilanciamento (Load Balancing).
+    /// Associa i treni della linea minimizzando i mezzi e distribuendo equamente il carico,
+    /// assegnando anche i binari ai capolinea in base ai turni.
+    func autoAssignRollingStock(for lineId: String) {
+        guard let line = lines.first(where: { $0.id == lineId }) else { return }
+        let terminalPrefs = line.terminalTracks
+        
+        let dedicatedFleetIds = Set(trains.filter { $0.lineId == lineId }.compactMap { $0.vehicleId })
+        let dedicatedFleet = vehicles.filter { dedicatedFleetIds.contains($0.id) }
+        let otherFleet = vehicles.filter { !dedicatedFleetIds.contains($0.id) }
+        
+        var localTrains = self.trains
+        let lineTrainsIndices = localTrains.indices.filter { localTrains[$0].lineId == lineId && localTrains[$0].departureTime != nil }
+            .sorted { (localTrains[$0].departureTime ?? Date.distantPast) < (localTrains[$1].departureTime ?? Date.distantPast) }
+        
+        if lineTrainsIndices.isEmpty { return }
+        
+        // Reset
+        for i in localTrains.indices {
+            if localTrains[i].lineId == lineId {
+                localTrains[i].vehicleId = nil
+            }
+        }
+        
+        // Stato: vehicleId -> (l'ultima stazione, orario arrivo, numero servizi assegnati, ultimo binario usato)
+        var fleetStatus: [UUID: (station: String, time: Date, serviceCount: Int, track: String?)] = [:]
+        let buffer: TimeInterval = 15 * 60
+        
+        for idx in lineTrainsIndices {
+            let train = localTrains[idx]
+            guard let depTime = train.departureTime,
+                  let startStation = train.stops.first?.stationId else { continue }
+            
+            // 1. Identifica candidati validi (stazione corretta + tempo di sosta)
+            let candidates = fleetStatus.filter { (vid, status) in
+                status.station == startStation && depTime >= status.time.addingTimeInterval(buffer)
+            }
+            
+            var bestCandidate: UUID? = nil
+            
+            if !candidates.isEmpty {
+                // Strategia di Bilanciamento:
+                // A. Priorità ai mezzi con numero DISPARI di servizi (per renderli PARI)
+                let oddCandidates = candidates.filter { $0.value.serviceCount % 2 != 0 }
+                if !oddCandidates.isEmpty {
+                    bestCandidate = oddCandidates.min(by: { $0.value.serviceCount < $1.value.serviceCount })?.key
+                } else {
+                    bestCandidate = candidates.min(by: { $0.value.serviceCount < $1.value.serviceCount })?.key
+                }
+            }
+            
+            // 2. Se nessun candidato esistente, usa uno nuovo
+            if bestCandidate == nil {
+                if let unusedDedicated = dedicatedFleet.first(where: { fleetStatus[$0.id] == nil }) {
+                    bestCandidate = unusedDedicated.id
+                } else if let unusedGlobal = otherFleet.first(where: { fleetStatus[$0.id] == nil }) {
+                    bestCandidate = unusedGlobal.id
+                }
+            }
+            
+            if let vid = bestCandidate {
+                localTrains[idx].vehicleId = vid
+                let currentStatus = fleetStatus[vid]
+                let currentCount = currentStatus?.serviceCount ?? 0
+                
+                // ----- ASSEGNAZIONE BINARI CAPOLINEA -----
+                let originId = startStation
+                let destId = localTrains[idx].stops.last?.stationId ?? ""
+                
+                // Binario di Partenza: 
+                // Se il mezzo era già in stazione, usa lo stesso binario dell'arrivo precedente.
+                // Altrimenti usa la preferenza della linea.
+                let departureTrack = currentStatus?.track ?? terminalPrefs[originId]
+                
+                if let track = departureTrack {
+                    localTrains[idx].stops[0].track = track
+                    localTrains[idx].stops[0].isManualTrack = true
+                }
+                
+                // Binario di Arrivo:
+                // Usa la preferenza della linea per la destinazione.
+                let arrivalTrack = terminalPrefs[destId] ?? departureTrack // Default al binario di partenza se non specificato
+                
+                if let track = arrivalTrack {
+                    let lastStopIdx = localTrains[idx].stops.count - 1
+                    localTrains[idx].stops[lastStopIdx].track = track
+                    localTrains[idx].stops[lastStopIdx].isManualTrack = true
+                }
+                // ------------------------------------------
+
+                if let arrivalAtEnd = localTrains[idx].stops.last?.arrival {
+                    fleetStatus[vid] = (destId, arrivalAtEnd, currentCount + 1, arrivalTrack)
+                }
+            }
+        }
+        
+        self.trains = localTrains
+        validateSchedules()
+    }
+    
+    // MARK: - Legacy Refresh
     
     func refreshSchedules() {
         // Reuse the logic from TrainManager but adapted to 'network' (NetworkModel)
@@ -946,6 +1145,9 @@ final class IOManager: ObservableObject {
         railroad.lines.lines = dto.lines ?? []
         railroad.lines.trains = dto.trains ?? []
         railroad.lines.vehicles = dto.vehicles ?? []
+        
+        // Calcola l'infrastruttura dettagliata per i dati caricati
+        InfrastructureManager.shared.processNetwork(railroad.network)
     }
     
     func importFromFDC(data: Data) throws {
@@ -1017,6 +1219,7 @@ final class IOManager: ObservableObject {
         railroad.lines.trains = tCopy
         
         railroad.lines.validateSchedules()
+        InfrastructureManager.shared.processNetwork(railroad.network)
     }
 
     // Wrappers for FDCImporter/Exporter

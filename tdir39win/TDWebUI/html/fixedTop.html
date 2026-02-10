@@ -1,0 +1,58 @@
+	<div id='fixedTopPanel'  aria-hidden="true" >
+	  <div class='tdMenuBar'>
+		<span class="dropdown">
+		  <span class="dropdown-toggle topMenuItem" type="button" id="dropdownMenu1" data-toggle="dropdown" aria-expanded="true">
+		    Edit
+		    <span class="caret"></span>
+		  </span>
+		  <ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu1">
+		    <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doPreferences(true);')>Preferences...</a></li>
+		  </ul>
+		</span>
+		<span class="dropdown">
+		  <span class="dropdown-toggle topMenuItem" type="button" id="dropdownMenu1" data-toggle="dropdown" aria-expanded="true">
+		    Run
+		    <span class="caret"></span>
+		  </span>
+		  <ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu1">
+	          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doRunStop();'>Run/Stop</a></li>
+	          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doFast();'>Fast</a></li>
+	          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doSlow();'>Slow</a></li>
+	          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doSkip();'>Skip Ahead</a></li>
+	          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doSetSignals();'>Set sig to green</a></li>
+	          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doSelectItinerary();'>Select Itinerary...</a></li>
+	          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doPerformance();'>Performance</a></li>
+	          <li role="presentation" class="divider"></li>
+	          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doRestart();'>Restart...</a></li>
+		  </ul>
+		</span>
+		<span class="dropdown">
+		  <span class="dropdown-toggle topMenuItem" type="button" id="dropdownMenu1" data-toggle="dropdown" aria-expanded="true">
+		    View
+		    <span class="caret"></span>
+		  </span>
+		  <ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu1">
+	          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doZoomIn();'>Zoom in</a></li>
+	          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doZoomOut();'>Zoom out</a></li>
+	          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doCoordBars();'>Coord bars</a></li>
+	          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='defaultLayout();'>Reset Views</a></li>
+		  </ul>
+		</span>
+		<span class="dropdown">
+		  <span class="dropdown-toggle topMenuItem" type="button" id="dropdownMenu1" data-toggle="dropdown" aria-expanded="true">
+		    Help
+		    <span class="caret"></span>
+		  </span>
+		  <ul class="dropdown-menu" role="menu" aria-labelledby="dropdownMenu1">
+	          <li role="presentation"><a role="menuitem" tabindex="-1" href="/TDWebUI/index.en.html">Welcome</a></li>
+	          <!-- 
+	          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doCopyright()'>Copyright</a></li>
+	          <li role="presentation"><a role="menuitem" tabindex="-1" href="#" onclick='doLanguage()'>Language</a></li>
+	           -->
+		  </ul>
+		</span>
+	  </div>
+	
+	  <div id="statusArea"><span id='simTimeSpan' width='80px'>0:00.00</span><span id='curStatus'>&nbsp;</span></div>
+  </div>
+

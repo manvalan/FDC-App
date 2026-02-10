@@ -1,0 +1,97 @@
+		<div class="modal fade" id="assignDialog" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+		  <div class="modal-dialog">
+		    <div class="modal-content">
+		      <div class="modal-header">
+		        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+		        <h4 class="modal-title tdlocal">Assign Train</h4>
+		      </div>
+		      <div class="modal-body" >
+		        <table >
+		          <tr valign='top'>
+		          <td width="100%">
+			      	<table width="100%" id="assignCandidatesTable" class='table table-condensed table-hover' style="height: 400px; overflow-y: auto;">
+			      		<thead style='display: block'>
+			      		  <tr>
+			      		     <th class='tdlocal'>Train</th>
+			      		     <th class='tdlocal'>ETA</th>
+			      		     <th class='tdlocal'>Entry</th>
+			      		     <th class='tdlocal'>ETD</th>
+			      		     <th class='tdlocal'>Exit</th>
+			      		     <th class='tdlocal'>Notes</th>
+			      		  </tr>
+			      		</thead>
+			      	   <tbody style="overflow-y: auto; overflow-x: hidden; height: 400px; display: block">
+			      	   </tbody>
+			      	</table>
+			      </td>
+			      <td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+			      </td>
+			      <td> <!--  buttons columns -->
+			        <div class='span2'>
+			         <button type="button" id="btnAssign" class="btn btn-default btn-sm btn-block tdlocal" data-dismiss="modal">Assign</button><br>
+			         <button type="button" id="btnAssignShunt" class="btn btn-default btn-sm btn-block tdlocal" data-dismiss="modal">Assign + Shunt</button><br>
+			         <button type="button" id="btnAssignReverse" class="btn btn-default btn-sm btn-block tdlocal" data-dismiss="modal">Reverse + Assign</button><br>
+			         <button type="button" id="btnShunt" class="btn btn-default btn-sm btn-block tdlocal" data-dismiss="modal">Shunt</button><br>
+			         <button type="button" id="btnReverse" class="btn btn-default btn-sm btn-block tdlocal" data-dismiss="modal">Reverse</button><br>
+			         <button type="button" id="btnSplit" class="btn btn-default btn-sm btn-block tdlocal" data-dismiss="modal">Split</button><br>
+			         <button type="button" id="btnCancel" class="btn btn-default btn-sm btn-block tdlocal" data-dismiss="modal">Cancel</button><br>
+			        </div>
+			      </td>
+		        </table>
+		      </div>
+			  <div class="modal-footer" style="display:none"></div>
+		    </div><!-- /.modal-content -->
+		  </div><!-- /.modal-dialog -->
+		</div><!-- /.modal assignDialog -->
+
+		<div class="modal fade" id="itineraryDialog" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+		  <div class="modal-dialog">
+		    <div class="modal-content">
+		      <div class="modal-header">
+		        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+		        <h4 class="modal-title tdlocal">Select Itinerary</h4>
+		      </div>
+		      <div class="modal-body" >
+		      	<table id="itineraryDialogTable" class='table table-condensed table-hover' style="height: 400px; overflow-y: auto;">
+		      		<thead style='display: block'>
+		      		  <tr>
+		      		  	<th class='tdlocal'>Name</th>
+		      		  	<th class='tdlocal'>From Signal</th>
+		      		  	<th class='tdlocal'>To Signal</th>
+		      		  	<th class='tdlocal'>Next Itinerary</th>
+		      		  </tr>
+		      		</thead>
+		      	   <tbody style="overflow-y: auto; overflow-x: hidden; display: block">
+		      	   </tbody>
+		      	</table>
+		      </div>
+		      <div class="modal-footer">
+		        <button type="button" class="btn btn-default tdlocal" data-dismiss="modal">Close</button>
+		        <button type="button" class="btn btn-primary tdlocal" id='itinSelectButton' data-dismiss="modal">Select</button>
+		      </div>
+		    </div><!-- /.modal-content -->
+		  </div><!-- /.modal-dialog -->
+		</div><!-- /.modal -->
+
+		<div class="modal fade" id="splitDialog" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" height="300px">
+		  <div class="modal-dialog">
+		    <div class="modal-content">
+		      <div class="modal-header">
+		        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+		        <h4 class="modal-title tdlocal">Split Train</h4>
+		      </div>
+		      <div class="modal-body">
+		        <div id="splitBody">
+		            <span class='tdlocal'>Distance of the separation point from the head of the train in meters: </span> 
+		            <input type="text" id="splitText">
+		        </div>
+		      </div>
+		      <div class="modal-footer">
+		        <button id="doSplitButton" type="button" class="btn btn-default tdlocal" data-dismiss="modal">Split</button>
+		        <button type="button" class="btn btn-primary tdlocal" data-dismiss="modal">Cancel</button>
+		      </div>
+		    </div><!-- /.modal-content -->
+		  </div><!-- /.modal-dialog -->
+		</div><!-- /.modal -->
+	
+		

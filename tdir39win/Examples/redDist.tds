@@ -1,0 +1,63 @@
+#  Test for redDistance signal property
+
+Aspect: red
+	Action: stop
+
+Aspect: yellow
+	IconE: NN_y_E.xpm
+	IconW: NN_y_W.xpm
+	IconN: NN_y_N.xpm
+	IconS: NN_y_S.xpm
+	Action: proceed
+
+Aspect: yellow_flashing
+	IconE: NN_y_E.xpm NN_b_E.xpm
+	IconW: NN_y_W.xpm NN_b_W.xpm
+	IconN: NN_y_N.xpm NN_b_N.xpm
+	IconS: NN_y_S.xpm NN_b_S.xpm
+	Action: proceed
+
+Aspect: green
+	IconE: NN_g_E.xpm
+	IconW: NN_g_W.xpm
+	IconN: NN_g_N.xpm
+	IconS: NN_g_S.xpm
+	Action: proceed
+
+# initial aspect
+
+OnInit:
+	.aspect = red
+end
+
+# user clicked on the signal
+
+OnCleared:
+	if .redDistance < 500
+	    .aspect = yellow
+	else
+	    if .redDistance < 1000
+		.aspect = yellow_flashing
+	    else
+		.aspect = green
+	    end
+	end
+end
+
+# another signal changed aspect
+
+OnUpdate:
+	if .aspect = red
+	    return
+	end
+	if .redDistance < 500
+	    .aspect = yellow
+	else
+	    if .redDistance < 1000
+		.aspect = yellow_flashing
+	    else
+		.aspect = green
+	    end
+	end
+end
+

@@ -92,7 +92,7 @@ struct TrainCreationView: View {
             
             DatePicker("departure_picker".localized, selection: $departureTime, displayedComponents: .hourAndMinute)
             
-            Section(header: Text("materiale_rotante".localized)) {
+            Section(header: Text("materiale_rotabile".localized)) {
                 Picker("Mezzo", selection: $vehicleId) {
                     Text("-").tag(UUID?.none)
                     ForEach(manager.vehicles) { vehicle in

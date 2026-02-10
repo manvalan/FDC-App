@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Train Director</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta charset="UTF-8"> 
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 
+   <link rel="stylesheet" href="split-pane.css" />
+ -->
+	<link rel='stylesheet' type='text/css' href='js/jquery.contextMenu.css'/>
+	<link rel='stylesheet' type='text/css' href='font-awesome-4.3.0/css/font-awesome.css'/>
+	<link rel='stylesheet' type='text/css' href='bootstrap/css/bootstrap.css'/>
+	<link rel='stylesheet' type='text/css' href='bootstrap3-dialog/css/bootstrap-dialog.css'/>
+
+    <script src="js/jquery-1.11.2.js"></script>
+	<script src='js/jquery.contextMenu.js'></script>
+	<script src='js/jquery.ui.position.js'></script>
+	<script src='js/colResizable-1.5.source.js'></script>
+	<script type="text/javascript" src="js/yaml.js"></script>
+
+	<link rel='stylesheet' type='text/css' href='style.css'/>
+	<!-- 
+	<script src='js/td.js'></script>
+	<script src='js/td/layout.js'></script>
+
+	<script src='js/td/stationSchedule.js'></script>
+	<script src='js/td/trainStops.js'></script>
+
+	<script src="js/highcharts.js"></script>
+	<script src="js/modules/exporting.js"></script>
+	<script src='js/td/layout.js'></script>
+	<script src='js/td/lategraph.js'></script>
+	<script src='js/td/timeDistanceGraph.js'></script>
+	<script src='js/td/platformGraph.js'></script>
+	 -->
+
+	<script src="bootstrap/js/bootstrap.js"></script>
+	<script src="bootstrap3-dialog/js/bootstrap-dialog.js"></script>
+	
+	<link rel="stylesheet" type="text/css" href="js/jquery-easyui/themes/default/easyui.css">
+	<link rel="stylesheet" type="text/css" href="js/jquery-easyui/themes/icon.css">
+	<link rel="stylesheet" type="text/css" href="js/jquery-easyui/demo/demo.css">
+	<script type="text/javascript" src="js/jquery-easyui/jquery.easyui.min.js"></script>
+	<script type="text/javascript" src="js/jquery-easyui/datagrid-scrollview.js"></script>
+	
+    <script>
+    var websocket;
+    var wsUri = "ws://127.0.0.1:8900";
+    var timer;
+    var wsreply = '';
+
+    var ifrm;
+
+	function parseTrain() {
+//		ifrm = $('ifrm');
+//		stops = $('ifrm').contents().find("hfs_traininfo");
+		topfrm = $("#topfrm")[0].contentWindow.document;
+		result = topfrm.getElementById("CGResult");
+
+		fdoc = $("#ifrm")[0].contentWindow.document;
+		frmcont = fdoc.getElementById("Contents");
+		trinfo = $(frmcont).find('.hfs_traininfo');
+		rows = $('tr', trinfo);
+		var allTrains = [];
+		$('tr', trinfo).each(function() {
+			var trainRow = { };
+			$(this).find("td.location").each(function(cellIndex) {
+				if(cellIndex == 0) {
+					$(this).find("a").each(function() {
+						trainRow.link = $(this).attr('href');
+						trainRow.name = $(this).text();
+					});
+				} else if (cellIndex == 1) {
+					trainRow.time = $(this).text();
+				}
+				allTrains.push(trainRow);
+		    });
+		});
+		var content = JSON.stringify(allTrains, 4);
+		$(result).html(content);
+	}   
+   	$(document).ready(function() {
+       	$('#ifrm').load(function() {
+       		parseTrain();
+       	});
+       	
+   	});
+    	
+    </script>
+</head>
+<frameset rows="20%,80%">
+
+    <frame name='topfrm' id='topfrm' width="100%" height="500px" style='background: green'>
+    <div id='CGResult' width="100%" height="500px" style='background: cyan'>
+	    Top
+    </div>
+    </frame>
+	<frame name='ifrm' id='ifrm' src="/FFS/IC651.html" width="100%" height="600px" style='background: #303030'>
+		Bottom
+	</frame>
+    <script>
+    </script>
+</frameset>
+</html>
+

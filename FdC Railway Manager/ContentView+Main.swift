@@ -10,11 +10,11 @@ extension ContentView {
             showGrid: $showGrid,
             isMoveModeEnabled: $isMoveModeEnabled,
             highlightedConflictLocation: $highlightedConflictLocation,
-            mode: (appState.sidebarSelection == .lines || appState.sidebarSelection == .trains || appState.sidebarSelection == .io) ? .lines : .network
+            mode: appState.currentMode == .design ? .network : .lines
         )
     }
     
     var isSomethingSelected: Bool {
-        appState.selectedLineId != nil || appState.selectedNodeId != nil || appState.selectedEdgeId != nil || !appState.selectedTrainIds.isEmpty
+        appState.isSomethingSelected
     }
 }

@@ -38,9 +38,8 @@ struct LineEditView: View {
     @State private var proposedOffset: Double? = nil
     
     var body: some View {
-        NavigationStack {
-            Form {
-                detailsSection
+        Form {
+            detailsSection
                 
                 Section(header: Text("path_composition".localized)) {
                     PathPickerComponent(
@@ -64,6 +63,47 @@ struct LineEditView: View {
                         activePicker: $activePicker,
                         suggestions: getSuggestions()
                     )
+                }
+                
+                Section(header: Text("materiale_rotabile".localized)) {
+                    Button(action: {
+                        lines.autoAssignRollingStock(for: lineId)
+                    }) {
+                        Label("Ottimizza Assegnazione Mezzi", systemImage: "sparkles.rectangle.stack")
+                    }
+                    
+                    Text("Assegna i turni macchina minimizzando il materiale rotabile e bilanciando il numero di corse (preferendo turni pari).")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    
+                    let assignedVehicleIds = Set(lines.trains.filter { $0.lineId == lineId }.compactMap { $0.vehicleId })
+                    let assignedVehicles = lines.vehicles.filter { assignedVehicleIds.contains($0.id) }
+                    
+                    if !assignedVehicles.isEmpty {
+                        Divider().padding(.vertical, 4)
+                        Text("Mezzi Attualmente Assegnati:").font(.caption.bold())
+                        
+                        ForEach(assignedVehicles) { vehicle in
+                            let count = lines.trains.filter { $0.lineId == lineId && $0.vehicleId == vehicle.id }.count
+                            HStack {
+                                Image(systemName: "train.side.front.car")
+                                    .foregroundColor(.purple)
+                                VStack(alignment: .leading) {
+                                    Text(vehicle.name).font(.subheadline)
+                                    Text(vehicle.model).font(.caption2).foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Text("\(count) corse")
+                                    .font(.caption)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(count % 2 == 0 ? Color.green.opacity(0.1) : Color.orange.opacity(0.1))
+                                    .foregroundColor(count % 2 == 0 ? .green : .orange)
+                                    .cornerRadius(8)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
                 }
                 
                 if let error = errorMessage {
@@ -108,33 +148,32 @@ struct LineEditView: View {
                     triggerLineAnalysis()
                 }
             }
-        }
-        .sheet(item: $activePicker) { item in
-            Group {
-                switch item {
-                case .start:
-                    StationPickerView(selectedStationId: $startStationId)
-                case .via(let idx):
-                    if idx >= 0 && idx < viaStationIds.count {
-                        StationPickerView(selectedStationId: Binding(
-                            get: { viaStationIds[idx] },
-                            set: { viaStationIds[idx] = $0 }
-                        ))
-                    } else {
-                        VStack {
-                            Text(String(format: "error_index_not_found_fmt".localized, idx))
-                            Button("close".localized) { activePicker = nil }
+            .sheet(item: $activePicker) { item in
+                Group {
+                    switch item {
+                    case .start:
+                        StationPickerView(selectedStationId: $startStationId)
+                    case .via(let idx):
+                        if idx >= 0 && idx < viaStationIds.count {
+                            StationPickerView(selectedStationId: Binding(
+                                get: { viaStationIds[idx] },
+                                set: { viaStationIds[idx] = $0 }
+                            ))
+                        } else {
+                            VStack {
+                                Text(String(format: "error_index_not_found_fmt".localized, idx))
+                                Button("close".localized) { activePicker = nil }
+                            }
+                            .padding()
                         }
-                        .padding()
+                    case .end:
+                        StationPickerView(selectedStationId: $endStationId)
+                    case .manual:
+                        StationPickerView(selectedStationId: $manualStationId, linkedToStationId: stationSequence.last)
                     }
-                case .end:
-                    StationPickerView(selectedStationId: $endStationId)
-                case .manual:
-                    StationPickerView(selectedStationId: $manualStationId, linkedToStationId: stationSequence.last)
                 }
+                .environmentObject(network)
             }
-            .environmentObject(network)
-        }
     }
     
     private var detailsSection: some View {
