@@ -199,6 +199,7 @@ struct ContextualInspector: View {
     @State private var editingStation: Node? = nil
     @State private var editingLine: RailwayLine? = nil
     @State private var editingEdge: Edge? = nil
+    @State private var isCreatingVehicle: Bool = false
     
     @State private var itemToDelete: AnyIdentifiable? = nil
     @State private var showingDeleteAlert = false
@@ -377,6 +378,9 @@ struct ContextualInspector: View {
                 .navigationTitle("Modifica Binario")
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fatto") { editingEdge = nil } } }
             }
+        }
+        .sheet(isPresented: $isCreatingVehicle) {
+            VehicleCreationSheet()
         }
     }
 
@@ -559,13 +563,7 @@ struct ContextualInspector: View {
                 Text("Flotta").font(.headline).foregroundColor(appState.theme.dark)
                 Spacer()
                 Button(action: {
-                    let newV = Vehicle(
-                        name: appState.lastVehicleName.isEmpty ? "Nuovo Mezzo" : appState.lastVehicleName,
-                        model: appState.lastVehicleModel.isEmpty ? "Tipo Mezzo" : appState.lastVehicleModel,
-                        length: appState.lastVehicleLength,
-                        maxSpeed: appState.lastVehicleMaxSpeed
-                    )
-                    linesManager.vehicles.append(newV)
+                    isCreatingVehicle = true
                 }) {
                     Label("Nuovo", systemImage: "plus.circle.fill").font(.subheadline.bold())
                 }

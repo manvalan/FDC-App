@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct VehicleCreationSheet: View {
     @Environment(\.dismiss) var dismiss
@@ -19,6 +20,47 @@ struct VehicleCreationSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    VStack {
+                        if let imageName = selectedTemplate.imageName, let _ = UIImage(named: imageName) {
+                            Image(imageName)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(height: 150)
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                )
+                        } else {
+                            VStack(spacing: 8) {
+                                Image(systemName: "tram.fill")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(height: 60)
+                                    .foregroundColor(.gray.opacity(0.5))
+                                
+                                if let imageName = selectedTemplate.imageName {
+                                    Text("Immagine non trovata: \(imageName)")
+                                        .font(.caption2)
+                                        .foregroundColor(.red)
+                                } else {
+                                    Text("Nessuna immagine disponibile")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(Color.gray.opacity(0.1))
+                            .cornerRadius(12)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                }
+                .listRowBackground(Color.clear)
+                
                 Section("Modello Mezzo") {
                     Picker("Modello", selection: $selectedTemplateId) {
                         ForEach(VehicleTemplate.all) { template in
