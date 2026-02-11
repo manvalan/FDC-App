@@ -65,7 +65,7 @@ struct LineGraphView: View {
                     Rectangle()
                         .fill(Color(white: 0.95))
                         .frame(width: graphWidth, height: graphHeight)
-                        .border(appState.theme.dark, lineWidth: 1)
+                        .border(appState.theme.dark, width: 1)
                     
                     // Layers
                     GridLayer(
