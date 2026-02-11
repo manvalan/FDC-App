@@ -187,32 +187,7 @@ struct MenuRow: View {
         .buttonStyle(.plain)
     }
 }
-                            appState.sidebarSelection = .settings
-                        }
-                    }
-                }
-                .padding(.horizontal, 8)
-            }
-        }
-        .frame(width: 330)
-        .background(appState.theme.background)
-        .cornerRadius(24)
-        .overlay(
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(appState.theme.line.opacity(0.1), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.06), radius: 20, x: 0, y: 10)
-        .padding(.leading, 20)
-        .transition(.move(edge: .leading))
-        .gesture(
-            DragGesture().onEnded { val in
-                if val.translation.width < -30 {
-                    appState.showPanel(.none)
-                }
-            }
-        )
-    }
-}
+
 
 struct ContextualInspector: View {
     @EnvironmentObject var appState: AppState
