@@ -513,6 +513,33 @@ struct Vehicle: Identifiable, Codable, Hashable {
     
     // Per gestire il giro macchina
     var notes: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case id, name, model, length, maxSpeed, acceleration, deceleration, notes
+    }
+    
+    init(id: UUID = UUID(), name: String, model: String, length: Double = 200, maxSpeed: Double = 160, acceleration: Double = 0.5, deceleration: Double = 0.4, notes: String? = nil) {
+        self.id = id
+        self.name = name
+        self.model = model
+        self.length = length
+        self.maxSpeed = maxSpeed
+        self.acceleration = acceleration
+        self.deceleration = deceleration
+        self.notes = notes
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try container.decode(String.self, forKey: .name)
+        model = try container.decode(String.self, forKey: .model)
+        length = try container.decodeIfPresent(Double.self, forKey: .length) ?? 200
+        maxSpeed = try container.decodeIfPresent(Double.self, forKey: .maxSpeed) ?? 160
+        acceleration = try container.decodeIfPresent(Double.self, forKey: .acceleration) ?? 0.5
+        deceleration = try container.decodeIfPresent(Double.self, forKey: .deceleration) ?? 0.4
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
+    }
 }
 
 // Conflitto di assegnazione materiale rotabile
@@ -622,6 +649,22 @@ struct Train: Identifiable, Codable, Hashable {
     
     enum CodingKeys: String, CodingKey {
         case id, number, name, type, lineId, departureTime, stops, maxSpeed, acceleration, deceleration, priority, vehicleId
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        number = try container.decodeIfPresent(Int.self, forKey: .number)
+        name = try container.decode(String.self, forKey: .name)
+        type = try container.decode(String.self, forKey: .type)
+        lineId = try container.decodeIfPresent(String.self, forKey: .lineId)
+        departureTime = try container.decodeIfPresent(Date.self, forKey: .departureTime)
+        stops = try container.decodeIfPresent([RelationStop].self, forKey: .stops) ?? []
+        vehicleId = try container.decodeIfPresent(UUID.self, forKey: .vehicleId)
+        maxSpeed = try container.decodeIfPresent(Double.self, forKey: .maxSpeed) ?? 120
+        acceleration = try container.decodeIfPresent(Double.self, forKey: .acceleration) ?? 0.5
+        deceleration = try container.decodeIfPresent(Double.self, forKey: .deceleration) ?? 0.5
+        priority = try container.decodeIfPresent(Int.self, forKey: .priority) ?? 5
     }
 }
 
