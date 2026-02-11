@@ -169,7 +169,7 @@ struct MenuRow: View {
                 
                 Text(title)
                     .font(.system(size: 16, weight: isSelected ? .semibold : .regular))
-                    .foregroundColor(isSelected ? appState.theme.dark : appState.theme.text)
+                    .foregroundColor(isSelected ? appState.theme.dark : appState.theme.medium)
                 
                 Spacer()
                 
