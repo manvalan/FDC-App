@@ -117,7 +117,7 @@ struct FloatingSideMenu: View {
                             appState.showPanel(.inspector)
                         }
                         
-                        MenuRow(title: "Flotta", icon: "tram.fill", isSelected: appState.sidebarSelection == .vehicles) {
+                        MenuRow(title: "Materiale Rotabile", icon: "tram.fill", isSelected: appState.sidebarSelection == .vehicles) {
                             appState.sidebarSelection = .vehicles
                             appState.currentMode = .design
                             appState.clearSelection()
