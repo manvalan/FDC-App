@@ -22,22 +22,22 @@ extension ContentView {
             Divider().frame(height: 24)
             
             HStack(spacing: 4) {
-                Button(action: { network.undo() }) {
+                Button(action: { railroad.undo() }) {
                     Image(systemName: "arrow.uturn.backward.circle.fill")
-                        .foregroundStyle(network.canUndo ? Color.blue : Color.secondary.opacity(0.3))
+                        .foregroundStyle(railroad.canUndo ? Color.blue : Color.secondary.opacity(0.3))
                         .font(.system(size: 20))
                 }
                 .buttonStyle(.plain)
-                .disabled(!network.canUndo)
+                .disabled(!railroad.canUndo)
                 .help("undo".localized)
                 
-                Button(action: { network.redo() }) {
+                Button(action: { railroad.redo() }) {
                     Image(systemName: "arrow.uturn.forward.circle.fill")
-                        .foregroundStyle(network.canRedo ? Color.blue : Color.secondary.opacity(0.3))
+                        .foregroundStyle(railroad.canRedo ? Color.blue : Color.secondary.opacity(0.3))
                         .font(.system(size: 20))
                 }
                 .buttonStyle(.plain)
-                .disabled(!network.canRedo)
+                .disabled(!railroad.canRedo)
                 .help("redo".localized)
             }
             .padding(.horizontal, 12)
