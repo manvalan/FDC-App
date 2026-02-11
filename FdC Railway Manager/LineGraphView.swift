@@ -102,6 +102,8 @@ struct LineGraphView: View {
                         }
                     }
                 }
+                }
+
         .background(appState.theme.background) // Use app background color (light grigetto)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
