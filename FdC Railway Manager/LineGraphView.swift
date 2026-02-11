@@ -103,7 +103,8 @@ struct LineGraphView: View {
                     }
                 }
                 }
-
+            } // GeometryReader
+        }
         .background(appState.theme.background) // Use app background color (light grigetto)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -346,7 +347,7 @@ struct LineGraphView: View {
         }
     }
     
-    @EnvironmentObject var appState: AppState
+
     
     private func findTrainAtLocation(_ location: CGPoint) {
         let lineStationIds = Set(orderedStations.map { $0.id })
