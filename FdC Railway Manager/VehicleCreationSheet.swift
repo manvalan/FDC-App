@@ -5,6 +5,7 @@ struct VehicleCreationSheet: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var linesManager: LinesManager
     @EnvironmentObject var appState: AppState
+    @StateObject private var wikiImageService = WikiImageService()
     
     @State private var selectedTemplateId: String = VehicleTemplate.all[0].id
     @State private var customName: String = ""
@@ -22,38 +23,42 @@ struct VehicleCreationSheet: View {
             Form {
                 Section {
                     VStack {
+                        // 1. Try Local Asset: If `imageName` is valid and exists in bundle
                         if let imageName = selectedTemplate.imageName, let _ = UIImage(named: imageName) {
                             Image(imageName)
                                 .resizable()
                                 .scaledToFit()
                                 .frame(height: 150)
                                 .cornerRadius(8)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                                )
-                        } else {
-                            VStack(spacing: 8) {
-                                Image(systemName: "tram.fill")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(height: 60)
-                                    .foregroundColor(.gray.opacity(0.5))
-                                
-                                if let imageName = selectedTemplate.imageName {
-                                    Text("Immagine non trovata: \(imageName)")
-                                        .font(.caption2)
-                                        .foregroundColor(.red)
-                                } else {
-                                    Text("Nessuna immagine disponibile")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2), lineWidth: 1))
+                                .accessibilityLabel("Immagine locale del mezzo")
+                        
+                        // 2. Try Remote Image: If local fails, use Wikimedia fetcher
+                        } else if let remoteURL = wikiImageService.currentImageURL {
+                            AsyncImage(url: remoteURL) { phase in
+                                switch phase {
+                                case .empty:
+                                    ProgressView()
+                                        .frame(height: 60)
+                                case .success(let image):
+                                    image.resizable()
+                                         .scaledToFit()
+                                         .frame(height: 150)
+                                         .cornerRadius(8)
+                                case .failure(_):
+                                    fallbackView
+                                @unknown default:
+                                    fallbackView
                                 }
                             }
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(12)
+                        } else {
+                            // 3. Fallback / Loading State
+                            if wikiImageService.isLoading {
+                                ProgressView("Cercando immagine...")
+                                    .padding()
+                            } else {
+                                fallbackView
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity)
@@ -68,8 +73,14 @@ struct VehicleCreationSheet: View {
                         }
                     }
                     .pickerStyle(.navigationLink)
-                    .onChange(of: selectedTemplateId) { _ in
+                    .pickerStyle(.navigationLink)
+                    .onChange(of: selectedTemplateId) { newValue in
                         recalculateNextNumber()
+                        
+                        // Trigger remote search whenever template changes
+                        // Use base name "ETR 500" from "ETR 500 (Frecciarossa)"
+                        let baseName = VehicleTemplate.all.first(where: { $0.id == newValue })?.name ?? ""
+                        wikiImageService.searchImage(for: baseName)
                     }
                     
                     VStack(alignment: .leading, spacing: 4) {
@@ -119,9 +130,29 @@ struct VehicleCreationSheet: View {
             }
             .onAppear {
                 recalculateNextNumber()
+                // Initial search
+                let baseName = selectedTemplate.name
+                wikiImageService.searchImage(for: baseName)
             }
         }
     }
+    
+    private var fallbackView: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "tram.fill")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 60)
+                .foregroundColor(.gray.opacity(0.5))
+            
+            Text("Nessuna immagine disponibile")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(Color.gray.opacity(0.1))
+        .cornerRadius(12)
     
     private var proposedName: String {
         // Extract base code (e.g. ETR 104) from template name
