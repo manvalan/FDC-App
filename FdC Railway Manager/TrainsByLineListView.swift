@@ -28,8 +28,10 @@ struct TrainsByLineListView: View {
                     }
                 }
                 
-                ForEach(linesWithTrains, id: \.line.id) { item in
-                    LineTrainsSection(line: item.line, trains: item.trains)
+                ForEach(allLinesGrouped, id: \.line.id) { item in
+                    LineTrainsSection(line: item.line, trains: item.trains, onCreateTrain: {
+                        createNewTrain(for: item.line)
+                    })
                 }
             }
             .alert("Assegnati \(assignedCount) treni alle linee.", isPresented: $showAssignmentAlert) {
@@ -58,12 +60,35 @@ struct TrainsByLineListView: View {
         linesManager.trains.filter { $0.lineId == nil || $0.lineId?.isEmpty == true }
     }
     
-    /// Calcola quali linee hanno treni
-    private var linesWithTrains: [(line: RailwayLine, trains: [Train])] {
-        linesManager.lines.compactMap { line in
+    /// Calcola quali linee hanno treni, includendo anche le linee vuote
+    private var allLinesGrouped: [(line: RailwayLine, trains: [Train])] {
+        linesManager.lines.map { line in
             let trainsForLine = linesManager.trains.filter { $0.lineId == line.id }
-            guard !trainsForLine.isEmpty else { return nil }
             return (line: line, trains: trainsForLine)
+        }
+        .sorted { $0.line.name < $1.line.name }
+    }
+    
+    private func createNewTrain(for line: RailwayLine) {
+        let newTrain = Train(
+            id: UUID(),
+            name: "\(line.codePrefix ?? "NUM") \(Int.random(in: 1000...9999))",
+            lineId: line.id
+        )
+        // Pre-populate stops from line definition
+        newTrain.stops = line.stops.compactMap { stop in
+            if let node = appState.railroad.network.nodes.first(where: { $0.id == stop.stationId }) {
+                return ScheduleStop(stationId: stop.stationId, stationName: node.name)
+            }
+            return nil
+        }
+        
+        linesManager.trains.append(newTrain)
+        
+        // Open Inspector immediately
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            appState.selectTrain(newTrain.id)
+            appState.isInspectorEditingMode = true // Auto enter edit mode
         }
     }
     
@@ -122,18 +147,41 @@ struct TrainsByLineListView: View {
 private struct LineTrainsSection: View {
     let line: RailwayLine
     let trains: [Train]
+    let onCreateTrain: () -> Void
     @EnvironmentObject var appState: AppState
     
     var body: some View {
         DisclosureGroup {
-            VStack(spacing: 6) {
-                ForEach(trains, id: \.id) { train in
-                    TrainRowButton(train: train)
+            if trains.isEmpty {
+                Text("Nessun treno in orario")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onTapGesture {
+                        // Optional: Tap on empty state to create
+                    }
+                    .contextMenu {
+                        Button(action: onCreateTrain) {
+                            Label("Crea Nuova Corsa", systemImage: "plus")
+                        }
+                    }
+            } else {
+                VStack(spacing: 6) {
+                    ForEach(trains, id: \.id) { train in
+                        TrainRowButton(train: train)
+                    }
                 }
+                .padding(.top, 4)
             }
-            .padding(.top, 4)
         } label: {
             lineSectionHeader
+                .contentShape(Rectangle()) // Make entire header tappable for context menu
+                .contextMenu {
+                    Button(action: onCreateTrain) {
+                        Label("Crea Nuova Corsa", systemImage: "plus")
+                    }
+                }
         }
     }
     
@@ -167,6 +215,16 @@ private struct TrainRowButton: View {
             .cornerRadius(10)
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button("Duplica", systemImage: "doc.on.doc") {
+                // TODO: Logic to duplicate train
+            }
+            /*
+             Button("Elimina", systemImage: "trash", role: .destructive) {
+                // Logic to delete train -> Need access to LinesManager or pass closure
+             }
+             */
+        }
     }
     
     
