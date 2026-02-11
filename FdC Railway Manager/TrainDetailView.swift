@@ -33,7 +33,7 @@ struct TrainDetailView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(train.wrappedValue.name)
                             .font(.title2.bold())
-                        Text("\(train.wrappedValue.type) \(train.wrappedValue.number ?? 0)")
+                        Text("\(train.wrappedValue.type)")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -91,13 +91,10 @@ struct TrainDetailView: View {
                         
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
-                                TextField("1234", value: train.number, format: .number)
-                                    .font(.title2.bold())
-                                    .frame(width: 80)
-                                    .textFieldStyle(.roundedBorder)
-                                
                                 TextField("train_name".localized, text: train.name)
                                     .font(.title2.bold())
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(maxWidth: .infinity)
                             }
                             
                             Picker("type_label".localized, selection: train.type) {

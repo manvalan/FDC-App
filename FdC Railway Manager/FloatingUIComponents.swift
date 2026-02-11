@@ -226,13 +226,19 @@ struct ContextualInspector: View {
                 }
                 Spacer()
                 Button(action: { 
-                    if appState.selectedLineId != nil && (appState.sidebarSelection == .lines || appState.sidebarSelection == .trains) {
+                    if !appState.selectedTrainIds.isEmpty {
+                        appState.selectedTrainIds = []
+                    } else if appState.selectedNodeId != nil {
+                        appState.selectedNodeId = nil
+                    } else if appState.selectedEdgeId != nil {
+                        appState.selectedEdgeId = nil
+                    } else if appState.selectedLineId != nil && (appState.sidebarSelection == .lines || appState.sidebarSelection == .trains) {
                         appState.selectedLineId = nil
                     } else {
                         appState.showPanel(.none) 
                     }
                 }) {
-                    Image(systemName: appState.selectedLineId != nil && (appState.sidebarSelection == .lines || appState.sidebarSelection == .trains) ? "chevron.left.circle.fill" : "xmark.circle.fill")
+                    Image(systemName: appState.isSomethingSelected ? "chevron.left.circle.fill" : "xmark.circle.fill")
                         .font(.title3)
                         .foregroundColor(appState.theme.medium)
                 }
