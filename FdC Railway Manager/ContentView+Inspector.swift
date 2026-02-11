@@ -51,17 +51,23 @@ extension ContentView {
                         ), isMoveModeEnabled: $appState.isMoveModeEnabled, selectedNode: Binding(get: { appState.selectedNode }, set: { appState.selectedNodeId = $0?.id }), selectedEdgeId: $appState.selectedEdgeId)
                         .id("line-\(line.id)")
                     } else if let edgeId = appState.selectedEdgeId, let index = network.edges.firstIndex(where: { $0.id.uuidString == edgeId }) {
-                        TrackEditView(edge: Binding(
-                            get: { network.edges[index] },
-                            set: { network.edges[index] = $0 }
-                        )) {
-                            withAnimation {
-                                network.removeEdge(from: network.edges[index].from, to: network.edges[index].to)
-                                appState.selectedEdgeId = nil
+                        TrackEditView(
+                            edge: Binding(
+                                get: { network.edges[index] },
+                                set: { network.edges[index] = $0 }
+                            ),
+                            onDelete: {
+                                withAnimation {
+                                    network.removeEdge(from: network.edges[index].from, to: network.edges[index].to)
+                                    appState.selectedEdgeId = nil
+                                }
+                            },
+                            onBack: {
+                                withAnimation {
+                                    appState.selectedEdgeId = nil
+                                }
                             }
-                        }, onBack: {
-                            appState.selectedEdgeId = nil
-                        })
+                        )
                         .id("edge-\(edgeId)")
                     } else if !appState.selectedTrainIds.isEmpty {
                         if appState.selectedTrainIds.count == 1, let trainId = appState.selectedTrainIds.first, let train = trainManager.trains.first(where: { $0.id == trainId }) {
