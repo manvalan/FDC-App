@@ -379,7 +379,7 @@ struct ContextualInspector: View {
             Text("Sei sicuro di voler eliminare questo elemento? L'azione non può essere annullata.")
         }
         // Editing Sheets
-        }
+
         .sheet(item: $editingStation) { station in
             NavigationStack {
                 StationEditView(station: .constant(station), isMoveModeEnabled: .constant(false))
