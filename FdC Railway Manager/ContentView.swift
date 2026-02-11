@@ -39,42 +39,36 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // 1. BACKGROUND: THE MAP (Full Screen)
+            // 1. BACKGROUND: THE MAP / CONTENT (Full Screen)
             detailContent
-                .edgesIgnoringSafeArea(.all)
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 30)
-                        .onEnded { value in
-                            let vertical = value.translation.height
-                            let horizontal = value.translation.width
-                            
-                            // Top to Bottom swipe anywhere (Mode Bar)
-                            if vertical > 50 && abs(horizontal) < 50 {
-                                withAnimation(.spring()) { appState.isModeBarVisible = true }
-                            }
-                        }
-                )
             
             // 2. OVERLAYS: MODES & NAVIGATION
+            // Gestures handle visibility now
             
-            // Top Mode Bar (Triggered by Swipe Down or Border Swipe)
+            // Top Mode Bar (Triggered by Swipe Down or Handle Tap)
             if appState.isModeBarVisible {
+                Color.black.opacity(0.001) // Invisible tap region to close
+                    .onTapGesture { withAnimation { appState.isModeBarVisible = false } }
+                    .zIndex(99)
+                
                 VStack {
                     FloatingModeBar()
                         .padding(.top, 40)
                     Spacer()
                 }
+                .transition(.move(edge: .top).combined(with: .opacity))
                 .zIndex(100)
             }
             
-            // Left Side Menu (Border Swipe)
+            // Left Side Menu
             if appState.isSideMenuVisible {
                 HStack {
                     FloatingSideMenu()
+                        .transition(.move(edge: .leading))
                     Spacer()
                 }
                 .background(Color.black.opacity(0.2).onTapGesture { withAnimation { appState.isSideMenuVisible = false } })
-                .zIndex(100)
+                .zIndex(150)
             }
             
             // Right Inspector (Contextual)
@@ -98,36 +92,52 @@ struct ContentView: View {
             
             
             // 3. EDGE GESTURE DETECTORS (Invisible strips on the edges)
-            HStack {
-                // Left edge strip (Side Menu)
+            VStack(spacing: 0) {
+                // Top edge strip (Mode Bar)
                 Color.clear
-                    .frame(width: 20)
+                    .frame(height: 30)
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 10)
                             .onEnded { value in
-                                if value.translation.width > 30 {
-                                    withAnimation(.spring()) { appState.isSideMenuVisible = true }
+                                if value.translation.height > 20 {
+                                    withAnimation(.spring()) { appState.isModeBarVisible = true }
                                 }
                             }
                     )
                 
-                Spacer()
-                
-                // Right edge strip (Inspector)
-                Color.clear
-                    .frame(width: 40) // Wider for easier catch
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 10)
-                            .onEnded { value in
-                                if value.translation.width < -30 {
-                                    withAnimation(.spring()) { appState.isInspectorVisible = true }
+                HStack(spacing: 0) {
+                    // Left edge strip (Side Menu)
+                    Color.clear
+                        .frame(width: 30)
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 10)
+                                .onEnded { value in
+                                    if value.translation.width > 20 {
+                                        withAnimation(.spring()) { appState.isSideMenuVisible = true }
+                                    }
                                 }
-                            }
-                    )
+                        )
+                    
+                    Spacer()
+                    
+                    // Right edge strip (Inspector)
+                    Color.clear
+                        .frame(width: 40) // Wider for easier catch
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 10)
+                                .onEnded { value in
+                                    if value.translation.width < -20 {
+                                        withAnimation(.spring()) { appState.isInspectorVisible = true }
+                                    }
+                                }
+                        )
+                }
+                .frame(maxHeight: .infinity)
             }
-            .edgesIgnoringSafeArea(.vertical)
+            .edgesIgnoringSafeArea(.all)
         }
         .environmentObject(network)
         .background {

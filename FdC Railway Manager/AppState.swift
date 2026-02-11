@@ -31,6 +31,10 @@ final class AppState: ObservableObject {
     @Published var isInspectorEditingMode: Bool = false
     @Published var lastVehicleAssignmentLineId: String? = nil
     
+    // Line Creation / Editing Picking State
+    var stationPickingCallback: ((String) -> Void)? = nil
+    @Published var lineDraftStations: [String] = []
+    
     var selectedLine: RailwayLine? {
         railroad.lines.lines.first { $0.id == selectedLineId }
     }
@@ -41,7 +45,7 @@ final class AppState: ObservableObject {
     
     func selectTrain(_ id: UUID) {
         selectedTrainIds = [id]
-        selectedLineId = nil
+        // selectedLineId = nil // Keep line context active!
         selectedNodeId = nil
         selectedEdgeId = nil
     }
@@ -316,14 +320,17 @@ final class AppState: ObservableObject {
 }
 
 enum SidebarItem: String, CaseIterable, Identifiable {
-    case network = "network"
+    case stations = "stazioni"
+    case tracks = "binari"
     case lines = "lines"
     case trains = "trains"
     case vehicles = "materiale_rotabile"
+    case timetable = "tabella_oraria"
+    case diagram = "grafico_orario"
     case ai = "railway_ai"
     case io = "io"
-    case simulation = "simulation"
     case settings = "settings"
+    case simulation = "simulation"
     
     var id: String { rawValue }
     
@@ -333,10 +340,13 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     
     var icon: String {
         switch self {
-        case .network: return "map"
+        case .stations: return "building.2"
+        case .tracks: return "road.lanes"
         case .lines: return "point.topleft.down.to.point.bottomright.curvepath"
         case .trains: return "train.side.front.car"
-        case .vehicles: return "train.side.front.car"
+        case .vehicles: return "tram.fill"
+        case .timetable: return "tablecells"
+        case .diagram: return "chart.xyaxis.line"
         case .ai: return "sparkles"
         case .io: return "doc.badge.arrow.up"
         case .simulation: return "play.desktopcomputer"

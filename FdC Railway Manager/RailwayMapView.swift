@@ -578,6 +578,7 @@ struct SchematicRailwayView: View {
     @State private var zoomLevel: CGFloat = 2.0
     @State private var editMode: EditMode = .explore
     @State private var isEditToolbarVisible: Bool = false
+    @State private var scrollTargetPos: CGPoint? = nil
 
     // Grid State: managed by parent binding now
     // Track Creation State
@@ -654,283 +655,10 @@ struct SchematicRailwayView: View {
     
     var body: some View {
         GeometryReader { geo in
-            ZStack(alignment: .bottomTrailing) {
-                
-                // ScrollView for native scrolling/panning
-                ScrollView([.horizontal, .vertical], showsIndicators: true) {
-                    ScrollViewReader { proxy in
-                        let canvasSize = CGSize(
-                            width: max(geo.size.width * totalZoom, geo.size.width),
-                            height: max(geo.size.height * totalZoom, geo.size.height)
-                        )
-                    let bounds = self.mapBounds
-                    
-                    ZStack(alignment: .topLeading) {
-                        // Background (White + Grid)
-                        ZStack {
-                            Color.white
-                            if showGrid {
-                                CoordinateGridShape(
-                                    bounds: bounds,
-                                    unit: coordinateGridStep,
-                                    size: canvasSize
-                                )
-                                .stroke(Color.gray.opacity(0.15), lineWidth: 1)
-                            }
-                        }
-                        .frame(width: canvasSize.width, height: canvasSize.height)
-                        .onTapGesture(count: 1, coordinateSpace: .local) { location in
-                            handleCanvasTap(at: location, in: canvasSize)
-                        }
-                        .onLongPressGesture(minimumDuration: 0.6) {
-                            UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                                isEditToolbarVisible.toggle()
-                                
-                                // Reset to explore if closing toolbar
-                                if !isEditToolbarVisible {
-                                    editMode = .explore
-                                    isMoveModeEnabled = false
-                                }
-                                
-                                // In lines mode, long press can still show line creation or just show toolbar
-                                if mode == .lines && isEditToolbarVisible {
-                                    showLineCreation = true
-                                }
-                            }
-                        }
-                        .contentShape(Rectangle())
-                        
-                        .contentShape(Rectangle())
-                        
-                        // Invisible Anchors for Scrolling
-                        ForEach(network.nodes) { node in
-                             Color.clear
-                                 .frame(width: 1, height: 1)
-                                 .position(MapGeometry.finalPosition(for: node, in: canvasSize, bounds: bounds, network: network))
-                                 .id("node-\(node.id)")
-                        }
-                        
-                        // 1. Draw Map Content (Infrastructure)
-                        InfrastructureCanvas(
-                            mode: mode,
-                            selectedLine: selectedLine,
-                            selectedEdgeId: selectedEdgeId,
-                            hiddenLineIds: hiddenLineIds,
-                            bounds: bounds,
-                            size: canvasSize,
-                            totalZoom: totalZoom
-                        )
-                        .allowsHitTesting(false)
-                        
-                        // 2. Draw Active Trains (Animated Overlay)
-                        if !appState.simulator.schedules.isEmpty {
-                            TrainOverlayCanvas(
-                                bounds: bounds,
-                                canvasSize: canvasSize,
-                                totalZoom: totalZoom
-                            )
-                            .allowsHitTesting(false)
-                        }
-                        
-                        // 3. Interactive Nodes (Stations)
-                        StationMarkersView(
-                            selectedNode: $selectedNode,
-                            selectedLine: $selectedLine,
-                            selectedEdgeId: $selectedEdgeId,
-                            canvasSize: canvasSize,
-                            bounds: bounds,
-                            showGrid: showGrid,
-                            coordinateGridStep: coordinateGridStep,
-                            isMoveModeEnabled: $isMoveModeEnabled,
-                            onTap: { handleStationTap($0) }
-                        )
-                    }
-                    .frame(width: canvasSize.width, height: canvasSize.height)
-                    .gesture(
-                        MagnificationGesture()
-                            .onChanged { value in
-                                magnification = value
-                            }
-                            .onEnded { value in
-                                zoomLevel *= value
-                                magnification = 1.0
-                            }
-                    )
-                    .onChange(of: selectedNode) { node in
-                        if let node = node { withAnimation { proxy.scrollTo("node-\(node.id)", anchor: .center) } }
-                    }
-                    .onChange(of: selectedEdgeId) { edgeId in
-                        if let edgeId = edgeId, let edge = network.edges.first(where: { $0.id.uuidString == edgeId }) {
-                             withAnimation { proxy.scrollTo("node-\(edge.from)", anchor: .center) }
-                        }
-                    }
-                }
-                .simultaneousGesture(
-                    MagnificationGesture()
-                        .onChanged { value in
-                            magnification = value
-                        }
-                        .onEnded { value in
-                            zoomLevel *= magnification
-                            magnification = 1.0
-                        }
-                )
-            } // End ScrollView
-                
-                // Consolidated Controls Toolbar (Right Side)
-                // Consolidated Controls Toolbar (Right Side)
-                MapControlsView(
-                    isEditToolbarVisible: $isEditToolbarVisible,
-                    editMode: $editMode,
-                    isMoveModeEnabled: $isMoveModeEnabled,
-                    zoomLevel: $zoomLevel,
-                    onExport: onExport,
-                    onPrint: onPrint
-                )
-                
-                // Track Creation Box Overlay
-                if editMode == .addTrack {
-                    VStack {
-                        Spacer()
-                        VStack(spacing: 12) {
-                            Text("new_track".localized)
-                                .font(.headline)
-                            
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text("from_label".localized)
-                                        .font(.caption).foregroundColor(.secondary)
-                                    Text(newTrackFrom?.name ?? "select_station_placeholder".localized)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(newTrackFrom == nil ? .gray : .black)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                
-                                Image(systemName: "arrow.right")
-                                
-                                VStack(alignment: .trailing) {
-                                    Text("to_label".localized)
-                                        .font(.caption).foregroundColor(.secondary)
-                                    Text(newTrackTo?.name ?? "select_station_placeholder".localized)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(newTrackTo == nil ? .gray : .black)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                            }
-                            .padding(.horizontal)
-                            
-                            HStack {
-                                Text("distance_label".localized).font(.caption).foregroundColor(.secondary)
-                                TextField("km", value: $newTrackDistance, format: .number)
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(width: 80)
-                                Text("km")
-                            }
-                            
-                            HStack(spacing: 8) {
-                                ForEach(Edge.TrackType.allCases) { type in
-                                    Button(action: { newTrackType = type }) {
-                                        VStack(spacing: 4) {
-                                            // Visual representation icon
-                                            ZStack {
-                                                if type == .double || type == .highSpeed {
-                                                    HStack(spacing: 2) {
-                                                        Capsule().fill(type.color).frame(width: 3, height: 16)
-                                                        Capsule().fill(type.color).frame(width: 3, height: 16)
-                                                    }
-                                                } else {
-                                                    Capsule().fill(type.color).frame(width: 6, height: 16)
-                                                }
-                                            }
-                                            .frame(height: 20)
-                                            
-                                            Text(type.displayName)
-                                                .font(.system(size: 10, weight: .bold))
-                                        }
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 8)
-                                        .background(newTrackType == type ? type.color.opacity(0.15) : Color.gray.opacity(0.05))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 6)
-                                                .stroke(newTrackType == type ? type.color : Color.clear, lineWidth: 2)
-                                        )
-                                        .cornerRadius(6)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .padding(.vertical, 4)
-                                                        HStack {
-                                Button("cancel".localized) {
-                                    newTrackFrom = nil
-                                    newTrackTo = nil
-                                    editMode = .explore // Exit mode
-                                }
-                                .foregroundColor(.red)
-                                .padding(.horizontal)
-                                
-                                Button(action: createTrack) {
-                                    Text("create_track_button".localized)
-                                        .bold()
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 8)
-                                        .background((newTrackFrom != nil && newTrackTo != nil) ? Color.blue : Color.gray)
-                                        .foregroundColor(.white)
-                                        .cornerRadius(8)
-                                }
-                                .disabled(newTrackFrom == nil || newTrackTo == nil)
-                            }
-                        }
-                        .padding()
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color(UIColor.systemBackground))
-                                .shadow(color: Color.black.opacity(0.2), radius: 10)
-                        )
-                        .padding()
-                        .frame(maxWidth: 400)
-                    }
-                    .transition(.move(edge: .bottom))
-                }
-                
-                // Move Mode Status Overlay
-                if isMoveModeEnabled {
-                    VStack {
-                        HStack(spacing: 12) {
-                            Image(systemName: "hand.tap.fill")
-                                .symbolEffect(.bounce, value: isMoveModeEnabled)
-                            Text("station_moving_active".localized)
-                                .font(.system(size: 14, weight: .bold))
-                            
-                            Button(action: {
-                                withAnimation { isMoveModeEnabled = false }
-                            }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .padding(.leading, 16)
-                        .padding(.trailing, 8)
-                        .padding(.vertical, 10)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule().stroke(Color.blue.opacity(0.3), lineWidth: 1)
-                        )
-                        .shadow(color: Color.black.opacity(0.1), radius: 8, y: 4)
-                        .padding(.top, 40)
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .allowsHitTesting(true)
-                }
-            }
-        }
-        .sheet(isPresented: $showLineCreation) {
-            LineCreationView()
+            let size = canvasSize(for: geo.size)
+            let bounds = self.mapBounds
+            
+            mainViewContainer(size: size, bounds: bounds)
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -965,17 +693,384 @@ struct SchematicRailwayView: View {
                 } label: {
                     Label("filter_lines".localized, systemImage: "line.3.horizontal.decrease.circle")
                 }
+            }
         }
     }
+    
+    private func canvasSize(for geoSize: CGSize) -> CGSize {
+        CGSize(
+            width: max(geoSize.width * totalZoom, geoSize.width),
+            height: max(geoSize.height * totalZoom, geoSize.height)
+        )
     }
+    
+    @ViewBuilder
+    private func mainViewContainer(size: CGSize, bounds: MapBounds) -> some View {
+        ZStack(alignment: .bottomTrailing) {
+            scrollViewLayer(size: size, bounds: bounds)
+            
+            lineCreationOverlay
+            MapControlsView(
+                isEditToolbarVisible: $isEditToolbarVisible,
+                editMode: $editMode,
+                isMoveModeEnabled: $isMoveModeEnabled,
+                zoomLevel: $zoomLevel,
+                onExport: onExport,
+                onPrint: onPrint
+            )
+            trackCreationOverlay
+            stationPickingIndicator
+            moveModeOverlay
+        }
+    }
+    
+    @ViewBuilder
+    private func scrollViewLayer(size: CGSize, bounds: MapBounds) -> some View {
+        ScrollView([.horizontal, .vertical], showsIndicators: true) {
+            ScrollViewReader { proxy in
+                ZStack(alignment: .topLeading) {
+                    mapBasement(size: size, bounds: bounds)
+                    scrollingAnchors(size: size, bounds: bounds)
+                    mapMainLayers(size: size, bounds: bounds)
+                }
+                .frame(width: size.width, height: size.height)
+                .gesture(zoomGesture)
+                .onChange(of: selectedNode) { node in centerOnNode(node, proxy: proxy) }
+                .onChange(of: selectedLine) { line in centerOnLine(line, proxy: proxy) }
+                .onChange(of: selectedEdgeId) { edgeId in centerOnEdge(edgeId, proxy: proxy) }
+                .onChange(of: appState.selectedTrainIds) { ids in centerOnTrain(Array(ids), size: size, bounds: bounds, proxy: proxy) }
+            }
+        }
+        .simultaneousGesture(zoomGesture)
+    }
+    
+    @ViewBuilder
+    private func mapBasement(size: CGSize, bounds: MapBounds) -> some View {
+        ZStack {
+            Color.white
+            if showGrid {
+                CoordinateGridShape(bounds: bounds, unit: coordinateGridStep, size: size)
+                    .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .onTapGesture { location in handleCanvasTap(at: location, in: size) }
+        .onLongPressGesture(minimumDuration: 0.6) { handleCanvasLongPress() }
+    }
+    
+    @ViewBuilder
+    private func scrollingAnchors(size: CGSize, bounds: MapBounds) -> some View {
+        Group {
+            ForEach(network.nodes) { node in
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .position(MapGeometry.finalPosition(for: node, in: size, bounds: bounds, network: network))
+                    .id("node-\(node.id)")
+            }
+            Color.clear
+                .frame(width: 1, height: 1)
+                .position(scrollTargetPos ?? .zero)
+                .id("SCROLL_TARGET")
+        }
+    }
+    
+    @ViewBuilder
+    private func mapMainLayers(size: CGSize, bounds: MapBounds) -> some View {
+        ZStack {
+            InfrastructureCanvas(
+                mode: mode,
+                selectedLine: selectedLine,
+                selectedEdgeId: selectedEdgeId,
+                hiddenLineIds: hiddenLineIds,
+                bounds: bounds,
+                size: size,
+                totalZoom: totalZoom
+            )
+            .allowsHitTesting(false)
+            
+            if !appState.simulator.schedules.isEmpty {
+                TrainOverlayCanvas(bounds: bounds, canvasSize: size, totalZoom: totalZoom)
+                    .allowsHitTesting(false)
+            }
+            
+            StationMarkersView(
+                selectedNode: $selectedNode,
+                selectedLine: $selectedLine,
+                selectedEdgeId: $selectedEdgeId,
+                canvasSize: size,
+                bounds: bounds,
+                showGrid: showGrid,
+                coordinateGridStep: coordinateGridStep,
+                isMoveModeEnabled: $isMoveModeEnabled,
+                onTap: { handleStationTap($0) }
+            )
+        }
+    }
+
+    private var zoomGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { magnification = $0 }
+            .onEnded { value in
+                zoomLevel *= value
+                magnification = 1.0
+            }
+    }
+
+    private func handleCanvasLongPress() {
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            isEditToolbarVisible.toggle()
+            if !isEditToolbarVisible {
+                editMode = .explore
+                isMoveModeEnabled = false
+            }
+            if mode == .lines && isEditToolbarVisible {
+                showLineCreation = true
+            }
+        }
+    }
+
+    private func centerOnNode(_ node: Node?, proxy: ScrollViewProxy) {
+        if let node = node { withAnimation { proxy.scrollTo("node-\(node.id)", anchor: UnitPoint.center) } }
+    }
+
+    private func centerOnLine(_ line: RailwayLine?, proxy: ScrollViewProxy) {
+        if let line = line, let firstId = line.stops.first?.stationId {
+            withAnimation { proxy.scrollTo("node-\(firstId)", anchor: UnitPoint.center) }
+        }
+    }
+
+    private func centerOnEdge(_ edgeId: String?, proxy: ScrollViewProxy) {
+        if let edgeId = edgeId, let edge = network.edges.first(where: { $0.id.uuidString == edgeId }) {
+            withAnimation { proxy.scrollTo("node-\(edge.from)", anchor: UnitPoint.center) }
+        }
+    }
+
+    private func centerOnTrain(_ ids: [UUID], size: CGSize, bounds: MapBounds, proxy: ScrollViewProxy) {
+        if let trainId = ids.first, let schedule = appState.simulator.schedules.first(where: { $0.trainId == trainId }) {
+            let now = appState.liveSim.currentSimTime
+            if let pos = MapGeometry.currentSchematicTrainPos(for: schedule, in: size, now: now, bounds: bounds, network: network) {
+                scrollTargetPos = pos
+                withAnimation { proxy.scrollTo("SCROLL_TARGET", anchor: UnitPoint.center) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var lineCreationOverlay: some View {
+        if showLineCreation {
+            VStack {
+                Spacer()
+                LineCreationView()
+                    .environmentObject(appState.railroad.network)
+                    .environmentObject(appState.railroad.lines)
+                    .padding(.bottom, 60)
+            }
+            .frame(maxWidth: .infinity)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .zIndex(200)
+        }
+    }
+
+    @ViewBuilder
+    private var trackCreationOverlay: some View {
+        if editMode == .addTrack {
+            VStack {
+                Spacer()
+                VStack(spacing: 12) {
+                    Text("new_track".localized)
+                        .font(.headline)
+                    
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text("from_label".localized)
+                                .font(.caption).foregroundColor(.secondary)
+                            Text(newTrackFrom?.name ?? "select_station_placeholder".localized)
+                                .fontWeight(.bold)
+                                .foregroundColor(newTrackFrom == nil ? .gray : (.primary))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        Image(systemName: "arrow.right")
+                        
+                        VStack(alignment: .trailing) {
+                            Text("to_label".localized)
+                                .font(.caption).foregroundColor(.secondary)
+                            Text(newTrackTo?.name ?? "select_station_placeholder".localized)
+                                .fontWeight(.bold)
+                                .foregroundColor(newTrackTo == nil ? .gray : (.primary))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                    .padding(.horizontal)
+                    
+                    HStack {
+                        Text("distance_label".localized).font(.caption).foregroundColor(.secondary)
+                        TextField("km", value: $newTrackDistance, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 80)
+                        Text("km")
+                    }
+                    
+                    HStack(spacing: 8) {
+                        ForEach(Edge.TrackType.allCases) { type in
+                            Button(action: { newTrackType = type }) {
+                                trackTypeButtonContent(type: type)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    
+                    trackCreationActions
+                }
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Material.ultraThinMaterial)
+                        .background(Color(UIColor.systemGray6).opacity(0.8))
+                        .shadow(color: Color.gray.opacity(0.2), radius: 10)
+                )
+                .padding()
+                .frame(maxWidth: 400)
+            }
+            .transition(.move(edge: .bottom))
+        }
+    }
+    
+    @ViewBuilder
+    private func trackTypeButtonContent(type: Edge.TrackType) -> some View {
+        VStack(spacing: 4) {
+            ZStack {
+                if type == .double || type == .highSpeed {
+                    HStack(spacing: 2) {
+                        Capsule().fill(type.color).frame(width: 3, height: 16)
+                        Capsule().fill(type.color).frame(width: 3, height: 16)
+                    }
+                } else {
+                    Capsule().fill(type.color).frame(width: 6, height: 16)
+                }
+            }
+            .frame(height: 20)
+            
+            Text(type.displayName)
+                .font(.system(size: 10, weight: .bold))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(newTrackType == type ? type.color.opacity(0.15) : Color.gray.opacity(0.05))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(newTrackType == type ? type.color : Color.clear, lineWidth: 2)
+        )
+        .cornerRadius(6)
+    }
+    
+    @ViewBuilder
+    private var trackCreationActions: some View {
+        HStack {
+            Button("close".localized) {
+                newTrackFrom = nil
+                newTrackTo = nil
+                editMode = .explore
+            }
+            .foregroundColor(.secondary)
+            .padding(.horizontal)
+            
+            Button(action: createTrack) {
+                Text("create_track_button".localized)
+                    .bold()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background((newTrackFrom != nil && newTrackTo != nil) ? Color.accentColor.opacity(0.8) : Color.gray.opacity(0.3))
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+            }
+            .disabled(newTrackFrom == nil || newTrackTo == nil)
+        }
+    }
+
+    @ViewBuilder
+    private var stationPickingIndicator: some View {
+        if appState.stationPickingCallback != nil {
+            VStack {
+                HStack(spacing: 12) {
+                    Image(systemName: "cursorarrow.click.2")
+                        .symbolEffect(.pulse)
+                        .foregroundColor(.accentColor)
+                    Text("Seleziona una stazione sulla mappa")
+                        .font(.system(size: 14, weight: .bold))
+                    
+                    Button(action: {
+                        withAnimation { appState.stationPickingCallback = nil }
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.leading, 16)
+                .padding(.trailing, 8)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(Color.accentColor.opacity(0.3), lineWidth: 1))
+                .shadow(color: Color.black.opacity(0.1), radius: 8, y: 4)
+                .padding(.top, 40)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .allowsHitTesting(true)
+        }
+    }
+
+    @ViewBuilder
+    private var moveModeOverlay: some View {
+        if isMoveModeEnabled {
+            VStack {
+                HStack(spacing: 12) {
+                    Image(systemName: "hand.tap.fill")
+                        .symbolEffect(.bounce, value: isMoveModeEnabled)
+                    Text("station_moving_active".localized)
+                        .font(.system(size: 14, weight: .bold))
+                    
+                    Button(action: {
+                        withAnimation { isMoveModeEnabled = false }
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.leading, 16)
+                .padding(.trailing, 8)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(Color.orange.opacity(0.3), lineWidth: 1))
+                .shadow(color: Color.black.opacity(0.1), radius: 8, y: 4)
+                .padding(.top, 40)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+
+
     
     // MARK: - Interaction Handlers
     private func handleStationTap(_ node: Node) {
+        if let pickingCallback = appState.stationPickingCallback {
+            pickingCallback(node.id)
+            return
+        }
+        
         if editMode == .addTrack {
             // New Logic: Populate Box
             if newTrackFrom == nil {
                 newTrackFrom = node
-                // Reset distance default? Keep previous? Let's reset to geo-calc if To is selected later.
             } else if newTrackFrom?.id == node.id {
                 // Deselect if tapping same
                 newTrackFrom = nil
@@ -1017,13 +1112,20 @@ struct SchematicRailwayView: View {
             speed = Int(appState.highSpeedTrackMaxSpeed)
         }
         
+        
         let newEdge = Edge(from: n1.id, to: n2.id, distance: newTrackDistance, trackType: newTrackType, maxSpeed: speed, capacity: 10)
         network.addEdge(newEdge)
         
         // Note: Pathfinding treats all edges as bidirectional, so no need to create return edge
         
+        // Auto-select the NEW edge
+        withAnimation {
+            selectedEdgeId = newEdge.id.uuidString
+            selectedNode = nil
+            selectedLine = nil
+        }
         
-        // Reset selection
+        // Reset selection contents for logic
         newTrackFrom = nil
         newTrackTo = nil
         
@@ -1507,7 +1609,8 @@ struct InfrastructureCanvas: View {
                 }
                 
                 if mode == .network && selectedEdgeId == edge.id.uuidString {
-                    context.stroke(path, with: .color(.blue.opacity(0.5)), style: StrokeStyle(lineWidth: lineWidth + 4, lineCap: .round))
+                    context.stroke(path, with: .color(Color.accentColor.opacity(0.4)), style: StrokeStyle(lineWidth: lineWidth + 4, lineCap: .round))
+                    context.stroke(path, with: .color(Color.accentColor), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
                 }
                 
                 // 1b. Draw Detailed Infrastructure (Segments & Signals) if zoomed in
@@ -1576,6 +1679,30 @@ struct InfrastructureCanvas: View {
                             let lineWidth = isSelected ? appState.globalLineWidth * 1.5 : appState.globalLineWidth
                             context.stroke(path, with: .color(Color(hex: line.color ?? "#000000") ?? .black), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                         }
+                    }
+                }
+            }
+            
+            // 4. Line Creation Draft Highlight
+            if !appState.lineDraftStations.isEmpty {
+                for i in 0..<(appState.lineDraftStations.count - 1) {
+                    let s1 = appState.lineDraftStations[i]
+                    let s2 = appState.lineDraftStations[i+1]
+                    let key = SegmentKey(s1, s2)
+                    
+                    if let points = computedGeometries[key] {
+                        let path = Path { p in
+                            guard let first = points.first else { return }
+                            p.move(to: first)
+                            for pt in points.dropFirst() { p.addLine(to: pt) }
+                        }
+                        
+                        // Draw glowing outline for the draft
+                        context.drawLayer { subgroup in
+                            subgroup.addFilter(.blur(radius: 3))
+                            subgroup.stroke(path, with: .color(.yellow.opacity(0.6)), style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                        }
+                        context.stroke(path, with: .color(.yellow), style: StrokeStyle(lineWidth: 4, lineCap: .round))
                     }
                 }
             }

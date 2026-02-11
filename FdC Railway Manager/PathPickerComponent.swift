@@ -79,9 +79,22 @@ struct PathPickerComponent: View {
                     HStack {
                         Text("from".localized)
                         Spacer()
-                        Button(action: { activePicker = .start }) {
-                            Text(stationName(startStationId))
-                                .foregroundColor(startStationId.isEmpty ? .secondary : .primary)
+                        Group {
+                            Button(action: { activePicker = .start }) {
+                                Text(stationName(startStationId))
+                                    .foregroundColor(startStationId.isEmpty ? .secondary : .primary)
+                            }
+                            Button(action: { 
+                                // Direct map pick without sheet
+                                appState.stationPickingCallback = { id in
+                                    startStationId = id
+                                    appState.stationPickingCallback = nil
+                                }
+                            }) {
+                                Image(systemName: "hand.tap")
+                                    .foregroundColor(.orange)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     
@@ -100,6 +113,20 @@ struct PathPickerComponent: View {
                                         }
                                         .foregroundColor(item.stationId.isEmpty ? .secondary : .primary)
                                     }
+                                    
+                                    Button(action: {
+                                        appState.stationPickingCallback = { id in
+                                            if item.id < viaStationIds.count {
+                                                viaStationIds[item.id] = id
+                                            }
+                                            appState.stationPickingCallback = nil
+                                        }
+                                    }) {
+                                        Image(systemName: "hand.tap")
+                                            .foregroundColor(.orange)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
                                     Spacer()
                                     Button(role: .destructive, action: { 
                                         if item.id < viaStationIds.count {
@@ -115,12 +142,29 @@ struct PathPickerComponent: View {
                                 Divider()
                             }
                             
-                            Button(action: { 
-                                viaStationIds.append("")
-                                activePicker = .via(viaStationIds.count - 1)
-                            }) {
-                                Label("add_via_point".localized, systemImage: "plus.circle")
-                                    .font(.subheadline)
+                            HStack {
+                                Button(action: { 
+                                    viaStationIds.append("")
+                                    activePicker = .via(viaStationIds.count - 1)
+                                }) {
+                                    Label("add_via_point".localized, systemImage: "plus.circle")
+                                        .font(.subheadline)
+                                }
+                                Spacer()
+                                Button(action: {
+                                    viaStationIds.append("")
+                                    appState.stationPickingCallback = { id in
+                                        if let lastIdx = viaStationIds.indices.last {
+                                            viaStationIds[lastIdx] = id
+                                        }
+                                        appState.stationPickingCallback = nil
+                                    }
+                                }) {
+                                    Label("da mappa", systemImage: "hand.tap")
+                                        .font(.caption)
+                                        .foregroundColor(.orange)
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
                         .padding(.vertical, 4)
@@ -129,9 +173,21 @@ struct PathPickerComponent: View {
                     HStack {
                         Text("to".localized)
                         Spacer()
-                        Button(action: { activePicker = .end }) {
-                            Text(stationName(endStationId))
-                                .foregroundColor(endStationId.isEmpty ? .secondary : .primary)
+                        Group {
+                            Button(action: { activePicker = .end }) {
+                                Text(stationName(endStationId))
+                                    .foregroundColor(endStationId.isEmpty ? .secondary : .primary)
+                            }
+                            Button(action: {
+                                appState.stationPickingCallback = { id in
+                                    endStationId = id
+                                    appState.stationPickingCallback = nil
+                                }
+                            }) {
+                                Image(systemName: "hand.tap")
+                                    .foregroundColor(.orange)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     

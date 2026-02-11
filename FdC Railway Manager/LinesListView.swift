@@ -81,6 +81,8 @@ struct LinesListView: View {
         }
         .sheet(isPresented: $showCreate) {
             LineCreationView()
+                .presentationDetents([.height(180), .medium, .large])
+                .presentationBackgroundInteraction(.enabled)
         }
         .sheet(item: Binding(
             get: { editingLineId.map { IdentifiableString(id: $0) } },

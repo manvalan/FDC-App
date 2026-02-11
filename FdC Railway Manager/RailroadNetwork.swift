@@ -168,11 +168,50 @@ final class NetworkModel: ObservableObject {
     }
 
     static nonisolated func findAlternativePaths(from start: String, to end: String, nodes: [Node], edges: [Edge]) -> [(path: [String], distance: Double, description: String)] {
-        // Basic implementation returning shortest path only for now to fix build
+        var results: [(path: [String], distance: Double, description: String)] = []
+        
+        // 1. Path 1: Pure Shortest Path (Rapid)
         if let shortest = findShortestPath(from: start, to: end, nodes: nodes, edges: edges) {
-            return [(shortest.0, shortest.1, "Rapid")]
+            results.append((shortest.0, shortest.1, "Rapido"))
+            
+            // 2. Path 2: Try to find an alternative by penalizing edges of the first path
+            // This is a simplified version of finding a different route
+            if shortest.0.count > 2 {
+                let penalizedEdges = edges.map { edge -> Edge in
+                    var newEdge = edge
+                    let isPartOfShortest = (0..<shortest.0.count-1).contains { i in
+                        (edge.from == shortest.0[i] && edge.to == shortest.0[i+1]) ||
+                        (edge.to == shortest.0[i] && edge.from == shortest.0[i+1])
+                    }
+                    if isPartOfShortest {
+                        newEdge.distance *= 2.0 // Penalize heavily to force a detour
+                    }
+                    return newEdge
+                }
+                
+                if let alt = findShortestPath(from: start, to: end, nodes: nodes, edges: penalizedEdges) {
+                    // Check if it's actually different
+                    if alt.0 != shortest.0 {
+                        let trueDist = calculatePathDistance(path: alt.0, edges: edges)
+                        results.append((alt.0, trueDist, "Alternativo"))
+                    }
+                }
+            }
+            
+            // 3. Path 3: Try another variation (e.g. avoiding different middle node)
+            if results.count < 3 && shortest.0.count > 3 {
+                 let midIdx = shortest.0.count / 2
+                 let excludedNode = shortest.0[midIdx]
+                 let restrictedNodes = nodes.filter { $0.id != excludedNode }
+                 if let alt2 = findShortestPath(from: start, to: end, nodes: restrictedNodes, edges: edges) {
+                     if !results.contains(where: { $0.path == alt2.0 }) {
+                         results.append((alt2.0, alt2.1, "Panoramico"))
+                     }
+                 }
+            }
         }
-        return []
+        
+        return results
     }
     
     // MARK: - Mutation Methods (with Undo)

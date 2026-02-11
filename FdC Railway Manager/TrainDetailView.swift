@@ -63,17 +63,18 @@ struct TrainDetailView: View {
                 
                 if appState.isInspectorEditingMode {
                     HStack {
-                        Image(systemName: "pencil.circle.fill")
-                        Text("MODIFICA ATTIVA - Tocca una stazione per cambiare orari o binari. Tieni premuto un orario per resettarlo. Tieni premuto lo schermo per uscire.")
-                            .font(.caption.bold())
+                        Image(systemName: "pencil.and.outline")
+                        Text("MODIFICA ATTIVA")
+                            .font(.system(.caption, design: .rounded).bold())
                         Spacer()
                     }
-                    .foregroundColor(.blue)
-                    .padding(.vertical, 8)
-                    .padding(.horizontal)
+                    .foregroundColor(.yellow)
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 16)
                     .frame(maxWidth: .infinity)
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(8)
+                    .background(Color.yellow.opacity(0.1))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.yellow.opacity(0.4), lineWidth: 1))
+                    .cornerRadius(12)
                 }
 
                 // 1. IDENTIFICATION & TYPE
@@ -159,8 +160,9 @@ struct TrainDetailView: View {
                     }
                 }
                 .padding()
-                .background(Color.secondary.opacity(0.05))
-                .cornerRadius(12)
+                .background(.ultraThinMaterial)
+                .cornerRadius(16)
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(appState.isInspectorEditingMode ? Color.yellow.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1))
                 
                 // 2. TIMETABLE & ITINERARY
                 VStack(alignment: .leading, spacing: 12) {
@@ -193,7 +195,7 @@ struct TrainDetailView: View {
                         
                     } else {
                         VStack(spacing: 8) {
-                            Image(systemName: "route")
+                            Image(systemName: "map")
                                 .font(.largeTitle)
                                 .foregroundColor(.gray.opacity(0.3))
                             Text("no_line_assigned".localized).italic().foregroundColor(.secondary)
@@ -203,8 +205,9 @@ struct TrainDetailView: View {
                     }
                 }
                 .padding()
-                .background(Color.secondary.opacity(0.05))
-                .cornerRadius(12)
+                .background(.ultraThinMaterial)
+                .cornerRadius(16)
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(appState.isInspectorEditingMode ? Color.yellow.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1))
                 
                 // 3. TECHNICAL PERFORMANCE
                 VStack(alignment: .leading, spacing: 12) {
@@ -275,7 +278,7 @@ struct TrainDetailView: View {
                 .cornerRadius(12)
             }
             .padding()
-            .background(Color.secondary.opacity(0.03))
+            .background(Color(UIColor.systemGray6).opacity(0.95))
         }
     }
     

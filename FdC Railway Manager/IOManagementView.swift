@@ -117,8 +117,9 @@ struct IOManagementView: View {
         trainManager.validateSchedules()
         appState.simulator.schedules = trainManager.generateSchedulesPreview()
         
+        
         // Clear selection to avoid crashes with old IDs
-        appState.sidebarSelection = .network
+        appState.sidebarSelection = .stations
     }
 }
 

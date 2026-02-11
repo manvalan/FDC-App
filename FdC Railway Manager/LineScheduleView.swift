@@ -33,114 +33,73 @@ struct LineScheduleView: View {
     @EnvironmentObject var appState: AppState
     
     var body: some View {
-        HStack(spacing: 0) {
-            // Main Content (Left)
-            VStack(spacing: 0) {
-                if let selection = selectedStation, let station = network.nodes.first(where: { $0.id == selection.id }) {
-                    // Panel style station schedule
-                    VStack(spacing: 0) {
-                        HStack {
-                            Text(station.name).font(.title3).bold()
-                            Spacer()
-                            Button(action: {
-                                withAnimation { selectedStation = nil }
-                            }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .padding()
-                        .background(Color.gray.opacity(0.1))
-                        
-                        StationScheduleView(station: station)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    // Line Content (Table or Graph)
-                    VStack(spacing: 0) {
-                        Picker("Vista", selection: $mode) {
-                            ForEach(ScheduleMode.allCases) { mode in
-                                Text(mode.rawValue).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .padding()
-                        
-                        Group {
-                            switch mode {
-                            case .graph:
-                                LineGraphView(
-                                    line: line,
-                                    orderedStations: orderedStations,
-                                    stationDistances: stationDistances,
-                                    maxDistance: maxDistance,
-                                    selectedStation: $selectedStation
-                                )
-                            case .table:
-                                LineTableView(
-                                    line: line,
-                                    orderedStations: orderedStations,
-                                    selectedStation: $selectedStation
-                                )
-                            }
-                        }
-                    }
+        mainContent
+            .navigationTitle("Orario: \(line.name)")
+            .onAppear {
+                calculateLineGeometry()
+            }
+            .id(line.id)
+            .onChange(of: appState.selectedTrainIds) { ids in
+                if !ids.isEmpty {
+                    appState.isInspectorVisible = true
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: exportPDF) {
-                        Label("Esporta PDF", systemImage: "doc.plaintext.fill")
+    }
+    
+    
+    @ViewBuilder
+    var mainContent: some View {
+        // MAIN CONTENT
+        VStack(spacing: 0) {
+            if let selection = selectedStation, let station = network.nodes.first(where: { $0.id == selection.id }) {
+                // Station Schedule Mode
+                VStack(spacing: 0) {
+                    HStack {
+                        Text(station.name).font(.title3).bold()
+                        Spacer()
+                        Button(action: { withAnimation { selectedStation = nil } }) {
+                            Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
                     }
-                }
-            }
-            
-            Divider()
-            
-            // Side Column: Details or Graphical Line Diagram (Right)
-            Group {
-                if appState.selectedTrainIds.count == 1,
-                   let trainId = appState.selectedTrainIds.first,
-                   let train = manager.trains.first(where: { $0.id == trainId }) {
+                    .padding()
+                    .background(Color.gray.opacity(0.1))
                     
-                    VStack(spacing: 0) {
-                        HStack {
-                            Text("Dettagli Treno").font(.headline)
-                            Spacer()
-                            Button(action: { appState.selectedTrainIds = [] }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.secondary)
-                            }
-                            .buttonStyle(.plain)
+                    StationScheduleView(station: station)
+                }
+            } else {
+                // Line Mode (Graph/Table)
+                VStack(spacing: 0) {
+                    Picker("Vista", selection: $mode) {
+                        ForEach(ScheduleMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
                         }
-                        .padding()
-                        
-                        TrainDetailView(train: train)
                     }
-                    .frame(width: 350)
-                    .background(Color(UIColor.secondarySystemBackground))
-                    .transition(.move(edge: .trailing))
-                } else {
-                    LineVerticalDiagram(
-                        line: line,
-                        orderedStations: orderedStations,
-                        selectedStation: $selectedStation,
-                        onLineClick: {
-                            withAnimation { selectedStation = nil }
+                    .pickerStyle(.segmented)
+                    .padding()
+                    
+                    Group {
+                        switch mode {
+                        case .graph:
+                            LineGraphView(
+                                line: line,
+                                orderedStations: orderedStations,
+                                stationDistances: stationDistances,
+                                maxDistance: maxDistance,
+                                selectedStation: $selectedStation
+                            )
+                        case .table:
+                            LineTableView(
+                                line: line,
+                                orderedStations: orderedStations,
+                                selectedStation: $selectedStation
+                            )
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
-                    )
-                    .frame(width: 250)
-                    .background(Color(UIColor.secondarySystemBackground))
+                    }
                 }
             }
         }
-        .navigationTitle("Orario: \(line.name)")
-        .onAppear {
-            calculateLineGeometry()
-        }
-        .id(line.id) // Ensure state refresh on line change
     }
     
     private func exportPDF() {
@@ -177,13 +136,13 @@ struct LineScheduleView: View {
             
             var prevId = firstId
             
-            // Traverse the rest
+                // Traverse the rest
             for nextId in stationIds.dropFirst() {
                 // Find distance from prev to next
                 // Note: This assumes the line stations are ordered physically.
                 // If they are not connected directly, findShortestPath will find the route.
                 
-                if let distInfo = network.findShortestPath(from: prevId, to: nextId) {
+                if let distInfo = appState.railroad.network.findShortestPath(from: prevId, to: nextId) {
                     currentDist += distInfo.1
                 } else {
                     // If no path found (disconnected graph?), add a provisional distance

@@ -20,43 +20,75 @@ struct LineGraphView: View {
     
     var body: some View {
         GeometryReader { geometry in
-            ScrollView(.vertical) {
-                HStack(alignment: .top, spacing: 0) {
-                    // 1. Station Names Column (Fixed Horizontally)
-                    StationLabelsView(
-                        stations: orderedStations,
-                        distances: stationDistances,
-                        pixelsPerKm: pixelsPerKm,
-                        selectedStation: $selectedStation
-                    )
-                    .frame(width: 120)
-                    .background(Color(UIColor.systemBackground))
-                    .zIndex(1)
-                    
-                    // 2. The Graph (Scrollable Horizontally)
-                    ScrollView(.horizontal, showsIndicators: true) {
-                        ZStack(alignment: .topLeading) {
-                            // Background Grid
-                            let graphHeight = max(geometry.size.height, maxDistance * pixelsPerKm + 100)
-                            let graphWidth = 24 * timeScale
+                ScrollViewReader { verticalProxy in
+                    ScrollView(.vertical) {
+                        HStack(alignment: .top, spacing: 0) {
+                            // 1. Station Names Column (Fixed Horizontally)
+                            StationLabelsView(
+                                stations: orderedStations,
+                                distances: stationDistances,
+                                pixelsPerKm: pixelsPerKm,
+                                selectedStation: $selectedStation
+                            )
+                            .frame(width: 140)
+                            .background(.ultraThinMaterial)
+                            .zIndex(10)
                             
-                            drawGrid(width: graphWidth, height: graphHeight)
-                            
-                            // Train Plots
-                            drawTrains(width: graphWidth)
-                            
-                            // Conflict Markers
-                            drawConflicts(width: graphWidth)
-                        }
-                        .frame(width: 24 * timeScale, 
-                               height: maxDistance * pixelsPerKm + 100)
-                        .onTapGesture { location in
-                            findTrainAtLocation(location)
+                            // 2. The Graph (Scrollable Horizontally)
+                            ScrollViewReader { horizontalProxy in
+                                ScrollView(.horizontal, showsIndicators: true) {
+                                    ZStack(alignment: .topLeading) {
+                                        // Background Depth
+                                        let graphHeight = max(geometry.size.height, maxDistance * pixelsPerKm + 100)
+                                        let graphWidth = 24 * timeScale
+                                        
+                                        Rectangle()
+                                            .fill(LinearGradient(colors: [Color(white: 0.05), Color(white: 0.1)], startPoint: .top, endPoint: .bottom))
+                                            .frame(width: graphWidth, height: graphHeight)
+                                        
+                                        drawGrid(width: graphWidth, height: graphHeight)
+                                        
+                                        // Invisible markers for horizontal scrolling (Time)
+                                        ForEach(0...24, id: \.self) { hour in
+                                            Color.clear
+                                                .frame(width: 1, height: 1)
+                                                .position(x: CGFloat(hour) * timeScale, y: 0)
+                                                .id("HOUR_\(hour)")
+                                        }
+                                        
+                                        // Train Plots
+                                        drawTrains(width: graphWidth)
+                                        
+                                        // Conflict Markers
+                                        drawConflicts(width: graphWidth)
+                                    }
+                                    .frame(width: 24 * timeScale, 
+                                           height: maxDistance * pixelsPerKm + 100)
+                                    .onTapGesture { location in
+                                        findTrainAtLocation(location)
+                                    }
+                                    .onChange(of: appState.selectedTrainIds) { ids in
+                                        if let trainId = ids.first, 
+                                           let train = manager.trains.first(where: { $0.id == trainId }),
+                                           let firstStop = train.stops.first(where: { stop in orderedStations.contains(where: { $0.id == stop.stationId }) }) {
+                                            
+                                            // Center Horizontally (Time)
+                                            let calendar = Calendar.current
+                                            let hour = calendar.component(.hour, from: firstStop.departure ?? firstStop.arrival ?? Date())
+                                            
+                                            withAnimation(.easeInOut(duration: 0.8)) {
+                                                horizontalProxy.scrollTo("HOUR_\(hour)", anchor: .center)
+                                                verticalProxy.scrollTo(firstStop.stationId, anchor: .center)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
-            }
         }
+        .background(Color(white: 0.05)) // Deep background for the whole view
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 HStack {
@@ -78,10 +110,14 @@ struct LineGraphView: View {
             }
         }
         .onReceive(manager.objectWillChange) { _ in
-            // Forza il ridisegno quando cambiano gli orari dei treni
+            // Forza il ridisegno quando cambiano i dati (es. orari modificati nell'inspector)
+            self.redrawTrigger = UUID()
         }
-        // Sheet removed - Parent handles split view
+        .id(redrawTrigger) // Questo forza la ricreazione della vista se necessario, o basta invocare il body
     }
+    
+    // Stato per forzare il refresh del Canvas
+    @State private var redrawTrigger = UUID()
     
     // MARK: - Drawing Components
     
@@ -90,6 +126,7 @@ struct LineGraphView: View {
             // Draw Time Grid (Vertical Lines)
             for hour in 0...24 {
                 let x = CGFloat(hour) * timeScale
+                
                 let path = Path {
                     $0.move(to: CGPoint(x: x, y: 0))
                     $0.addLine(to: CGPoint(x: x, y: size.height))
@@ -272,12 +309,22 @@ struct LineGraphView: View {
     private func strokePath(_ path: Path, for train: Train, in context: GraphicsContext) {
         guard !path.isEmpty else { return }
         let isSelected = appState.selectedTrainIds.contains(train.id)
-        let color: Color = train.priority > 7 ? .red : (isSelected ? .yellow : .primary)
-        let lineWidth: CGFloat = isSelected ? 4 : 2
+        let isEditing = isSelected && appState.isInspectorEditingMode
+        
+        let color: Color
+        if isEditing {
+            color = .yellow // High contrast for editing
+        } else if isSelected {
+            color = .cyan // Glowing cyan for selection
+        } else {
+            color = train.priority > 7 ? .red : .white.opacity(0.6)
+        }
+        
+        let lineWidth: CGFloat = isEditing ? 6 : (isSelected ? 4 : 2)
         
         context.drawLayer { subgroup in
             if isSelected {
-                subgroup.addFilter(.shadow(color: Color.yellow.opacity(0.8), radius: 6))
+                subgroup.addFilter(.shadow(color: color.opacity(0.8), radius: isEditing ? 12 : 6))
             }
             subgroup.stroke(path, with: .color(color), lineWidth: lineWidth)
         }
@@ -359,14 +406,14 @@ struct StationLabelsView: View {
                         selectedStation = LineScheduleView.StationSelection(id: station.id)
                     }) {
                         Text(station.name)
-                            .font(.caption)
-                            .fontWeight(.medium)
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
                             .multilineTextAlignment(.trailing)
                             .foregroundColor(.primary)
                             .padding(.trailing, 8)
                             .frame(height: 20)
                     }
-                    .position(x: 60, y: y) // Center in the 120 width column
+                    .id(station.id) // TARGET FOR SCROLLING
+                    .position(x: 70, y: y) // Center in the 140 width column
                 }
             }
         }

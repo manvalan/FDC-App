@@ -33,8 +33,10 @@ struct StationScheduleView: View {
     @State private var editingArrival: StationArrival? = nil // For track selection sheet
     @EnvironmentObject var appState: AppState
     
+    @State private var filteredArrivals: [StationArrival] = [] // Ora è @State, non computed
+    
     var body: some View {
-        VStack { // Removed NavigationStack
+        VStack {
             // Filters
             HStack {
                 Picker("Binario", selection: $selectedTrack) {
@@ -44,6 +46,7 @@ struct StationScheduleView: View {
                     }
                 }
                 .pickerStyle(.menu)
+                .onChange(of: selectedTrack) { _ in applyFilters() }
                 
                 Spacer()
                 
@@ -53,12 +56,37 @@ struct StationScheduleView: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 150)
+                .onChange(of: sortOrder) { _ in applyFilters() }
             }
             .padding()
             
             // Table
-            List {
-                ForEach(filteredArrivals) { item in
+            if filteredArrivals.isEmpty {
+                VStack(spacing: 20) {
+                    Spacer()
+                    Image(systemName: "tram.fill.tunnel")
+                        .font(.system(size: 60))
+                        .foregroundColor(.gray.opacity(0.3))
+                    Text("Nessun treno programmato")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    // Debug info
+                    VStack(alignment: .leading) {
+                        Text("Debug Info:").font(.caption).bold()
+                        Text("Stazione: \(station.name) (\(station.id))").font(.caption2)
+                        Text("Totale Treni: \(manager.trains.count)").font(.caption2)
+                    }
+                    .padding()
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(8)
+                    
+                    Spacer()
+                }
+            } else {
+                List {
+                    ForEach(filteredArrivals) { item in
+                    // ... (stesso contenuto della riga) ...
                     HStack {
                         HStack(spacing: 4) {
                             if let arr = item.arrivalTime {
@@ -106,9 +134,28 @@ struct StationScheduleView: View {
                             : Color.clear
                         )
                         .cornerRadius(4)
-                        .contentShape(Rectangle()) // Better tap area
+                        .contentShape(Rectangle())
                         .onTapGesture {
                             appState.jumpToTrainId = item.trainId
+                        }
+                        .contextMenu {
+                            Button {
+                                appState.selectTrain(item.trainId)
+                                appState.isInspectorEditingMode = true
+                                appState.isInspectorVisible = true
+                            } label: {
+                                Label("Modifica Treno", systemImage: "pencil")
+                            }
+                            
+                            Button(role: .destructive) {
+                                if let idx = manager.trains.firstIndex(where: { $0.id == item.trainId }) {
+                                    manager.trains.remove(at: idx)
+                                    // Trigger refresh
+                                    calculateArrivals()
+                                }
+                            } label: {
+                                Label("Elimina", systemImage: "trash")
+                            }
                         }
                         
                         VStack(alignment: .leading) {
@@ -146,10 +193,11 @@ struct StationScheduleView: View {
                 }
             }
             .listStyle(.plain)
+            } // Close else block
         }
         .onAppear(perform: calculateArrivals)
         .onChange(of: station.id) { _ in calculateArrivals() }
-        .onReceive(appState.railroad.lines.objectWillChange.debounce(for: .milliseconds(100), scheduler: RunLoop.main)) { _ in
+        .onReceive(appState.railroad.lines.objectWillChange.debounce(for: .milliseconds(300), scheduler: RunLoop.main)) { _ in
             calculateArrivals()
         }
         .sheet(item: $editingArrival) { item in
@@ -157,6 +205,16 @@ struct StationScheduleView: View {
                let binding = manager.binding(for: train) {
                 TrackSelectionSheet(
                     train: binding,
+                    stopIndex: item.stopIndex,
+                    network: network
+                )
+            } else if let train = manager.trains.first(where: { $0.id == item.trainId }) {
+                // Fallback safe binding creation
+                 TrackSelectionSheet(
+                    train: Binding(
+                        get: { train },
+                        set: { if let idx = manager.trains.firstIndex(where: {$0.id == train.id}) { manager.trains[idx] = $0 } }
+                    ),
                     stopIndex: item.stopIndex,
                     network: network
                 )
@@ -169,7 +227,9 @@ struct StationScheduleView: View {
         return Array(tracks).sorted()
     }
     
-    var filteredArrivals: [StationArrival] {
+    // Removed computed property filteredArrivals
+    
+    func applyFilters() {
         var list = arrivals
         
         // Filter
@@ -187,60 +247,147 @@ struct StationScheduleView: View {
             list.sort { $0.destination < $1.destination }
         }
         
-        return list
+        self.filteredArrivals = list
     }
-    
     
     func calculateArrivals() {
         let currentStationId = station.id
-        let allNodes = network.nodes
-        let nodeMap = Dictionary(uniqueKeysWithValues: allNodes.map { ($0.id, $0.name) })
+        // Capture snapshot for background processing
+        let trains = manager.trains
+        let lines = manager.lines
+        let vehicles = manager.vehicles
+        let nodes = network.nodes
         
-        var results: [StationArrival] = []
-        
-        for train in manager.trains {
-            // Check if departures/arrivals are populated. If not, trigger a refresh.
-            guard let stopIndex = train.stops.firstIndex(where: { $0.stationId == currentStationId }) else { continue }
+        Task(priority: .userInitiated) {
+            let nodeMap = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0.name) })
+            let lineMap = Dictionary(uniqueKeysWithValues: lines.map { ($0.id, $0) })
+            let vehicleMap = Dictionary(uniqueKeysWithValues: vehicles.map { ($0.id, $0) })
             
-            let stop = train.stops[stopIndex]
-            let relationName: String = {
-                if let lId = train.lineId, let line = manager.lines.first(where: { $0.id == lId }) {
-                    return line.name
+            var results: [StationArrival] = []
+            
+            for train in trains {
+                // Fast checking first
+                guard let stopIndex = train.stops.firstIndex(where: { $0.stationId == currentStationId }) else { continue }
+                
+                let stop = train.stops[stopIndex]
+                
+                // Optimized lookup
+                let relationName: String
+                if let lId = train.lineId, let line = lineMap[lId] {
+                    relationName = line.name
+                } else {
+                    relationName = train.type
                 }
-                return train.type
-            }()
+                
+                let vehicleName: String?
+                if let vId = train.vehicleId, let v = vehicleMap[vId] {
+                    vehicleName = v.name
+                } else {
+                    vehicleName = nil
+                }
+                
+                let isTerminus = stopIndex == train.stops.count - 1
+                let isOrigin = stopIndex == 0
+                
+                let originId = train.stops.first?.stationId ?? ""
+                let destId = train.stops.last?.stationId ?? ""
+                
+                results.append(StationArrival(
+                    trainId: train.id,
+                    trainType: train.type,
+                    trainName: train.name,
+                    relationName: relationName,
+                    origin: nodeMap[originId] ?? originId,
+                    destination: nodeMap[destId] ?? destId,
+                    arrivalTime: isOrigin ? nil : (stop.plannedArrival ?? stop.arrival),
+                    departureTime: isTerminus ? nil : (stop.plannedDeparture ?? stop.departure),
+                    track: stop.track,
+                    isTerminus: isTerminus,
+                    stopIndex: stopIndex,
+                    vehicleName: vehicleName
+                ))
+            }
             
-            let isTerminus = stopIndex == train.stops.count - 1
-            let isOrigin = stopIndex == 0
-            
-            let originId = train.stops.first?.stationId ?? ""
-            let destId = train.stops.last?.stationId ?? ""
-            
-            results.append(StationArrival(
-                trainId: train.id,
-                trainType: train.type, 
-                trainName: train.name,
-                relationName: relationName,
-                origin: nodeMap[originId] ?? originId,
-                destination: nodeMap[destId] ?? destId,
-                arrivalTime: isOrigin ? nil : (stop.plannedArrival ?? stop.arrival),
-                departureTime: isTerminus ? nil : (stop.plannedDeparture ?? stop.departure),
-                track: stop.track,
-                isTerminus: isTerminus,
-                stopIndex: stopIndex,
-                vehicleName: {
-                    if let vId = train.vehicleId, let v = manager.vehicles.first(where: { $0.id == vId }) {
-                        return v.name
-                    }
-                    return nil
-                }()
-            ))
+            await MainActor.run {
+                self.arrivals = results
+                self.applyFilters()
+            }
         }
-        
-        self.arrivals = results
     }
     
     func getName(_ id: String) -> String {
         network.nodes.first(where: { $0.id == id })?.name ?? id
+    }
+    
+    @ViewBuilder
+    private func arrivalRow(for item: StationArrival) -> some View {
+        HStack(spacing: 12) {
+            // TIME BLOCK
+            VStack(alignment: .leading, spacing: 2) {
+                if let dep = item.departureTime {
+                    Text(dep.timeFormat)
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .foregroundColor(.white)
+                } else if let arr = item.arrivalTime {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("ARR")
+                            .font(.system(size: 8, weight: .black))
+                            .foregroundColor(.secondary)
+                        Text(arr.timeFormat)
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .frame(width: 60, alignment: .leading)
+            
+            // INFO BLOCK
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(item.trainType)
+                        .font(.system(size: 9, weight: .black))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(item.trainType == "Regionale" ? Color.blue : Color.red)
+                        .foregroundColor(.white)
+                        .cornerRadius(4)
+                    
+                    Text(item.trainName)
+                        .font(.system(.headline, design: .rounded))
+                        .foregroundColor(.white)
+                }
+                
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.right.circle")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text(item.destination)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            // TRACK BUTTON
+            Button(action: { editingArrival = item }) {
+                VStack(spacing: 0) {
+                    Text(item.track ?? "-")
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                    Text("BIN")
+                        .font(.system(size: 8, weight: .bold))
+                }
+                .frame(width: 45, height: 45)
+                .background(item.track != nil ? Color.blue.opacity(0.2) : Color.white.opacity(0.1))
+                .foregroundColor(item.track != nil ? .blue : .secondary)
+                .cornerRadius(10)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(item.track != nil ? Color.blue.opacity(0.4) : Color.clear, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding()
+        .background(.ultraThinMaterial)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
     }
 }

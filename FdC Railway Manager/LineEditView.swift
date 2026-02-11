@@ -26,6 +26,7 @@ struct LineEditView: View {
     
     @State private var manualStationId: String = ""
     @State private var activePicker: PickerType?
+    @State private var mapPickingType: PickerType?
     
     @State private var errorMessage: String? = nil
     
@@ -55,12 +56,13 @@ struct LineEditView: View {
                     )
                 }
                 
-                if !stationSequence.isEmpty {
+                if !stationSequence.isEmpty || manualAddition {
                     StationSequenceSection(
                         stationSequence: $stationSequence,
                         lineColor: lineColor,
                         network: network,
                         activePicker: $activePicker,
+                        mapPickingType: $mapPickingType,
                         suggestions: getSuggestions()
                     )
                 }
@@ -133,8 +135,12 @@ struct LineEditView: View {
                 loadLineData()
             }
             .onChange(of: startStationId) { old, new in
-                if !new.isEmpty && !stationSequence.isEmpty {
-                    stationSequence[0] = new
+                if !new.isEmpty {
+                    if stationSequence.isEmpty {
+                        stationSequence = [new]
+                    } else if stationSequence[0] != new {
+                        stationSequence[0] = new
+                    }
                 }
             }
             .onChange(of: manualStationId) { old, new in
@@ -147,6 +153,23 @@ struct LineEditView: View {
                 if appState.useCloudAI && newSeq.count >= 2 {
                     triggerLineAnalysis()
                 }
+            }
+            .onChange(of: activePicker) { old, new in
+                if let type = new {
+                    setupPickingCallback(for: type)
+                } else if mapPickingType == nil {
+                    appState.stationPickingCallback = nil
+                }
+            }
+            .onChange(of: mapPickingType) { old, new in
+                if let type = new {
+                    setupPickingCallback(for: type)
+                } else if activePicker == nil {
+                    appState.stationPickingCallback = nil
+                }
+            }
+            .onDisappear {
+                appState.stationPickingCallback = nil
             }
             .sheet(item: $activePicker) { item in
                 Group {
@@ -403,6 +426,31 @@ struct LineEditView: View {
                 .background(.ultraThinMaterial)
                 .overlay(Rectangle().frame(height: 1).foregroundColor(.gray.opacity(0.2)), alignment: .top)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+    }
+    
+    private func setupPickingCallback(for type: PickerType) {
+        appState.stationPickingCallback = { stationId in
+            switch type {
+            case .start:
+                self.startStationId = stationId
+            case .via(let idx):
+                if idx < viaStationIds.count {
+                    viaStationIds[idx] = stationId
+                }
+            case .end:
+                self.endStationId = stationId
+            case .manual:
+                self.manualStationId = stationId
+            }
+            
+            // Auto-close terminals/via, keep manual sequence open
+            if case .manual = type {
+                // Keep it open for series of clicks
+            } else {
+                activePicker = nil
+                mapPickingType = nil
             }
         }
     }

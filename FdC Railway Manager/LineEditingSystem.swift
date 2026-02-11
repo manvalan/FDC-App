@@ -6,6 +6,7 @@ struct StationSequenceSection: View {
     let lineColor: Color
     let network: RailwayNetwork
     @Binding var activePicker: PickerType?
+    @Binding var mapPickingType: PickerType?
     let suggestions: [Node]
     
     var body: some View {
@@ -44,9 +45,18 @@ struct StationSequenceSection: View {
                 }
             }
             
-            Button(action: { activePicker = .manual }) {
-                Label("Aggiungi fermata (Ricerca)", systemImage: "magnifyingglass.circle.fill")
-                    .foregroundColor(.blue)
+            HStack {
+                Button(action: { activePicker = .manual }) {
+                    Label("Aggiungi fermata (Ricerca)", systemImage: "magnifyingglass.circle.fill")
+                        .foregroundColor(.blue)
+                }
+                
+                Spacer()
+                
+                Button(action: { mapPickingType = .manual }) {
+                    Label("Aggiungi da mappa", systemImage: "hand.tap.fill")
+                        .foregroundColor(.orange)
+                }
             }
             
             Text("Trascina le maniglie a destra per riordinare.").font(.caption).foregroundColor(.secondary)

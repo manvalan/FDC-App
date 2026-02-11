@@ -39,8 +39,13 @@ struct RailwayItineraryView: View {
             }
         }
         .padding()
-        .background(Color.black)
-        .cornerRadius(12)
+        .background(.ultraThinMaterial)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(appState.isInspectorEditingMode ? Color.blue.opacity(0.3) : Color.white.opacity(0.1), lineWidth: 1)
+        )
         .sheet(item: $editingTrackIndex) { idx in
             if idx < train.stops.count {
                 TrackSelectionSheet(
@@ -251,74 +256,114 @@ struct TrackSelectionSheet: View {
     private var nextId: String? { stopIndex < train.stops.count - 1 ? train.stops[stopIndex + 1].stationId : nil }
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                if let node = node {
-                    trackSelectionContent(node: node)
-                } else {
-                    Text("Stazione non trovata")
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    if let node = node {
+                        trackSelectionContent(node: node)
+                    } else {
+                        ContentUnavailableView("Stazione non trovata", systemImage: "exclamationmark.triangle")
+                    }
                 }
+                .padding()
             }
-            .padding()
             .navigationTitle("Scelta Binario")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Annulla") { dismiss() }
+                    Button("Chiudi") { dismiss() }
                 }
             }
         }
+        .presentationDetents([.medium, .large])
     }
     
     @ViewBuilder
     private func trackSelectionContent(node: Node) -> some View {
         let preferred = train.getPreferredTracks(at: node, prevStationId: prevId, nextStationId: nextId, for: nil)
+        let totalTracks = node.platforms ?? 2
+        let allTracks = (1...totalTracks).map { String($0) }
         
-        Text("Binari consigliati per \(node.name)")
-            .font(.subheadline)
-            .foregroundColor(.secondary)
-        
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 15) {
-                ForEach(preferred, id: \.self) { track in
-                    trackButton(track: track, node: node)
+        // SECTION 1: PREFERRED
+        if !preferred.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Consigliati", systemImage: "star.fill")
+                    .font(.headline)
+                    .foregroundColor(.purple)
+                
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 60))], spacing: 12) {
+                    ForEach(preferred, id: \.self) { track in
+                        trackButton(track: track, node: node, isPreferred: true)
+                    }
                 }
             }
-            .padding()
         }
         
-        Spacer()
+        Divider()
         
-        Button("Chiudi") { dismiss() }
-            .buttonStyle(.bordered)
+        // SECTION 2: ALL TRACKS
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Tutti i Binari", systemImage: "tram.fill")
+                .font(.headline)
+                .foregroundColor(.secondary)
+            
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 60))], spacing: 12) {
+                ForEach(allTracks, id: \.self) { track in
+                    trackButton(track: track, node: node, isPreferred: preferred.contains(track))
+                }
+            }
+        }
     }
     
     @ViewBuilder
-    private func trackButton(track: String, node: Node) -> some View {
+    private func trackButton(track: String, node: Node, isPreferred: Bool) -> some View {
         let isSelected = stop.track == track
-        let isPreferred = train.isTrackPreferred(track, at: node, prevStationId: prevId, nextStationId: nextId, for: nil)
         
         Button(action: {
             train.stops[stopIndex].track = track
             train.stops[stopIndex].isManualTrack = true
             dismiss()
         }) {
-            VStack {
-                Text(track)
-                    .font(.title2.bold())
-                Text("Binario")
-                    .font(.caption2.weight(.medium))
+            ZStack(alignment: .topTrailing) {
+                VStack(spacing: 2) {
+                    Text(track)
+                        .font(.system(size: 24, weight: .black, design: .rounded))
+                    
+                    Text(isSelected ? "ATTUALE" : (isPreferred ? "OTTIMO" : "BIN"))
+                        .font(.system(size: 8, weight: .black))
+                        .opacity(0.8)
+                }
+                .frame(width: 70, height: 70)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(isSelected ? Color.blue : (isPreferred ? Color.purple.opacity(0.1) : Color(UIColor.secondarySystemBackground)))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(isSelected ? Color.blue : (isPreferred ? Color.purple.opacity(0.4) : Color.clear), lineWidth: isSelected ? 0 : 2)
+                )
+                
+                // BADGES
+                Group {
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.white, .blue)
+                            .font(.system(size: 18))
+                            .offset(x: 6, y: -6)
+                    } else if isPreferred {
+                        Image(systemName: "star.fill")
+                            .foregroundColor(.purple)
+                            .font(.system(size: 14))
+                            .offset(x: 5, y: -5)
+                    }
+                }
             }
-            .foregroundColor(isSelected ? .white : (isPreferred ? .purple : .white))
-            .frame(width: 70, height: 70)
-            .background(isSelected ? Color.blue : (isPreferred ? Color.purple.opacity(0.3) : Color.gray.opacity(0.3)))
-            .clipShape(Circle())
-            .overlay(
-                Circle()
-                    .stroke(isSelected ? Color.blue : (isPreferred ? Color.purple : Color.clear), lineWidth: 3)
-            )
-            .shadow(radius: isSelected ? 4 : (isPreferred ? 3 : 0))
+            .foregroundColor(isSelected ? .white : (isPreferred ? .purple : .primary))
+            .shadow(color: isSelected ? Color.blue.opacity(0.3) : (isPreferred ? Color.purple.opacity(0.1) : Color.clear), radius: 6, x: 0, y: 3)
         }
+        .scaleEffect(isSelected ? 1.1 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isSelected)
     }
 }
 

@@ -19,6 +19,7 @@ struct LineCreationView: View {
     
     @State private var manualStationId: String = ""
     @State private var activePicker: PickerType?
+    @State private var mapPickingType: PickerType?
     
     @State private var errorMessage: String? = nil
     
@@ -33,34 +34,249 @@ struct LineCreationView: View {
     @State private var proposedOffset: Double? = nil
     @State private var analysisTask: Task<Void, Never>? = nil
     
+    @State private var showDetailsSheet = false
+    
     var body: some View {
+        VStack(spacing: 0) {
+            headerView
+            
+            if !stationSequence.isEmpty {
+                stationsScrollview
+                    .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity))
+            }
+            
+            // Error bar if any
+            if let error = errorMessage {
+                Text(error)
+                    .font(.caption2.bold())
+                    .foregroundColor(.white)
+                    .padding(.vertical, 4)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.red.opacity(0.8))
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .padding(.horizontal)
+        .padding(.bottom, 20)
+        .shadow(color: Color.gray.opacity(0.3), radius: 15, x: 0, y: 10)
+        .onAppear {
+            setupMapPicking()
+        }
+        .onDisappear {
+            cleanupMapPicking()
+        }
+        .sheet(isPresented: $showDetailsSheet) {
+            detailsForm
+        }
+    }
+    
+    private var headerView: some View {
+        HStack {
+            headerLabels
+            Spacer()
+            headerActions
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+        .background(blurredBackground)
+    }
+    
+    private var headerLabels: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(stationSequence.isEmpty ? "Crea nuova relazione" : "Configurazione percorso")
+                .font(.system(.subheadline, design: .rounded).bold())
+            
+            if !stationSequence.isEmpty {
+                Text("\(stationSequence.count) stazioni • \(String(format: "%.1f", totalDistance)) km")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(.secondary)
+            } else {
+                Text("Tocca le stazioni sulla mappa per tracciare")
+                    .font(.system(size: 10))
+                    .foregroundColor(.accentColor)
+            }
+        }
+    }
+    
+    private var headerActions: some View {
+        HStack(spacing: 8) {
+            if !stationSequence.isEmpty {
+                Button(action: finishSelection) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title3)
+                        .foregroundColor(.green)
+                }
+                .buttonStyle(.plain)
+            }
+            
+            Button(action: {
+                cancelSelection()
+                dismiss()
+            }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title3)
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
+    private var totalDistance: Double {
+        return network.calculatePathDistance(path: stationSequence)
+    }
+    
+    private var stationsScrollview: some View {
+        ScrollViewReader { proxy in
+            stationsHorizontalList
+                .frame(height: 60)
+                .background(blurredBackground)
+                .onChange(of: stationSequence.count) { count in
+                    withAnimation {
+                        if count > 0 { proxy.scrollTo(count - 1, anchor: .trailing) }
+                    }
+                }
+        }
+    }
+    
+    private var stationsHorizontalList: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(Array(stationSequence.indices), id: \.self) { index in
+                    stationChip(at: index)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+        }
+    }
+    
+    private func stationChip(at index: Int) -> some View {
+        let stationId = stationSequence[index]
+        return StationChip(
+            stationId: stationId,
+            index: index,
+            isLast: index == stationSequence.count - 1,
+            onRemove: { removeStation(at: index) }
+        )
+        .id(index)
+    }
+    
+    private func removeStation(at index: Int) {
+        withAnimation {
+            if stationSequence.indices.contains(index) {
+                stationSequence.remove(at: index)
+                // Keep appState in sync
+                appState.lineDraftStations = stationSequence
+            }
+        }
+    }
+    
+    private var blurredBackground: some View {
+        ZStack {
+            Rectangle().fill(Material.ultraThinMaterial)
+            Color.gray.opacity(0.05)
+        }
+    }
+    
+    private struct StationChip: View {
+        let stationId: String
+        let index: Int
+        let isLast: Bool
+        let onRemove: () -> Void
+        @EnvironmentObject var appState: AppState // Access network via appState or directly passed
+
+        var body: some View {
+            HStack(spacing: 4) {
+                Text("\(index + 1)")
+                    .font(.caption2)
+                    .padding(4)
+                    .background(Circle().stroke(Color.secondary))
+                
+                Text(stationName)
+                    .font(.caption)
+                    .bold()
+                
+                Button(action: onRemove) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                
+                if !isLast {
+                    Image(systemName: "arrow.right")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 4)
+                }
+            }
+            .padding(8)
+            .background(Color.white)
+            .cornerRadius(12)
+            .shadow(radius: 1)
+        }
+        
+        private var stationName: String {
+            appState.railroad.network.nodes.first { $0.id == stationId }?.name ?? stationId
+        }
+    }
+    
+    private func setupMapPicking() {
+        // Enable sequential map picking with smart pathfinding
+        appState.stationPickingCallback = { stationId in
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            
+            withAnimation(.spring()) {
+                if let lastId = appState.lineDraftStations.last {
+                    if lastId == stationId { return }
+                    
+                    // SMART PATHFINDING: If not connected directly, find shortest path
+                    let neighbors = network.getConnectedNodeIds(for: lastId)
+                    if neighbors.contains(stationId) {
+                        appState.lineDraftStations.append(stationId)
+                        stationSequence = appState.lineDraftStations
+                        errorMessage = nil
+                    } else {
+                        // Attempt to find a route between them
+                        if let (path, _) = network.findShortestPath(from: lastId, to: stationId) {
+                            // Path includes start and end nodes. Skip the first one.
+                            for nodeId in path.dropFirst() {
+                                if !appState.lineDraftStations.contains(nodeId) || nodeId == stationId {
+                                    appState.lineDraftStations.append(nodeId)
+                                }
+                            }
+                            stationSequence = appState.lineDraftStations
+                            errorMessage = nil
+                        } else {
+                            errorMessage = "Nessuna connessione trovata tra le stazioni"
+                        }
+                    }
+                } else {
+                    appState.lineDraftStations.append(stationId)
+                    stationSequence = appState.lineDraftStations
+                }
+            }
+        }
+    }
+    
+    private func cleanupMapPicking() {
+        appState.stationPickingCallback = nil
+    }
+    
+    private func finishSelection() {
+        // Show details form
+        showDetailsSheet = true
+    }
+    
+    private func cancelSelection() {
+        cleanupMapPicking()
+        appState.lineDraftStations.removeAll()
+        stationSequence.removeAll()
+    }
+    
+    private var detailsForm: some View {
         NavigationStack {
             Form {
                 detailsSection
-                
-                Section(header: Text("path_composition".localized)) {
-                    PathPickerComponent(
-                        startStationId: $startStationId,
-                        viaStationIds: $viaStationIds,
-                        endStationId: $endStationId,
-                        stationSequence: $stationSequence,
-                        manualAddition: $manualAddition,
-                        activePicker: $activePicker,
-                        manualStationId: $manualStationId,
-                        lineAnalysis: lineAnalysis,
-                        isAnalyzing: isAnalyzingLine
-                    )
-                }
-                
-                if !stationSequence.isEmpty {
-                    StationSequenceSection(
-                        stationSequence: $stationSequence,
-                        lineColor: lineColor,
-                        network: network,
-                        activePicker: $activePicker,
-                        suggestions: getSuggestions()
-                    )
-                }
                 
                 if let error = errorMessage {
                     Section {
@@ -68,76 +284,21 @@ struct LineCreationView: View {
                     }
                 }
             }
-            .safeAreaInset(edge: .bottom) {
-                if !stationSequence.isEmpty {
-                    suggestionsOverlay
-                }
-            }
-            .navigationTitle("new_line".localized)
+            .navigationTitle("Dettagli Linea")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("cancel".localized) { dismiss() }
+                    Button("Indietro") {
+                        showDetailsSheet = false
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("save".localized) {
+                    Button("Salva") {
                         saveLine()
                     }
                     .disabled(lineName.isEmpty || stationSequence.count < 2)
                 }
             }
-            .onChange(of: startStationId) { old, new in
-                if !new.isEmpty {
-                    if manualAddition {
-                        if stationSequence.isEmpty {
-                            stationSequence = [new]
-                        } else {
-                            // Sincronizziamo il primo elemento se stiamo cambiando l'origine
-                            stationSequence[0] = new
-                        }
-                    } else if stationSequence.isEmpty {
-                        // In auto mode, inizializziamo la sequenza se vuota
-                        stationSequence = [new]
-                    }
-                }
-            }
-            .onChange(of: manualStationId) { old, new in
-                if !new.isEmpty {
-                    // PIGNOLO: Permettiamo loop o ritorni (rimosso check .contains)
-                    stationSequence.append(new)
-                    manualStationId = "" 
-                }
-            }
-        }
-        .onChange(of: stationSequence) { _, newSeq in
-            if appState.useCloudAI && newSeq.count >= 2 {
-                triggerLineAnalysis()
-            }
-        }
-        .sheet(item: $activePicker) { item in
-            Group {
-                switch item {
-                case .start:
-                    StationPickerView(selectedStationId: $startStationId)
-                case .via(let idx):
-                    if idx >= 0 && idx < viaStationIds.count {
-                        StationPickerView(selectedStationId: Binding(
-                            get: { viaStationIds[idx] },
-                            set: { viaStationIds[idx] = $0 }
-                        ))
-                    } else {
-                        VStack {
-                            Text(String(format: "error_index_not_found_fmt".localized, idx))
-                            Button("close".localized) { activePicker = nil }
-                        }
-                        .padding()
-                    }
-                case .end:
-                    StationPickerView(selectedStationId: $endStationId)
-                case .manual:
-                    StationPickerView(selectedStationId: $manualStationId, linkedToStationId: stationSequence.last)
-                }
-            }
-            .environmentObject(network)
         }
     }
     
@@ -268,37 +429,52 @@ struct LineCreationView: View {
                         .foregroundColor(.primary)
                         .padding(.horizontal, 16)
                     
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(suggestions) { node in
-                                Button(action: {
-                                    withAnimation(.spring()) {
-                                        stationSequence.append(node.id)
-                                    }
-                                }) {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "plus.circle.fill")
-                                        Text(node.name)
-                                            .font(.subheadline.weight(.semibold))
-                                    }
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 8)
-                                    .background(Color.blue)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(20)
-                                    .shadow(color: .black.opacity(0.1), radius: 3)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                    }
+                    suggestionsHorizontalList(suggestions)
                 }
                 .padding(.vertical, 12)
-                .background(.ultraThinMaterial)
-                .overlay(Rectangle().frame(height: 1).foregroundColor(.gray.opacity(0.2)), alignment: .top)
+                .background(blurredBackground)
+                .overlay(topDivider, alignment: .top)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
     }
+    
+    private func suggestionsHorizontalList(_ suggestions: [Node]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(suggestions) { node in
+                    suggestionButton(for: node)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+    
+    private func suggestionButton(for node: Node) -> some View {
+        Button(action: {
+            withAnimation(.spring()) {
+                stationSequence.append(node.id)
+            }
+        }) {
+            HStack(spacing: 6) {
+                Image(systemName: "plus.circle.fill")
+                Text(node.name)
+                    .font(.subheadline.weight(.semibold))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Color.blue)
+            .foregroundColor(.white)
+            .cornerRadius(20)
+            .shadow(color: Color.black.opacity(0.1), radius: 3)
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private var topDivider: some View {
+        Rectangle()
+            .frame(height: 1)
+            .foregroundColor(Color.gray.opacity(0.2))
+    }
 }
+

@@ -89,7 +89,7 @@ struct VerticalTrackDiagramView: View {
                 }
             }
         }
-        .background(Color.black)
+        .background(Color(UIColor.systemGray6).opacity(0.98))
         .border(Color.gray.opacity(0.2), width: 1)
         .onChange(of: externalSelectedStationID) { newStationId in
             if let stationId = newStationId, let proxy = scrollProxy {
@@ -165,7 +165,7 @@ struct VerticalTrackDiagramView: View {
                         Image(systemName: "plus.circle.fill")
                             .font(.title2)
                             .foregroundColor(.green)
-                            .background(Circle().fill(Color.black))
+                            .background(Circle().fill(Color(UIColor.systemGray5)))
                     }
                     .padding(.leading, 8)
                     .offset(y: 40) // Position on the track segment
