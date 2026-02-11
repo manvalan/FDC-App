@@ -313,9 +313,35 @@ struct ContextualInspector: View {
                 }
             } else if let edgeId = appState.selectedEdgeId,
                       let edge = appState.railroad.network.edges.first(where: { $0.id.uuidString == edgeId }) {
-                ScrollView {
-                    TrackQuickStats(edge: edge, onEdit: { editingEdge = edge })
-                        .padding(16)
+                
+                if let editingId = editingEdge?.id.uuidString, editingId == edgeId {
+                    // Inline Editor
+                    TrackEditView(
+                        edge: Binding(
+                            get: { edge },
+                            set: { newEdge in
+                                if let idx = appState.railroad.network.edges.firstIndex(where: { $0.id == edge.id }) {
+                                    appState.railroad.network.edges[idx] = newEdge
+                                }
+                            }
+                        ),
+                        // Pass network environment implicitly via onBack/onDelete
+                        onDelete: {
+                             appState.railroad.network.removeEdge(from: edge.from, to: edge.to)
+                             appState.selectedEdgeId = nil
+                             editingEdge = nil
+                        },
+                        onBack: {
+                            editingEdge = nil
+                        }
+                    )
+                    .background(appState.theme.backgroundSecondary)
+                    .transition(.move(edge: .trailing))
+                } else {
+                    ScrollView {
+                        TrackQuickStats(edge: edge, onEdit: { editingEdge = edge })
+                            .padding(16)
+                    }
                 }
             } else {
                 ScrollView {
@@ -353,6 +379,7 @@ struct ContextualInspector: View {
             Text("Sei sicuro di voler eliminare questo elemento? L'azione non può essere annullata.")
         }
         // Editing Sheets
+        }
         .sheet(item: $editingStation) { station in
             NavigationStack {
                 StationEditView(station: .constant(station), isMoveModeEnabled: .constant(false))
@@ -368,17 +395,7 @@ struct ContextualInspector: View {
             .presentationDetents([.medium, .large])
             .presentationBackgroundInteraction(.enabled(upThrough: .medium))
         }
-        .sheet(item: $editingEdge) { edge in
-            NavigationStack {
-                TrackEditView(edge: .constant(edge), onDelete: {
-                    appState.railroad.network.removeEdge(from: edge.from, to: edge.to)
-                    appState.selectedEdgeId = nil
-                    editingEdge = nil
-                })
-                .navigationTitle("Modifica Binario")
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fatto") { editingEdge = nil } } }
-            }
-        }
+        // TrackEditView is now inline, sheet removed
         .sheet(isPresented: $isCreatingVehicle) {
             VehicleCreationSheet()
         }

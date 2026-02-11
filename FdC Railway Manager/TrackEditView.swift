@@ -4,8 +4,9 @@ struct TrackEditView: View {
     @Binding var edge: Edge
     @EnvironmentObject var network: RailwayNetwork
     var onDelete: () -> Void
+    var onBack: () -> Void
     
-    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var appState: AppState
     @State private var showDeleteConfirmation = false
     
     private var fromStation: Node? {
@@ -16,126 +17,211 @@ struct TrackEditView: View {
         network.nodes.first(where: { $0.id == edge.to })
     }
     
-    @EnvironmentObject var appState: AppState
-    
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // Header
-                HStack {
-                    Image(systemName: "arrow.left.arrow.right")
-                        .font(.largeTitle)
-                        .foregroundColor(.orange)
-                    VStack(alignment: .leading) {
-                        Text("\(fromStation?.name ?? edge.from) → \(toStation?.name ?? edge.to)")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        Text("edit_track".localized)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
+        VStack(spacing: 0) {
+            // Header with Back Button
+            HStack {
+                Button(action: onBack) {
+                    Image(systemName: "chevron.left")
+                        .font(.title3.bold())
+                        .foregroundColor(appState.theme.medium)
                 }
-                .padding()
-                .background(Color.secondary.opacity(0.05))
-                .cornerRadius(8)
+                .buttonStyle(.plain)
                 
-                // Track Properties
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("track_properties".localized.uppercased())
-                        .font(.caption.bold())
-                        .foregroundColor(.secondary)
+                Spacer()
+                
+                Text("Modifica Tratta")
+                    .font(.headline)
+                    .foregroundColor(appState.theme.dark)
+                
+                Spacer()
+                
+                // Invisible spacer to balance the header
+                Image(systemName: "chevron.left").font(.title3).opacity(0)
+            }
+            .padding()
+            .background(appState.theme.surface)
+            
+            Divider()
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
                     
-                    HStack {
-                        Text("distance_km".localized)
-                        Spacer()
-                        TextField("distance".localized, value: $edge.distance, format: .number)
-                            .textFieldStyle(.roundedBorder)
-                            .keyboardType(.decimalPad)
-                            .frame(width: 100)
-                        Text("km")
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    HStack {
-                        Text("max_speed_kmh".localized)
-                        Spacer()
-                        TextField("speed".localized, value: $edge.maxSpeed, format: .number)
-                            .textFieldStyle(.roundedBorder)
-                            .keyboardType(.numberPad)
-                            .frame(width: 100)
-                        Text("km/h")
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Picker("track_type".localized, selection: $edge.trackType) {
-                        Text("track_single".localized).tag(Edge.TrackType.single)
-                        Text("track_double".localized).tag(Edge.TrackType.double)
-                        Text("track_highspeed".localized).tag(Edge.TrackType.highSpeed)
-                        Text("track_regional".localized).tag(Edge.TrackType.regional)
-                    }
-                    .pickerStyle(.segmented)
-                    .onChange(of: edge.trackType) { newType in
-                        switch newType {
-                        case .single: edge.capacity = 6
-                        case .double: edge.capacity = 24
-                        case .highSpeed: edge.capacity = 15
-                        case .regional: edge.capacity = 6
+                    // Route Info
+                    HStack(spacing: 16) {
+                        Image(systemName: "tram.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(appState.theme.accent)
+                            .frame(width: 40, height: 40)
+                            .background(appState.theme.accent.opacity(0.1))
+                            .cornerRadius(10)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(fromStation?.name ?? "Stop \(edge.from)")
+                                .font(.subheadline)
+                                .foregroundColor(appState.theme.dark)
+                            Image(systemName: "arrow.down")
+                                .font(.caption2)
+                                .foregroundColor(appState.theme.medium)
+                                .padding(.leading, 4)
+                            Text(toStation?.name ?? "Stop \(edge.to)")
+                                .font(.subheadline)
+                                .foregroundColor(appState.theme.dark)
                         }
-                    }
-                }
-                .padding()
-                .background(Color.secondary.opacity(0.05))
-                .cornerRadius(8)
-                
-                // Capacity
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("capacity".localized.uppercased())
-                        .font(.caption.bold())
-                        .foregroundColor(.secondary)
-                    
-                    HStack {
-                        Text("capacity_trains_h".localized)
-                        Spacer()
-                        TextField("capacity".localized, value: $edge.capacity, format: .number)
-                            .textFieldStyle(.roundedBorder)
-                            .keyboardType(.numberPad)
-                            .frame(width: 100)
-                        Text("trains/h")
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding()
-                .background(Color.secondary.opacity(0.05))
-                .cornerRadius(8)
-                
-                // Delete
-                Button(role: .destructive) {
-                    showDeleteConfirmation = true
-                } label: {
-                    HStack {
-                        Spacer()
-                        Text("delete_track".localized)
                         Spacer()
                     }
                     .padding()
-                    .background(Color.red.opacity(0.1))
-                    .cornerRadius(8)
+                    .background(appState.theme.surface)
+                    .cornerRadius(12)
+                    .shadow(color: .black.opacity(0.03), radius: 5, y: 2)
+                    
+                    // Track Type Combo Box
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("TIPO BINARIO")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(appState.theme.medium)
+                            .padding(.leading, 4)
+                        
+                        HStack {
+                            Menu {
+                                Picker("Tipo", selection: $edge.trackType) {
+                                    Label("Binario Singolo", systemImage: "1.circle").tag(Edge.TrackType.single)
+                                    Label("Doppio Binario", systemImage: "2.circle").tag(Edge.TrackType.double)
+                                    Label("Alta Velocità", systemImage: "bolt.fill").tag(Edge.TrackType.highSpeed)
+                                    Label("Linea Regionale", systemImage: "tram").tag(Edge.TrackType.regional)
+                                }
+                            } label: {
+                                HStack {
+                                    trackIcon(for: edge.trackType)
+                                    Text(trackLabel(for: edge.trackType))
+                                        .foregroundColor(appState.theme.dark)
+                                    Spacer()
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.caption)
+                                        .foregroundColor(appState.theme.medium)
+                                }
+                                .padding()
+                                .background(appState.theme.surface)
+                                .cornerRadius(10)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(appState.theme.line.opacity(0.1), lineWidth: 1)
+                                )
+                            }
+                        }
+                    }
+                    .onChange(of: edge.trackType) { newType in
+                        updateCapacity(for: newType)
+                    }
+                    
+                    // Parameters Grid
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("PARAMETRI FISICI")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(appState.theme.medium)
+                            .padding(.leading, 4)
+                        
+                        VStack(spacing: 12) {
+                            // Distance
+                            HStack {
+                                Text("Distanza").foregroundColor(appState.theme.dark)
+                                Spacer()
+                                TextField("0", value: $edge.distance, format: .number)
+                                    .multilineTextAlignment(.trailing)
+                                    .keyboardType(.decimalPad)
+                                    .frame(width: 80)
+                                Text("km").foregroundColor(appState.theme.medium).font(.caption)
+                            }
+                            Divider()
+                            // Max Speed
+                            HStack {
+                                Text("Vel. Max").foregroundColor(appState.theme.dark)
+                                Spacer()
+                                TextField("0", value: $edge.maxSpeed, format: .number)
+                                    .multilineTextAlignment(.trailing)
+                                    .keyboardType(.numberPad)
+                                    .frame(width: 80)
+                                Text("km/h").foregroundColor(appState.theme.medium).font(.caption)
+                            }
+                            Divider()
+                            // Capacity
+                            HStack {
+                                Text("Capacità").foregroundColor(appState.theme.dark)
+                                Spacer()
+                                TextField("0", value: $edge.capacity, format: .number)
+                                    .multilineTextAlignment(.trailing)
+                                    .keyboardType(.numberPad)
+                                    .frame(width: 80)
+                                Text("t/h").foregroundColor(appState.theme.medium).font(.caption)
+                            }
+                        }
+                        .padding()
+                        .background(appState.theme.surface)
+                        .cornerRadius(12)
+                        .shadow(color: .black.opacity(0.03), radius: 5, y: 2)
+                    }
+                    
+                    // Danger Zone
+                    Button(action: { showDeleteConfirmation = true }) {
+                        HStack {
+                            Spacer()
+                            Text("Elimina Binario")
+                                .fontWeight(.medium)
+                            Spacer()
+                        }
+                        .padding()
+                        .background(Color.red.opacity(0.1))
+                        .foregroundColor(.red)
+                        .cornerRadius(10)
+                    }
+                    .padding(.top, 20)
                 }
+                .padding(16)
             }
-            .padding()
-            .disabled(!appState.isInspectorEditingMode)
         }
-        .onLongPressGesture(minimumDuration: 1.0) {
-            appState.isInspectorEditingMode.toggle()
-        }
-        .alert("delete_track".localized, isPresented: $showDeleteConfirmation) {
-            Button("cancel".localized, role: .cancel) { }
-            Button("delete".localized, role: .destructive) {
+        .background(appState.theme.backgroundSecondary.ignoresSafeArea())
+        .alert("Conferma eliminazione", isPresented: $showDeleteConfirmation) {
+            Button("Annulla", role: .cancel) { }
+            Button("Elimina", role: .destructive) {
                 onDelete()
             }
         } message: {
-            Text("delete_track_confirm".localized)
+            Text("Sei sicuro di voler rimuovere questo binario? La connessione tra le stazioni verrà interrotta.")
+        }
+    }
+    
+    private func updateCapacity(for type: Edge.TrackType) {
+        switch type {
+        case .single: edge.capacity = 6
+        case .double: edge.capacity = 24
+        case .highSpeed: edge.capacity = 15
+        case .regional: edge.capacity = 6 // Slightly higher capacity usually? Kept as per old logic
+        }
+        
+        // Also update speed limits based on global settings if available
+        switch type {
+        case .single: edge.maxSpeed = appState.singleTrackMaxSpeed
+        case .double: edge.maxSpeed = appState.doubleTrackMaxSpeed
+        case .highSpeed: edge.maxSpeed = appState.highSpeedTrackMaxSpeed
+        case .regional: edge.maxSpeed = appState.regionalTrackMaxSpeed
+        }
+    }
+    
+    private func trackLabel(for type: Edge.TrackType) -> String {
+        switch type {
+        case .single: return "Binario Singolo"
+        case .double: return "Doppio Binario"
+        case .highSpeed: return "Alta Velocità"
+        case .regional: return "Linea Regionale"
+        }
+    }
+    
+    private func trackIcon(for type: Edge.TrackType) -> Image {
+        switch type {
+        case .single: return Image(systemName: "1.circle")
+        case .double: return Image(systemName: "2.circle")
+        case .highSpeed: return Image(systemName: "bolt.fill")
+        case .regional: return Image(systemName: "tram")
         }
     }
 }
