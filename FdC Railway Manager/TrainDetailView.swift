@@ -12,16 +12,22 @@ struct TrainDetailView: View {
         appState.railroad.lines.conflictManager.conflicts.filter { $0.trainAId == train.id || $0.trainBId == train.id }
     }
     
+    // Helper to get binding safely
+    private var trainBinding: Binding<Train>? {
+        manager.binding(for: train)
+    }
+
     var body: some View {
         Group {
-            if let binding = manager.binding(for: train) {
+            if let binding = trainBinding {
                 content(train: binding)
-                    .id(train.id) // FORCE REFRESH when selection changes
+                    .id(train.id)
                     .onLongPressGesture(minimumDuration: 1.0) {
                         appState.isInspectorEditingMode.toggle()
                     }
             } else {
-                Text("train_not_found".localized).foregroundColor(.secondary)
+                Text("train_not_found".localized)
+                    .foregroundColor(.secondary)
             }
         }
     }
