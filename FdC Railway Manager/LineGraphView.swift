@@ -4,6 +4,7 @@ import Combine
 struct LineGraphView: View {
     @EnvironmentObject var network: RailwayNetwork
     @EnvironmentObject var manager: TrainManager
+    @EnvironmentObject var appState: AppState // Added for theme access
     let line: RailwayLine
     
     // Data passed from parent
@@ -101,8 +102,6 @@ struct LineGraphView: View {
                         }
                     }
                 }
-        }
-        }
         .background(appState.theme.background) // Use app background color (light grigetto)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
