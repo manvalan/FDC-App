@@ -116,16 +116,40 @@ struct TrainDetailView: View {
                 .background(Color.secondary.opacity(0.05))
                 .cornerRadius(12)
                 
-                // 1.5 VEHICLE ASSIGNMENT
+                // 1.5 VEHICLE ASSIGNMENT (MANDATORY)
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Image(systemName: "bus.doubledecker.fill")
                             .foregroundColor(.purple)
                         Text("materiale_rotabile".localized).font(.headline)
+                        
+                        if train.wrappedValue.vehicleId == nil {
+                            Spacer()
+                            Text("OBBLIGATORIO")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.red)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(8)
+                        }
                     }
                     
-                    Picker("Mezzo", selection: train.vehicleId) {
-                        Text("nessun_mezzo".localized).tag(UUID?.none)
+                    Picker("Mezzo", selection: Binding(
+                        get: { train.wrappedValue.vehicleId },
+                        set: { newId in
+                            train.wrappedValue.vehicleId = newId
+                            if let vId = newId, let vehicle = manager.vehicles.first(where: { $0.id == vId }) {
+                                // AUTO-POPULATE TECHNICAL DATA
+                                train.wrappedValue.maxSpeed = vehicle.maxSpeed
+                                train.wrappedValue.acceleration = vehicle.acceleration
+                                train.wrappedValue.deceleration = vehicle.deceleration
+                            }
+                        }
+                    )) {
+                        if train.wrappedValue.vehicleId == nil {
+                            Text("Seleziona un mezzo...").tag(UUID?.none)
+                        }
                         ForEach(manager.vehicles) { v in
                             Text(v.name).tag(UUID?.some(v.id))
                         }
@@ -137,7 +161,7 @@ struct TrainDetailView: View {
                         HStack {
                             Text(vehicle.model).font(.caption).foregroundColor(.secondary)
                             Spacer()
-                            Text("\(Int(vehicle.length))m").font(.caption).foregroundColor(.secondary)
+                            Text("\(Int(vehicle.length))m • \(Int(vehicle.maxSpeed))km/h").font(.caption).foregroundColor(.secondary)
                         }
                         
                         // Check for conflicts involving THIS train
@@ -162,7 +186,7 @@ struct TrainDetailView: View {
                 .padding()
                 .background(.ultraThinMaterial)
                 .cornerRadius(16)
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(appState.isInspectorEditingMode ? Color.yellow.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(train.wrappedValue.vehicleId == nil ? Color.red.opacity(0.5) : (appState.isInspectorEditingMode ? Color.yellow.opacity(0.5) : Color.white.opacity(0.1)), lineWidth: 1))
                 
                 // 2. TIMETABLE & ITINERARY
                 VStack(alignment: .leading, spacing: 12) {
@@ -181,6 +205,21 @@ struct TrainDetailView: View {
                             }
                             Text(String(format: "line_label_fmt".localized, line.name))
                                 .font(.subheadline.bold())
+                                
+                            Spacer()
+                            
+                            // Move Priority here since technical column is gone
+                            HStack(spacing: 4) {
+                                Text("Priorità:").font(.caption).foregroundColor(.secondary)
+                                Stepper(value: train.priority, in: 1...10) {
+                                    Text("\(train.wrappedValue.priority)")
+                                        .font(.caption.bold())
+                                        .foregroundColor(priorityColor(train.wrappedValue.priority))
+                                }
+                                .fixedSize()
+                                .labelsHidden()
+                            }
+                            .disabled(!appState.isInspectorEditingMode)
                         }
                         .padding(.horizontal, 4)
                         
@@ -208,74 +247,6 @@ struct TrainDetailView: View {
                 .background(.ultraThinMaterial)
                 .cornerRadius(16)
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(appState.isInspectorEditingMode ? Color.yellow.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1))
-                
-                // 3. TECHNICAL PERFORMANCE
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Image(systemName: "gauge.with.dots.needle.67percent")
-                            .foregroundColor(.purple)
-                            Text("technical_data".localized).font(.headline)
-                    }
-                    
-                    Grid(alignment: .leading, verticalSpacing: 12) {
-                        GridRow {
-                            Text("max_speed".localized)
-                                .foregroundColor(.secondary)
-                            HStack {
-                                TextField("140", value: train.maxSpeed, format: .number)
-                                    .multilineTextAlignment(.trailing)
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(width: 70)
-                                Text("km/h").font(.caption).foregroundColor(.secondary)
-                            }
-                        }
-                        
-                        Divider()
-                        
-                        GridRow {
-                            Text("acceleration".localized)
-                                .foregroundColor(.secondary)
-                            HStack {
-                                TextField("0.5", value: train.acceleration, format: .number)
-                                    .multilineTextAlignment(.trailing)
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(width: 70)
-                                Text("m/s²").font(.caption).foregroundColor(.secondary)
-                            }
-                        }
-                        
-                        GridRow {
-                            Text("deceleration".localized)
-                                .foregroundColor(.secondary)
-                            HStack {
-                                TextField("0.4", value: train.deceleration, format: .number)
-                                    .multilineTextAlignment(.trailing)
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(width: 70)
-                                Text("m/s²").font(.caption).foregroundColor(.secondary)
-                            }
-                        }
-                        
-                        Divider()
-                        
-                        GridRow {
-                            Text("priority_label".localized)
-                                .foregroundColor(.secondary)
-                            HStack {
-                                Stepper(value: train.priority, in: 1...10) {
-                                    Text("\(train.wrappedValue.priority)")
-                                        .bold()
-                                        .foregroundColor(priorityColor(train.wrappedValue.priority))
-                                }
-                                .padding(.leading, 4)
-                            }
-                        }
-                    }
-                    .font(.subheadline)
-                }
-                .padding()
-                .background(Color.secondary.opacity(0.05))
-                .cornerRadius(12)
             }
             .padding()
             .background(Color(UIColor.systemGray6).opacity(0.95))

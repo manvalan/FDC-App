@@ -383,14 +383,14 @@ struct ScheduleCreationView: View {
             preferredTrack: "1"
         )
         
-        let pRetNum = (rLineObj.numberPrefix ?? 0) * 1000 + (currentStart + 1)
+            let pRetNum = (rLineObj.numberPrefix ?? 0) * 1000 + (currentStart + 1)
         let probeReturn = manager.instantiateTrain(
             number: pRetNum,
             name: "Probe Return",
             category: selectedTrainType,
             departureTime: normalizedRStartDraft,
             line: rLineObj,
-            stationSequence: stationSequence.reversed(),
+            stationSequence: Array(stationSequence.reversed()),
             acceleration: physics.acceleration,
             deceleration: physics.deceleration,
             preferredTrack: "2"
@@ -454,7 +454,7 @@ struct ScheduleCreationView: View {
                     category: selectedTrainType,
                     departureTime: departureTime,
                     line: rLineObj,
-                    stationSequence: stationSequence.reversed(),
+                    stationSequence: Array(stationSequence.reversed()),
                     acceleration: physics.acceleration,
                     deceleration: physics.deceleration,
                     preferredTrack: "2"

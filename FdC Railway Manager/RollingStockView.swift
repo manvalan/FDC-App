@@ -158,9 +158,9 @@ struct VehicleEditSheet: View {
         self.manager = manager
         self.vehicle = vehicle
         _name = State(initialValue: vehicle?.name ?? "")
-        _model = State(initialValue: vehicle?.model ?? "")
-        _length = State(initialValue: vehicle?.length ?? 200)
-        _maxSpeed = State(initialValue: vehicle?.maxSpeed ?? 160)
+        _model = State(initialValue: vehicle?.model ?? appState.lastVehicleModel)
+        _length = State(initialValue: vehicle?.length ?? appState.lastVehicleLength)
+        _maxSpeed = State(initialValue: vehicle?.maxSpeed ?? appState.lastVehicleMaxSpeed)
     }
     
     var body: some View {
@@ -290,6 +290,11 @@ struct VehicleEditSheet: View {
             let newV = Vehicle(name: name, model: model, length: length, maxSpeed: maxSpeed)
             manager.vehicles.append(newV)
         }
+        
+        // Persist as last used
+        appState.lastVehicleModel = model
+        appState.lastVehicleLength = length
+        appState.lastVehicleMaxSpeed = maxSpeed
     }
 }
 

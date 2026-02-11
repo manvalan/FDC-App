@@ -150,7 +150,7 @@ final class LinesManager: ObservableObject {
                     localTrains[idx].stops[lastStopIdx].track = track
                     localTrains[idx].stops[lastStopIdx].isManualTrack = true
                 }
-
+                
                 if let arrivalAtEnd = localTrains[idx].stops.last?.arrival {
                     fleetStatus[vid] = (destId, arrivalAtEnd, currentCount + 1, arrivalTrack)
                 }
@@ -230,5 +230,95 @@ final class LinesManager: ObservableObject {
             }
             return TrainSchedule(trainId: train.id, trainName: train.name, stops: schedStops)
         }
+    }
+    
+    func applyResolutions(_ resolutions: [RailwayAIResolution], network: NetworkModel, trainMapping: [UUID: Int]) {
+        createCheckpoint()
+        
+        for resolution in resolutions {
+            // Find the train by looking up the UUID from the mapping
+            guard let trainUUID = trainMapping.first(where: { $0.value == resolution.train_id })?.key,
+                  let trainIndex = trains.firstIndex(where: { $0.id == trainUUID }) else {
+                continue
+            }
+            
+            // 1. Time Shift
+            if resolution.time_adjustment_min != 0, let originalDep = trains[trainIndex].departureTime {
+                let adjustment = resolution.time_adjustment_min * 60
+                trains[trainIndex].departureTime = originalDep.addingTimeInterval(adjustment)
+            }
+            
+            // 2. Dwell Extensions
+            if let dwells = resolution.dwell_delays, !dwells.isEmpty {
+                for (i, delayMin) in dwells.enumerated() {
+                    if i < trains[trainIndex].stops.count {
+                        trains[trainIndex].stops[i].extraDwellTime = max(0, trains[trainIndex].stops[i].extraDwellTime + delayMin)
+                    }
+                }
+            }
+        }
+        
+        validateSchedules()
+    }
+    
+    // MARK: - Factory
+    
+    func instantiateTrain(
+        number: Int,
+        name: String? = nil,
+        category: TrainCategory,
+        departureTime: Date,
+        line: RailwayLine? = nil,
+        stationSequence: [String],
+        acceleration: Double,
+        deceleration: Double,
+        preferredTrack: String = "1",
+        vehicleId: UUID? = nil
+    ) -> Train {
+        var stops: [RelationStop] = []
+        for (index, stationId) in stationSequence.enumerated() {
+            let node = network.nodes.first(where: { $0.id == stationId })
+            let isInterchange = node?.type == .interchange
+            let minDwell = isInterchange ? 5 : 3
+            
+            var stop = RelationStop(
+                stationId: stationId,
+                minDwellTime: minDwell,
+                track: preferredTrack
+            )
+            
+            // PIGNOLO PROTOCOL: Terminals use preferred track
+            if index == 0 || index == stationSequence.count - 1 {
+                stop.track = preferredTrack
+                stop.isManualTrack = true
+            }
+            
+            stops.append(stop)
+        }
+        
+        let trainName = name ?? "\(category.rawValue) \(number)"
+        
+        return Train(
+            number: number,
+            name: trainName,
+            type: category.rawValue,
+            lineId: line?.id,
+            departureTime: departureTime,
+            stops: stops,
+            vehicleId: vehicleId,
+            maxSpeed: Double(category.defaultMaxSpeed),
+            acceleration: acceleration,
+            deceleration: deceleration,
+            priority: category.defaultPriority
+        )
+    }
+    
+    // MARK: - Binding Helper
+    func binding(for train: Train) -> Binding<Train>? {
+        guard let index = trains.firstIndex(where: { $0.id == train.id }) else { return nil }
+        return Binding(
+            get: { self.trains[index] },
+            set: { self.trains[index] = $0 }
+        )
     }
 }

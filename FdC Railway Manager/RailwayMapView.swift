@@ -1442,17 +1442,17 @@ struct MapControlsView: View {
             if isEditToolbarVisible {
                 VStack(spacing: 8) {
                     Button(action: { editMode = .addStation }) {
-                        InteractionIcon(systemName: "building.2.fill", isActive: editMode == .addStation, activeColor: .green)
+                        RailwayInteractionIcon(systemName: "building.2.fill", isActive: editMode == .addStation, activeColor: .green)
                     }
                     .help("Aggiungi Stazione")
                     
                     Button(action: { editMode = .addTrack }) {
-                        InteractionIcon(systemName: "point.topleft.down.curvedto.point.bottomright.up", isActive: editMode == .addTrack, activeColor: .orange)
+                        RailwayInteractionIcon(systemName: "point.topleft.down.curvedto.point.bottomright.up", isActive: editMode == .addTrack, activeColor: .orange)
                     }
                     .help("Crea Binari")
                     
                     Button(action: { withAnimation { isMoveModeEnabled.toggle() } }) {
-                        InteractionIcon(systemName: isMoveModeEnabled ? "hand.draw.fill" : "hand.draw", isActive: isMoveModeEnabled, activeColor: .blue)
+                        RailwayInteractionIcon(systemName: isMoveModeEnabled ? "hand.draw.fill" : "hand.draw", isActive: isMoveModeEnabled, activeColor: .blue)
                     }
                     .help("Sposta Stazioni")
                     
@@ -1460,13 +1460,13 @@ struct MapControlsView: View {
                     
                     // Undo/Redo Integrated
                     Button(action: { network.undo() }) {
-                        InteractionIcon(systemName: "arrow.uturn.backward.circle", isActive: false, color: network.canUndo ? .primary : .secondary)
+                        RailwayInteractionIcon(systemName: "arrow.uturn.backward.circle", isActive: false, color: network.canUndo ? .primary : .secondary)
                     }
                     .disabled(!network.canUndo)
                     .help("undo".localized)
                     
                     Button(action: { network.redo() }) {
-                        InteractionIcon(systemName: "arrow.uturn.forward.circle", isActive: false, color: network.canRedo ? .primary : .secondary)
+                        RailwayInteractionIcon(systemName: "arrow.uturn.forward.circle", isActive: false, color: network.canRedo ? .primary : .secondary)
                     }
                     .disabled(!network.canRedo)
                     .help("redo".localized)
@@ -1483,17 +1483,17 @@ struct MapControlsView: View {
             // Middle: Export Tools (New!)
             VStack(spacing: 8) {
                 Button(action: { onExport(.jpeg) }) {
-                    InteractionIcon(systemName: "photo", isActive: false, color: .primary)
+                    RailwayInteractionIcon(systemName: "photo", isActive: false, color: .primary)
                 }
                 .help("Esporta JPG")
                 
                 Button(action: { onExport(.pdf) }) {
-                    InteractionIcon(systemName: "doc.text", isActive: false, color: .primary)
+                    RailwayInteractionIcon(systemName: "doc.text", isActive: false, color: .primary)
                 }
                 .help("Esporta PDF")
                 
                 Button(action: { onPrint() }) {
-                    InteractionIcon(systemName: "printer", isActive: false, color: .primary)
+                    RailwayInteractionIcon(systemName: "printer", isActive: false, color: .primary)
                 }
                 .help("print".localized)
             }
@@ -1505,13 +1505,13 @@ struct MapControlsView: View {
             // Bottom: Zoom Tools
             VStack(spacing: 8) {
                 Button(action: { withAnimation { zoomLevel = min(zoomLevel + 0.5, 5.0) } }) {
-                    InteractionIcon(systemName: "plus", isActive: false, color: .primary)
+                    RailwayInteractionIcon(systemName: "plus", isActive: false, color: .primary)
                 }
                 Button(action: { withAnimation { zoomLevel = max(zoomLevel - 0.5, 1.0) } }) {
-                    InteractionIcon(systemName: "minus", isActive: false, color: .primary)
+                    RailwayInteractionIcon(systemName: "minus", isActive: false, color: .primary)
                 }
                 Button(action: { withAnimation { zoomLevel = 1.0 } }) {
-                    InteractionIcon(systemName: "arrow.down.left.and.arrow.up.right", isActive: false, color: .purple)
+                    RailwayInteractionIcon(systemName: "arrow.down.left.and.arrow.up.right", isActive: false, color: .purple)
                 }
             }
             .padding(8)
@@ -1696,7 +1696,7 @@ struct TrainOverlayCanvas: View {
             Canvas { context, size in
                 let now = appState.liveSim.currentSimTime
                 for schedule in appState.simulator.schedules {
-                    if let pos = MapGeometry.currentSchematicTrainPos(for: schedule, in: size, now: now, bounds: bounds, network: network) {
+                    if let pos = MapGeometryEngine.currentSchematicTrainPos(for: schedule, in: size, now: now, bounds: bounds, network: network) {
                         let trainDot = Path(ellipseIn: CGRect(x: pos.x - 6, y: pos.y - 6, width: 12, height: 12))
                         context.fill(trainDot, with: .color(.yellow))
                         context.stroke(trainDot, with: .color(.black), lineWidth: 1)

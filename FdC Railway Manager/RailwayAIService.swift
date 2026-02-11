@@ -395,7 +395,7 @@ class RailwayAIService: ObservableObject {
             for i in 0..<(stationIds.count - 1) {
                 let from = stationIds[i]
                 let to = stationIds[i+1]
-                if let pathEdges = NetworkModel.findPathEdges(from: from, to: to, edges: edges) {
+                if let pathEdges = NetworkModel.findPathEdges(from: from, to: to, nodes: nodes, edges: edges) {
                     for e in pathEdges { relevantEdgeIds.insert(e.id) }
                 }
             }
@@ -980,7 +980,7 @@ class RailwayAIService: ObservableObject {
                 var totalDist = 0.0
                 if train.stops.count >= 2 {
                     for i in 0..<(train.stops.count - 1) {
-                        if let path = NetworkModel.findPathEdges(from: train.stops[i].stationId, to: train.stops[i+1].stationId, edges: edges) {
+                        if let path = NetworkModel.findPathEdges(from: train.stops[i].stationId, to: train.stops[i+1].stationId, nodes: nodes, edges: edges) {
                             totalDist += path.reduce(0.0) { $0 + $1.distance }
                         }
                     }

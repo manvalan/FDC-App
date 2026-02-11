@@ -11,6 +11,27 @@ struct VisualizationSettingsView: View {
                 Toggle("use_cloud_ai".localized, isOn: $appState.useCloudAI)
             }
             
+            Section(header: Text("Tema Progetto (Monocromatico Gray)")) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Palette ufficiale FdC Railway Manager").font(.caption).foregroundColor(.secondary)
+                    
+                    HStack(spacing: 4) {
+                        colorSwatch(color: .fdcGreyBackground, name: "BG")
+                        colorSwatch(color: .fdcGreySurface, name: "SURF")
+                        colorSwatch(color: .fdcGreyLight, name: "LGT")
+                        colorSwatch(color: .fdcGreyMedium, name: "MED")
+                        colorSwatch(color: .fdcGreyDark, name: "DRK")
+                        colorSwatch(color: .fdcGreyLine, name: "LINE")
+                    }
+                    
+                    Text("Questo tema è ora lo standard per tutta l'interfaccia.")
+                        .font(.caption2)
+                        .italic()
+                        .foregroundColor(.fdcGreyMedium)
+                }
+                .padding(.vertical, 4)
+            }
+            
             Section(header: Text("sizes".localized)) {
                 VStack(alignment: .leading) {
                     Text(String(format: "line_width_px".localized, Int(appState.globalLineWidth)))
@@ -89,5 +110,17 @@ struct VisualizationSettingsView: View {
         }
         .navigationTitle("visualization".localized)
 
+    }
+    
+    private func colorSwatch(color: Color, name: String) -> some View {
+        VStack(spacing: 4) {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(color)
+                .frame(width: 45, height: 45)
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.fdcGreyLine.opacity(0.1), lineWidth: 0.5))
+            Text(name)
+                .font(.system(size: 8, weight: .bold))
+                .foregroundColor(.fdcGreyMedium)
+        }
     }
 }

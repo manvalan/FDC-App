@@ -15,7 +15,7 @@ extension ContentView {
                     }
                 }) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.fdcGreyMedium)
                 }
                 .buttonStyle(.plain)
             }
@@ -30,7 +30,7 @@ extension ContentView {
                                 get: { network.nodes[index] },
                                 set: { network.nodes[index] = $0 }
                             ),
-                            isMoveModeEnabled: $isMoveModeEnabled,
+                            isMoveModeEnabled: $appState.isMoveModeEnabled,
                             onDelete: {
                                 withAnimation {
                                     network.removeNode(node.id)
@@ -48,7 +48,7 @@ extension ContentView {
                                     appState.selectedLineId = newVal.id
                                 }
                             }
-                        ), isMoveModeEnabled: $isMoveModeEnabled, selectedNode: Binding(get: { appState.selectedNode }, set: { appState.selectedNodeId = $0?.id }), selectedEdgeId: $appState.selectedEdgeId)
+                        ), isMoveModeEnabled: $appState.isMoveModeEnabled, selectedNode: Binding(get: { appState.selectedNode }, set: { appState.selectedNodeId = $0?.id }), selectedEdgeId: $appState.selectedEdgeId)
                         .id("line-\(line.id)")
                     } else if let edgeId = appState.selectedEdgeId, let index = network.edges.firstIndex(where: { $0.id.uuidString == edgeId }) {
                         TrackEditView(edge: Binding(
@@ -56,7 +56,7 @@ extension ContentView {
                             set: { network.edges[index] = $0 }
                         )) {
                             withAnimation {
-                                network.removeEdge(network.edges[index].from, network.edges[index].to)
+                                network.removeEdge(from: network.edges[index].from, to: network.edges[index].to)
                                 appState.selectedEdgeId = nil
                             }
                         }

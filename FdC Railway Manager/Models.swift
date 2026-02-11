@@ -508,6 +508,8 @@ struct Vehicle: Identifiable, Codable, Hashable {
     var model: String // Modello (es: "Pop", "Rock", "Minuetto")
     var length: Double = 200 // Lunghezza in metri
     var maxSpeed: Double = 160
+    var acceleration: Double = 0.5
+    var deceleration: Double = 0.4
     
     // Per gestire il giro macchina
     var notes: String?
@@ -533,6 +535,8 @@ struct VehicleTemplate: Identifiable {
     let model: String
     let length: Double
     let maxSpeed: Double
+    let acceleration: Double = 0.5
+    let deceleration: Double = 0.4
     
     static let all: [VehicleTemplate] = [
         // --- ALSTOM ---

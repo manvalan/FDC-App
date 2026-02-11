@@ -87,7 +87,6 @@ struct LineTableView: View {
                             .font(.headline)
                             .frame(width: 150, height: 50, alignment: .leading)
                             .padding(.horizontal, 8)
-                            .background(Color.gray.opacity(0.1))
                             .border(Color.gray.opacity(0.3))
                         
                         ForEach(orderedStations) { station in
@@ -102,8 +101,8 @@ struct LineTableView: View {
                                     .lineLimit(1)
                                     .truncationMode(.tail)
                             }
-                            .background(selectedStation?.id == station.id ? Color.blue.opacity(0.1) : Color(UIColor.systemBackground))
-                            .border(Color.gray.opacity(0.2))
+                            .background(selectedStation?.id == station.id ? appState.theme.accent.opacity(0.1) : Color.clear)
+                            .border(Color.gray.opacity(0.1))
                             .buttonStyle(.plain)
                         }
                     }

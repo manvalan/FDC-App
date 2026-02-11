@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct InteractionIcon: View {
+struct RailwayInteractionIcon: View {
     var systemName: String
     var isActive: Bool
     var activeColor: Color = .blue
@@ -70,7 +70,7 @@ struct RouteTrackSegment: View {
 
 /// 🚄 **VerticalDiagramStep**
 /// Represents ONE complete step in the diagram: the station AND the following segment.
-struct VerticalDiagramStep<LeadingInfo: View, ExtraInfo: View, SegmentInfo: View>: View {
+struct VerticalDiagramStep<LeadingInfo: View, ExtraInfo: View, SegmentInfo: View, Content: View>: View {
     let stationId: String
     let isLast: Bool
     let nextStationId: String?
@@ -81,6 +81,7 @@ struct VerticalDiagramStep<LeadingInfo: View, ExtraInfo: View, SegmentInfo: View
     let leadingInfo: LeadingInfo // FIXED TYPE
     let extraInfo: ExtraInfo
     let segmentMetadata: SegmentInfo
+    let content: Content // NEW
     
     // Inline editing actions
     var onDelete: (() -> Void)? = nil
@@ -107,6 +108,7 @@ struct VerticalDiagramStep<LeadingInfo: View, ExtraInfo: View, SegmentInfo: View
         onSegmentTap: (() -> Void)? = nil,
         @ViewBuilder leadingInfo: () -> LeadingInfo,
         @ViewBuilder extraInfo: () -> ExtraInfo = { EmptyView() },
+        @ViewBuilder content: () -> Content = { EmptyView() },
         @ViewBuilder segmentMetadata: () -> SegmentInfo = { EmptyView() }
     ) {
         self.stationId = stationId
@@ -123,6 +125,7 @@ struct VerticalDiagramStep<LeadingInfo: View, ExtraInfo: View, SegmentInfo: View
         self.onSegmentTap = onSegmentTap
         self.leadingInfo = leadingInfo() // NEW
         self.extraInfo = extraInfo()
+        self.content = content()
         self.segmentMetadata = segmentMetadata()
     }
     
@@ -198,17 +201,23 @@ struct VerticalDiagramStep<LeadingInfo: View, ExtraInfo: View, SegmentInfo: View
                 }) {
                     HStack(alignment: .center, spacing: 20) {
                         
-                        leadingInfo // NEW: Info on the LEFT
-                            .frame(minWidth: 50, alignment: .trailing)
+                        if LeadingInfo.self != EmptyView.self {
+                            leadingInfo
+                                .frame(minWidth: 50, alignment: .trailing)
+                        }
                         
                         ZStack {
                             StationNodeSymbol(node: node, defaultColor: lineColor, size: 20, isTransit: isTransit)
                         }
                         .frame(width: 30) // Fixed width for alignment
                         
-                        Text(node?.name ?? stationId)
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.white)
+                        if Content.self != EmptyView.self {
+                            content
+                        } else {
+                            Text(node?.name ?? stationId)
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.fdcGreyDark)
+                        }
                         
                         Spacer()
                         
@@ -218,7 +227,7 @@ struct VerticalDiagramStep<LeadingInfo: View, ExtraInfo: View, SegmentInfo: View
                 }
                 .buttonStyle(.plain)
             }
-            .frame(height: 40)
+            .frame(minHeight: 40)
             
             // 2. SEGMENT ROW (Only if not last OR if onInsertAfter is present)
             if !isLast || onInsertAfter != nil {

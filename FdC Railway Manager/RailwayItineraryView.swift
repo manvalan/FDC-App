@@ -20,7 +20,7 @@ struct RailwayItineraryView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 16) { // Increased spacing between stations
             ForEach(Array(train.stops.enumerated()), id: \.offset) { index, stop in
                 let stopConflicts = trainConflicts.filter { $0.locationId.contains(stop.stationId) }
                 
@@ -85,25 +85,40 @@ struct RailwayItineraryView: View {
                 lineColor: lineColor,
                 isTransit: isTransit,
                 isEditing: false, 
-                leadingInfo: {
-                    // LEFT: Time Schedule (Clickable)
-                    StationTimesView(
-                        train: $train,
-                        index: index,
-                        hasConflict: hasConflict,
-                        isReadOnly: isReadOnly,
-                        isLast: isLast,
-                        onTap: onTimeTap
-                    )
-                },
-                extraInfo: {
-                    // RIGHT: Track Badge (Clickable)
-                    TrackBadgeView(
-                        stop: stop,
-                        hasConflict: hasConflict,
-                        isReadOnly: isReadOnly,
-                        onTap: onTrackTap
-                    )
+                leadingInfo: { EmptyView() }, // Moving all info to content area
+                extraInfo: { EmptyView() },
+                content: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        // Station Name
+                        if let node = network.nodes.first(where: { $0.id == stop.stationId }) {
+                            Text(node.name)
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(appState.theme.dark)
+                        }
+
+                        HStack(alignment: .bottom) {
+                            // Indented Times
+                            StationTimesView(
+                                train: $train,
+                                index: index,
+                                hasConflict: hasConflict,
+                                isReadOnly: isReadOnly,
+                                isLast: isLast,
+                                onTap: onTimeTap
+                            )
+                            .padding(.leading, 12)
+                            
+                            Spacer()
+                            
+                            // Track Info on the right
+                            TrackBadgeView(
+                                stop: stop,
+                                hasConflict: hasConflict,
+                                isReadOnly: isReadOnly,
+                                onTap: onTrackTap
+                            )
+                        }
+                    }
                 },
                 segmentMetadata: {
                     if !isLast, let nextId = nextId {
@@ -136,17 +151,17 @@ struct RailwayItineraryView: View {
             let isOrigin = index == 0
             let isTerminus = isLast
             
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(alignment: .leading, spacing: 2) {
                 if isOrigin {
                     timeDisplay(label: "Partenza", date: train.stops[index].plannedDeparture ?? stop.departure, isInteractive: !isReadOnly)
                 } else if isTerminus {
-                    timeDisplay(label: "Arrivo", date: stop.plannedArrival ?? stop.arrival, isInteractive: false) // Terminus arrival usually calculated
+                    timeDisplay(label: "Arrivo", date: stop.plannedArrival ?? stop.arrival, isInteractive: false)
                 } else {
-                    timeDisplay(label: "Arr", date: stop.plannedArrival ?? stop.arrival, isInteractive: false)
-                    timeDisplay(label: "Part", date: train.stops[index].plannedDeparture ?? stop.departure, isInteractive: !isReadOnly)
+                    timeDisplay(label: "Arr:", date: stop.plannedArrival ?? stop.arrival, isInteractive: false)
+                    timeDisplay(label: "Part:", date: train.stops[index].plannedDeparture ?? stop.departure, isInteractive: !isReadOnly)
                 }
             }
-            .frame(width: 100, alignment: .trailing)
+            .frame(minWidth: 100, alignment: .leading)
         }
         
         @ViewBuilder
@@ -191,10 +206,15 @@ struct RailwayItineraryView: View {
                                 .stroke(Color.blue.opacity(0.3), lineWidth: 1)
                         )
                     } else {
-                        Text(d.timeFormat)
-                            .font(.system(size: 13, weight: .bold, design: .monospaced))
-                            .foregroundColor(hasConflict ? .red : (train.stops[index].customDwellSeconds != nil && label == "Part" ? .yellow : .white))
-                            .padding(2)
+                        HStack(spacing: 4) {
+                            Text(label)
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                            Text(d.timeFormat)
+                                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                                .foregroundColor(hasConflict ? .red : (train.stops[index].customDwellSeconds != nil && (label == "Part:" || label == "Partenza") ? .yellow : appState.theme.dark.opacity(0.8)))
+                        }
+                        .padding(2)
                     }
                 }
             } else {
@@ -214,12 +234,12 @@ struct RailwayItineraryView: View {
         var body: some View {
             Button(action: onTap) {
                 HStack(spacing: 6) {
-                    Text(stop.track ?? "1")
-                        .font(.system(size: 11, weight: .black))
-                        .foregroundColor(hasConflict ? .white : .black)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(hasConflict ? Color.red : Color.orange)
+                    Text("Binario \(stop.track ?? "1")")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(hasConflict ? .white : appState.theme.medium)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(hasConflict ? Color.red : Color.clear)
                         .cornerRadius(4)
                     
                     if !isReadOnly {

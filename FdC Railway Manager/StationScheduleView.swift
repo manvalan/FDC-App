@@ -104,10 +104,10 @@ struct StationScheduleView: View {
                             if let dep = item.departureTime {
                                 VStack(alignment: .leading) {
                                     Text("Part.")
-                                        .font(.system(size: 8)).foregroundColor(.secondary)
+                                        .font(.system(size: 8)).foregroundColor(.fdcGreyMedium)
                                     Text(dep.timeFormat)
                                         .font(.system(size: 14)).bold()
-                                        .foregroundColor(.green)
+                                        .foregroundColor(.fdcGreyLine)
                                 }
                                 .frame(width: 45)
                             } else {
@@ -130,7 +130,7 @@ struct StationScheduleView: View {
                         .padding(.vertical, 4)
                         .background(
                             appState.selectedTrainIds.contains(item.trainId) 
-                            ? Color.blue.opacity(0.2) 
+                            ? Color.fdcGreyLight 
                             : Color.clear
                         )
                         .cornerRadius(4)
@@ -142,7 +142,7 @@ struct StationScheduleView: View {
                             Button {
                                 appState.selectTrain(item.trainId)
                                 appState.isInspectorEditingMode = true
-                                appState.isInspectorVisible = true
+                                appState.showPanel(.inspector)
                             } label: {
                                 Label("Modifica Treno", systemImage: "pencil")
                             }
@@ -185,8 +185,8 @@ struct StationScheduleView: View {
                                 .font(.title2)
                                 .bold()
                                 .frame(width: 40)
-                                .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange.opacity(0.2)))
-                                .foregroundColor(.orange)
+                                .background(RoundedRectangle(cornerRadius: 6).fill(Color.fdcGreyLight))
+                                .foregroundColor(.fdcGreyDark)
                         }
                         .buttonStyle(.plain)
                     }
@@ -348,8 +348,8 @@ struct StationScheduleView: View {
                         .font(.system(size: 9, weight: .black))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(item.trainType == "Regionale" ? Color.blue : Color.red)
-                        .foregroundColor(.white)
+                        .background(Color.fdcGreyLight)
+                        .foregroundColor(.fdcGreyDark)
                         .cornerRadius(4)
                     
                     Text(item.trainName)
@@ -378,16 +378,16 @@ struct StationScheduleView: View {
                         .font(.system(size: 8, weight: .bold))
                 }
                 .frame(width: 45, height: 45)
-                .background(item.track != nil ? Color.blue.opacity(0.2) : Color.white.opacity(0.1))
-                .foregroundColor(item.track != nil ? .blue : .secondary)
+                .background(item.track != nil ? Color.fdcGreyLight : Color.fdcGreyBackground.opacity(0.3))
+                .foregroundColor(item.track != nil ? .fdcGreyDark : .fdcGreyMedium)
                 .cornerRadius(10)
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(item.track != nil ? Color.blue.opacity(0.4) : Color.clear, lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(item.track != nil ? Color.fdcGreyLine.opacity(0.3) : Color.clear, lineWidth: 1))
             }
             .buttonStyle(.plain)
         }
         .padding()
-        .background(.ultraThinMaterial)
+        .background(Color.fdcGreySurface)
         .cornerRadius(16)
-        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+        .shadow(color: .fdcGreyDark.opacity(0.05), radius: 4, x: 0, y: 2)
     }
 }

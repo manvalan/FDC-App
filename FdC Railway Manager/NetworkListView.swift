@@ -62,8 +62,8 @@ struct NetworkListView: View {
                         .onDelete { indexSet in
                             let sorted = network.sortedEdges
                             for index in indexSet {
-                                let edge = sorted[index]
-                                network.removeEdge(edge.from, edge.to)
+                                let edge = network.sortedEdges[index]
+                                network.removeEdge(from: edge.from, to: edge.to)
                                 if selectedEdgeId == edge.id.uuidString {
                                     selectedEdgeId = nil
                                 }

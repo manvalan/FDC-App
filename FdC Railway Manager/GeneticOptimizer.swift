@@ -8,13 +8,14 @@ class GeneticOptimizer: ObservableObject {
     @Published var bestFitness = Double.infinity
     @Published var conflictCount = 0
     
-    // Configurazione (detta "Code that fits in your head": parametri chiari)
-    private let config = (
-        populationSize: 100,
-        baseMutationRate: 0.38,
-        stagnationThreshold: 25,
-        maxMutationRate: 0.85
-    )
+    // Configurazione parametri chiari
+    private struct Config {
+        let populationSize = 100
+        let baseMutationRate = 0.38
+        let stagnationThreshold = 25
+        let maxMutationRate = 0.85
+    }
+    private let config = Config()
     
     @MainActor
     func optimize(newTrains: [Train], existingTrains: [Train], nodes: [Node], edges: [Edge], iterations: Int? = nil) async -> [Train] {
@@ -142,7 +143,7 @@ class GeneticOptimizer: ObservableObject {
             for j in train.stops.indices {
                 if j == 0 { trainPaths.append(nil) }
                 else {
-                    let path = NetworkModel.findPathEdges(from: prevId, to: train.stops[j].stationId, edges: edges)
+                    let path = NetworkModel.findPathEdges(from: prevId, to: train.stops[j].stationId, nodes: [], edges: edges)
                     trainPaths.append(path)
                     prevId = train.stops[j].stationId
                 }
@@ -276,7 +277,7 @@ extension Train {
         for stop in stops {
             resources.append("STATION::\(stop.stationId)")
             if let prev = prevId {
-                let path = NetworkModel.findPathEdges(from: prev, to: stop.stationId, edges: edges) ?? []
+                let path = NetworkModel.findPathEdges(from: prev, to: stop.stationId, nodes: [], edges: edges) ?? []
                 resources.append(contentsOf: path.map { "SEGMENT::\($0.canonicalKey)" })
             }
             prevId = stop.stationId

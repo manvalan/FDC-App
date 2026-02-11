@@ -11,15 +11,20 @@ struct TrainsByLineListView: View {
     @State private var showAssignmentAlert: Bool = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Treni per Linea").font(.headline)
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Treni per Linea").font(.headline).foregroundColor(appState.theme.dark)
             
-            List {
+            VStack(spacing: 16) {
                 if !unassignedTrains.isEmpty {
-                    Section(header: unassignedHeader) {
-                        ForEach(unassignedTrains) { train in
-                            TrainRowButton(train: train)
+                    DisclosureGroup {
+                        VStack(spacing: 6) {
+                            ForEach(unassignedTrains) { train in
+                                TrainRowButton(train: train)
+                            }
                         }
+                        .padding(.top, 4)
+                    } label: {
+                        unassignedHeader
                     }
                 }
                 
@@ -27,8 +32,6 @@ struct TrainsByLineListView: View {
                     LineTrainsSection(line: item.line, trains: item.trains)
                 }
             }
-            .listStyle(.insetGrouped)
-            .frame(minHeight: 400)
             .alert("Assegnati \(assignedCount) treni alle linee.", isPresented: $showAssignmentAlert) {
                 Button("OK", role: .cancel) { }
             }
@@ -122,16 +125,27 @@ private struct LineTrainsSection: View {
     @EnvironmentObject var appState: AppState
     
     var body: some View {
-        Section(header: lineSectionHeader) {
-            ForEach(trains, id: \.id) { train in
-                TrainRowButton(train: train)
+        DisclosureGroup {
+            VStack(spacing: 6) {
+                ForEach(trains, id: \.id) { train in
+                    TrainRowButton(train: train)
+                }
             }
+            .padding(.top, 4)
+        } label: {
+            lineSectionHeader
         }
     }
     
     private var lineSectionHeader: some View {
-        Text(line.name)
-            .font(.caption.bold())
+        HStack {
+            Text(line.name)
+                .font(.caption.bold())
+                .foregroundColor(appState.theme.dark)
+            Spacer()
+            Circle().fill(line.uiColor).frame(width: 8, height: 8)
+        }
+        .padding(.horizontal, 4)
     }
 }
 
@@ -144,19 +158,25 @@ private struct TrainRowButton: View {
         Button(action: { appState.selectTrain(train.id) }) {
             HStack {
                 trainTypeBadge
-                Text(train.name).bold()
+                Text(train.name).font(.subheadline.bold()).foregroundColor(appState.theme.dark)
                 Spacer()
                 departureTimeText
             }
+            .padding(10)
+            .background(appState.selectedTrainIds.contains(train.id) ? appState.theme.accent.opacity(0.1) : appState.theme.light.opacity(0.3))
+            .cornerRadius(10)
         }
+        .buttonStyle(.plain)
     }
     
     
     private var trainTypeBadge: some View {
         Text(train.type)
-            .font(.caption)
-            .padding(4)
-            .background(Color.blue.opacity(0.1))
+            .font(.system(size: 9, weight: .black))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(appState.theme.light)
+            .foregroundColor(appState.theme.dark)
             .cornerRadius(4)
     }
     

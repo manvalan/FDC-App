@@ -41,7 +41,7 @@ struct LineScheduleView: View {
             .id(line.id)
             .onChange(of: appState.selectedTrainIds) { ids in
                 if !ids.isEmpty {
-                    appState.isInspectorVisible = true
+                    appState.activePanel = .inspector
                 }
             }
     }
@@ -63,7 +63,7 @@ struct LineScheduleView: View {
                         .buttonStyle(.plain)
                     }
                     .padding()
-                    .background(Color.gray.opacity(0.1))
+                    .background(appState.theme.light.opacity(0.3))
                     
                     StationScheduleView(station: station)
                 }

@@ -134,7 +134,7 @@ class CadenceOptimizer: ObservableObject {
                     trains[i].stops[j].departure = currentTime
                 } else {
                     let prevId = trains[i].stops[j-1].stationId
-                    if let pathEdges = NetworkModel.findPathEdges(from: prevId, to: stop.stationId, edges: edges) {
+                    if let pathEdges = NetworkModel.findPathEdges(from: prevId, to: stop.stationId, nodes: nodes, edges: edges) {
                         let dist = pathEdges.reduce(0.0) { $0 + $1.distance }
                         let speed = pathEdges.map { Double($0.maxSpeed) }.min() ?? 100.0
                         

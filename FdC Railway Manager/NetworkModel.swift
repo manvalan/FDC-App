@@ -50,7 +50,20 @@ final class NetworkModel: ObservableObject {
     // MARK: - Pathfinding logic
     
     func findPathEdges(from startId: String, to endId: String) -> [Edge]? {
-        return RailwayNetwork.findPathEdges(from: startId, to: endId, edges: edges)
+        return NetworkModel.findPathEdges(from: startId, to: endId, nodes: nodes, edges: edges)
+    }
+    
+    static nonisolated func findPathEdges(from startId: String, to endId: String, nodes: [Node], edges: [Edge]) -> [Edge]? {
+        guard let (pathNodes, _) = findShortestPath(from: startId, to: endId, nodes: nodes, edges: edges) else { return nil }
+        var pathEdges: [Edge] = []
+        for i in 0..<pathNodes.count - 1 {
+            let u = pathNodes[i]
+            let v = pathNodes[i+1]
+            if let edge = edges.first(where: { ($0.from == u && $0.to == v) || ($0.from == v && $0.to == u) }) {
+                pathEdges.append(edge)
+            }
+        }
+        return pathEdges
     }
     
     func findShortestPath(from start: String, to end: String) -> ([String], Double)? {
@@ -130,9 +143,15 @@ final class NetworkModel: ObservableObject {
         edges.removeAll { ($0.from == from && $0.to == to) || ($0.from == to && $0.to == from) }
     }
     
-    private func createCheckpoint() {
+    func createCheckpoint() {
         owner?.createCheckpoint()
     }
+    
+    var canUndo: Bool { owner?.canUndo ?? false }
+    var canRedo: Bool { owner?.canRedo ?? false }
+    
+    func undo() { owner?.undo() }
+    func redo() { owner?.redo() }
     
     func isTrackAllowed(stationId: String, track: String?, lineId: String, prevStationId: String?, nextStationId: String?) -> Bool {
         guard let node = findNode(id: stationId) else { return true }

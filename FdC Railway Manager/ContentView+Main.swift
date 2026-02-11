@@ -5,7 +5,7 @@ extension ContentView {
     var detailContent: some View {
         ZStack {
             switch appState.sidebarSelection {
-            case .stations, .tracks, .lines, .trains, .none:
+            case .stations, .tracks, .lines, .trains, .vehicles, .none:
                 RailwayMapView(
                     selectedNode: Binding(get: { appState.selectedNode }, set: { appState.selectedNodeId = $0?.id }),
                     selectedLine: Binding(get: { appState.selectedLine }, set: { appState.selectedLineId = $0?.id }),
@@ -13,7 +13,7 @@ extension ContentView {
                     showGrid: $appState.showGrid,
                     isMoveModeEnabled: $appState.isMoveModeEnabled,
                     highlightedConflictLocation: $highlightedConflictLocation,
-                    mode: appState.currentMode == .design ? .network : .lines
+                    mode: (appState.sidebarSelection == .lines || appState.sidebarSelection == .trains || appState.currentMode != .design) ? .lines : .network
                 )
                 .ignoresSafeArea()
             case .timetable:
@@ -44,8 +44,7 @@ extension ContentView {
                              .foregroundColor(.secondary)
                      }
                 }
-            case .vehicles:
-                RollingStockView(manager: lines)
+
             case .ai:
                 RailwayAIView(
                     network: network,

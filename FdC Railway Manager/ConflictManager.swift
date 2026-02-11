@@ -212,7 +212,7 @@ class ConflictManager: ObservableObject {
                 // Tratte (Segmenti)
                 if let pId = prevId, let arrival = stop.arrival, let departurePrev = train.stops.first(where: { $0.stationId == pId })?.departure {
                     let pathKey = "\(pId)--\(stop.stationId)"
-                    let path = pathCache?[pathKey] ?? NetworkModel.findPathEdges(from: pId, to: stop.stationId, edges: edges)
+                    let path = pathCache?[pathKey] ?? NetworkModel.findPathEdges(from: pId, to: stop.stationId, nodes: nodes, edges: edges)
                     
                     if let actualPath = path {
                         pathCache?[pathKey] = actualPath

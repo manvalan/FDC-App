@@ -2,9 +2,20 @@ import Foundation
 import Combine
 import SwiftUI
 
+struct FdCTheme {
+    var background: Color = Color(hex: "#F2F5F8")! // Default App Background
+    var surface: Color = Color(hex: "#FFFFFF")!    // Card Surface
+    var light: Color = Color(hex: "#E5E7EB")!      // Subtle Dividers / Unselected background
+    var medium: Color = Color(hex: "#9CA3AF")!     // Secondary icons / text
+    var dark: Color = Color(hex: "#4B5563")!       // Primary content / Sidebar labels
+    var accent: Color = Color.blue                 // Selected items
+    var line: Color = Color(hex: "#111827")!       // Graph Lines / Very dark accents
+}
+
 @MainActor
 final class AppState: ObservableObject {
     static let shared = AppState()
+    @Published var theme = FdCTheme()
     @Published var showAI: Bool = false
     var aiNetwork: NetworkModel? = nil
     @Published var didAutoImport: Bool = false
@@ -22,6 +33,14 @@ final class AppState: ObservableObject {
         case none, sidebar, inspector, modeBar
     }
     @Published var activePanel: ActivePanel = .none
+    
+    enum LineInspectorMode: String, CaseIterable, Identifiable {
+        case infrastructure = "Infrastruttura"
+        case schedule = "Orario"
+        case vehicles = "Mezzi"
+        var id: String { self.rawValue }
+    }
+    @Published var lineInspectorMode: LineInspectorMode = .infrastructure
     
     // Convenience Accessors
     var isSideMenuVisible: Bool { activePanel == .sidebar }
@@ -48,6 +67,12 @@ final class AppState: ObservableObject {
     @Published var selectedTrainIds: Set<UUID> = [] { didSet { withAnimation { if !selectedTrainIds.isEmpty { activePanel = .inspector } else if !isSomethingSelected { if activePanel == .inspector { activePanel = .none } } } } }
     @Published var isInspectorEditingMode: Bool = false
     @Published var lastVehicleAssignmentLineId: String? = nil
+    
+    // Last used vehicle for defaults
+    @Published var lastVehicleName: String = ""
+    @Published var lastVehicleModel: String = ""
+    @Published var lastVehicleLength: Double = 200
+    @Published var lastVehicleMaxSpeed: Double = 160
     
     // Line Creation / Editing Picking State
     var stationPickingCallback: ((String) -> Void)? = nil
@@ -85,6 +110,18 @@ final class AppState: ObservableObject {
     
     var isSomethingSelected: Bool {
         selectedLineId != nil || selectedNodeId != nil || selectedEdgeId != nil || !selectedTrainIds.isEmpty
+    }
+    
+    var isWidePanelVisible: Bool {
+        // Wide panel active when managing schedules in "Lines" tab and a line is selected
+        if sidebarSelection == .lines && lineInspectorMode == .schedule && selectedLineId != nil {
+            return true
+        }
+        // Also active in Trains tab if we want the general schedule view there
+        if sidebarSelection == .trains {
+            return true
+        }
+        return false
     }
     
     // MARK: - New Architecture (Code That Fits in Your Head)
@@ -363,7 +400,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .stations: return "building.2"
-        case .tracks: return "road.lanes"
+        case .tracks: return "tram"
         case .lines: return "point.topleft.down.to.point.bottomright.curvepath"
         case .trains: return "train.side.front.car"
         case .vehicles: return "tram.fill"

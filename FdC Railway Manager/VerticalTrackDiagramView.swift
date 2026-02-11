@@ -89,8 +89,7 @@ struct VerticalTrackDiagramView: View {
                 }
             }
         }
-        .background(Color(UIColor.systemGray6).opacity(0.98))
-        .border(Color.gray.opacity(0.2), width: 1)
+        .background(appState.theme.background)
         .onChange(of: externalSelectedStationID) { newStationId in
             if let stationId = newStationId, let proxy = scrollProxy {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -189,13 +188,13 @@ struct VerticalTrackDiagramView: View {
         VStack(spacing: 8) {
             // Export Buttons
             Button(action: { exportDiagram(as: .jpeg) }) {
-                InteractionIcon(systemName: "photo", isActive: false, color: .white)
+                RailwayInteractionIcon(systemName: "photo", isActive: false, color: .white)
             }
             Button(action: { exportDiagram(as: .pdf) }) {
-                InteractionIcon(systemName: "doc.text", isActive: false, color: .white)
+                RailwayInteractionIcon(systemName: "doc.text", isActive: false, color: .white)
             }
             Button(action: { printDiagram() }) {
-                InteractionIcon(systemName: "printer", isActive: false, color: .white)
+                RailwayInteractionIcon(systemName: "printer", isActive: false, color: .white)
             }
         }
         .padding(6)

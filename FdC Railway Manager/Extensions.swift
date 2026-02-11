@@ -36,6 +36,14 @@ extension Color {
         self.init(red: Double(r), green: Double(g), blue: Double(b), opacity: Double(a))
     }
     
+    // MARK: - FdC Grey Palette
+    static let fdcGreyBackground = Color(hex: "#F2F5F8")!
+    static let fdcGreySurface = Color(hex: "#FFFFFF")!
+    static let fdcGreyLight = Color(hex: "#E5E7EB")!
+    static let fdcGreyMedium = Color(hex: "#9CA3AF")!
+    static let fdcGreyDark = Color(hex: "#4B5563")!
+    static let fdcGreyLine = Color(hex: "#111827")! // Very dark grey, almost black for lines
+    
     func toHex() -> String? {
         guard let components = UIColor(self).cgColor.components, components.count >= 3 else {
             return nil
@@ -100,3 +108,5 @@ extension Date {
 struct IdentifiableString: Identifiable {
     let id: String
 }
+
+

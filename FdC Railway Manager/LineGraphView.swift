@@ -15,6 +15,8 @@ struct LineGraphView: View {
     @State private var timeScale: CGFloat = 60.0 // Pixels per hour
     @State private var pixelsPerKm: CGFloat = 5.0 // Vertical Scale (Zoom) - Default reduced for better overview
     
+    @State private var lastScale: CGFloat = 1.0 // For magnification gesture
+    
     // Selection Wrapper (Identifiable for Sheet) -> Now Binding from Parent
     @Binding var selectedStation: LineScheduleView.StationSelection?
     
@@ -43,8 +45,9 @@ struct LineGraphView: View {
                                         let graphWidth = 24 * timeScale
                                         
                                         Rectangle()
-                                            .fill(LinearGradient(colors: [Color(white: 0.05), Color(white: 0.1)], startPoint: .top, endPoint: .bottom))
+                                            .fill(Color(white: 0.95))
                                             .frame(width: graphWidth, height: graphHeight)
+                                            .border(appState.theme.dark, lineWidth: 1) // Dark border for the "window"
                                         
                                         drawGrid(width: graphWidth, height: graphHeight)
                                         
@@ -83,12 +86,24 @@ struct LineGraphView: View {
                                         }
                                     }
                                 }
+                                .gesture(
+                                    MagnificationGesture()
+                                        .onChanged { value in
+                                            let delta = value / lastScale
+                                            timeScale = min(max(20, timeScale * delta), 300)
+                                            lastScale = value
+                                        }
+                                        .onEnded { _ in
+                                            lastScale = 1.0
+                                        }
+                                )
                             }
                         }
                     }
                 }
         }
-        .background(Color(white: 0.05)) // Deep background for the whole view
+        }
+        .background(appState.theme.background) // Use app background color (light grigetto)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 HStack {
@@ -131,8 +146,8 @@ struct LineGraphView: View {
                     $0.move(to: CGPoint(x: x, y: 0))
                     $0.addLine(to: CGPoint(x: x, y: size.height))
                 }
-                context.stroke(path, with: .color(.gray.opacity(0.3)), lineWidth: 1)
-                context.draw(Text(hour == 24 ? "0:00" : "\(hour):00").font(.caption), at: CGPoint(x: x + 5, y: 5))
+                context.stroke(path, with: .color(.gray.opacity(0.15)), lineWidth: 1)
+                context.draw(Text(hour == 24 ? "0:00" : "\(hour):00").font(.caption).foregroundColor(.secondary), at: CGPoint(x: x + 5, y: 5))
             }
             
             // Draw Station Grid (Horizontal Lines)

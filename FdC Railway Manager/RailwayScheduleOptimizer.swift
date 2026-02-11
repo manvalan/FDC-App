@@ -554,7 +554,7 @@ final class RailwayScheduleOptimizer {
             } else {
                 let prevId = train.stops[j-1].stationId
                 let pathKey = "\(prevId)--\(stop.stationId)"
-                let pathEdges = pathCache[pathKey] ?? NetworkModel.findPathEdges(from: prevId, to: stop.stationId, edges: edges)
+                let pathEdges = pathCache[pathKey] ?? NetworkModel.findPathEdges(from: prevId, to: stop.stationId, nodes: nodes, edges: edges)
                 
                 if let actualPath = pathEdges {
                     pathCache[pathKey] = actualPath

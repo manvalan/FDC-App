@@ -55,6 +55,18 @@ struct ContentView: View {
                 .zIndex(150)
             }
             
+            // 2.5 WIDE OVERLAY (e.g. Schedule / Timetable)
+            if appState.isWidePanelVisible && appState.activePanel == .inspector {
+                HStack(spacing: 0) {
+                    WidePanelView()
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+                    Spacer()
+                        .frame(width: 360) // Width of the regular inspector
+                }
+                .edgesIgnoringSafeArea(.all)
+                .zIndex(160)
+            }
+            
             // Right Inspector (Contextual)
             if appState.activePanel == .inspector {
                 HStack {
@@ -75,30 +87,38 @@ struct ContentView: View {
             }
             
             
-            // 3. EDGE GESTURE DETECTORS
+            // 3. EDGE GESTURE DETECTORS (High Priority to prevent background scroll/pan)
             VStack(spacing: 0) {
                 // Top edge strip (Mode Bar)
-                Color.clear
-                    .frame(height: 30)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 10)
-                            .onEnded { value in
-                                if value.translation.height > 20 {
-                                    appState.showPanel(.modeBar)
-                                }
+                VStack(spacing: 0) {
+                    Capsule()
+                        .fill(Color.fdcGreyMedium.opacity(0.3))
+                        .frame(width: 40, height: 4)
+                        .padding(.top, 8)
+                    
+                    Color.clear
+                        .frame(height: 50) 
+                }
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .highPriorityGesture(
+                    DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                        .onChanged { value in
+                            if value.translation.height > 20 { 
+                                appState.showPanel(.modeBar)
                             }
-                    )
+                        }
+                )
                 
                 HStack(spacing: 0) {
                     // Left edge strip (Side Menu)
                     Color.clear
-                        .frame(width: 30)
+                        .frame(width: 40)
                         .contentShape(Rectangle())
-                        .gesture(
-                            DragGesture(minimumDistance: 10)
+                        .highPriorityGesture(
+                            DragGesture(minimumDistance: 15)
                                 .onEnded { value in
-                                    if value.translation.width > 20 {
+                                    if value.translation.width > 30 {
                                         appState.showPanel(.sidebar)
                                     }
                                 }
@@ -108,12 +128,12 @@ struct ContentView: View {
                     
                     // Right edge strip (Inspector)
                     Color.clear
-                        .frame(width: 40)
+                        .frame(width: 50)
                         .contentShape(Rectangle())
-                        .gesture(
-                            DragGesture(minimumDistance: 10)
+                        .highPriorityGesture(
+                            DragGesture(minimumDistance: 15)
                                 .onEnded { value in
-                                    if value.translation.width < -20 {
+                                    if value.translation.width < -30 {
                                         appState.showPanel(.inspector)
                                     }
                                 }
