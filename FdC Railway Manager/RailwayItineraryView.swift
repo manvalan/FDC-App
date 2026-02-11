@@ -73,6 +73,8 @@ struct RailwayItineraryView: View {
         let onTimeTap: () -> Void
 
         var body: some View {
+            let isLast = index == train.stops.count - 1
+            
             HStack(alignment: .center, spacing: 12) {
                 // STATION NAME (Left)
                 if let node = network.nodes.first(where: { $0.id == stop.stationId }) {
