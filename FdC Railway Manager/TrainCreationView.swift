@@ -163,7 +163,7 @@ struct TrainCreationView: View {
         let now = Date()
         let calendar = Calendar.current
         let nextHour = calendar.date(byAdding: .hour, value: 1, to: now)!
-        let startOfNextHour = calendar.date(bySettingMinute: 0, second: 0, of: nextHour)!
+        let startOfNextHour = calendar.date(from: calendar.dateComponents([.year, .month, .day, .hour], from: nextHour))!
         departureTime = startOfNextHour
     }
     
