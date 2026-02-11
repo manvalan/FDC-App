@@ -61,6 +61,7 @@ struct RailwayItineraryView: View {
     // MARK: - Subviews
     
     struct ItineraryStepView: View {
+        @EnvironmentObject var appState: AppState // Added for theme access
         let index: Int
         let stop: RelationStop
         @Binding var train: Train
@@ -226,6 +227,7 @@ struct RailwayItineraryView: View {
     }
 
     struct TrackBadgeView: View {
+        @EnvironmentObject var appState: AppState // Added for theme access
         let stop: RelationStop
         let hasConflict: Bool
         let isReadOnly: Bool
