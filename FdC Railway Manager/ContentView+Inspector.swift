@@ -59,7 +59,9 @@ extension ContentView {
                                 network.removeEdge(from: network.edges[index].from, to: network.edges[index].to)
                                 appState.selectedEdgeId = nil
                             }
-                        }
+                        }, onBack: {
+                            appState.selectedEdgeId = nil
+                        })
                         .id("edge-\(edgeId)")
                     } else if !appState.selectedTrainIds.isEmpty {
                         if appState.selectedTrainIds.count == 1, let trainId = appState.selectedTrainIds.first, let train = trainManager.trains.first(where: { $0.id == trainId }) {
