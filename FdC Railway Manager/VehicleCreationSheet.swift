@@ -153,6 +153,7 @@ struct VehicleCreationSheet: View {
         .frame(maxWidth: .infinity)
         .background(Color.gray.opacity(0.1))
         .cornerRadius(12)
+    }
     
     private var proposedName: String {
         // Extract base code (e.g. ETR 104) from template name
