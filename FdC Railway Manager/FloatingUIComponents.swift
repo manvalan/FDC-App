@@ -318,10 +318,15 @@ struct ContextualInspector: View {
                     // Inline Editor
                     TrackEditView(
                         edge: Binding(
-                            get: { edge },
+                            get: { 
+                                // Return the LIVE version from the array, not the stale captured `edge`
+                                appState.railroad.network.edges.first(where: { $0.id == edge.id }) ?? edge 
+                            },
                             set: { newEdge in
                                 if let idx = appState.railroad.network.edges.firstIndex(where: { $0.id == edge.id }) {
                                     appState.railroad.network.edges[idx] = newEdge
+                                    // Verify if we need to force update if network changes are not observed automatically
+                                    // appState.objectWillChange.send() // Might be needed if deep nested struct
                                 }
                             }
                         ),
