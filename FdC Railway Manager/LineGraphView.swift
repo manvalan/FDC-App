@@ -105,8 +105,34 @@ struct LineGraphView: View {
                     MagnificationGesture()
                         .onChanged { value in
                             let delta = value / lastScale
-                            timeScale = min(max(20, timeScale * delta), 300)
-                            pixelsPerKm = min(max(1.0, pixelsPerKm * delta), 50.0) // Enabled vertical zoom
+                            
+                            // Calculate provisional new values
+                            let provTimeScale = timeScale * delta
+                            let provPixelsPerKm = pixelsPerKm * delta
+                            
+                            // Determine effective realizable delta for each dimension given limits
+                            // timeScale: 20...300
+                            let clampedTimeScale = min(max(20, provTimeScale), 300)
+                            let realizedDeltaTime = clampedTimeScale / timeScale
+                            
+                            // pixelsPerKm: 1.0...50.0
+                            let clampedPixelsPerKm = min(max(1.0, provPixelsPerKm), 50.0)
+                            let realizedDeltaPixels = clampedPixelsPerKm / pixelsPerKm
+                            
+                            // Use the most restrictive delta to maintain aspect ratio
+                            let finalDelta: CGFloat
+                            if delta > 1 {
+                                // Growing: limited by the smaller realization (one that hits max first)
+                                finalDelta = min(realizedDeltaTime, realizedDeltaPixels)
+                            } else {
+                                // Shrinking: limited by the larger realization (one that hits min first, closest to 1)
+                                finalDelta = max(realizedDeltaTime, realizedDeltaPixels)
+                            }
+                            
+                            // Apply the synchronized delta
+                            timeScale = timeScale * finalDelta
+                            pixelsPerKm = pixelsPerKm * finalDelta
+                            
                             lastScale = value
                         }
                         .onEnded { _ in lastScale = 1.0 }
@@ -255,7 +281,7 @@ struct TrainLayer: View {
     let orderedStations: [Node]
     let stationDistances: [Double]
     let manager: TrainManager
-    let appState: AppState
+    @ObservedObject var appState: AppState
     
     var body: some View {
         Canvas { context, size in
@@ -356,7 +382,7 @@ struct ConflictLayer: View {
     let pixelsPerKm: CGFloat
     let orderedStations: [Node]
     let stationDistances: [Double]
-    let manager: TrainManager
+    @ObservedObject var manager: TrainManager
     
     var body: some View {
         Canvas { context, size in
