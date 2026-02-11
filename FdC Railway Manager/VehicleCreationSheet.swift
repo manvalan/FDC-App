@@ -7,9 +7,9 @@ struct VehicleCreationSheet: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var wikiImageService = WikiImageService()
     
-    @State private var selectedTemplateId: String = VehicleTemplate.all[0].id
+    @AppStorage("lastSelectedVehicleTemplateId") private var selectedTemplateId: String = VehicleTemplate.all[0].id
     @State private var customName: String = ""
-    @State private var useManualName: Bool = false
+    @AppStorage("useManualVehicleName") private var useManualName: Bool = false
     
     // Auto-numbering
     @State private var nextNumber: Int = 1

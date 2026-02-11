@@ -51,7 +51,7 @@ struct TrainDetailView: View {
                 vehicleAssignmentSection(train: train)
                 
                 // 2. TIMETABLE & ITINERARY
-                timetableSection(train: train)
+                timetableSection(trainBinding: train)
             }
             .padding()
             .background(Color(UIColor.systemGray6).opacity(0.95))
@@ -260,15 +260,15 @@ struct TrainDetailView: View {
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(train.wrappedValue.vehicleId == nil ? Color.red.opacity(0.5) : (appState.isInspectorEditingMode ? Color.yellow.opacity(0.5) : Color.white.opacity(0.1)), lineWidth: 1))
     }
     
-    private func timetableSection(train: Binding<Train>) -> some View {
+    private func timetableSection(trainBinding: Binding<Train>) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "clock.fill")
                     .foregroundColor(.orange)
-                Text("Servizio Assegnato").font(.headline) // Renamed from timetable_itinerary
+                Text("Servizio Assegnato").font(.headline)
             }
             
-            if let lineId = train.wrappedValue.lineId,
+            if let lineId = trainBinding.wrappedValue.lineId,
                let line = manager.lines.first(where: { $0.id == lineId }) {
                 
                 HStack {
@@ -283,10 +283,10 @@ struct TrainDetailView: View {
                     // Move Priority here since technical column is gone
                     HStack(spacing: 4) {
                         Text("Priorità:").font(.caption).foregroundColor(.secondary)
-                        Stepper(value: train.priority, in: 1...10) {
-                            Text("\(train.wrappedValue.priority)")
+                        Stepper(value: trainBinding.priority, in: 1...10) {
+                            Text("\(trainBinding.wrappedValue.priority)")
                                 .font(.caption.bold())
-                                .foregroundColor(priorityColor(train.wrappedValue.priority))
+                                .foregroundColor(priorityColor(trainBinding.wrappedValue.priority))
                         }
                         .fixedSize()
                         .labelsHidden()
@@ -296,7 +296,7 @@ struct TrainDetailView: View {
                 .padding(.horizontal, 4)
                 
                 RailwayItineraryView(
-                    train: train,
+                    train: trainBinding,
                     network: appState.railroad.network,
                     lineColor: Color(hex: line.color ?? ""),
                     isReadOnly: !appState.isInspectorEditingMode
