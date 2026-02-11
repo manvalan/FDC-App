@@ -1,271 +1,358 @@
 import SwiftUI
 
 struct TrainCreationView: View {
-    @EnvironmentObject var network: RailwayNetwork
-    @EnvironmentObject var manager: TrainManager
-    @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var linesManager: LinesManager
+    @EnvironmentObject var appState: AppState
     
-    // If we are creating a train "for a line", we prefill information
-    var line: RailwayLine? = nil
+    let line: RailwayLine
     
-    @State private var trainNumber: Int = 0
-    @State private var trainName: String = ""
-    @State private var trainType: TrainCategory = .regional
-    @State private var maxSpeed: Int = 140
+    // Configurazione
+    enum CreationMode: String, CaseIterable {
+        case single = "Corsa Singola"
+        case series = "Batteria (Periodica)"
+    }
+    
+    @State private var mode: CreationMode = .single
+    @State private var includeReturn: Bool = false
+    
+    // Percorso
+    @State private var originStationId: String = ""
+    @State private var destinationStationId: String = ""
+    
+    // Orari
     @State private var departureTime: Date = Date()
+    @State private var returnTurnaroundMinutes: Int = 20
     
-    // Path picking
-    @State private var startStationId: String = ""
-    @State private var viaStationIds: [String] = []
-    @State private var endStationId: String = ""
-    @State private var stationSequence: [String] = []
-    @State private var manualAddition: Bool = false
+    // Batteria
+    @State private var frequencyMinutes: Int = 60
+    @State private var repeatCount: Int = 5
     
-    @State private var activePicker: PickerType?
-    @State private var manualStationId: String = ""
-    @State private var vehicleId: UUID? = nil
-
+    // Materiale
+    @AppStorage("lastSelectedVehicleTemplateId") private var selectedVehicleTemplateId: String = ""
+    
+    // Numerazione
+    @State private var startNumber: Int = 1
+    
     var body: some View {
         NavigationStack {
             Form {
-                detailsSection
-                lineOrPathSection
-                stopsSection
+                Section("Modalità") {
+                    Picker("Tipo", selection: $mode) {
+                        ForEach(CreationMode.allCases, id: \.self) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    Toggle("Includi Ritorno (Simmetrico)", isOn: $includeReturn)
+                }
+                
+                Section("Percorso") {
+                    Picker("Partenza", selection: $originStationId) {
+                        ForEach(line.stops, id: \.stationId) { stop in
+                            Text(stationName(for: stop.stationId)).tag(stop.stationId)
+                        }
+                    }
+                    
+                    Picker("Arrivo", selection: $destinationStationId) {
+                        ForEach(line.stops, id: \.stationId) { stop in
+                            Text(stationName(for: stop.stationId)).tag(stop.stationId)
+                        }
+                    }
+                }
+                
+                Section("Orari e Materiale") {
+                    DatePicker("Orario Partenza", selection: $departureTime, displayedComponents: .hourAndMinute)
+                    
+                    if includeReturn {
+                        Stepper("Sosta al capolinea: \(returnTurnaroundMinutes) min", value: $returnTurnaroundMinutes, in: 5...120, step: 5)
+                        
+                        HStack {
+                            Text("Partenza Ritorno (stimata)")
+                            Spacer()
+                            Text(estimatedReturnDeparture.timeFormat)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    if mode == .series {
+                        Stepper("Frequenza: \(frequencyMinutes) min", value: $frequencyMinutes, in: 15...240, step: 15)
+                        Stepper("Numero Corse: \(repeatCount)", value: $repeatCount, in: 2...24)
+                    }
+                    
+                    // Vehicle Picker
+                    Picker("Materiale Rotabile", selection: $selectedVehicleTemplateId) {
+                        Text("Seleziona template...").tag("")
+                        ForEach(VehicleTemplate.all) { template in
+                            Text(template.name).tag(template.id)
+                        }
+                    }
+                }
+                
+                Section("Numerazione") {
+                    HStack {
+                        Text("Numero Partenza")
+                        Spacer()
+                        TextField("Num", value: $startNumber, format: .number)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
+                    
+                    // Preview
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Anteprima:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        ForEach(previewTrains.prefix(4), id: \.self) { preview in
+                            Text(preview)
+                                .font(.system(.caption, design: .monospaced))
+                        }
+                        if previewTrains.count > 4 {
+                            Text("... e altri \(previewTrains.count - 4)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                
+                Section {
+                    Button(action: createTrains) {
+                        HStack {
+                            Spacer()
+                            Text("Crea \(previewTrains.count) Corse")
+                                .bold()
+                            Spacer()
+                        }
+                    }
+                    .foregroundColor(.white)
+                    .listRowBackground(appState.theme.accent)
+                }
             }
-            .navigationTitle("new_trip".localized)
+            .navigationTitle("Nuova Corsa")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("cancel".localized) { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("create".localized) {
-                        saveTrain()
-                    }
-                    .disabled(stationSequence.count < 2)
+                    Button("Annulla") { dismiss() }
                 }
             }
-            .onAppear(perform: prefillFromLine)
-            .onChange(of: startStationId) { old, new in
-                if !new.isEmpty && !manualAddition {
-                    stationSequence = [new]
-                }
-            }
-            .onChange(of: manualStationId) { old, new in
-                if !new.isEmpty {
-                    stationSequence.append(new)
-                    manualStationId = "" // Clear for next one
-                }
-            }
-            .sheet(item: $activePicker) { item in
-                pickerSheet(for: item)
+            .onAppear {
+                setupDefaults()
             }
         }
     }
     
-    private var detailsSection: some View {
-        Section(header: Text("train_details".localized)) {
-            HStack {
-                Text("number".localized)
-                TextField("1234", value: $trainNumber, format: .number)
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.trailing)
-            }
-            TextField("name".localized, text: $trainName)
-            
-            Picker("train_type_picker".localized, selection: $trainType) {
-                ForEach(TrainCategory.allCases) { cat in
-                    Text(cat.localizedName).tag(cat)
-                }
-            }
-            .onChange(of: trainType) { old, new in
-                updateMaxSpeed(for: new)
-            }
-            
-            HStack {
-                Text("max_speed_label".localized)
-                TextField("120", value: $maxSpeed, format: .number)
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.trailing)
-                Text("km/h")
-            }
-            
-            DatePicker("departure_picker".localized, selection: $departureTime, displayedComponents: .hourAndMinute)
-            
-            Section(header: Text("materiale_rotabile".localized)) {
-                Picker("Mezzo", selection: $vehicleId) {
-                    Text("-").tag(UUID?.none)
-                    ForEach(manager.vehicles) { vehicle in
-                        Text(vehicle.name).tag(UUID?.some(vehicle.id))
-                    }
-                }
-            }
-        }
-    }
+    // MARK: - Logic
     
-    @ViewBuilder
-    private var lineOrPathSection: some View {
-        if let activeLine = line {
-            Section(header: Text("selected_line".localized)) {
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text(activeLine.name).font(.headline)
-                        Text("\(activeLine.originId) → \(activeLine.destinationId)")
-                            .font(.caption).foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "line.horizontal.3.circle.fill")
-                        .foregroundColor(Color(hex: activeLine.color ?? "#000000") ?? .blue)
-                }
-            }
-        } else {
-            PathPickerComponent(
-                startStationId: $startStationId,
-                viaStationIds: $viaStationIds,
-                endStationId: $endStationId,
-                stationSequence: $stationSequence,
-                manualAddition: $manualAddition,
-                activePicker: $activePicker,
-                manualStationId: $manualStationId,
-                lineContext: line
-            )
-        }
-    }
-    
-    private var stopsSection: some View {
-        Section(header: Text("stop_sequence".localized)) {
-            if stationSequence.isEmpty {
-                Text("select_terminals_desc".localized).font(.caption).foregroundColor(.secondary)
-            }
-            
-            ForEach(stationSequence, id: \.self) { id in
-                stopRow(for: id)
-            }
-            .onDelete { stationSequence.remove(atOffsets: $0) }
-            .onMove { stationSequence.move(fromOffsets: $0, toOffset: $1) }
-            
-            Button(action: { activePicker = .manual }) {
-                Label("add_stop_manual".localized, systemImage: "plus.circle")
-                    .foregroundColor(.green)
-            }
-        }
-    }
-    
-    private func stopRow(for id: String) -> some View {
-        let node = network.nodes.first(where: { $0.id == id })
-        return HStack {
-            Image(systemName: "smallcircle.filled.circle")
-                .foregroundColor(.blue)
-            Text(node?.name ?? id)
-            Spacer()
-            if let node = node {
-                let dwell = (node.type == .interchange) ? 5 : 3
-                Text(String(format: "dwell_time_min".localized, dwell)).font(.caption).foregroundColor(.secondary)
-            }
-        }
-    }
-    
-    private func pickerSheet(for item: PickerType) -> some View {
-        Group {
-            switch item {
-            case .start:
-                StationPickerView(selectedStationId: $startStationId, whitelistIds: line?.stations)
-            case .via(let idx):
-                StationPickerView(selectedStationId: $viaStationIds[idx], whitelistIds: line?.stations)
-            case .end:
-                StationPickerView(selectedStationId: $endStationId, whitelistIds: line?.stations)
-            case .manual:
-                StationPickerView(selectedStationId: $manualStationId, linkedToStationId: stationSequence.last, whitelistIds: line?.stations)
-            }
-        }
-        .environmentObject(network)
-        .environmentObject(manager)
-    }
-    
-    private func updateMaxSpeed(for category: TrainCategory) {
-        switch category {
-        case .regional:
-            maxSpeed = Int(appState.regionalMaxSpeed)
-        case .direct:
-            maxSpeed = Int(appState.intercityMaxSpeed)
-        case .highSpeed:
-            maxSpeed = Int(appState.highSpeedMaxSpeed)
-        case .freight:
-            maxSpeed = 100
-        case .support:
-            maxSpeed = 80
-        }
-    }
-    
-    private func prefillFromLine() {
-        if let line = line {
-            startStationId = line.originId
-            endStationId = line.destinationId
-            stationSequence = line.stops.map { $0.stationId }
-            
-            // Smart Numbering and Prefixes
-            let prefix = line.numberPrefix ?? 0
-            
-            // Use the line's code prefix (e.g., AV, RE, R) or infer it
-            let code = line.codePrefix ?? ""
-            
-            // Auto-detect train category from the code prefix
-            if let codePrefix = line.codePrefix {
-                let upperCode = codePrefix.uppercased()
-                if upperCode.contains("AV") || upperCode.contains("FR") {
-                    trainType = .highSpeed
-                } else if upperCode.contains("IC") || upperCode.contains("D") {
-                    trainType = .direct
-                } else if upperCode.contains("M") {
-                    trainType = .freight
-                } else if upperCode.contains("R") {
-                    trainType = .regional
-                }
-                // Refresh physics based on new category
-                updateMaxSpeed(for: trainType)
-            }
-            
-            let lineTrains = manager.trains.filter { $0.lineId == line.id }
-            let existingNumbers = lineTrains.compactMap { $0.number }
-            
-            // Determine base number to increment
-            var nextBase = 1
-            if !existingNumbers.isEmpty {
-                let maxNum = existingNumbers.max() ?? 0
-                let currentBase = (prefix > 0) ? (maxNum % 1000) : maxNum
-                nextBase = currentBase + 1
-            }
-            
-            let finalNum = (prefix * 1000) + nextBase
-            trainNumber = finalNum
-            
-            // Pre-fill Name following user preference: "Prefix Number" (e.g., AV 9500)
-            if code.isEmpty {
-                trainName = "\(finalNum)"
-            } else {
-                trainName = "\(code) \(finalNum)"
-            }
-        }
-    }
-    
-    private func saveTrain() {
-        let physics = appState.getPhysics(for: trainType)
+    private func setupDefaults() {
+        // Set Origin/Dest to Line Start/End
+        if let first = line.stops.first { originStationId = first.stationId }
+        if let last = line.stops.last { destinationStationId = last.stationId }
         
-        let newTrain = manager.instantiateTrain(
-            number: trainNumber,
-            name: trainName,
-            category: trainType,
-            departureTime: departureTime,
-            line: line,
-            stationSequence: stationSequence,
-            acceleration: physics.acceleration,
-            deceleration: physics.deceleration,
-            vehicleId: vehicleId
+        // Suggest Number
+        // Formula: Prefix * 100 + NextAvailable
+        let prefix = line.numberPrefix ?? 0
+        let base = prefix > 0 ? prefix * 100 : 100
+        
+        // Find highest existing number in this range
+        // This is a heuristic
+        startNumber = base + 1 
+        
+        // Ajust to current time
+        let now = Date()
+        let calendar = Calendar.current
+        let nextHour = calendar.date(byAdding: .hour, value: 1, to: now)!
+        let startOfNextHour = calendar.date(bySettingMinute: 0, second: 0, of: nextHour)!
+        departureTime = startOfNextHour
+    }
+    
+    private var estimatedReturnDeparture: Date {
+        let duration = nominalDuration(from: originStationId, to: destinationStationId)
+        let arrival = departureTime.addingTimeInterval(duration)
+        return arrival.addingTimeInterval(TimeInterval(returnTurnaroundMinutes * 60))
+    }
+    
+    private func nominalDuration(from startId: String, to endId: String) -> TimeInterval {
+        // Calculate sum of minDwell + travel time between stops
+        // Approximation: Delta of 'order' on line? No, need distances/speeds.
+        // For now, let's sum minDwellTime + 5 mins travel per stop as heuristic
+        // Or better: use `ScheduleStop` minDwellTime.
+        // Real duration requires physical calculation.
+        // We will fallback to a rough estimate: 5 min per stop + dwell.
+        
+        guard let startIndex = line.stops.firstIndex(where: { $0.stationId == startId }),
+              let endIndex = line.stops.firstIndex(where: { $0.stationId == endId }) else { return 3600 }
+        
+        let range = startIndex < endIndex ? line.stops[startIndex...endIndex] : line.stops[endIndex...startIndex]
+        let stopCount = range.count
+        return TimeInterval(stopCount * 8 * 60) // 8 mins per stop avg
+    }
+    
+    private var previewTrains: [String] {
+        var list: [String] = []
+        let code = line.codePrefix ?? "T"
+        
+        var currentDeparture = departureTime
+        var currentNum = startNumber
+        
+        for i in 0..<max(1, (mode == .series ? repeatCount : 1)) {
+            // Outbound
+            let numStr = "\(code) \(currentNum)"
+            let timeStr = currentDeparture.timeFormat
+            list.append("\(numStr) • \(timeStr) • \(stationName(for: originStationId)) → \(stationName(for: destinationStationId))")
+            
+            if includeReturn {
+                // Return
+                let retNum = currentNum + 1
+                let duration = nominalDuration(from: originStationId, to: destinationStationId)
+                let retDep = currentDeparture.addingTimeInterval(duration + TimeInterval(returnTurnaroundMinutes * 60))
+                
+                let retNumStr = "\(code) \(retNum)"
+                let retTimeStr = retDep.timeFormat
+                list.append("\(retNumStr) • \(retTimeStr) • \(stationName(for: destinationStationId)) → \(stationName(for: originStationId))")
+                
+                currentNum += 2
+            } else {
+                currentNum += 1
+            }
+            
+            // Increment frequency
+            currentDeparture = currentDeparture.addingTimeInterval(TimeInterval(frequencyMinutes * 60))
+        }
+        
+        return list
+    }
+    
+    private func createTrains() {
+        let iterations = mode == .series ? repeatCount : 1
+        var currentDelay: TimeInterval = 0
+        var currentNum = startNumber
+        
+        var createdTrains: [Train] = []
+        
+        for _ in 0..<iterations {
+            let depTime = departureTime.addingTimeInterval(currentDelay)
+            
+            // 1. Outbound
+            let train1 = buildTrain(
+                number: currentNum,
+                origin: originStationId,
+                dest: destinationStationId,
+                departure: depTime
+            )
+            linesManager.trains.append(train1)
+            createdTrains.append(train1)
+            
+            let outboundDuration = nominalDuration(from: originStationId, to: destinationStationId)
+            
+            if includeReturn {
+                // 2. Return
+                let retNum = currentNum + 1
+                let retDep = depTime.addingTimeInterval(outboundDuration + TimeInterval(returnTurnaroundMinutes * 60))
+                
+                let train2 = buildTrain(
+                    number: retNum,
+                    origin: destinationStationId,
+                    dest: originStationId,
+                    departure: retDep
+                )
+                linesManager.trains.append(train2)
+                createdTrains.append(train2)
+                
+                currentNum += 2
+            } else {
+                currentNum += 1
+            }
+            
+            currentDelay += TimeInterval(frequencyMinutes * 60)
+        }
+        
+        // Feedback
+        dismiss()
+        
+        // Trigger AI Suggestion
+        // We can use a delay or a specific modal
+        /*
+         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+             // Show alert or nudge for AI
+         }
+         */
+    }
+    
+    private func buildTrain(number: Int, origin: String, dest: String, departure: Date) -> Train {
+        let code = line.codePrefix ?? "T"
+        let name = "\(code) \(number)"
+        
+        // Filter stops
+        let stops = extractStops(from: origin, to: dest)
+        
+        // Find vehicle template to get specs
+        let template = VehicleTemplate.all.first(where: { $0.id == selectedVehicleTemplateId }) ?? VehicleTemplate.all[0]
+        
+        var t = Train(
+            id: UUID(),
+            number: number,
+            name: name,
+            type: "Regionale", // Todo: derive from Line or user
+            lineId: line.id,
+            departureTime: departure,
+            stops: stops,
+            vehicleId: nil, // We don't create instance yet, or we create a phantom vehicle? 
+            // Better: we assign the "vehicle model" via technical params, 
+            // OR create a new Vehicle instance if the user selected a template.
+            // The prompt says "Quando crei un Materiale Rotabile...", but here we select.
+            // Let's create a new Vehicle instance for this train?
+            // Usually we assign distinct physical vehicles.
+            // For now, let's set technical data and leave vehicleId nil (or auto-create).
+            // Actually, we MUST set technical data for simulation.
+            maxSpeed: template.maxSpeed,
+            acceleration: template.acceleration,
+            deceleration: template.deceleration,
+            priority: 5 // Normal priority. New trains "wait" means they are subject to scheduler.
         )
         
-        manager.trains.append(newTrain)
-        dismiss()
+        // Auto-create a physical vehicle for this train so simulation works immediately
+        let v = Vehicle(
+            name: "\(template.model) #\(number)", // Temp name
+            model: template.model,
+            length: template.length,
+            maxSpeed: template.maxSpeed,
+            imageName: template.imageName
+        )
+        // Check if we should add to fleet?
+        // Maybe better to just keep it virtual or add to linesManager.vehicles
+        linesManager.vehicles.append(v)
+        t.vehicleId = v.id
+        
+        return t
     }
     
-
+    private func extractStops(from start: String, to end: String) -> [RelationStop] {
+        guard let startIndex = line.stops.firstIndex(where: { $0.stationId == start }),
+              let endIndex = line.stops.firstIndex(where: { $0.stationId == end }) else {
+            return []
+        }
+        
+        var subset: [RelationStop]
+        if startIndex <= endIndex {
+            subset = Array(line.stops[startIndex...endIndex])
+        } else {
+            // Reverse direction
+            // IMPORTANT: When reversing, we must ensure 'track' assignments might flip?
+            // Usually 'RelationStop' tracks are generic or specific to station.
+            subset = Array(line.stops[endIndex...startIndex].reversed())
+        }
+        
+        // Reset IDs
+        return subset.map { s in
+            var copy = s
+            copy.id = UUID()
+            return copy
+        }
+    }
+    
+    private func stationName(for id: String) -> String {
+        appState.railroad.network.nodes.first(where: { $0.id == id })?.name ?? id
+    }
 }

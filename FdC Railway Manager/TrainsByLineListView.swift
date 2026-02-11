@@ -9,6 +9,7 @@ struct TrainsByLineListView: View {
     
     @State private var assignedCount: Int = 0
     @State private var showAssignmentAlert: Bool = false
+    @State private var lineForCreation: RailwayLine? // Wizard Trigger
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -30,12 +31,16 @@ struct TrainsByLineListView: View {
                 
                 ForEach(allLinesGrouped, id: \.line.id) { item in
                     LineTrainsSection(line: item.line, trains: item.trains, onCreateTrain: {
-                        createNewTrain(for: item.line)
+                        // Open Wizard
+                        lineForCreation = item.line
                     })
                 }
             }
             .alert("Assegnati \(assignedCount) treni alle linee.", isPresented: $showAssignmentAlert) {
                 Button("OK", role: .cancel) { }
+            }
+            .sheet(item: $lineForCreation) { line in
+                TrainCreationView(line: line)
             }
         }
     }
@@ -67,29 +72,6 @@ struct TrainsByLineListView: View {
             return (line: line, trains: trainsForLine)
         }
         .sorted { $0.line.name < $1.line.name }
-    }
-    
-    private func createNewTrain(for line: RailwayLine) {
-        var newTrain = Train(
-            id: UUID(),
-            name: "\(line.codePrefix ?? "NUM") \(Int.random(in: 1000...9999))",
-            type: "Regionale",
-            lineId: line.id
-        )
-        // Pre-populate stops from line definition
-        newTrain.stops = line.stops.map { stop in
-            var newStop = stop
-            newStop.id = UUID()
-            return newStop
-        }
-        
-        linesManager.trains.append(newTrain)
-        
-        // Open Inspector immediately
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            appState.selectTrain(newTrain.id)
-            appState.isInspectorEditingMode = true // Auto enter edit mode
-        }
     }
     
     private func autoAssignTrains() {
