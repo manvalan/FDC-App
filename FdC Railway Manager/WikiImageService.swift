@@ -8,7 +8,7 @@ class WikiImageService: ObservableObject {
     @Published var currentImageURL: URL?
     @Published var isLoading = false
     
-    private var cache: [String: URL] = []
+    private var cache: [String: URL] = [:]
     
     func searchImage(for query: String) {
         // Clean up query for search (e.g. "ETR 1000")
