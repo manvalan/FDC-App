@@ -1141,6 +1141,26 @@ struct SchematicRailwayView: View {
     private func handleCanvasTap(at location: CGPoint, in size: CGSize) {
         let bounds = self.mapBounds
         
+        // 0. Check Trains (Moving objects on top)
+        let now = appState.liveSim.currentSimTime
+        // Filter out finished trains if needed, but schedules usually contains active ones
+        for schedule in appState.simulator.schedules {
+            if let pos = MapGeometryEngine.currentSchematicTrainPos(for: schedule, in: size, now: now, bounds: bounds, network: network) {
+                // Hit test radius: 20 points
+                if hypot(pos.x - location.x, pos.y - location.y) < 20 {
+                     // Found train
+                     withAnimation {
+                         appState.selectedTrainIds = [schedule.trainId]
+                         appState.selectedNodeId = nil
+                         appState.selectedLineId = nil
+                         appState.selectedEdgeId = nil
+                         appState.showPanel(.inspector)
+                     }
+                     return
+                }
+            }
+        }
+        
         // 1. Check Stations (using MapGeometry)
         for node in network.nodes {
             let p = MapGeometryEngine.finalPosition(for: node, in: size, bounds: bounds, network: network)
