@@ -5,6 +5,7 @@ struct TrainDetailView: View {
     let train: Train
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var manager: LinesManager
+    @StateObject private var wikiImageService = WikiImageService()
     private var network: NetworkModel { appState.railroad.network }
     
     var trainConflicts: [ScheduleConflict] {
@@ -79,14 +80,51 @@ struct TrainDetailView: View {
 
                 // 1. IDENTIFICATION & TYPE
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 16) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.blue.opacity(0.1))
-                                .frame(width: 60, height: 60)
-                            Image(systemName: "train.side.front.car")
-                                .font(.title)
-                                .foregroundColor(.blue)
+                    HStack(alignment: .top, spacing: 16) {
+                        // Vehicle Image Logic
+                        Group {
+                            if let vId = train.wrappedValue.vehicleId,
+                               let vehicle = manager.vehicles.first(where: { $0.id == vId }) {
+                                
+                                if let imageName = vehicle.imageName, let _ = UIImage(named: imageName) {
+                                    // Local Image
+                                    Image(imageName)
+                                        .resizable()
+                                        .scaledToFill()
+                                } else if let url = wikiImageService.currentImageURL {
+                                    // Remote Image
+                                    AsyncImage(url: url) { phase in
+                                        if let image = phase.image {
+                                            image.resizable().scaledToFill()
+                                        } else {
+                                            ProgressView()
+                                        }
+                                    }
+                                } else {
+                                    // Fallback Icon
+                                    Image(systemName: "train.side.front.car")
+                                        .font(.title)
+                                        .foregroundColor(.blue)
+                                }
+                            } else {
+                                Image(systemName: "train.side.front.car")
+                                    .font(.title)
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        .frame(width: 80, height: 80)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(12)
+                        .clipped()
+                        .onAppear {
+                            // Trigger search if needed
+                            if let vId = train.wrappedValue.vehicleId,
+                               let vehicle = manager.vehicles.first(where: { $0.id == vId }) {
+                                if vehicle.imageName == nil || UIImage(named: vehicle.imageName ?? "") == nil {
+                                    // Search by model name if local image missing
+                                    wikiImageService.searchImage(for: vehicle.model)
+                                }
+                            }
                         }
                         
                         VStack(alignment: .leading, spacing: 4) {
@@ -190,7 +228,7 @@ struct TrainDetailView: View {
                     HStack {
                         Image(systemName: "clock.fill")
                             .foregroundColor(.orange)
-                        Text("timetable_itinerary".localized).font(.headline)
+                        Text("Servizio Assegnato").font(.headline) // Renamed from timetable_itinerary
                     }
                     
                     if let lineId = train.wrappedValue.lineId, 
