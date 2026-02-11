@@ -7,9 +7,11 @@ struct FdCTheme {
     var surface: Color = Color(hex: "#FFFFFF")!    // Card Surface
     var light: Color = Color(hex: "#E5E7EB")!      // Subtle Dividers / Unselected background
     var medium: Color = Color(hex: "#9CA3AF")!     // Secondary icons / text
+    var medium: Color = Color(hex: "#9CA3AF")!     // Secondary icons / text
     var dark: Color = Color(hex: "#4B5563")!       // Primary content / Sidebar labels
     var accent: Color = Color.blue                 // Selected items
     var line: Color = Color(hex: "#111827")!       // Graph Lines / Very dark accents
+    var backgroundSecondary: Color = Color(hex: "#E5E7EB")! // Slightly darker/lighter background for contrast
 }
 
 @MainActor
