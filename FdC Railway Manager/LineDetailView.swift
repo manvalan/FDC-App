@@ -152,12 +152,12 @@ struct LineDetailView: View {
             .padding()
             .disabled(!appState.isInspectorEditingMode)
         }
-    }
-    .onLongPressGesture(minimumDuration: 1.0) {
-        appState.isInspectorEditingMode.toggle()
-    }
-    .sheet(isPresented: $showScheduleCreator) {
-        ScheduleCreationView(line: line)
+        .onLongPressGesture(minimumDuration: 1.0) {
+            appState.isInspectorEditingMode.toggle()
+        }
+        .sheet(isPresented: $showScheduleCreator) {
+            ScheduleCreationView(line: line)
+        }
     }
      
      private func stopName(_ id: String) -> String {
