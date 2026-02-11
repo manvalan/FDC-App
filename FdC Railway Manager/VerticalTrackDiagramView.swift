@@ -385,10 +385,16 @@ struct VerticalTrackDiagramView: View {
     private func edgeSheetContent(for uuid: UUID) -> some View {
         if let idx = network.edges.firstIndex(where: { $0.id == uuid }) {
             NavigationStack {
-                TrackEditView(edge: $network.edges[idx]) {
-                    network.edges.remove(at: idx)
-                    internalSelectedEdgeID = nil
-                }
+                TrackEditView(
+                    edge: $network.edges[idx],
+                    onDelete: {
+                        network.edges.remove(at: idx)
+                        internalSelectedEdgeID = nil
+                    },
+                    onBack: {
+                        internalSelectedEdgeID = nil
+                    }
+                )
                 .navigationBarTitleDisplayMode(.inline)
             }
         }
