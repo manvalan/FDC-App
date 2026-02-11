@@ -200,10 +200,10 @@ struct TrackEditView: View {
         
         // Also update speed limits based on global settings if available
         switch type {
-        case .single: edge.maxSpeed = appState.singleTrackMaxSpeed
-        case .double: edge.maxSpeed = appState.doubleTrackMaxSpeed
-        case .highSpeed: edge.maxSpeed = appState.highSpeedTrackMaxSpeed
-        case .regional: edge.maxSpeed = appState.regionalTrackMaxSpeed
+        case .single: edge.maxSpeed = Int(appState.singleTrackMaxSpeed)
+        case .double: edge.maxSpeed = Int(appState.doubleTrackMaxSpeed)
+        case .highSpeed: edge.maxSpeed = Int(appState.highSpeedTrackMaxSpeed)
+        case .regional: edge.maxSpeed = Int(appState.regionalTrackMaxSpeed)
         }
     }
     
