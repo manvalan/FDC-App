@@ -106,6 +106,7 @@ struct LineGraphView: View {
                         .onChanged { value in
                             let delta = value / lastScale
                             timeScale = min(max(20, timeScale * delta), 300)
+                            pixelsPerKm = min(max(1.0, pixelsPerKm * delta), 50.0) // Enabled vertical zoom
                             lastScale = value
                         }
                         .onEnded { _ in lastScale = 1.0 }
