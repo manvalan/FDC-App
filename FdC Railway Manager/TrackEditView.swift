@@ -195,6 +195,11 @@ struct TrackEditView: View {
             Text("Sei sicuro di voler rimuovere questo binario? La connessione tra le stazioni verrà interrotta.")
         }
     }
+
+    private func updateTrackType(_ type: Edge.TrackType) {
+        edge.trackType = type
+        updateCapacity(for: type)
+    }
     
     private func updateCapacity(for type: Edge.TrackType) {
         switch type {
