@@ -73,14 +73,14 @@ struct TrainsByLineListView: View {
         let newTrain = Train(
             id: UUID(),
             name: "\(line.codePrefix ?? "NUM") \(Int.random(in: 1000...9999))",
+            type: "Regionale",
             lineId: line.id
         )
         // Pre-populate stops from line definition
-        newTrain.stops = line.stops.compactMap { stop in
-            if let node = appState.railroad.network.nodes.first(where: { $0.id == stop.stationId }) {
-                return ScheduleStop(stationId: stop.stationId, stationName: node.name)
-            }
-            return nil
+        newTrain.stops = line.stops.map { stop in
+            var newStop = stop
+            newStop.id = UUID()
+            return newStop
         }
         
         linesManager.trains.append(newTrain)
