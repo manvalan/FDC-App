@@ -5,13 +5,7 @@ struct RailwayAIView: View {
     @EnvironmentObject var trainManager: LinesManager
     @EnvironmentObject var appState: AppState
     @ObservedObject var network: NetworkModel
-    @ObservedObject var backgroundGA: GeneticOptimizer
-    
-    @Binding var isOptimizingInBackground: Bool
-    @Binding var backgroundOptimizationTask: Task<Void, Never>?
-    @Binding var showOptimizationResultAlert: Bool
-    @Binding var pendingOptimizedTrains: [Train]
-    @Binding var optimizationConflictDelta: (before: Int, after: Int)
+    @ObservedObject var railroadService = RailroadService.shared
     
     @State private var aiResult: String = ""
     @State private var isLoading = false

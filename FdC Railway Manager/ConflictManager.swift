@@ -138,11 +138,12 @@ class ConflictManager: ObservableObject {
     /// Synchronous version for optimization loops (GA, Cadence, etc.)
     func calculateConflictsWithCapacities(nodes: [Node], edges: [Edge], trains: [Train], pathCache: inout [String: [Edge]]?) -> ([ScheduleConflict], [String: Int]) {
         let trackConflicts = calculateTrackConflicts(nodes: nodes, trains: trains)
-        let (scheduleConflicts, capacities) = calculateScheduleConflicts(nodes: nodes, edges: edges, trains: trains, pathCache: &pathCache)
+        let (otherConflicts, capacities) = calculateScheduleConflicts(nodes: nodes, edges: edges, trains: trains, pathCache: &pathCache)
         
-        let allConflicts = Array(Set(trackConflicts + scheduleConflicts)).sorted(by: { $0.id < $1.id })
+        let allConflicts = trackConflicts + otherConflicts
         return (allConflicts, capacities)
     }
+    
 
     // MARK: - Core Logic (Separated)
     

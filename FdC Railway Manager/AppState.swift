@@ -17,17 +17,35 @@ final class AppState: ObservableObject {
     @Published var sidebarSelection: SidebarItem? = .lines
     @Published var jumpToTrainId: UUID? = nil
     
+    // UI Panels Management (Single Source of Truth)
+    enum ActivePanel {
+        case none, sidebar, inspector, modeBar
+    }
+    @Published var activePanel: ActivePanel = .none
+    
+    // Convenience Accessors
+    var isSideMenuVisible: Bool { activePanel == .sidebar }
+    var isInspectorVisible: Bool { activePanel == .inspector }
+    var isModeBarVisible: Bool { activePanel == .modeBar }
+    
+    func showPanel(_ panel: ActivePanel) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            activePanel = panel
+        }
+    }
+    
+    func togglePanel(_ panel: ActivePanel) {
+        showPanel(activePanel == panel ? .none : panel)
+    }
+    
     // New Minimalist Navigation State
     @Published var currentMode: AppMode = .design
-    @Published var isModeBarVisible: Bool = false
-    @Published var isSideMenuVisible: Bool = false
-    @Published var isInspectorVisible: Bool = false
     
     // Selection State (Global)
-    @Published var selectedLineId: String? = nil { didSet { withAnimation { if selectedLineId != nil { isInspectorVisible = true } else if !isSomethingSelected { isInspectorVisible = false } } } }
-    @Published var selectedNodeId: String? = nil { didSet { withAnimation { if selectedNodeId != nil { isInspectorVisible = true } else if !isSomethingSelected { isInspectorVisible = false } } } }
-    @Published var selectedEdgeId: String? = nil { didSet { withAnimation { if selectedEdgeId != nil { isInspectorVisible = true } else if !isSomethingSelected { isInspectorVisible = false } } } }
-    @Published var selectedTrainIds: Set<UUID> = [] { didSet { withAnimation { if !selectedTrainIds.isEmpty { isInspectorVisible = true } else if !isSomethingSelected { isInspectorVisible = false } } } }
+    @Published var selectedLineId: String? = nil { didSet { withAnimation { if selectedLineId != nil { activePanel = .inspector } else if !isSomethingSelected { if activePanel == .inspector { activePanel = .none } } } } }
+    @Published var selectedNodeId: String? = nil { didSet { withAnimation { if selectedNodeId != nil { activePanel = .inspector } else if !isSomethingSelected { if activePanel == .inspector { activePanel = .none } } } } }
+    @Published var selectedEdgeId: String? = nil { didSet { withAnimation { if selectedEdgeId != nil { activePanel = .inspector } else if !isSomethingSelected { if activePanel == .inspector { activePanel = .none } } } } }
+    @Published var selectedTrainIds: Set<UUID> = [] { didSet { withAnimation { if !selectedTrainIds.isEmpty { activePanel = .inspector } else if !isSomethingSelected { if activePanel == .inspector { activePanel = .none } } } } }
     @Published var isInspectorEditingMode: Bool = false
     @Published var lastVehicleAssignmentLineId: String? = nil
     
@@ -62,7 +80,7 @@ final class AppState: ObservableObject {
         selectedNodeId = nil
         selectedEdgeId = nil
         selectedTrainIds = []
-        isInspectorVisible = false
+        if activePanel == .inspector { activePanel = .none }
     }
     
     var isSomethingSelected: Bool {
@@ -154,6 +172,10 @@ final class AppState: ObservableObject {
     @Published var aiEndpoint: String {
         didSet { UserDefaults.standard.set(aiEndpoint, forKey: "ai_endpoint") }
     }
+    
+    // Global UI Settings
+    @Published var showGrid: Bool = false
+    @Published var isMoveModeEnabled: Bool = false
     
     // ...
 

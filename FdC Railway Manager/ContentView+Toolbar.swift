@@ -42,16 +42,12 @@ extension ContentView {
             }
             .padding(.horizontal, 12)
             
-            if isOptimizingInBackground {
+            if railroadService.isOptimizingInBackground {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    if backgroundGA.isRunning {
-                        Text("Gen \(backgroundGA.currentGeneration) • Conf: \(backgroundGA.conflictCount)")
-                            .font(.caption).monospacedDigit()
-                    } else {
-                        Text("Ottimizzazione (Step 1-6)...").font(.caption).foregroundColor(.secondary)
-                    }
-                    Button(action: { backgroundOptimizationTask?.cancel(); isOptimizingInBackground = false }) {
+                    Text("Ottimizzazione in corso...").font(.caption).foregroundColor(.secondary)
+                    
+                    Button(action: { railroadService.cancelOptimization() }) {
                         Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
                     }
                 }

@@ -12,28 +12,12 @@ struct ContentView: View {
     var trainManager: LinesManager { lines }
     
     @StateObject var aiService = RailwayAIService.shared
+    @StateObject var railroadService = RailroadService.shared
     
     // Navigation State
     @State var highlightedConflictLocation: String? = nil
     @State var isExporting = false
     @State var showCredits = false
-    @State var inspectorVisible: Bool = false
-    
-    // Global Settings State
-    @State var showGrid: Bool = false
-    @State var isMoveModeEnabled: Bool = false
-    
-    // Infrastructure validation
-    @State var missingTracks: [(from: String, to: String, type: Edge.TrackType)] = []
-    @State var showInfrastructureAlert = false
-    
-    // Background Optimization State
-    @StateObject var backgroundGA = GeneticOptimizer()
-    @State var isOptimizingInBackground = false
-    @State var showOptimizationResultAlert = false
-    @State var pendingOptimizedTrains: [Train] = []
-    @State var optimizationConflictDelta: (before: Int, after: Int) = (0, 0)
-    @State var backgroundOptimizationTask: Task<Void, Never>? = nil
     
     @Namespace var tabNameSpace
 
@@ -45,10 +29,10 @@ struct ContentView: View {
             // 2. OVERLAYS: MODES & NAVIGATION
             // Gestures handle visibility now
             
-            // Top Mode Bar (Triggered by Swipe Down or Handle Tap)
-            if appState.isModeBarVisible {
-                Color.black.opacity(0.001) // Invisible tap region to close
-                    .onTapGesture { withAnimation { appState.isModeBarVisible = false } }
+            // Top Mode Bar
+            if appState.activePanel == .modeBar {
+                Color.black.opacity(0.001)
+                    .onTapGesture { appState.showPanel(.none) }
                     .zIndex(99)
                 
                 VStack {
@@ -61,23 +45,23 @@ struct ContentView: View {
             }
             
             // Left Side Menu
-            if appState.isSideMenuVisible {
+            if appState.activePanel == .sidebar {
                 HStack {
                     FloatingSideMenu()
                         .transition(.move(edge: .leading))
                     Spacer()
                 }
-                .background(Color.black.opacity(0.2).onTapGesture { withAnimation { appState.isSideMenuVisible = false } })
+                .background(Color.black.opacity(0.2).onTapGesture { appState.showPanel(.none) })
                 .zIndex(150)
             }
             
             // Right Inspector (Contextual)
-            if appState.isInspectorVisible {
+            if appState.activePanel == .inspector {
                 HStack {
                     Spacer()
                     ContextualInspector()
                 }
-                .zIndex(90)
+                .zIndex(170)
             }
             
             // Simulation Controls (Only in Live Mode)
@@ -91,7 +75,7 @@ struct ContentView: View {
             }
             
             
-            // 3. EDGE GESTURE DETECTORS (Invisible strips on the edges)
+            // 3. EDGE GESTURE DETECTORS
             VStack(spacing: 0) {
                 // Top edge strip (Mode Bar)
                 Color.clear
@@ -101,7 +85,7 @@ struct ContentView: View {
                         DragGesture(minimumDistance: 10)
                             .onEnded { value in
                                 if value.translation.height > 20 {
-                                    withAnimation(.spring()) { appState.isModeBarVisible = true }
+                                    appState.showPanel(.modeBar)
                                 }
                             }
                     )
@@ -115,7 +99,7 @@ struct ContentView: View {
                             DragGesture(minimumDistance: 10)
                                 .onEnded { value in
                                     if value.translation.width > 20 {
-                                        withAnimation(.spring()) { appState.isSideMenuVisible = true }
+                                        appState.showPanel(.sidebar)
                                     }
                                 }
                         )
@@ -124,13 +108,13 @@ struct ContentView: View {
                     
                     // Right edge strip (Inspector)
                     Color.clear
-                        .frame(width: 40) // Wider for easier catch
+                        .frame(width: 40)
                         .contentShape(Rectangle())
                         .gesture(
                             DragGesture(minimumDistance: 10)
                                 .onEnded { value in
                                     if value.translation.width < -20 {
-                                        withAnimation(.spring()) { appState.isInspectorVisible = true }
+                                        appState.showPanel(.inspector)
                                     }
                                 }
                         )
@@ -145,15 +129,13 @@ struct ContentView: View {
                 .keyboardShortcut("z", modifiers: .command)
                 .opacity(0)
         }
-        .alert("Ottimizzazione completata", isPresented: $showOptimizationResultAlert) {
+        .alert("Ottimizzazione completata", isPresented: $railroadService.showOptimizationResultAlert) {
             Button("Annulla", role: .cancel) { }
             Button("Applica", role: .destructive) {
-                lines.createCheckpoint()
-                lines.trains = pendingOptimizedTrains
-                lines.validateSchedules()
+                railroadService.applyOptimization(to: lines)
             }
         } message: {
-            Text("L'algoritmo ha ridotto i conflitti da \(optimizationConflictDelta.before) a \(optimizationConflictDelta.after).\nVuoi applicare \(pendingOptimizedTrains.count) orari ottimizzati?")
+            Text("L'algoritmo ha ridotto i conflitti da \(railroadService.optimizationConflictDelta.before) a \(railroadService.optimizationConflictDelta.after).\nVuoi applicare \(railroadService.pendingOptimizedTrains.count) orari ottimizzati?")
         }
     }
 }

@@ -10,8 +10,8 @@ extension ContentView {
                     selectedNode: Binding(get: { appState.selectedNode }, set: { appState.selectedNodeId = $0?.id }),
                     selectedLine: Binding(get: { appState.selectedLine }, set: { appState.selectedLineId = $0?.id }),
                     selectedEdgeId: $appState.selectedEdgeId,
-                    showGrid: $showGrid,
-                    isMoveModeEnabled: $isMoveModeEnabled,
+                    showGrid: $appState.showGrid,
+                    isMoveModeEnabled: $appState.isMoveModeEnabled,
                     highlightedConflictLocation: $highlightedConflictLocation,
                     mode: appState.currentMode == .design ? .network : .lines
                 )
@@ -49,17 +49,12 @@ extension ContentView {
             case .ai:
                 RailwayAIView(
                     network: network,
-                    backgroundGA: backgroundGA,
-                    isOptimizingInBackground: $isOptimizingInBackground,
-                    backgroundOptimizationTask: $backgroundOptimizationTask,
-                    showOptimizationResultAlert: $showOptimizationResultAlert,
-                    pendingOptimizedTrains: $pendingOptimizedTrains,
-                    optimizationConflictDelta: $optimizationConflictDelta
+                    railroadService: railroadService
                 )
             case .io:
                 IOManagementView()
             case .settings:
-                SettingsView(showGrid: $showGrid)
+                SettingsView(showGrid: $appState.showGrid)
             case .simulation:
                 SimulationControlView(liveSim: appState.liveSim)
             default:

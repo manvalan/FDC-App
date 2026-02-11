@@ -30,19 +30,14 @@ extension ContentView {
             case .ai:
                 RailwayAIView(
                     network: network,
-                    backgroundGA: backgroundGA,
-                    isOptimizingInBackground: $isOptimizingInBackground,
-                    backgroundOptimizationTask: $backgroundOptimizationTask,
-                    showOptimizationResultAlert: $showOptimizationResultAlert,
-                    pendingOptimizedTrains: $pendingOptimizedTrains,
-                    optimizationConflictDelta: $optimizationConflictDelta
+                    railroadService: railroadService
                 )
             case .io:
                 IOManagementView()
             case .simulation:
                 LiveSimulationDashboard()
             case .settings:
-                SettingsView(showGrid: $showGrid)
+                SettingsView(showGrid: $appState.showGrid)
             case .timetable:
                 Text("Seleziona una stazione per vedere la tabella oraria")
                     .foregroundColor(.secondary)
