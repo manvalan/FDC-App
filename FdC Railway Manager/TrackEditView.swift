@@ -84,11 +84,17 @@ struct TrackEditView: View {
                         
                         HStack {
                             Menu {
-                                Picker("Tipo", selection: $edge.trackType) {
-                                    Label("Binario Singolo", systemImage: "1.circle").tag(Edge.TrackType.single)
-                                    Label("Doppio Binario", systemImage: "2.circle").tag(Edge.TrackType.double)
-                                    Label("Alta Velocità", systemImage: "bolt.fill").tag(Edge.TrackType.highSpeed)
-                                    Label("Linea Regionale", systemImage: "tram").tag(Edge.TrackType.regional)
+                                Button(action: { updateTrackType(.single) }) {
+                                    Label("Binario Singolo", systemImage: "1.circle")
+                                }
+                                Button(action: { updateTrackType(.double) }) {
+                                    Label("Doppio Binario", systemImage: "2.circle")
+                                }
+                                Button(action: { updateTrackType(.highSpeed) }) {
+                                    Label("Alta Velocità", systemImage: "bolt.fill")
+                                }
+                                Button(action: { updateTrackType(.regional) }) {
+                                    Label("Linea Regionale", systemImage: "tram")
                                 }
                             } label: {
                                 HStack {
