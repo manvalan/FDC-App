@@ -510,15 +510,16 @@ struct Vehicle: Identifiable, Codable, Hashable {
     var maxSpeed: Double = 160
     var acceleration: Double = 0.5
     var deceleration: Double = 0.4
+    var imageName: String? // Optional image name or path
     
     // Per gestire il giro macchina
     var notes: String?
     
     enum CodingKeys: String, CodingKey {
-        case id, name, model, length, maxSpeed, acceleration, deceleration, notes
+        case id, name, model, length, maxSpeed, acceleration, deceleration, notes, imageName
     }
     
-    init(id: UUID = UUID(), name: String, model: String, length: Double = 200, maxSpeed: Double = 160, acceleration: Double = 0.5, deceleration: Double = 0.4, notes: String? = nil) {
+    init(id: UUID = UUID(), name: String, model: String, length: Double = 200, maxSpeed: Double = 160, acceleration: Double = 0.5, deceleration: Double = 0.4, imageName: String? = nil, notes: String? = nil) {
         self.id = id
         self.name = name
         self.model = model
@@ -526,6 +527,7 @@ struct Vehicle: Identifiable, Codable, Hashable {
         self.maxSpeed = maxSpeed
         self.acceleration = acceleration
         self.deceleration = deceleration
+        self.imageName = imageName
         self.notes = notes
     }
     
@@ -538,6 +540,7 @@ struct Vehicle: Identifiable, Codable, Hashable {
         maxSpeed = try container.decodeIfPresent(Double.self, forKey: .maxSpeed) ?? 160
         acceleration = try container.decodeIfPresent(Double.self, forKey: .acceleration) ?? 0.5
         deceleration = try container.decodeIfPresent(Double.self, forKey: .deceleration) ?? 0.4
+        imageName = try container.decodeIfPresent(String.self, forKey: .imageName)
         notes = try container.decodeIfPresent(String.self, forKey: .notes)
     }
 }
@@ -564,52 +567,61 @@ struct VehicleTemplate: Identifiable {
     let maxSpeed: Double
     let acceleration: Double = 0.5
     let deceleration: Double = 0.4
+    let imageName: String?
+    
+    init(name: String, model: String, length: Double, maxSpeed: Double, imageName: String? = nil) {
+        self.name = name
+        self.model = model
+        self.length = length
+        self.maxSpeed = maxSpeed
+        self.imageName = imageName
+    }
     
     static let all: [VehicleTemplate] = [
         // --- ALSTOM ---
-        VehicleTemplate(name: "ETR 103 (Pop 3 casse)", model: "Alstom Coradia Stream", length: 65, maxSpeed: 160),
-        VehicleTemplate(name: "ETR 104 (Pop 4 casse)", model: "Alstom Coradia Stream", length: 84, maxSpeed: 160),
-        VehicleTemplate(name: "ETR 204 (Pop 4 casse V2)", model: "Alstom Coradia Stream", length: 84, maxSpeed: 160),
-        VehicleTemplate(name: "ETR 255 (Pop 5 casse)", model: "Alstom Coradia Stream", length: 104, maxSpeed: 160),
-        VehicleTemplate(name: "ETR 425 (Jazz 5 casse)", model: "Alstom Coradia Meridian", length: 82, maxSpeed: 160),
-        VehicleTemplate(name: "ETR 324 (Jazz 4 casse)", model: "Alstom Coradia Meridian", length: 67, maxSpeed: 160),
-        VehicleTemplate(name: "ALn/Eln 501 (Minuetto)", model: "Alstom Coradia Meridian", length: 52, maxSpeed: 130),
-        VehicleTemplate(name: "ETR 600/610 (Pendolino)", model: "Alstom New Pendolino", length: 187, maxSpeed: 250),
-        VehicleTemplate(name: "ETR 485 (Pendolino)", model: "Alstom/Fiat Ferroviaria", length: 236, maxSpeed: 250),
+        VehicleTemplate(name: "ETR 103 (Pop 3 casse)", model: "Alstom Coradia Stream", length: 65, maxSpeed: 160, imageName: "pop_3_casse"),
+        VehicleTemplate(name: "ETR 104 (Pop 4 casse)", model: "Alstom Coradia Stream", length: 84, maxSpeed: 160, imageName: "pop_4_casse"),
+        VehicleTemplate(name: "ETR 204 (Pop 4 casse V2)", model: "Alstom Coradia Stream", length: 84, maxSpeed: 160, imageName: "pop_4_casse_v2"),
+        VehicleTemplate(name: "ETR 255 (Pop 5 casse)", model: "Alstom Coradia Stream", length: 104, maxSpeed: 160, imageName: "pop_5_casse"),
+        VehicleTemplate(name: "ETR 425 (Jazz 5 casse)", model: "Alstom Coradia Meridian", length: 82, maxSpeed: 160, imageName: "jazz_5_casse"),
+        VehicleTemplate(name: "ETR 324 (Jazz 4 casse)", model: "Alstom Coradia Meridian", length: 67, maxSpeed: 160, imageName: "jazz_4_casse"),
+        VehicleTemplate(name: "ALn/Eln 501 (Minuetto)", model: "Alstom Coradia Meridian", length: 52, maxSpeed: 130, imageName: "minuetto"),
+        VehicleTemplate(name: "ETR 600/610 (Pendolino)", model: "Alstom New Pendolino", length: 187, maxSpeed: 250, imageName: "pendolino_etr600"),
+        VehicleTemplate(name: "ETR 485 (Pendolino)", model: "Alstom/Fiat Ferroviaria", length: 236, maxSpeed: 250, imageName: "pendolino_etr485"),
         
         // --- HITACHI / ANSALDO BREDA ---
-        VehicleTemplate(name: "ETR 1000 (Frecciarossa)", model: "Hitachi Zefiro V300", length: 202, maxSpeed: 360),
-        VehicleTemplate(name: "ETR 500 (Frecciarossa)", model: "Hitachi/Bombardier/Breda", length: 328, maxSpeed: 300),
-        VehicleTemplate(name: "ETR 700 (Frecciargento)", model: "Hitachi/AnsaldoBreda V250", length: 200, maxSpeed: 250),
-        VehicleTemplate(name: "ETR 421 (Rock 4 casse)", model: "Hitachi Caravaggio", length: 110, maxSpeed: 160),
-        VehicleTemplate(name: "ETR 521 (Rock 5 casse)", model: "Hitachi Caravaggio", length: 136, maxSpeed: 160),
-        VehicleTemplate(name: "ETR 621 (Rock 6 casse)", model: "Hitachi Caravaggio", length: 162, maxSpeed: 160),
-        VehicleTemplate(name: "HTR 312 (Blues 3 casse)", model: "Hitachi Masaccio (Ibrido)", length: 67, maxSpeed: 160),
-        VehicleTemplate(name: "HTR 412 (Blues 4 casse)", model: "Hitachi Masaccio (Ibrido)", length: 86, maxSpeed: 160),
-        VehicleTemplate(name: "TAF (Treno Alta Freq.)", model: "AnsaldoBreda/AdTranz", length: 104, maxSpeed: 140),
-        VehicleTemplate(name: "TSR (Treno Serv. Reg.)", model: "AnsaldoBreda", length: 78, maxSpeed: 140),
+        VehicleTemplate(name: "ETR 1000 (Frecciarossa)", model: "Hitachi Zefiro V300", length: 202, maxSpeed: 360, imageName: "frecciarossa_1000"),
+        VehicleTemplate(name: "ETR 500 (Frecciarossa)", model: "Hitachi/Bombardier/Breda", length: 328, maxSpeed: 300, imageName: "frecciarossa_500"),
+        VehicleTemplate(name: "ETR 700 (Frecciargento)", model: "Hitachi/AnsaldoBreda V250", length: 200, maxSpeed: 250, imageName: "frecciargento_700"),
+        VehicleTemplate(name: "ETR 421 (Rock 4 casse)", model: "Hitachi Caravaggio", length: 110, maxSpeed: 160, imageName: "rock_4_casse"),
+        VehicleTemplate(name: "ETR 521 (Rock 5 casse)", model: "Hitachi Caravaggio", length: 136, maxSpeed: 160, imageName: "rock_5_casse"),
+        VehicleTemplate(name: "ETR 621 (Rock 6 casse)", model: "Hitachi Caravaggio", length: 162, maxSpeed: 160, imageName: "rock_6_casse"),
+        VehicleTemplate(name: "HTR 312 (Blues 3 casse)", model: "Hitachi Masaccio (Ibrido)", length: 67, maxSpeed: 160, imageName: "blues_3_casse"),
+        VehicleTemplate(name: "HTR 412 (Blues 4 casse)", model: "Hitachi Masaccio (Ibrido)", length: 86, maxSpeed: 160, imageName: "blues_4_casse"),
+        VehicleTemplate(name: "TAF (Treno Alta Freq.)", model: "AnsaldoBreda/AdTranz", length: 104, maxSpeed: 140, imageName: "taf"),
+        VehicleTemplate(name: "TSR (Treno Serv. Reg.)", model: "AnsaldoBreda", length: 78, maxSpeed: 140, imageName: "tsr"),
         
         // --- STADLER ---
-        VehicleTemplate(name: "ATR 803 (Colleoni)", model: "Stadler Flirt BMU", length: 67, maxSpeed: 140),
-        VehicleTemplate(name: "ETR 170 (FLIRT)", model: "Stadler Flirt", length: 75, maxSpeed: 160),
-        VehicleTemplate(name: "ETR 343 (FLIRT XL)", model: "Stadler Flirt", length: 105, maxSpeed: 160),
+        VehicleTemplate(name: "ATR 803 (Colleoni)", model: "Stadler Flirt BMU", length: 67, maxSpeed: 140, imageName: "colleoni"),
+        VehicleTemplate(name: "ETR 170 (FLIRT)", model: "Stadler Flirt", length: 75, maxSpeed: 160, imageName: "flirt"),
+        VehicleTemplate(name: "ETR 343 (FLIRT XL)", model: "Stadler Flirt", length: 105, maxSpeed: 160, imageName: "flirt_xl"),
         
         // --- PESA ---
-        VehicleTemplate(name: "ATR 220 (Swing)", model: "Pesa Atribo", length: 55, maxSpeed: 130),
+        VehicleTemplate(name: "ATR 220 (Swing)", model: "Pesa Atribo", length: 55, maxSpeed: 130, imageName: "swing"),
         
         // --- LOCOMOTIVE / NAVETTA ---
-        VehicleTemplate(name: "E.464 + 5 Medie Distanze", model: "Treno Navetta", length: 155, maxSpeed: 160),
-        VehicleTemplate(name: "E.464 + 3 Vivalto", model: "Treno Navetta", length: 110, maxSpeed: 160),
-        VehicleTemplate(name: "E.464 + 5 Vivalto", model: "Treno Navetta", length: 160, maxSpeed: 160),
-        VehicleTemplate(name: "E.494 (TRAXX DC3)", model: "Bombardier/Alstom", length: 19, maxSpeed: 160),
-        VehicleTemplate(name: "E.191/193 (Vectron)", model: "Siemens Mobility", length: 19, maxSpeed: 200),
-        VehicleTemplate(name: "E.652 (Caimano)", model: "Ansaldo/TIBB", length: 18, maxSpeed: 160),
-        VehicleTemplate(name: "D.445 (Loco Diesel)", model: "Fiat Ferroviaria", length: 14, maxSpeed: 130),
+        VehicleTemplate(name: "E.464 + 5 Medie Distanze", model: "Treno Navetta", length: 155, maxSpeed: 160, imageName: "navetta_md"),
+        VehicleTemplate(name: "E.464 + 3 Vivalto", model: "Treno Navetta", length: 110, maxSpeed: 160, imageName: "vivalto_3"),
+        VehicleTemplate(name: "E.464 + 5 Vivalto", model: "Treno Navetta", length: 160, maxSpeed: 160, imageName: "vivalto_5"),
+        VehicleTemplate(name: "E.494 (TRAXX DC3)", model: "Bombardier/Alstom", length: 19, maxSpeed: 160, imageName: "traxx_dc3"),
+        VehicleTemplate(name: "E.191/193 (Vectron)", model: "Siemens Mobility", length: 19, maxSpeed: 200, imageName: "vectron"),
+        VehicleTemplate(name: "E.652 (Caimano)", model: "Ansaldo/TIBB", length: 18, maxSpeed: 160, imageName: "caimano"),
+        VehicleTemplate(name: "D.445 (Loco Diesel)", model: "Fiat Ferroviaria", length: 14, maxSpeed: 130, imageName: "d445"),
         
         // --- LEGACY / STORICI ---
-        VehicleTemplate(name: "ALn 668 (Singola)", model: "Fiat Ferroviaria (Diesel)", length: 23, maxSpeed: 110),
-        VehicleTemplate(name: "ALn 663 (Singola)", model: "Fiat Ferroviaria (Diesel)", length: 23, maxSpeed: 120),
-        VehicleTemplate(name: "ALn 776 (Singola)", model: "Ferrosud (Diesel)", length: 24, maxSpeed: 150)
+        VehicleTemplate(name: "ALn 668 (Singola)", model: "Fiat Ferroviaria (Diesel)", length: 23, maxSpeed: 110, imageName: "aln668"),
+        VehicleTemplate(name: "ALn 663 (Singola)", model: "Fiat Ferroviaria (Diesel)", length: 23, maxSpeed: 120, imageName: "aln663"),
+        VehicleTemplate(name: "ALn 776 (Singola)", model: "Ferrosud (Diesel)", length: 24, maxSpeed: 150, imageName: "aln776")
     ]
 }
 

@@ -649,7 +649,7 @@ struct LineRow: View {
                 // Large Code
                 Text(line.codePrefix ?? "L")
                     .font(.system(size: 16, weight: .black, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundColor(line.uiColor.isDark ? .white : .black)
                     .frame(width: 44, height: 32)
                     .background(line.uiColor)
                     .cornerRadius(6)
@@ -677,8 +677,12 @@ struct LineRow: View {
             .padding(.vertical, 8)
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(appState.selectedLineId == line.id ? appState.theme.accent.opacity(0.1) : appState.theme.light.opacity(0.3))
+            .background(appState.selectedLineId == line.id ? appState.theme.accent.opacity(0.15) : appState.theme.backgroundSecondary)
             .cornerRadius(10)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(appState.selectedLineId == line.id ? appState.theme.accent : appState.theme.line.opacity(0.2), lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
     }

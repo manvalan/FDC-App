@@ -71,6 +71,16 @@ extension Color {
                           lroundf(b * 255))
         }
     }
+    var isDark: Bool {
+        guard let components = UIColor(self).cgColor.components else { return false }
+        let red = components[0]
+        let green = components[1]
+        let blue = components[2]
+        
+        // Formula per la luminosità percepita
+        let brightness = ((red * 299) + (green * 587) + (blue * 114)) / 1000
+        return brightness < 0.5
+    }
 }
 
 extension Date {
