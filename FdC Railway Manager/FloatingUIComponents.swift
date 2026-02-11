@@ -60,82 +60,64 @@ struct FloatingSideMenu: View {
     
     var body: some View {
         VStack(spacing: 0) {
+            // Header
             HStack {
-                Text("Navigazione")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(appState.theme.dark)
+                Text("MENU")
+                    .font(.system(size: 13, weight: .black))
+                    .foregroundColor(appState.theme.medium)
+                    .tracking(2)
                 Spacer()
+                
                 Button(action: { appState.showPanel(.none) }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title3)
-                        .foregroundColor(appState.theme.medium)
+                     Image(systemName: "xmark")
+                         .font(.system(size: 14, weight: .bold))
+                         .foregroundColor(appState.theme.medium)
                 }
+                .buttonStyle(.plain)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 12)
-            
-            Divider()
-                .background(appState.theme.line.opacity(0.1))
+            .padding(.horizontal, 24)
+            .padding(.top, 30)
+            .padding(.bottom, 16)
             
             ScrollView {
-                VStack(alignment: .leading, spacing: 5) {
-                    SidebarSection(title: "Infrastruttura") {
-                        SidebarButton(title: "Stazioni", icon: "building.2") {
+                VStack(spacing: 8) {
+                    
+                    // GROUP 1: NETWORK & INFRASTRUCTURE
+                    Group {
+                        MenuRow(title: "Mappa", icon: "map.fill", isSelected: appState.currentMode == .design && appState.sidebarSelection == .stations) {
+                            appState.sidebarSelection = .stations
+                            appState.currentMode = .design
+                            appState.showPanel(.none)
+                        }
+                        
+                        MenuRow(title: "Stazioni", icon: "building.2.fill", isSelected: appState.sidebarSelection == .stations && appState.activePanel == .inspector) {
                             appState.sidebarSelection = .stations
                             appState.currentMode = .design
                             appState.clearSelection()
                             appState.showPanel(.inspector)
                         }
                         
-                        SidebarButton(title: "Binari", customIcon: "🛤", isSpecial: true) {
-                            appState.sidebarSelection = .tracks
-                            appState.currentMode = .design
-                            appState.clearSelection()
-                            appState.showPanel(.inspector)
+                        MenuRow(title: "Linee", icon: "arrow.triangle.branch", isSelected: appState.sidebarSelection == .lines) {
+                             appState.sidebarSelection = .lines
+                             appState.currentMode = .design
+                             appState.lineInspectorMode = .infrastructure
+                             appState.clearSelection()
+                             appState.showPanel(.inspector)
                         }
                     }
                     
-                    SidebarSection(title: "Servizio") {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "tram")
-                                    .foregroundColor(appState.theme.medium)
-                                    .frame(width: 24)
-                                Text("Gestione Linee")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundColor(appState.theme.dark)
-                                Spacer()
-                            }
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 12)
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                SidebarSubButton(title: "Infrastruttura", icon: "pencil.and.outline", isSelected: appState.sidebarSelection == .lines && appState.lineInspectorMode == .infrastructure) {
-                                    appState.sidebarSelection = .lines
-                                    appState.lineInspectorMode = .infrastructure
-                                    appState.selectedLineId = nil
-                                    appState.showPanel(.inspector)
-                                }
-                                
-                                SidebarSubButton(title: "Orario", icon: "chart.xyaxis.line", isSelected: appState.sidebarSelection == .lines && appState.lineInspectorMode == .schedule) {
-                                    appState.sidebarSelection = .lines
-                                    appState.lineInspectorMode = .schedule
-                                    appState.selectedLineId = nil
-                                    appState.showPanel(.inspector)
-                                }
-                                
-                                SidebarSubButton(title: "Mezzi", icon: "tram.fill", isSelected: appState.sidebarSelection == .lines && appState.lineInspectorMode == .vehicles) {
-                                    appState.sidebarSelection = .lines
-                                    appState.lineInspectorMode = .vehicles
-                                    appState.selectedLineId = nil
-                                    appState.showPanel(.inspector)
-                                }
-                            }
-                            .padding(.leading, 8)
+                    Divider().padding(.vertical, 8).padding(.horizontal, 20)
+                    
+                    // GROUP 2: OPERATIONS
+                    Group {
+                        MenuRow(title: "Orari", icon: "calendar.badge.clock", isSelected: appState.currentMode == .schedule && appState.sidebarSelection == .trains) {
+                            appState.currentMode = .schedule
+                            appState.sidebarSelection = .trains
+                            appState.clearSelection()
+                            appState.showPanel(.inspector)
                         }
                         
-                        SidebarButton(title: "Flotta Generale", icon: "tram.fill") {
+                        MenuRow(title: "Flotta", icon: "tram.fill", isSelected: appState.sidebarSelection == .vehicles) {
                             appState.sidebarSelection = .vehicles
                             appState.currentMode = .design
                             appState.clearSelection()
@@ -143,29 +125,68 @@ struct FloatingSideMenu: View {
                         }
                     }
                     
-                    SidebarSection(title: "Programmazione") {
-                        SidebarButton(title: "Treni per Linea", icon: "train.side.front.car") {
-                            appState.sidebarSelection = .trains
-                            appState.currentMode = .schedule
-                            appState.clearSelection()
+                    Divider().padding(.vertical, 8).padding(.horizontal, 20)
+                    
+                    // GROUP 3: SYSTEM
+                    Group {
+                        MenuRow(title: "Impostazioni", icon: "gearshape.fill", isSelected: appState.sidebarSelection == .settings) {
+                            appState.sidebarSelection = .settings
                             appState.showPanel(.inspector)
                         }
-                        SidebarButton(title: "Tabella Oraria", icon: "tablecells") {
-                            appState.sidebarSelection = .timetable
-                            appState.currentMode = .schedule
-                        }
-                        SidebarButton(title: "Grafico Orario", icon: "chart.xyaxis.line") {
-                            appState.sidebarSelection = .diagram
-                            appState.currentMode = .schedule
+                        
+                        MenuRow(title: "Import/Export", icon: "square.and.arrow.up", isSelected: appState.sidebarSelection == .io) {
+                            appState.sidebarSelection = .io
+                            appState.showPanel(.inspector)
                         }
                     }
-                    
-                    SidebarSection(title: "Strumenti") {
-                        SidebarButton(title: "Import/Export", icon: "doc.badge.arrow.up") {
-                            appState.sidebarSelection = .io
-                        }
-                        
-                        SidebarButton(title: "Impostazioni", icon: "gearshape") {
+                }
+                .padding(.horizontal, 12)
+            }
+        }
+        .frame(width: 260)
+        .background(appState.theme.surface) // Solid background
+        .cornerRadius(0)
+        .shadow(color: .black.opacity(0.1), radius: 10, x: 5, y: 0)
+        .edgesIgnoringSafeArea(.vertical)
+    }
+}
+
+struct MenuRow: View {
+    let title: String
+    let icon: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    @EnvironmentObject var appState: AppState
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                Image(systemName: icon)
+                    .font(.system(size: 18))
+                    .frame(width: 24)
+                    .foregroundColor(isSelected ? appState.theme.accent : appState.theme.medium)
+                
+                Text(title)
+                    .font(.system(size: 16, weight: isSelected ? .semibold : .regular))
+                    .foregroundColor(isSelected ? appState.theme.dark : appState.theme.text)
+                
+                Spacer()
+                
+                if isSelected {
+                    Circle()
+                        .fill(appState.theme.accent)
+                        .frame(width: 6, height: 6)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(isSelected ? appState.theme.accent.opacity(0.08) : Color.clear)
+            .cornerRadius(12)
+        }
+        .buttonStyle(.plain)
+    }
+}
                             appState.sidebarSelection = .settings
                         }
                     }
