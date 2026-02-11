@@ -195,14 +195,14 @@ struct RailwayItineraryView: View {
                                 .foregroundColor(.secondary)
                             Text(d.timeFormat)
                                 .font(.system(size: 16, weight: .bold, design: .monospaced)) // Larger time (was 13)
-                                .foregroundColor(hasConflict ? .red : (train.stops[index].customDwellSeconds != nil && (label == "Part:" || label == "Partenza") ? .yellow : appState.theme.dark.opacity(0.9)))
+                                .foregroundColor(hasConflict ? .red : (train.stops[index].customDwellSeconds != nil && (label == "Part:" || label == "Partenza") ? .orange : appState.theme.dark))
                         }
                     }
                 }
             } else {
                 Text("--:--")
                     .font(.system(size: 16, design: .monospaced)) // Larger placeholder
-                    .foregroundColor(.gray.opacity(0.5))
+                    .foregroundColor(appState.theme.medium.opacity(0.6))
             }
     }
     }
@@ -222,7 +222,7 @@ struct RailwayItineraryView: View {
                         .foregroundColor(hasConflict ? .white : appState.theme.dark)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(hasConflict ? Color.red : Color.secondary.opacity(0.1))
+                        .background(hasConflict ? Color.red : appState.theme.light.opacity(0.4))
                         .cornerRadius(6)
                     
                     if !isReadOnly {
