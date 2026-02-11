@@ -73,67 +73,47 @@ struct RailwayItineraryView: View {
         let onTimeTap: () -> Void
 
         var body: some View {
-            let isFirst = index == 0
-            let isLast = index == train.stops.count - 1
-            let nextId = isLast ? nil : train.stops[index + 1].stationId
-            let isTransit = !isFirst && !isLast && stop.minDwellTime == 0
-
-            VerticalDiagramStep(
-                stationId: stop.stationId,
-                network: network,
-                isLast: isLast,
-                nextStationId: nextId,
-                lineColor: lineColor,
-                isTransit: isTransit,
-                isEditing: false, 
-                leadingInfo: { EmptyView() }, // Moving all info to content area
-                extraInfo: { EmptyView() },
-                content: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        // Station Name
-                        if let node = network.nodes.first(where: { $0.id == stop.stationId }) {
-                            Text(node.name)
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(appState.theme.dark)
-                        }
-
-                        HStack(alignment: .bottom) {
-                            // Indented Times
-                            StationTimesView(
-                                train: $train,
-                                index: index,
-                                hasConflict: hasConflict,
-                                isReadOnly: isReadOnly,
-                                isLast: isLast,
-                                onTap: onTimeTap
-                            )
-                            .padding(.leading, 12)
-                            
-                            Spacer()
-                            
-                            // Track Info on the right
-                            TrackBadgeView(
-                                stop: stop,
-                                hasConflict: hasConflict,
-                                isReadOnly: isReadOnly,
-                                onTap: onTrackTap
-                            )
-                        }
-                    }
-                },
-                segmentMetadata: {
-                    if !isLast, let nextId = nextId {
-                        let segmentDist = RailwayItineraryView.calculateSegmentDistance(from: stop.stationId, to: nextId, network: network)
-                        
-                        TrainSegmentMetadataView(
-                            arrivalTime: nil,
-                            departureTime: nil,
-                            segmentDistance: segmentDist,
-                            isOrigin: false,
-                            isTerminus: (index + 1 == train.stops.count - 1)
-                        )
-                    }
+            HStack(alignment: .center, spacing: 12) {
+                // STATION NAME (Left)
+                if let node = network.nodes.first(where: { $0.id == stop.stationId }) {
+                    Text(node.name)
+                        .font(.system(size: 16, weight: .semibold, design: .default))
+                        .foregroundColor(appState.theme.dark)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(stop.stationId)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                
+                // TIMES & TRACK (Right)
+                HStack(alignment: .center, spacing: 20) {
+                    
+                    // Times
+                    StationTimesView(
+                        train: $train,
+                        index: index,
+                        hasConflict: hasConflict,
+                        isReadOnly: isReadOnly,
+                        isLast: isLast,
+                        onTap: onTimeTap
+                    )
+                    
+                    // Track
+                    TrackBadgeView(
+                        stop: stop,
+                        hasConflict: hasConflict,
+                        isReadOnly: isReadOnly,
+                        onTap: onTrackTap
+                    )
+                }
+            }
+            .padding(.vertical, 12)
+            .background(
+                Rectangle()
+                    .fill(index % 2 == 0 ? Color.clear : Color.secondary.opacity(0.03))
             )
         }
     }
@@ -209,20 +189,19 @@ struct RailwayItineraryView: View {
                     } else {
                         HStack(spacing: 4) {
                             Text(label)
-                                .font(.system(size: 11))
+                                .font(.system(size: 12)) // Larger label (was 11)
                                 .foregroundColor(.secondary)
                             Text(d.timeFormat)
-                                .font(.system(size: 13, weight: .bold, design: .monospaced))
-                                .foregroundColor(hasConflict ? .red : (train.stops[index].customDwellSeconds != nil && (label == "Part:" || label == "Partenza") ? .yellow : appState.theme.dark.opacity(0.8)))
+                                .font(.system(size: 16, weight: .bold, design: .monospaced)) // Larger time (was 13)
+                                .foregroundColor(hasConflict ? .red : (train.stops[index].customDwellSeconds != nil && (label == "Part:" || label == "Partenza") ? .yellow : appState.theme.dark.opacity(0.9)))
                         }
-                        .padding(2)
                     }
                 }
             } else {
                 Text("--:--")
-                    .font(.system(size: 13, design: .monospaced))
-                    .foregroundColor(.gray)
-        }
+                    .font(.system(size: 16, design: .monospaced)) // Larger placeholder
+                    .foregroundColor(.gray.opacity(0.5))
+            }
     }
     }
 
@@ -236,13 +215,13 @@ struct RailwayItineraryView: View {
         var body: some View {
             Button(action: onTap) {
                 HStack(spacing: 6) {
-                    Text("Binario \(stop.track ?? "1")")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(hasConflict ? .white : appState.theme.medium)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(hasConflict ? Color.red : Color.clear)
-                        .cornerRadius(4)
+                    Text("Bin \(stop.track ?? "1")") // Shortened label
+                        .font(.system(size: 14, weight: .bold, design: .rounded)) // Larger font (was 11)
+                        .foregroundColor(hasConflict ? .white : appState.theme.dark)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(hasConflict ? Color.red : Color.secondary.opacity(0.1))
+                        .cornerRadius(6)
                     
                     if !isReadOnly {
                         Image(systemName: "pencil")
