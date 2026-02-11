@@ -127,8 +127,6 @@ struct LineDetailView: View {
                                 .font(.caption)
                         }
                         .padding(.vertical, 4)
-                        }
-                        .padding(.vertical, 4)
                         Divider()
                     }
                 }
