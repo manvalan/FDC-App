@@ -296,7 +296,7 @@ struct TrainDetailView: View {
                 .padding(.horizontal, 4)
                 
                 RailwayItineraryView(
-                    train: train.wrappedValue,
+                    train: train,
                     network: appState.railroad.network,
                     lineColor: Color(hex: line.color ?? ""),
                     isReadOnly: !appState.isInspectorEditingMode
