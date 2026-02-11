@@ -15,7 +15,7 @@ struct FdC_Railway_ManagerApp: App {
     @State private var showSplash = true
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup("RailWay Manager") {
             if showSplash {
                 SplashScreen()
                     .onAppear {
@@ -57,7 +57,7 @@ struct SplashScreen: View {
                     .resizable()
                     .scaledToFit()
                     .frame(maxWidth: 500)
-                Text("FdC Railway Manager")
+                Text("RailWay Manager")
                     .font(.largeTitle)
                     .foregroundColor(.white)
                     .bold()
