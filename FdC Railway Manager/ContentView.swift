@@ -55,18 +55,6 @@ struct ContentView: View {
                 .zIndex(150)
             }
             
-            // 2.5 WIDE OVERLAY (e.g. Schedule / Timetable)
-            if appState.isWidePanelVisible && appState.activePanel == .inspector {
-                HStack(spacing: 0) {
-                    WidePanelView()
-                        .transition(.move(edge: .leading).combined(with: .opacity))
-                    Spacer()
-                        .frame(width: 360) // Width of the regular inspector
-                }
-                .edgesIgnoringSafeArea(.all)
-                .zIndex(160)
-            }
-            
             // Right Inspector (Contextual)
             if appState.activePanel == .inspector {
                 HStack {

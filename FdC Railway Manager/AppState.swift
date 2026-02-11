@@ -115,14 +115,6 @@ final class AppState: ObservableObject {
     }
     
     var isWidePanelVisible: Bool {
-        // Wide panel active when managing schedules in "Lines" tab and a line is selected
-        if sidebarSelection == .lines && lineInspectorMode == .schedule && selectedLineId != nil {
-            return true
-        }
-        // Also active in Trains tab if we want the general schedule view there
-        if sidebarSelection == .trains {
-            return true
-        }
         return false
     }
     
