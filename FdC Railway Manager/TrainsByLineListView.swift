@@ -70,7 +70,7 @@ struct TrainsByLineListView: View {
     }
     
     private func createNewTrain(for line: RailwayLine) {
-        let newTrain = Train(
+        var newTrain = Train(
             id: UUID(),
             name: "\(line.codePrefix ?? "NUM") \(Int.random(in: 1000...9999))",
             type: "Regionale",
