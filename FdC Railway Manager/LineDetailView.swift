@@ -8,6 +8,8 @@ struct LineDetailView: View {
     @Binding var selectedNode: Node?
     @Binding var selectedEdgeId: String?
     
+    @State private var showScheduleCreator = false
+    
     private var colorBinding: Binding<Color> {
         Binding(
             get: { Color(hex: line.color ?? "") ?? .black },
@@ -127,16 +129,35 @@ struct LineDetailView: View {
                         .padding(.vertical, 4)
                         Divider()
                     }
+                    }
                 }
                 .padding()
                 .background(Color.secondary.opacity(0.05))
                 .cornerRadius(8)
+                
+                // 5. Actions
+                Button(action: { showScheduleCreator = true }) {
+                    HStack {
+                        Image(systemName: "clock.badge.checkmark")
+                        Text("generate_schedule".localized)
+                    }
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.blue)
+                    .cornerRadius(12)
+                }
+                .padding(.top, 10)
             }
             .padding()
             .disabled(!appState.isInspectorEditingMode)
         }
         .onLongPressGesture(minimumDuration: 1.0) {
             appState.isInspectorEditingMode.toggle()
+        }
+        .sheet(isPresented: $showScheduleCreator) {
+            ScheduleCreationView(line: line)
         }
     }
      
