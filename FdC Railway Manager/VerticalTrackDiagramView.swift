@@ -14,8 +14,7 @@ struct VerticalTrackDiagramView: View {
     @State private var internalSelectedStationID: String? = nil
     @State private var internalSelectedEdgeID: IdentifiableUUID? = nil
     
-    // Sidebar Edit Mode
-    @State private var isSidebarEditMode: Bool = false
+    @Binding var isSidebarEditMode: Bool
     @State private var stationToLinkTo: String? = nil
     @State private var isLinkingBefore: Bool = false
     @State private var showStationPicker: Bool = false

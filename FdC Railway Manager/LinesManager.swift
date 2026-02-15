@@ -137,23 +137,54 @@ final class LinesManager: ObservableObject {
                 
                 let originId = startStation
                 let destId = localTrains[idx].stops.last?.stationId ?? ""
-                let departureTrack = currentStatus?.track ?? terminalPrefs[originId]
+                
+                // Logic for Departure Track:
+                // 1. If vehicle just arrived here, use the arrival track (consistency).
+                // 2. Else check if there is a mandatary terminal track for this line.
+                // 3. Fallback to first available.
+                
+                var departureTrack: String? = nil
+                
+                if let status = currentStatus, status.station == originId, let lastTrack = status.track {
+                     departureTrack = lastTrack
+                } else {
+                     departureTrack = terminalPrefs[originId] ?? line.terminalTracks[originId]
+                }
                 
                 if let track = departureTrack {
                     localTrains[idx].stops[0].track = track
                     localTrains[idx].stops[0].isManualTrack = true
                 }
                 
-                let arrivalTrack = terminalPrefs[destId] ?? departureTrack
+                // Logic for Arrival Track:
+                // 1. Check for terminal preference at destination.
+                // 2. Retain departure track if single track shuttle (rare).
+                // 3. Let scheduler decide (nil).
+                
+                let arrivalTrack = terminalPrefs[destId] ?? line.terminalTracks[destId]
+                
                 if let track = arrivalTrack {
                     let lastStopIdx = localTrains[idx].stops.count - 1
                     localTrains[idx].stops[lastStopIdx].track = track
-                    localTrains[idx].stops[lastStopIdx].isManualTrack = true
+                    // Update fleet status so next departure uses this track
+                    let arrivalTime = localTrains[idx].stops[lastStopIdx].arrival ?? Date.distantFuture
+                    fleetStatus[vid] = (destId, arrivalTime, currentCount + 1, track)
+                } else {
+                    // If no specific arrival track is forced, we let the scheduler pick one (usually default 1).
+                    // BUT we must capture what the scheduler picks to reuse it for return!
+                    // Since we are PRE-scheduling here, we will default to the LAST STOP's current default if available, or "1".
+                     let lastStopIdx = localTrains[idx].stops.count - 1
+                     let defaultTrack = localTrains[idx].stops[lastStopIdx].track ?? "1"
+                     localTrains[idx].stops[lastStopIdx].track = defaultTrack
+                     
+                     let arrivalTime = localTrains[idx].stops[lastStopIdx].arrival ?? Date.distantFuture
+                     fleetStatus[vid] = (destId, arrivalTime, currentCount + 1, defaultTrack)
                 }
                 
-                if let arrivalAtEnd = localTrains[idx].stops.last?.arrival {
-                    fleetStatus[vid] = (destId, arrivalAtEnd, currentCount + 1, arrivalTrack)
-                }
+                let lastStopIdx = localTrains[idx].stops.count - 1
+                localTrains[idx].stops[lastStopIdx].isManualTrack = true
+                
+                // Fleet status updated above
             }
         }
         self.trains = localTrains
@@ -163,6 +194,11 @@ final class LinesManager: ObservableObject {
     func validateSchedules() {
         guard !isValidating else { return }
         isValidating = true
+        
+        #if DEBUG
+        print("🔄 [LinesManager] Validating schedules for \(trains.count) trains")
+        #endif
+        
         refreshSchedules()
         conflictManager.detectConflicts(nodes: network.nodes, edges: network.edges, trains: trains, pathCache: pathCache)
         onSchedulesChanged?()
@@ -172,6 +208,7 @@ final class LinesManager: ObservableObject {
     
     func refreshSchedules() {
         for i in trains.indices {
+            trains[i].schedulingError = nil // Resetta errori precedenti
             guard let depTime = trains[i].departureTime, !trains[i].stops.isEmpty else { continue }
             var currentTime = depTime.normalized()
             let originId = trains[i].stops.first?.stationId ?? ""
@@ -187,12 +224,43 @@ final class LinesManager: ObservableObject {
                     var legMinSpeed: Double = .infinity
                     let currentPrevId = trains[i].stops[j-1].stationId
                     let pathKey = "\(currentPrevId)--\(stop.stationId)"
-                    let path = pathCache[pathKey] ?? network.findPathEdges(from: currentPrevId, to: stop.stationId)
+                    // User Requirement: Use the path defined by the line (i.e., direct connection between stops).
+                    // We enforce this by:
+                    // 1. Ignoring direction (assume bidirectional physical track)
+                    // 2. Restricting intermediate stations (path cannot jump through another station)
+                    var path = pathCache[pathKey] ?? network.findPathEdges(
+                        from: currentPrevId, 
+                        to: stop.stationId, 
+                        ignoreDirection: true, 
+                        restrictIntermediateStations: true
+                    )
+                    
+                    if path == nil {
+                        // Soft fallback: Maybe there's a station in between that IS technically part of the track but not a stop? (Unlikely for "restrictIntermediateStations" logic which treats station nodes as walls).
+                        // Let's try without restricting intermediate stations but still ignoring direction.
+                        // This handles cases where user defined A->C but physically it is A->B->C and B is just a transit node in the graph (though usually B would be a stop).
+                        path = network.findPathEdges(from: currentPrevId, to: stop.stationId, ignoreDirection: true)
+                    }
+                    
                     if let actualPath = path {
                         pathCache[pathKey] = actualPath
                         for edge in actualPath {
                             legDistance += edge.distance
                             legMinSpeed = min(legMinSpeed, Double(edge.maxSpeed))
+                        }
+                    } else {
+                        // Hard fallback if graph is totally disconnected
+                        if let edge = network.findEdge(from: currentPrevId, to: stop.stationId) {
+                             legDistance += edge.distance
+                             legMinSpeed = Double(edge.maxSpeed)
+                        } else {
+                             // Zero-distance safety
+                             legDistance += 5.0
+                             legMinSpeed = 60.0
+                             #if DEBUG
+                             print("⚠️ [LinesManager] Train '\(trains[i].name)': No path between \(currentPrevId) and \(stop.stationId). Using fallback 5km.")
+                             #endif
+                             trains[i].schedulingError = "Tratta interrotta: \(currentPrevId) -> \(stop.stationId)"
                         }
                     }
                     var transitDuration: TimeInterval = 0
@@ -202,7 +270,7 @@ final class LinesManager: ObservableObject {
                     }
                     currentTime = currentTime.addingTimeInterval(transitDuration)
                     let arrivalAt = Date(timeIntervalSinceReferenceDate: floor(currentTime.timeIntervalSinceReferenceDate + 0.5))
-                    trains[i].stops[j].arrival = stop.plannedArrival?.normalized() ?? arrivalAt
+                    trains[i].stops[j].arrival = stop.plannedArrival?.normalized(relativeTo: currentTime) ?? arrivalAt
                     
                     let dwell = (stop.customDwellSeconds ?? (stop.isSkipped ? 0 : (Double(stop.minDwellTime) + stop.extraDwellTime) * 60))
                     let departureAt = trains[i].stops[j].arrival!.addingTimeInterval(dwell)
@@ -275,6 +343,29 @@ final class LinesManager: ObservableObject {
         preferredTrack: String = "1",
         vehicleId: UUID? = nil
     ) -> Train {
+        // VALIDATION: Ensure we have at least 2 stations for a valid train
+        guard stationSequence.count >= 2 else {
+            #if DEBUG
+            print("⚠️ [LinesManager] WARNING: Attempted to create train with only \(stationSequence.count) station(s). Minimum is 2.")
+            print("   Train number: \(number), Category: \(category.rawValue)")
+            print("   Station sequence: \(stationSequence)")
+            #endif
+            // Return a minimal valid train with empty stops (will be filtered later)
+            return Train(
+                number: number,
+                name: name ?? "\(category.rawValue) \(number)",
+                type: category.rawValue,
+                lineId: line?.id,
+                departureTime: departureTime,
+                stops: [],
+                vehicleId: vehicleId,
+                maxSpeed: Double(category.defaultMaxSpeed),
+                acceleration: acceleration,
+                deceleration: deceleration,
+                priority: category.defaultPriority
+            )
+        }
+        
         var stops: [RelationStop] = []
         for (index, stationId) in stationSequence.enumerated() {
             let node = network.nodes.first(where: { $0.id == stationId })

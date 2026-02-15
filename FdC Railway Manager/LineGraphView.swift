@@ -13,9 +13,11 @@ struct LineGraphView: View {
     let maxDistance: Double
     
     // Zoom/Pan State
-    @State private var timeScale: CGFloat = 60.0 // Pixels per hour
-    @State private var pixelsPerKm: CGFloat = 5.0 // Vertical Scale (Zoom)
+    @State private var timeScale: CGFloat = 120.0 // Pixels per hour (increased for detail)
+    @State private var pixelsPerKm: CGFloat = 10.0 // Vertical Scale (Zoom increased)
     @State private var lastScale: CGFloat = 1.0 // For magnification
+    @State private var baseTimeScale: CGFloat = 120.0
+    @State private var basePixelsPerKm: CGFloat = 10.0
     @State private var redrawTrigger = UUID() // To force redraws
     
     // Selection Wrapper
@@ -34,7 +36,8 @@ struct LineGraphView: View {
                             selectedStation: $selectedStation
                         )
                         .frame(width: 140)
-                        .background(.ultraThinMaterial)
+                        .background(appState.theme.background)
+                        .border(appState.theme.line.opacity(0.1), width: 1)
                         .zIndex(10)
                         
                         // 2. The Graph
@@ -58,14 +61,14 @@ struct LineGraphView: View {
             ScrollView(.horizontal, showsIndicators: true) {
                 ZStack(alignment: .topLeading) {
                     // Dimensions
-                    let graphHeight = max(geometry.size.height, maxDistance * pixelsPerKm + 100)
+                    let graphHeight = max(200, maxDistance * pixelsPerKm + 100)
                     let graphWidth = 24 * timeScale
                     
                     // Background
                     Rectangle()
-                        .fill(Color(white: 0.95))
+                        .fill(appState.theme.background.opacity(0.8))
                         .frame(width: graphWidth, height: graphHeight)
-                        .border(appState.theme.dark, width: 1)
+                        .border(appState.theme.line.opacity(0.2), width: 1)
                     
                     // Layers
                     GridLayer(
@@ -101,41 +104,23 @@ struct LineGraphView: View {
                 .onTapGesture { location in
                    findTrainAtLocation(location)
                 }
-                .gesture(
+                .simultaneousGesture(
                     MagnificationGesture()
                         .onChanged { value in
+                            // value is the magnification factor since gesture start
                             let delta = value / lastScale
-                            
-                            // Calculate provisional new values
-                            let provTimeScale = timeScale * delta
-                            let provPixelsPerKm = pixelsPerKm * delta
-                            
-                            // Determine effective realizable delta for each dimension given limits
-                            // timeScale: 20...300
-                            let clampedTimeScale = min(max(20, provTimeScale), 300)
-                            let realizedDeltaTime = clampedTimeScale / timeScale
-                            
-                            // pixelsPerKm: 1.0...50.0
-                            let clampedPixelsPerKm = min(max(1.0, provPixelsPerKm), 50.0)
-                            let realizedDeltaPixels = clampedPixelsPerKm / pixelsPerKm
-                            
-                            // Use the most restrictive delta to maintain aspect ratio
-                            let finalDelta: CGFloat
-                            if delta > 1 {
-                                // Growing: limited by the smaller realization (one that hits max first)
-                                finalDelta = min(realizedDeltaTime, realizedDeltaPixels)
-                            } else {
-                                // Shrinking: limited by the larger realization (one that hits min first, closest to 1)
-                                finalDelta = max(realizedDeltaTime, realizedDeltaPixels)
-                            }
-                            
-                            // Apply the synchronized delta
-                            timeScale = timeScale * finalDelta
-                            pixelsPerKm = pixelsPerKm * finalDelta
-                            
                             lastScale = value
+                            
+                            // Proportional scaling
+                            let newTimeScale = timeScale * delta
+                            let newPixelsPerKm = pixelsPerKm * delta
+                            
+                            timeScale = min(max(20, newTimeScale), 400)
+                            pixelsPerKm = min(max(2.0, newPixelsPerKm), 100)
                         }
-                        .onEnded { _ in lastScale = 1.0 }
+                        .onEnded { _ in
+                            lastScale = 1.0
+                        }
                 )
                 .onChange(of: appState.selectedTrainIds) { ids in
                     if let trainId = ids.first,
@@ -146,7 +131,7 @@ struct LineGraphView: View {
                         let hour = calendar.component(.hour, from: firstStop.departure ?? firstStop.arrival ?? Date())
                         
                         withAnimation(.easeInOut(duration: 0.8)) {
-                            horizontalProxy.scrollTo(Double(hour) * timeScale, anchor: .center)
+                            horizontalProxy.scrollTo("hour_\(hour)", anchor: .center)
                             verticalProxy.scrollTo(firstStop.stationId, anchor: .center)
                         }
                     }
@@ -159,18 +144,26 @@ struct LineGraphView: View {
         ToolbarItem(placement: .primaryAction) {
             HStack {
                 Menu {
-                    Button("Molto Compatta (2 px/km)") { pixelsPerKm = 2.0 }
-                    Button("Compatta (5 px/km)") { pixelsPerKm = 5.0 }
-                    Button("Normale (10 px/km)") { pixelsPerKm = 10.0 }
-                    Button("Dettagliata (20 px/km)") { pixelsPerKm = 20.0 }
+                    Button("Zoom 1x") { timeScale = 120; pixelsPerKm = 10 }
+                    Button("Zoom 2x") { timeScale = 240; pixelsPerKm = 20 }
+                    Button("Zoom 0.5x") { timeScale = 60; pixelsPerKm = 5 }
                 } label: {
-                    Label("Scala Vert.", systemImage: "arrow.up.and.down.square")
+                    Image(systemName: "magnifyingglass.circle")
                 }
                 
                 Divider()
                 
-                Button(action: { timeScale = max(20, timeScale - 10) }) { Image(systemName: "minus.magnifyingglass") }
-                Button(action: { timeScale = min(200, timeScale + 10) }) { Image(systemName: "plus.magnifyingglass") }
+                VStack(spacing: 0) {
+                    Slider(value: $timeScale, in: 20...400)
+                        .frame(width: 100)
+                    Text("Tempo").font(.system(size: 8))
+                }
+                
+                VStack(spacing: 0) {
+                    Slider(value: $pixelsPerKm, in: 2...100)
+                        .frame(width: 100)
+                    Text("Spazio").font(.system(size: 8))
+                }
             }
         }
     }
@@ -245,28 +238,49 @@ struct GridLayer: View {
     let pixelsPerKm: CGFloat
     let orderedStations: [Node]
     let stationDistances: [Double]
+    @EnvironmentObject var appState: AppState
     
     var body: some View {
-        Canvas { context, size in
-            // Time Grid
-            for hour in 0...24 {
-                let x = CGFloat(hour) * timeScale
-                let path = Path {
-                    $0.move(to: CGPoint(x: x, y: 0))
-                    $0.addLine(to: CGPoint(x: x, y: size.height))
+        ZStack(alignment: .topLeading) {
+            // Invisible anchors for horizontal scrolling
+            HStack(spacing: 0) {
+                ForEach(0...24, id: \.self) { hour in
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .id("hour_\(hour)")
+                    if hour < 24 {
+                        Spacer().frame(width: timeScale - 1)
+                    }
                 }
-                context.stroke(path, with: .color(.gray.opacity(0.15)), lineWidth: 1)
-                context.draw(Text(hour == 24 ? "0:00" : "\(hour):00").font(.caption).foregroundColor(.secondary), at: CGPoint(x: x + 5, y: 5))
             }
-            // Station Grid
-            for (index, _) in orderedStations.enumerated() {
-                guard index < stationDistances.count else { continue }
-                let y = stationDistances[index] * pixelsPerKm + 50
-                let path = Path {
-                    $0.move(to: CGPoint(x: 0, y: y))
-                    $0.addLine(to: CGPoint(x: size.width, y: y))
+            .frame(width: width, height: 1)
+
+            Canvas { context, size in
+                // Time Grid
+                for hour in 0...24 {
+                    let x = CGFloat(hour) * timeScale
+                    let path = Path {
+                        $0.move(to: CGPoint(x: x, y: 0))
+                        $0.addLine(to: CGPoint(x: x, y: size.height))
+                    }
+                    context.stroke(path, with: .color(appState.theme.line.opacity(0.4)), lineWidth: 1)
+                    context.draw(Text(hour == 24 ? "0:00" : "\(hour):00").font(.caption.bold()).foregroundColor(appState.theme.dark), at: CGPoint(x: x + 5, y: 5))
                 }
-                context.stroke(path, with: .color(.primary.opacity(0.1)), lineWidth: 1)
+                
+                // Station Grid + KM Labels
+                for (index, _) in orderedStations.enumerated() {
+                    guard index < stationDistances.count else { continue }
+                    let y = stationDistances[index] * pixelsPerKm + 50
+                    let path = Path {
+                        $0.move(to: CGPoint(x: 0, y: y))
+                        $0.addLine(to: CGPoint(x: size.width, y: y))
+                    }
+                    context.stroke(path, with: .color(appState.theme.line.opacity(0.2)), lineWidth: 1)
+                    
+                    // KM Marker on the right
+                    let km = stationDistances[index]
+                    context.draw(Text(String(format: "km %.1f", km)).font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundColor(appState.theme.dark.opacity(0.5)), at: CGPoint(x: size.width - 35, y: y - 8))
+                }
             }
         }
         .frame(width: width, height: height)
@@ -353,8 +367,8 @@ struct TrainLayer: View {
         strokePath(currentPath, for: train, in: context)
         
         if let first = points.first {
-            let color: Color = train.priority > 7 ? .red : .primary
-            context.draw(Text(train.type + " " + train.name).font(.caption2).foregroundColor(color), at: CGPoint(x: first.x, y: first.y - 12))
+            let color: Color = train.priority > 7 ? .red : (appState.selectedTrainIds.contains(train.id) ? .cyan : appState.theme.dark)
+            context.draw(Text(train.type + " " + train.name).font(.system(size: 10, weight: .bold)).foregroundColor(color), at: CGPoint(x: first.x, y: first.y - 12))
         }
     }
     
@@ -365,7 +379,7 @@ struct TrainLayer: View {
         let color: Color
         if isEditing { color = .yellow }
         else if isSelected { color = .cyan }
-        else { color = train.priority > 7 ? .red : .white.opacity(0.6) }
+        else { color = train.priority > 7 ? .red : appState.theme.dark.opacity(0.6) }
         
         let lineWidth: CGFloat = isEditing ? 6 : (isSelected ? 4 : 2)
         context.drawLayer { subgroup in
@@ -382,6 +396,7 @@ struct ConflictLayer: View {
     let pixelsPerKm: CGFloat
     let orderedStations: [Node]
     let stationDistances: [Double]
+    @EnvironmentObject var appState: AppState
     @ObservedObject var manager: TrainManager
     
     var body: some View {
@@ -410,6 +425,13 @@ struct ConflictLayer: View {
                     }
                 }
             }
+        } symbols: {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.white)
+                .tag("exclamationmark.triangle.fill")
+            Image(systemName: "bolt.fill")
+                .foregroundColor(.white)
+                .tag("bolt.fill")
         }
         .frame(width: width, height: height)
     }
@@ -424,12 +446,20 @@ struct ConflictLayer: View {
         let radius: CGFloat = 12
         let rect = CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)
         context.fill(Path(ellipseIn: rect), with: .color(.red))
-        context.stroke(Path(ellipseIn: rect), with: .color(.white), lineWidth: 1.5)
-        context.draw(Image(systemName: icon), at: point)
+        context.stroke(Path(ellipseIn: rect), with: .color(appState.theme.background), lineWidth: 1.5)
+        
+        // Resolve and draw the icon
+        if let resolved = context.resolveSymbol(id: icon) {
+            context.draw(resolved, at: point)
+        } else {
+            // Fallback for simple images
+            context.draw(Image(systemName: icon), at: point)
+        }
     }
 }
 
 struct StationLabelsView: View {
+    @EnvironmentObject var appState: AppState
     let stations: [Node]
     let distances: [Double]
     let pixelsPerKm: CGFloat
@@ -438,7 +468,7 @@ struct StationLabelsView: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Color.clear
-            ForEach(stations.indices, id: \.self) { index in
+            ForEach(0..<stations.count, id: \.self) { index in
                 if index < distances.count {
                     let station = stations[index]
                     let dist = distances[index]
@@ -447,12 +477,17 @@ struct StationLabelsView: View {
                     Button(action: {
                         selectedStation = LineScheduleView.StationSelection(id: station.id)
                     }) {
-                        Text(station.name)
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .multilineTextAlignment(.trailing)
-                            .foregroundColor(.primary)
-                            .padding(.trailing, 8)
-                            .frame(height: 20)
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text(station.name)
+                                .font(.system(size: 9, weight: .black, design: .rounded))
+                                .multilineTextAlignment(.trailing)
+                            Text(String(format: "km %.1f", dist))
+                                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                .foregroundColor(selectedStation?.id == station.id ? appState.theme.accent : appState.theme.medium)
+                        }
+                        .padding(.trailing, 10)
+                        .frame(width: 140, height: 36, alignment: .trailing)
+                        .background(selectedStation?.id == station.id ? appState.theme.accent.opacity(0.1) : Color.clear)
                     }
                     .id(station.id)
                     .position(x: 70, y: y)

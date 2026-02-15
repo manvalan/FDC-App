@@ -27,109 +27,28 @@ struct ContentView: View {
             detailContent
             
             // 2. OVERLAYS: MODES & NAVIGATION
-            // Gestures handle visibility now
-            
-            // Top Mode Bar
             if appState.activePanel == .modeBar {
-                Color.black.opacity(0.001)
-                    .onTapGesture { appState.showPanel(.none) }
-                    .zIndex(99)
-                
-                VStack {
-                    FloatingModeBar()
-                        .padding(.top, 40)
-                    Spacer()
-                }
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .zIndex(100)
+                ModeBarOverlay()
             }
             
-            // Left Side Menu
             if appState.activePanel == .sidebar {
-                HStack {
-                    FloatingSideMenu()
-                        .transition(.move(edge: .leading))
-                    Spacer()
-                }
-                .background(Color.black.opacity(0.2).onTapGesture { appState.showPanel(.none) })
-                .zIndex(150)
+                SidebarOverlay()
             }
             
-            // Right Inspector (Contextual)
+            if appState.isWidePanelVisible && appState.activePanel == .inspector {
+                WidePanelOverlay()
+            }
+            
             if appState.activePanel == .inspector {
-                HStack {
-                    Spacer()
-                    ContextualInspector()
-                }
-                .zIndex(170)
+                InspectorOverlay()
             }
             
-            // Simulation Controls (Only in Live Mode)
             if appState.currentMode == .live {
-                VStack {
-                    Spacer()
-                    LiveSimulationShelf()
-                        .padding(.bottom, 20)
-                }
-                .zIndex(80)
+                SimulationControlsOverlay()
             }
             
-            
-            // 3. EDGE GESTURE DETECTORS (High Priority to prevent background scroll/pan)
-            VStack(spacing: 0) {
-                // Top edge strip (Mode Bar)
-                VStack(spacing: 0) {
-                    Capsule()
-                        .fill(Color.fdcGreyMedium.opacity(0.3))
-                        .frame(width: 40, height: 4)
-                        .padding(.top, 8)
-                    
-                    Color.clear
-                        .frame(height: 50) 
-                }
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
-                .highPriorityGesture(
-                    DragGesture(minimumDistance: 0, coordinateSpace: .global)
-                        .onChanged { value in
-                            if value.translation.height > 20 { 
-                                appState.showPanel(.modeBar)
-                            }
-                        }
-                )
-                
-                HStack(spacing: 0) {
-                    // Left edge strip (Side Menu)
-                    Color.clear
-                        .frame(width: 40)
-                        .contentShape(Rectangle())
-                        .highPriorityGesture(
-                            DragGesture(minimumDistance: 15)
-                                .onEnded { value in
-                                    if value.translation.width > 30 {
-                                        appState.showPanel(.sidebar)
-                                    }
-                                }
-                        )
-                    
-                    Spacer()
-                    
-                    // Right edge strip (Inspector)
-                    Color.clear
-                        .frame(width: 50)
-                        .contentShape(Rectangle())
-                        .highPriorityGesture(
-                            DragGesture(minimumDistance: 15)
-                                .onEnded { value in
-                                    if value.translation.width < -30 {
-                                        appState.showPanel(.inspector)
-                                    }
-                                }
-                        )
-                }
-                .frame(maxHeight: .infinity)
-            }
-            .edgesIgnoringSafeArea(.all)
+            // 3. EDGE GESTURE DETECTORS
+            EdgeGestureDetectors()
         }
         .environmentObject(network)
         .background {

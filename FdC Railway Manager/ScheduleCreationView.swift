@@ -52,6 +52,7 @@ struct ScheduleCreationView: View {
     @State private var manualAddition: Bool = false
     @State private var activePicker: PickerType?
     @State private var manualStationId: String = ""
+    @State private var isInitializing: Bool = true
     
     // Paired Return
     @State private var scheduleReturn: Bool = true // Enabled by default in this layout
@@ -87,11 +88,81 @@ struct ScheduleCreationView: View {
     @State private var estimatedTravelTime: Int = 0
     @State private var estimatedDistance: Double = 0
     
+    // Departure Time Optimizer
+    @State private var useDepartureOptimizer: Bool = true
+    private let departureOptimizer = DepartureTimeOptimizer()
+    @State private var showOptimizedTimesAlert: Bool = false
+    @State private var optimizedOutboundTime: Date?
+    @State private var optimizedReturnTime: Date?
+    @State private var optimizedInterval: Int?
+    @State private var optimizedReturnInterval: Int?
+    
     var body: some View {
-        NavigationStack {
-            formContent
+        ZStack {
+            ScrollView {
+                formScrollContent
+                    .padding(.top, 10)
+            }
+            
+            if geneticOptimizer.isRunning || cadenceOptimizer.isRunning {
+                optimizationOverlay
+            }
         }
-        .overlay(optimizationOverlay)
+        .onAppear {
+            handleOnAppear()
+        }
+        .alert("Orari Ottimizzati", isPresented: $showOptimizedTimesAlert) {
+            Button("Usa Orari Ottimizzati", role: .none) {
+                applyOptimizedTimesAndGenerate()
+            }
+            Button("Usa Orari Attuali", role: .cancel) {
+                aiTask = Task { await generateSchedule() }
+            }
+        } message: {
+            if mode == .single {
+                // Modalità singola: mostra solo gli orari
+                if let outbound = optimizedOutboundTime {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("L'algoritmo genetico ha trovato gli orari ottimali:")
+                        Text("")
+                        Text("🚂 Partenza Andata: \(formatTime(outbound))")
+                        if let returnTrip = optimizedReturnTime {
+                            Text("🔄 Partenza Ritorno: \(formatTime(returnTrip))")
+                        }
+                        Text("")
+                        Text("Questi orari minimizzano i conflitti e ottimizzano i tempi di attesa.")
+                    }
+                } else {
+                    Text("Orari ottimizzati calcolati.")
+                }
+            } else {
+                // Modalità cadenzata: mostra orari e intervalli
+                if let outbound = optimizedOutboundTime {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("L'algoritmo genetico ha trovato la cadenza ottimale:")
+                        Text("")
+                        Text("🚂 Andata:")
+                        Text("   • Prima partenza: \(formatTime(outbound))")
+                        if let interval = optimizedInterval {
+                            Text("   • Intervallo: \(interval) minuti")
+                        }
+                        
+                        if let returnTrip = optimizedReturnTime {
+                            Text("")
+                            Text("🔄 Ritorno:")
+                            Text("   • Prima partenza: \(formatTime(returnTrip))")
+                            if let returnInterval = optimizedReturnInterval {
+                                Text("   • Intervallo: \(returnInterval) minuti")
+                            }
+                        }
+                        Text("")
+                        Text("Questa cadenza minimizza i conflitti sulla linea.")
+                    }
+                } else {
+                    Text("Cadenza ottimizzata calcolata.")
+                }
+            }
+        }
     }
     
     private func triggerLineAnalysis() {
@@ -124,60 +195,106 @@ struct ScheduleCreationView: View {
 
     private var stationSelectSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 15) {
-                stationPill(title: "from".localized, id: startStationId, type: .start)
-                stationPill(title: "to".localized, id: endStationId, type: .end)
+            Text("PERCORSO DI LINEA")
+                .font(.system(.caption, design: .rounded).bold())
+                .foregroundColor(.secondary)
+            
+            VStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
+                    stationPill(title: "Partenza", id: startStationId, type: .start)
+                    
+                    HStack {
+                        Image(systemName: "arrow.down")
+                            .font(.caption.bold())
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 12)
+                        Spacer()
+                    }
+                    
+                    stationPill(title: "Arrivo", id: endStationId, type: .end)
+                }
                 
-                HStack {
-                    Text("via".localized).font(.caption).bold()
-                    if viaStationIds.isEmpty {
-                        Button(action: { viaStationIds.append("") }) {
-                            Image(systemName: "plus.circle")
+                if !viaStationIds.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("VIA").font(.caption2.bold()).foregroundColor(.secondary)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack {
+                                ForEach(viaStationIds.indices, id: \.self) { idx in
+                                    stationPill(title: nil, id: viaStationIds[idx], type: .via(idx))
+                                }
+                                Button(action: { viaStationIds.append("") }) {
+                                    Image(systemName: "plus.circle.fill")
+                                        .foregroundColor(.blue)
+                                }
+                            }
                         }
-                    } else {
-                        ForEach(viaStationIds.indices, id: \.self) { idx in
-                            stationPill(title: nil, id: viaStationIds[idx], type: .via(idx))
-                        }
-                        Button(action: { viaStationIds.append("") }) {
-                            Image(systemName: "plus.circle")
-                        }
+                    }
+                } else {
+                    Button(action: { viaStationIds.append("") }) {
+                        Label("Aggiungi tappa intermedia", systemImage: "plus.circle")
+                            .font(.caption)
                     }
                 }
             }
+            .padding()
+            .background(.ultraThinMaterial)
+            .cornerRadius(16)
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
         }
         .padding(.horizontal)
     }
 
     private func stationPill(title: String?, id: String, type: PickerType) -> some View {
         Button(action: { activePicker = type }) {
-            HStack {
+            VStack(alignment: .leading, spacing: 2) {
                 if let t = title {
-                    Text(t).bold().foregroundColor(.secondary)
+                    Text(t).font(.caption2).bold().foregroundColor(.secondary)
                 }
                 Text(stationName(id))
+                    .font(.headline)
                     .foregroundColor(id.isEmpty ? .secondary : .primary)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
             .background(Color.blue.opacity(0.1))
-            .cornerRadius(8)
+            .cornerRadius(12)
         }
         .buttonStyle(.plain)
     }
 
     private var pathInfoRow: some View {
-        HStack(spacing: 20) {
-            infoLabel(title: "path".localized, value: String(format: "stations_count_fmt".localized, stationSequence.count))
-            infoLabel(title: "length_short".localized, value: String(format: "%.1f km", estimatedDistance))
-            infoLabel(title: "est_duration_short".localized, value: String(format: "duration_min_fmt".localized, estimatedTravelTime))
-            Spacer()
+        VStack(alignment: .leading, spacing: 10) {
+            Text("DETTAGLI SERVIZIO")
+                .font(.system(.caption, design: .rounded).bold())
+                .foregroundColor(.secondary)
             
-            Picker("train_type".localized, selection: $selectedTrainType) {
-                ForEach(TrainCategory.allCases) { cat in
-                    Text(cat.localizedName).tag(cat)
+            VStack(spacing: 16) {
+                HStack(spacing: 12) {
+                    MetricView(label: "Stazioni", value: "\(stationSequence.count)")
+                    MetricView(label: "Distanza", value: String(format: "%.1fkm", estimatedDistance))
+                    MetricView(label: "Durata St.", value: "\(estimatedTravelTime)m")
+                    Spacer()
+                }
+                
+                HStack {
+                    Image(systemName: "train.side.front.car")
+                        .foregroundColor(.blue)
+                    Text("Tipologia Treno").font(.subheadline)
+                    Spacer()
+                    Picker("train_type".localized, selection: $selectedTrainType) {
+                        ForEach(TrainCategory.allCases) { cat in
+                            Text(cat.localizedName).tag(cat)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
                 }
             }
-            .frame(width: 150)
+            .padding()
+            .background(.ultraThinMaterial)
+            .cornerRadius(16)
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
         }
         .padding(.horizontal)
     }
@@ -189,54 +306,122 @@ struct ScheduleCreationView: View {
         }
     }
 
-    private func cadenceColumn(title: String, isReturn: Bool, sTime: Binding<Date>, eTime: Binding<Date>, interv: Binding<Int>, sNum: Binding<Int>) -> some View {
-        VStack(alignment: .leading, spacing: 15) {
-            Text(title).font(.subheadline).bold()
+    private var cadenceSelectionSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("PROGRAMMAZIONE ORARIA")
+                .font(.system(.caption, design: .rounded).bold())
+                .foregroundColor(.secondary)
             
-            DatePicker("start_hour".localized, selection: sTime, displayedComponents: .hourAndMinute)
+            VStack(spacing: 16) {
+                // Genetic Optimizer Toggle
+                Toggle(isOn: $useDepartureOptimizer) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "brain.head.profile")
+                            .foregroundColor(.purple)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Ottimizzatore Genetico")
+                                .font(.subheadline.bold())
+                            Text(mode == .single ? 
+                                 "Trova automaticamente gli orari di partenza ottimali" : 
+                                 "Ottimizza orari iniziali e intervalli tra i treni")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .toggleStyle(SwitchToggleStyle(tint: .purple))
+                .padding(.vertical, 8)
+                
+                Divider().background(Color.white.opacity(0.2))
+                
+                // Outward
+                cadenceBlock(title: directionTitle(isReturn: false), 
+                           isReturn: false,
+                           sTime: $startTime, 
+                           eTime: $endTime, 
+                           interv: $intervalMinutes,
+                           sNum: $startNumber)
+                
+                if scheduleReturn {
+                    Divider().background(Color.white.opacity(0.2))
+                    
+                    // Return
+                    cadenceBlock(title: directionTitle(isReturn: true), 
+                               isReturn: true,
+                               sTime: $returnStartTime, 
+                               eTime: $returnEndTime, 
+                               interv: $returnIntervalMinutes,
+                               sNum: $returnStartNumber)
+                }
+            }
+            .padding()
+            .background(.ultraThinMaterial)
+            .cornerRadius(16)
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
+        }
+        .padding(.horizontal)
+    }
+    
+    private func cadenceBlock(title: String, isReturn: Bool, sTime: Binding<Date>, eTime: Binding<Date>, interv: Binding<Int>, sNum: Binding<Int>) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: isReturn ? "arrow.left" : "arrow.right")
+                    .font(.caption.bold())
+                    .foregroundColor(.blue)
+                Text(title).font(.subheadline.bold())
+            }
+            
+            HStack {
+                Text("Inizio").font(.caption).foregroundColor(.secondary)
+                Spacer()
+                DatePicker("", selection: sTime, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+            }
             
             if mode == .cadenced {
-                DatePicker("end_hour".localized, selection: eTime, displayedComponents: .hourAndMinute)
                 HStack {
-                    Text("interval".localized)
+                    Text("Fine").font(.caption).foregroundColor(.secondary)
                     Spacer()
-                    Stepper(String(format: "interval_min_fmt".localized, interv.wrappedValue), value: interv, in: 5...360, step: 5)
+                    DatePicker("", selection: eTime, displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                }
+                
+                HStack {
+                    Text("Frequenza").font(.caption).foregroundColor(.secondary)
+                    Spacer()
+                    Stepper("\(interv.wrappedValue)m", value: interv, in: 5...360, step: 5)
+                        .font(.caption.bold())
                 }
             }
             
             HStack {
-                Text("start_number".localized)
+                Text("N. Partenza").font(.caption).foregroundColor(.secondary)
                 Spacer()
-                TextField("num_placeholder".localized, value: sNum, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 70)
-            }
-            
-            if !isReturn {
-                Picker("parity".localized, selection: $preferredParity) {
-                    ForEach(NumberParity.allCases) { p in
-                        Text(p.localizedName).tag(p)
-                    }
-                }
-                .pickerStyle(.segmented)
+                TextField("", value: sNum, format: .number)
+                    .textFieldStyle(.plain)
+                    .multilineTextAlignment(.trailing)
+                    .font(.subheadline.bold())
+                    .frame(width: 80)
+                    .padding(4)
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(6)
             }
             
             Button(action: { findIdealBaseTime(isReturn: isReturn) }) {
-                Label(cadenceOptimizer.isRunning ? "finding_slot".localized : "propose_ideal_slot".localized, 
-                      systemImage: "wand.and.stars")
-                    .font(.caption)
+                HStack {
+                    Image(systemName: "wand.and.stars")
+                    Text(cadenceOptimizer.isRunning ? "Calcolo in corso..." : "Trova slot ideale")
+                }
+                .font(.caption.bold())
+                .foregroundColor(.blue)
             }
+            .padding(.top, 4)
             .disabled(cadenceOptimizer.isRunning || stationSequence.count < 2)
-            
-            if !isReturn, let offset = localProposedOffset {
-                Text(String(format: "suggested_offset_fmt".localized, Int(offset)))
-                    .foregroundColor(.green)
-                    .font(.caption2.bold())
-            }
         }
     }
     
     private func findIdealBaseTime(isReturn: Bool) {
+        optimizationStartTime = Date()
         Task {
             let seq = isReturn ? stationSequence.reversed() : stationSequence
             let tempLine = RailwayLine(
@@ -274,29 +459,28 @@ struct ScheduleCreationView: View {
 
 
     private var previewSection: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Text(String(format: "trains_to_be_created_fmt".localized, previewCount))
-                Spacer()
-                
-                Toggle("optimization_ga".localized, isOn: $useGA)
-                    .toggleStyle(.switch)
-            }
-            .padding(.top, 4)
-
-            if appState.useCloudAI {
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(aiServiceConnectionColor)
-                        .frame(width: 8, height: 8)
-                    Text("cloud_ai_active_desc".localized)
-                        .font(.caption2).foregroundColor(.blue).italic()
+        VStack(alignment: .center, spacing: 12) {
+            HStack(spacing: 20) {
+                VStack(alignment: .center) {
+                    Text("CORSE").font(.caption2).foregroundColor(.secondary)
+                    Text("\(previewCount)")
+                        .font(.title2.bold())
+                        .foregroundColor(.blue)
                 }
-                .onAppear { RailwayAIService.shared.verifyConnection() }
-            } else if useGA {
-                Text("local_ga_desc".localized)
-                    .font(.caption2).foregroundColor(.secondary).italic()
+                
+                Divider().frame(height: 30)
+                
+                Toggle(isOn: $useGA) {
+                    VStack(alignment: .leading) {
+                        Text("OTTIMIZZA").font(.caption2).bold()
+                        Text("Risolvi conflitti").font(.caption).foregroundColor(.secondary)
+                    }
+                }
+                .toggleStyle(.switch)
             }
+            .padding()
+            .background(.ultraThinMaterial)
+            .cornerRadius(16)
         }
         .padding(.horizontal)
     }
@@ -339,9 +523,141 @@ struct ScheduleCreationView: View {
         self.estimatedTravelTime = calculateAccurateTravelTime()
     }
     
+    /// Calcola gli orari ottimizzati e mostra l'alert di conferma
+    @MainActor
+    private func proposeOptimizedTimes() async {
+        print("🧬 [OPTIMIZER] proposeOptimizedTimes() called")
+        print("   useDepartureOptimizer: \(useDepartureOptimizer)")
+        print("   scheduleReturn: \(scheduleReturn)")
+        print("   mode: \(mode.rawValue)")
+        
+        guard useDepartureOptimizer else {
+            // Se l'ottimizzatore è disabilitato, genera direttamente
+            print("   ⏭️ Optimizer disabled - skipping to direct generation")
+            aiTask = Task { await generateSchedule() }
+            return
+        }
+        
+        let calendar = Calendar.current
+        let normalizedStart = normalizeDate(startTime)
+        
+        print("🧬 [OPTIMIZER] Calculating optimal departure times...")
+        aiStatus = "Calcolo orari ottimali..."
+        
+        let timeWindow = calendar.component(.hour, from: normalizedStart) * 60 + calendar.component(.minute, from: normalizedStart)
+        let windowStart = max(0, timeWindow - 120) // 2 hours before
+        let windowEnd = min(1439, timeWindow + 240) // 4 hours after
+        
+        if mode == .single {
+            // Modalità singola: ottimizza solo gli orari di partenza
+            let context = DepartureTimeOptimizer.OptimizationContext(
+                line: line,
+                network: network,
+                existingTrains: manager.trains,
+                timeWindow: windowStart...windowEnd,
+                estimatedTravelTime: estimatedTravelTime
+            )
+            
+            let optimizedTimes = departureOptimizer.optimize(context: context)
+            
+            optimizedOutboundTime = optimizedTimes.outbound
+            optimizedReturnTime = scheduleReturn ? optimizedTimes.returnTrip : nil
+            
+            print("   ✅ Proposed outbound: \(formatTime(optimizedTimes.outbound))")
+            if scheduleReturn {
+                print("   ✅ Proposed return: \(formatTime(optimizedTimes.returnTrip))")
+            }
+        } else {
+            // Modalità cadenzata: ottimizza orari iniziali e intervalli
+            let normalizedEnd = normalizeDate(endTime)
+            let endMinutes = calendar.component(.hour, from: normalizedEnd) * 60 + calendar.component(.minute, from: normalizedEnd)
+            
+            let normalizedReturnEnd = normalizeDate(returnEndTime)
+            let returnEndMinutes = calendar.component(.hour, from: normalizedReturnEnd) * 60 + calendar.component(.minute, from: normalizedReturnEnd)
+            
+            let cadenceContext = DepartureTimeOptimizer.CadenceContext(
+                line: line,
+                network: network,
+                existingTrains: manager.trains,
+                timeWindow: windowStart...windowEnd,
+                endTime: endMinutes,
+                estimatedTravelTime: estimatedTravelTime,
+                scheduleReturn: scheduleReturn,
+                returnEndTime: returnEndMinutes
+            )
+            
+            let optimized = departureOptimizer.optimizeCadence(context: cadenceContext)
+            
+            optimizedOutboundTime = optimized.startTime
+            optimizedReturnTime = scheduleReturn ? optimized.returnStartTime : nil
+            optimizedInterval = optimized.interval
+            optimizedReturnInterval = optimized.returnInterval
+            
+            print("   ✅ Proposed outbound start: \(formatTime(optimized.startTime)) @ \(optimized.interval)min")
+            if scheduleReturn {
+                print("   ✅ Proposed return start: \(formatTime(optimized.returnStartTime)) @ \(optimized.returnInterval)min")
+            }
+        }
+        
+        aiStatus = nil
+        showOptimizedTimesAlert = true
+    }
+    
+    /// Applica gli orari ottimizzati e genera i treni
+    @MainActor
+    private func applyOptimizedTimesAndGenerate() {
+        if let outbound = optimizedOutboundTime {
+            startTime = outbound
+            print("   ✅ Applied optimized outbound time: \(formatTime(outbound))")
+        }
+        
+        if let returnTrip = optimizedReturnTime {
+            returnStartTime = returnTrip
+            print("   ✅ Applied optimized return time: \(formatTime(returnTrip))")
+        }
+        
+        if mode == .cadenced {
+            if let interval = optimizedInterval {
+                intervalMinutes = interval
+                print("   ✅ Applied optimized interval: \(interval)min")
+            }
+            
+            if let returnInterval = optimizedReturnInterval {
+                returnIntervalMinutes = returnInterval
+                print("   ✅ Applied optimized return interval: \(returnInterval)min")
+            }
+        }
+        
+        aiTask = Task { await generateSchedule() }
+    }
+    
     @MainActor
     private func generateSchedule(forceLocal: Bool = false) async {
         let calendar = Calendar.current
+        
+        print("\n🚀 [GEN] ===== INIZIO GENERAZIONE ORARIO =====")
+        print("   Linea: \(line.name)")
+        print("   Modalità: \(mode.rawValue)")
+        print("   Stazioni: \(stationSequence.count) → \(stationSequence)")
+        print("   Tipo treno: \(selectedTrainType.rawValue)")
+        print("   Orario partenza: \(formatTime(startTime))")
+        if mode == .cadenced {
+            print("   Orario fine: \(formatTime(endTime))")
+            print("   Intervallo: \(intervalMinutes) minuti")
+        }
+        print("   Genera ritorno: \(scheduleReturn)")
+        print("   Ottimizzazione: \(useGA)")
+        print("   Ottimizzatore orari partenza: \(useDepartureOptimizer)")
+        print("   AI Cloud: \(appState.useCloudAI)")
+        
+        // PRE-FLIGHT CHECK: Validate station sequence
+        guard stationSequence.count >= 2 else {
+            print("❌ [GEN] ERRORE: Sequenza stazioni insufficiente (\(stationSequence.count) stazioni)")
+            print("   La linea '\(line.name)' deve avere almeno 2 stazioni configurate.")
+            print("   Aggiungi le stazioni alla linea prima di generare gli orari.")
+            aiStatus = nil
+            return
+        }
         
         // 1. PRE-FLIGHT SIMULATION: Analyze real timing to find critical stations
         aiStatus = "line_analysis".localized
@@ -427,6 +743,9 @@ struct ScheduleCreationView: View {
                 deceleration: physics.deceleration,
                 preferredTrack: "1"
             )
+            #if DEBUG
+            print("🚂 [GEN] Created outward train \(outwardTrain.name) with \(outwardTrain.stops.count) stops, departure: \(departureTime)")
+            #endif
             generatedTrains.append(outwardTrain)
         }
         
@@ -459,11 +778,48 @@ struct ScheduleCreationView: View {
                     deceleration: physics.deceleration,
                     preferredTrack: "2"
                 )
+                #if DEBUG
+                print("🚂 [GEN] Created return train \(returnTrain.name) with \(returnTrain.stops.count) stops, departure: \(departureTime)")
+                #endif
                 generatedTrains.append(returnTrain)
             }
         }
         
         print("🚄 [GEN] Treni generati totali: \(generatedTrains.count). (Andata + Ritorno)")
+        
+        // CRITICAL CHECK: Verify we actually generated trains
+        guard !generatedTrains.isEmpty else {
+            print("❌ [GEN] ERRORE CRITICO: Nessun treno generato! generatedTrains è vuoto.")
+            print("   Debug info: mode=\(mode), outwardIterations dovrebbe essere > 0")
+            print("   stationSequence: \(stationSequence)")
+            aiStatus = nil
+            return
+        }
+        
+        // VALIDATION: Check for trains with 0 stops (invalid)
+        let validTrains = generatedTrains.filter { !$0.stops.isEmpty }
+        let invalidCount = generatedTrains.count - validTrains.count
+        if invalidCount > 0 {
+            print("⚠️ [GEN] WARNING: \(invalidCount) trains had 0 stops and were filtered out")
+            for train in generatedTrains where train.stops.isEmpty {
+                print("   • Invalid train: \(train.name) (stops: \(train.stops.count))")
+            }
+        }
+        generatedTrains = validTrains
+        
+        // Verify we still have trains after validation
+        guard !generatedTrains.isEmpty else {
+            print("❌ [GEN] ERRORE CRITICO: All trains were invalid (0 stops)")
+            print("   Impossibile generare treni: la linea '\(line.name)' non ha stazioni configurate.")
+            print("   Aggiungi almeno 2 stazioni alla linea prima di generare gli orari.")
+            aiStatus = nil
+            return
+        }
+        
+        // Log detailed info about generated trains
+        for train in generatedTrains {
+            print("   Train '\(train.name)': \(train.stops.count) stops")
+        }
         
         aiStatus = "starting_pipeline".localized
         optimizationStartTime = Date()
@@ -472,6 +828,8 @@ struct ScheduleCreationView: View {
         // PIGNOLO PROTOCOL: Capture thread-safe copies of nodes/edges while on MainActor
         let nodesCopy = network.nodes
         let edgesCopy = network.edges
+        
+        print("🔧 [GEN] Avvio pipeline con \(generatedTrains.count) treni, \(nodesCopy.count) nodi, \(edgesCopy.count) edges")
         
         let optimizedTrains = await RailwayScheduleOptimizer.shared.executePipeline(
             newTrains: generatedTrains,
@@ -483,10 +841,38 @@ struct ScheduleCreationView: View {
             geneticOptimizer: geneticOptimizer
         )
         
+        print("✅ [GEN] Pipeline completed, returned \(optimizedTrains.count) trains")
+        
+        // CRITICAL CHECK: Verify pipeline didn't return empty
+        guard !optimizedTrains.isEmpty else {
+            print("❌ [GEN] ERRORE CRITICO: Pipeline ha ritornato 0 treni! Input era \(generatedTrains.count)")
+            print("   Questo potrebbe indicare un problema nella pipeline di ottimizzazione.")
+            print("   useAI: \(appState.useCloudAI && useGA && !forceLocal), useGA: \(useGA)")
+            aiStatus = nil
+            return
+        }
+        
+        #if DEBUG
+        for train in optimizedTrains.prefix(3) {
+            print("   Train '\(train.name)': \(train.stops.count) stops")
+            for (i, stop) in train.stops.prefix(3).enumerated() {
+                let arr = stop.arrival.map { formatTime($0) } ?? "nil"
+                let dep = stop.departure.map { formatTime($0) } ?? "nil"
+                print("      Stop \(i) (\(stop.stationId)): arr=\(arr), dep=\(dep)")
+            }
+        }
+        #endif
+        
+        print("➕ [GEN] Aggiunta di \(optimizedTrains.count) treni al manager (attualmente \(manager.trains.count) treni)")
         manager.trains.append(contentsOf: optimizedTrains)
+        print("✅ [GEN] Manager ora ha \(manager.trains.count) treni totali")
+        
         manager.validateSchedules()
         
+        print("🎉 [GEN] Generazione completata con successo!")
+        
         aiStatus = nil
+        appState.creationLineId = nil
         dismiss()
     }
     
@@ -644,6 +1030,9 @@ struct ScheduleCreationView: View {
             }
         }
         .onChange(of: startStationId) { old, new in
+            // Don't override station sequence during initialization
+            guard !isInitializing else { return }
+            
             if !new.isEmpty {
                 if stationSequence.isEmpty || !manualAddition {
                     stationSequence = [new]
@@ -672,102 +1061,156 @@ struct ScheduleCreationView: View {
     }
     
     private var formScrollContent: some View {
-        VStack(spacing: 20) {
-            headerSection
+        VStack(spacing: 24) {
+            // Header con selettore modalità
+            HStack {
+                Text("Modalità").font(.caption.bold()).foregroundColor(.secondary)
+                Spacer()
+                Picker("mode".localized, selection: $mode) {
+                    ForEach(ScheduleMode.allCases) { m in
+                        Text(m.localizedName).tag(m)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 200)
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+
             stationSelectSection
-            pathPickerSection
             pathInfoRow
-            cadenceSelectionSection
-            previewSection
-            // optimizerStatusSection REMOVED: Now handled by Overlay
+            
             generateReturnToggle
-            Divider().padding(.top)
+            
+            cadenceSelectionSection
+            
+            previewSection
+            
             actionButtonsSection
         }
-        .padding(.vertical)
+        .padding(.bottom, 40)
     }
 
     private var optimizationOverlay: some View {
         ZStack {
-            if geneticOptimizer.isRunning {
-                Color.black.opacity(0.7).edgesIgnoringSafeArea(.all)
+            if geneticOptimizer.isRunning || cadenceOptimizer.isRunning {
+                Color.black.opacity(0.3)
+                    .edgesIgnoringSafeArea(.all)
+                    .transition(.opacity)
                 
-                VStack(spacing: 20) {
-                    Text("Ottimizzazione in corso...")
-                        .font(.title2).bold()
+                VStack(spacing: 24) {
+                    // Title
+                    Text(cadenceOptimizer.isRunning ? "Calcolo Slot Ideale..." : "Ottimizzazione Orario...")
+                        .font(.title3.bold())
                         .foregroundColor(.white)
+                        .shadow(radius: 5)
+                        .padding(.top, 8)
                     
-                    ProgressView(value: geneticOptimizer.progress)
-                        .progressViewStyle(LinearProgressViewStyle(tint: .blue))
-                        .padding(.horizontal)
-                    
-                    HStack {
-                        Text("\(Int(geneticOptimizer.progress * 100))%")
-                            .bold()
-                            .foregroundColor(.white)
+                    // MARK: - New Conflict Counter Bar
+                    HStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.title2)
+                            .foregroundColor(.orange)
+                            .symbolEffect(.pulse)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("CONFLITTI RIMANENTI")
+                                .font(.caption2.bold())
+                                .foregroundColor(.secondary)
+                            
+                            let count = cadenceOptimizer.isRunning ? (cadenceOptimizer.fitness.isFinite ? Int(cadenceOptimizer.fitness / 1000) : 0) : geneticOptimizer.conflictCount
+                            let isClean = count == 0
+                            
+                            Text(isClean ? "NESSUNO" : "\(count)")
+                                .font(.system(.title, design: .rounded).bold())
+                                .foregroundColor(isClean ? .green : .primary)
+                                .contentTransition(.numericText())
+                        }
+                        
                         Spacer()
-                        if let time = estimatedTimeRemaining {
-                            Text("Stima: \(time)")
-                                .foregroundColor(.white.opacity(0.8))
-                        }
-                    }
-                    .font(.caption)
-                    .padding(.horizontal)
-                    
-                    HStack(spacing: 15) {
-                        VStack {
-                            Text("CONFLITTI")
-                                .font(.caption2).bold().foregroundColor(.secondary)
-                            Text("\(geneticOptimizer.conflictCount)")
-                                .font(.title).bold()
-                                .foregroundColor(geneticOptimizer.conflictCount == 0 ? .green : .red)
-                        }
-                        .frame(minWidth: 80)
-                        
-                        Divider().background(Color.white)
-                        
-                        VStack {
-                            Text("GEN")
-                                .font(.caption2).bold().foregroundColor(.secondary)
-                            Text("\(geneticOptimizer.currentGeneration)")
-                                .font(.title).bold()
-                                .foregroundColor(.white)
-                        }
-                        .frame(minWidth: 80)
                     }
                     .padding()
-                    .background(Color(white: 0.15))
-                    .cornerRadius(12)
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                    )
+                    
+                    // Progress
+                    VStack(spacing: 8) {
+                        let progress = cadenceOptimizer.isRunning ? cadenceOptimizer.progress : geneticOptimizer.progress
+                        ProgressView(value: progress)
+                            .progressViewStyle(.linear)
+                            .tint(.blue)
+                        
+                        HStack {
+                            Text("\(Int(progress * 100))%")
+                                .font(.caption.monospacedDigit())
+                                .foregroundColor(.white.opacity(0.8))
+                            Spacer()
+                            if let time = estimatedTimeRemaining {
+                                Text(time)
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                        }
+                    }
                 }
                 .padding(30)
-                .background(Color(UIColor.systemBackground))
-                .cornerRadius(20)
-                .shadow(radius: 20)
-                .padding(40)
+                .frame(maxWidth: 400)
+                .background(.regularMaterial)
+                .cornerRadius(24)
+                .shadow(color: .black.opacity(0.3), radius: 30, x: 0, y: 15)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                )
             }
         }
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: geneticOptimizer.isRunning)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: cadenceOptimizer.isRunning)
     }
     
     @State private var optimizationStartTime: Date? = nil
     
     private var estimatedTimeRemaining: String? {
-        guard let start = optimizationStartTime, geneticOptimizer.progress > 0.05 else { return nil }
+        let isGen = geneticOptimizer.isRunning
+        let isCad = cadenceOptimizer.isRunning
+        guard isGen || isCad else { return nil }
+        
+        let prog = isGen ? geneticOptimizer.progress : (isCad ? cadenceOptimizer.progress : 0.0)
+        guard let start = optimizationStartTime, prog > 0.02 else { return nil }
+        
         let elapsed = Date().timeIntervalSince(start)
-        let totalEstimated = elapsed / geneticOptimizer.progress
+        let totalEstimated = elapsed / prog
         let remaining = totalEstimated - elapsed
         
         if remaining < 0 { return "0s" }
         
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.minute, .second]
-        formatter.unitsStyle = .abbreviated
-        return formatter.string(from: remaining)
+        let m = Int(remaining) / 60
+        let s = Int(remaining) % 60
+        return m > 0 ? "\(m)m \(s)s" : "\(s)s"
     }
 
     private func handleOnAppear() {
+        print("📍 [ScheduleCreationView] handleOnAppear for line: \(line.name)")
+        print("   Line ID: \(line.id)")
+        print("   Origin: \(line.originId), Destination: \(line.destinationId)")
+        print("   Line.stops.count: \(line.stops.count)")
+        print("   Line.stops: \(line.stops)")
+        
         startStationId = line.originId
         endStationId = line.destinationId
         stationSequence = line.stations
+        
+        print("   Line.stations.count: \(line.stations.count)")
+        print("   Stations: \(line.stations)")
+        print("   stationSequence.count: \(stationSequence.count)")
+        print("   stationSequence: \(stationSequence)")
+        
+        // Mark initialization as complete to allow onChange handlers to work
+        isInitializing = false
         
         // Sync return times
         returnStartTime = startTime
@@ -802,70 +1245,7 @@ struct ScheduleCreationView: View {
         updatePathCalculations()
     }
     
-    private var pathPickerSection: some View {
-        PathPickerComponent(
-            startStationId: $startStationId,
-            viaStationIds: $viaStationIds,
-            endStationId: $endStationId,
-            stationSequence: $stationSequence,
-            manualAddition: $manualAddition,
-            activePicker: $activePicker,
-            manualStationId: $manualStationId,
-            lineContext: line,
-            lineAnalysis: lineAnalysis,
-            isAnalyzing: isAnalyzingLine
-        )
-        .padding(.horizontal)
-    }
-    
-    private var cadenceSelectionSection: some View {
-        HStack(alignment: .top, spacing: 20) {
-            cadenceColumn(title: directionTitle(isReturn: false), 
-                         isReturn: false,
-                         sTime: $startTime, 
-                         eTime: $endTime, 
-                         interv: $intervalMinutes,
-                         sNum: $startNumber)
-            
-            Divider()
-            
-            cadenceColumn(title: directionTitle(isReturn: true), 
-                         isReturn: true,
-                         sTime: $returnStartTime, 
-                         eTime: $returnEndTime, 
-                         interv: $returnIntervalMinutes,
-                         sNum: $returnStartNumber)
-            .opacity(scheduleReturn ? 1.0 : 0.4)
-            .disabled(!scheduleReturn)
-        }
-        .padding()
-        .background(Color.secondary.opacity(0.05))
-        .cornerRadius(12)
-        .padding(.horizontal)
-    }
-    
-    private var optimizerStatusSection: some View {
-        Group {
-            if geneticOptimizer.isRunning {
-                VStack(spacing: 8) {
-                    ProgressView(value: geneticOptimizer.progress)
-                    HStack {
-                        Text(String(format: "genetic_opt_gen_fmt".localized, geneticOptimizer.currentGeneration))
-                        Spacer()
-                        Text(String(format: "conflicts_count_fmt".localized, geneticOptimizer.conflictCount))
-                            .foregroundColor(geneticOptimizer.conflictCount == 0 ? .green : .red)
-                            .bold()
-                    }
-                    .font(.caption2)
-                }
-                .padding()
-                .background(Color.blue.opacity(0.1))
-                .cornerRadius(8)
-                .padding(.horizontal)
-            }
-        }
-    }
-    
+
     private var generateReturnToggle: some View {
         Toggle(isOn: $scheduleReturn) {
             Label {
@@ -883,47 +1263,52 @@ struct ScheduleCreationView: View {
     }
     
     private var actionButtonsSection: some View {
-        HStack {
-            Button("cancel".localized.uppercased()) { dismiss() }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-            
-            Spacer()
-            
+        let isValidConfiguration = stationSequence.count >= 2
+        
+        return VStack(spacing: 12) {
             Button(action: {
                 if aiStatus != nil || geneticOptimizer.isRunning {
-                    // STOP EVERYTHING - Cancel and reset
                     aiTask?.cancel()
                     aiTask = nil
-                    aiStatus = "cancelling".localized
-                    
-                    // Wait for cleanup before resetting UI
-                    Task { @MainActor in
-                        // Give the pipeline time to detect cancellation and exit
-                        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
-                        aiStatus = nil
-                    }
                 } else {
-                    aiTask = Task {
-                        await generateSchedule()
-                    }
+                    aiTask = Task { await proposeOptimizedTimes() }
                 }
             }) {
-                if geneticOptimizer.isRunning || aiStatus != nil {
-                    ProgressView().controlSize(.small).padding(.trailing, 4)
+                HStack {
+                    if geneticOptimizer.isRunning || aiStatus != nil {
+                        ProgressView().controlSize(.small).padding(.trailing, 4)
+                        Text("FERMA OTTIMIZZAZIONE")
+                    } else {
+                        Image(systemName: "sparkles")
+                        Text(isValidConfiguration ? "GENERA ORARIO" : "CONFIGURA LINEA")
+                    }
                 }
-                if aiStatus != nil || geneticOptimizer.isRunning {
-                    Text("stop".localized.uppercased())
-                } else {
-                    Text("generate".localized.uppercased())
-                }
+                .font(.headline)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(geneticOptimizer.isRunning ? Color.red : (isValidConfiguration ? Color.blue : Color.gray))
+                .cornerRadius(16)
+                .shadow(color: (geneticOptimizer.isRunning ? Color.red : (isValidConfiguration ? Color.blue : Color.gray)).opacity(0.3), radius: 8, y: 4)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .disabled(!isValidConfiguration && aiStatus == nil && !geneticOptimizer.isRunning)
+            
+            if !isValidConfiguration {
+                Text("⚠️ Aggiungi almeno 2 stazioni alla linea")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+            }
+            
+            Button(action: { appState.creationLineId = nil }) {
+                Text("cancel".localized.uppercased())
+                    .font(.caption.bold())
+                    .foregroundColor(.secondary)
+            }
+            .padding(.top, 4)
         }
         .padding()
     }
-    
+
     private func estimateTravelTimeBetween(_ fromId: String, _ toId: String, in network: RailwayNetwork) -> Int {
         let stations = network.findShortestPath(from: fromId, to: toId)?.0 ?? []
         guard stations.count >= 2 else { return 0 }
@@ -983,3 +1368,5 @@ struct ScheduleCreationView: View {
         }
     }
 }
+
+

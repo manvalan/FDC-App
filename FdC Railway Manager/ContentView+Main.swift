@@ -13,7 +13,7 @@ extension ContentView {
                     showGrid: $appState.showGrid,
                     isMoveModeEnabled: $appState.isMoveModeEnabled,
                     highlightedConflictLocation: $highlightedConflictLocation,
-                    mode: (appState.sidebarSelection == .lines || appState.sidebarSelection == .trains || appState.currentMode != .design) ? .lines : .network
+                    mode: $appState.mapVisualizationMode
                 )
                 .ignoresSafeArea()
             case .timetable:
@@ -66,3 +66,4 @@ extension ContentView {
         appState.isSomethingSelected
     }
 }
+

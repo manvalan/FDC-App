@@ -49,12 +49,12 @@ final class NetworkModel: ObservableObject {
     
     // MARK: - Pathfinding logic
     
-    func findPathEdges(from startId: String, to endId: String) -> [Edge]? {
-        return NetworkModel.findPathEdges(from: startId, to: endId, nodes: nodes, edges: edges)
+    func findPathEdges(from startId: String, to endId: String, ignoreDirection: Bool = false, restrictIntermediateStations: Bool = false) -> [Edge]? {
+        return NetworkModel.findPathEdges(from: startId, to: endId, nodes: nodes, edges: edges, ignoreDirection: ignoreDirection, restrictIntermediateStations: restrictIntermediateStations)
     }
     
-    static nonisolated func findPathEdges(from startId: String, to endId: String, nodes: [Node], edges: [Edge]) -> [Edge]? {
-        guard let (pathNodes, _) = findShortestPath(from: startId, to: endId, nodes: nodes, edges: edges) else { return nil }
+    static nonisolated func findPathEdges(from startId: String, to endId: String, nodes: [Node], edges: [Edge], ignoreDirection: Bool = false, restrictIntermediateStations: Bool = false) -> [Edge]? {
+        guard let (pathNodes, _) = findShortestPath(from: startId, to: endId, nodes: nodes, edges: edges, ignoreDirection: ignoreDirection, restrictIntermediateStations: restrictIntermediateStations) else { return nil }
         var pathEdges: [Edge] = []
         for i in 0..<pathNodes.count - 1 {
             let u = pathNodes[i]
@@ -66,8 +66,8 @@ final class NetworkModel: ObservableObject {
         return pathEdges
     }
     
-    func findShortestPath(from start: String, to end: String) -> ([String], Double)? {
-        return NetworkModel.findShortestPath(from: start, to: end, nodes: nodes, edges: edges)
+    func findShortestPath(from start: String, to end: String, ignoreDirection: Bool = false, restrictIntermediateStations: Bool = false) -> ([String], Double)? {
+        return NetworkModel.findShortestPath(from: start, to: end, nodes: nodes, edges: edges, ignoreDirection: ignoreDirection, restrictIntermediateStations: restrictIntermediateStations)
     }
     
     func findAlternativePaths(from start: String, to end: String) -> [(path: [String], distance: Double, description: String)] {
@@ -194,14 +194,27 @@ final class NetworkModel: ObservableObject {
     
     // MARK: - Pathfinding Algorithms
     
-    static nonisolated func dijkstraAll(from start: String, nodes: [Node], edges: [Edge], isReverse: Bool = false) -> (distances: [String: Double], previous: [String: String]) {
+    static nonisolated func dijkstraAll(from start: String, nodes: [Node], edges: [Edge], isReverse: Bool = false, ignoreDirection: Bool = false, restrictIntermediateStations: Bool = false) -> (distances: [String: Double], previous: [String: String]) {
         var distances = [String: Double]()
         var previous = [String: String]()
+        
+        // Fast lookup for node types
+        var stationNodes = Set<String>()
+        if restrictIntermediateStations {
+            for n in nodes {
+                if n.type == .station || n.type == .interchange {
+                    stationNodes.insert(n.id)
+                }
+            }
+        }
         
         let adj: [String: [Edge]] = {
             var tempAdj = [String: [Edge]]()
             for edge in edges {
-                if isReverse {
+                if ignoreDirection {
+                    tempAdj[edge.from, default: []].append(edge)
+                    tempAdj[edge.to, default: []].append(edge)
+                } else if isReverse {
                     tempAdj[edge.to, default: []].append(edge)
                     if edge.trackType == .single { tempAdj[edge.from, default: []].append(edge) }
                 } else {
@@ -234,27 +247,44 @@ final class NetworkModel: ObservableObject {
             if visited.contains(current) { continue }
             visited.insert(current)
             
+            // Constraint: If restricted, do not expand THROUGH a station (unless it's start)
+            if restrictIntermediateStations && current != start && stationNodes.contains(current) {
+                continue
+            }
+            
             let dist = distances[current] ?? .infinity
             if dist == .infinity { break }
             
             let neighbors = adj[current] ?? []
             for edge in neighbors {
-                let neighborId = isReverse ? (edge.to == current ? edge.from : edge.to) : (edge.from == current ? edge.to : edge.from)
-                if visited.contains(neighborId) { continue }
+                let neighborId = (ignoreDirection || !isReverse) ? (edge.from == current ? edge.to : edge.from) : (edge.to == current ? edge.from : edge.to)
+                
+                // Extra check for ignoreDirection logic mapping (if using undirected graph, neighbor is the other end)
+                // The above ternary handles:
+                // if ignoreDirection: generic neighbor
+                // else if isReverse: (to->from)
+                // else: (from->to)
+                // Note: The 'adj' construction already filtered edges based on directionality.
+                // However, 'adj' stores the edge object. We need to identify 'neighborId'.
+                // If ignoreDirection=true, adj contains both directions.
+                
+                let actualNeighborId = (edge.from == current) ? edge.to : edge.from
+                
+                if visited.contains(actualNeighborId) { continue }
                 
                 let alt = dist + edge.distance
-                if alt < (distances[neighborId] ?? .infinity) {
-                    distances[neighborId] = alt
-                    previous[neighborId] = current
-                    candidates.append(neighborId)
+                if alt < (distances[actualNeighborId] ?? .infinity) {
+                    distances[actualNeighborId] = alt
+                    previous[actualNeighborId] = current
+                    candidates.append(actualNeighborId)
                 }
             }
         }
         return (distances, previous)
     }
     
-    static nonisolated func findShortestPath(from start: String, to end: String, nodes: [Node], edges: [Edge]) -> ([String], Double)? {
-        let (distances, previous) = dijkstraAll(from: start, nodes: nodes, edges: edges)
+    static nonisolated func findShortestPath(from start: String, to end: String, nodes: [Node], edges: [Edge], ignoreDirection: Bool = false, restrictIntermediateStations: Bool = false) -> ([String], Double)? {
+        let (distances, previous) = dijkstraAll(from: start, nodes: nodes, edges: edges, ignoreDirection: ignoreDirection, restrictIntermediateStations: restrictIntermediateStations)
         if (distances[end] ?? .infinity) == .infinity { return nil }
         
         var path: [String] = []

@@ -13,6 +13,7 @@ struct LineTableView: View {
     
     @State private var selectedConflict: ScheduleConflict? = nil
     @State private var isOptimizing = false
+    // showScheduleCreator removed - moved to Inspector
     
     // Computed Properties for real-time reactivity
     private var sortedTrains: [Train] {
@@ -87,6 +88,7 @@ struct LineTableView: View {
                             .font(.headline)
                             .frame(width: 150, height: 50, alignment: .leading)
                             .padding(.horizontal, 8)
+                            .background(Color(UIColor.secondarySystemBackground))
                             .border(Color.gray.opacity(0.3))
                         
                         ForEach(orderedStations) { station in
@@ -109,43 +111,61 @@ struct LineTableView: View {
                     .zIndex(1)
                     
                     // SCROLLABLE CONTENT: Trains and Times
-                    ScrollView(.horizontal, showsIndicators: true) {
-                        Grid(horizontalSpacing: 0, verticalSpacing: 0) {
-                            // Header Row (Trains)
-                            GridRow {
-                                ForEach(sortedTrains) { train in
-                                    Button(action: {
-                                        appState.selectTrain(train.id)
-                                    }) {
-                                        VStack(alignment: .center, spacing: 2) {
-                                            Text(train.type)
-                                                .font(.system(size: 9, weight: .bold))
-                                                .foregroundColor(appState.selectedTrainIds.contains(train.id) ? .white : .secondary)
-                                            Text(train.name)
-                                                .font(.caption)
-                                                .bold()
-                                                .foregroundColor(appState.selectedTrainIds.contains(train.id) ? .white : .primary)
+                    ScrollViewReader { proxy in
+                        ScrollView(.horizontal, showsIndicators: true) {
+                            Grid(horizontalSpacing: 0, verticalSpacing: 0) {
+                                // Header Row (Trains)
+                                GridRow {
+                                    // Corner cell
+                                    // Removed corner cell as Stations are in a separate column
+
+                                    ForEach(sortedTrains) { train in
+                                        Button(action: {
+                                            appState.selectTrain(train.id)
+                                            appState.showPanel(.inspector)
+                                        }) {
+                                            VStack(alignment: .center, spacing: 2) {
+                                                Text(train.type)
+                                                    .font(.system(size: 9, weight: .bold))
+                                                    .foregroundColor(.white.opacity(0.8))
+                                                Text(train.name)
+                                                    .font(.caption)
+                                                    .bold()
+                                                    .foregroundColor(.white)
+                                            }
+                                            .frame(width: 100, height: 50)
+                                            .background(
+                                                appState.selectedTrainIds.contains(train.id) ? 
+                                                appState.theme.accent : 
+                                                (TrainCategory(rawValue: train.type)?.color.opacity(0.9) ?? appState.theme.dark.opacity(0.8))
+                                            )
+                                            .border(Color.white.opacity(0.1))
                                         }
-                                        .frame(width: 100, height: 50)
-                                        .background(appState.selectedTrainIds.contains(train.id) ? Color.blue : Color.gray.opacity(0.1))
-                                        .border(Color.gray.opacity(0.3))
+                                        .id(train.id)
+                                        .buttonStyle(.plain)
                                     }
-                                    .buttonStyle(.plain)
+                                }
+                                
+                                // Data Rows
+                                ForEach(orderedStations) { station in
+                                    GridRow {
+                                        ForEach(sortedTrains) { train in
+                                            ScheduleCellView(
+                                                train: train,
+                                                station: station,
+                                                cellData: scheduleData[train.id]?[station.id],
+                                                conflicts: appState.railroad.lines.conflictManager.conflicts,
+                                                selectedConflict: $selectedConflict
+                                            )
+                                        }
+                                    }
                                 }
                             }
-                            
-                            // Data Rows
-                            ForEach(orderedStations) { station in
-                                GridRow {
-                                    ForEach(sortedTrains) { train in
-                                        ScheduleCellView(
-                                            train: train,
-                                            station: station,
-                                            cellData: scheduleData[train.id]?[station.id],
-                                            conflicts: appState.railroad.lines.conflictManager.conflicts,
-                                            selectedConflict: $selectedConflict
-                                        )
-                                    }
+                        }
+                        .onChange(of: appState.selectedTrainIds) { ids in
+                            if let firstId = ids.first {
+                                withAnimation {
+                                    proxy.scrollTo(firstId, anchor: .center)
                                 }
                             }
                         }
@@ -250,6 +270,7 @@ struct LineTableView: View {
                 }
             }
         }
+        // Sheet removed
         .onReceive(appState.railroad.lines.objectWillChange) { _ in
             // This forces the view to re-evaluate computed properties when trains change
         }
@@ -365,6 +386,9 @@ struct ScheduleCellView: View {
         return Button(action: {
             if let first = cellConflicts.first {
                 selectedConflict = first
+            } else {
+                appState.selectTrain(train.id)
+                appState.showPanel(.inspector)
             }
         }) {
             VStack(spacing: 1) {
@@ -373,15 +397,19 @@ struct ScheduleCellView: View {
                 
                 if let arrDate = cellData?.0 {
                     let displayArr = stop?.plannedArrival ?? arrDate
+                    let trainColor = TrainCategory(rawValue: train.type)?.color ?? .primary
                     Text(formatTime(displayArr, ref: trainStart))
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundColor(isConflict ? .white : (stop?.plannedArrival != nil ? .yellow : .green))
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundColor(isConflict ? .white : (stop?.plannedArrival != nil ? .orange : trainColor))
+                        .brightness(stop?.plannedArrival != nil ? 0 : -0.1) // Extra contrast
                 }
                 
                 if let depDate = cellData?.1 {
+                    let trainColor = TrainCategory(rawValue: train.type)?.color ?? .primary
                     Text(formatTime(depDate, ref: trainStart))
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundColor(isConflict ? .white : (stop?.customDwellSeconds != nil ? .yellow : .blue))
+                        .font(.system(size: 11, weight: .black, design: .monospaced))
+                        .foregroundColor(isConflict ? .white : (stop?.customDwellSeconds != nil ? .orange : trainColor))
+                        .brightness(stop?.customDwellSeconds != nil ? 0 : -0.1)
                 }
                 
                 if let track = cellData?.2 {
@@ -411,15 +439,15 @@ struct ScheduleCellView: View {
             .border(Color.gray.opacity(0.05))
         }
         .buttonStyle(.plain)
-        .disabled(!isConflict)
+        // Removed .disabled(!isConflict) to allow selection
     }
     
     private func formatTime(_ date: Date, ref: Date? = nil) -> String {
         var str = date.timeFormat
         if let r = ref {
             let cal = Calendar.current
-            let d1 = date.normalized()
-            let r1 = r.normalized()
+            let d1 = date
+            let r1 = r
             
             if !cal.isDate(d1, inSameDayAs: r1) {
                  let diff = cal.dateComponents([.day], from: r1, to: d1).day ?? 0

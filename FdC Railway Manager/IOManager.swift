@@ -92,10 +92,51 @@ final class IOManager: ObservableObject {
             return Train(id: newId, number: 1000 + idx, name: fdcTrain.name, type: fdcTrain.type ?? "Regionale", maxSpeed: Double(fdcTrain.maxSpeed ?? 120), acceleration: fdcTrain.acceleration ?? 0.5, deceleration: fdcTrain.deceleration ?? 0.5, priority: fdcTrain.priority ?? 5)
         }
         
-        let df = ISO8601DateFormatter()
+        let iso8601 = ISO8601DateFormatter()
+        let hhmm = DateFormatter()
+        hhmm.dateFormat = "HH:mm"
+        hhmm.locale = Locale(identifier: "en_US_POSIX")
+        
+        let hhmmss = DateFormatter()
+        hhmmss.dateFormat = "HH:mm:ss"
+        hhmmss.locale = Locale(identifier: "en_US_POSIX")
+        
+        func parseTime(_ s: String) -> Date? {
+            if let d = iso8601.date(from: s) { return d }
+            if let d = hhmmss.date(from: s) { return d }
+            if let d = hhmm.date(from: s) { return d }
+            return nil
+        }
+        
         for sch in parsed.rawSchedules {
             if let swiftId = trainIdMap[sch.train_id], let tIdx = tCopy.firstIndex(where: { $0.id == swiftId }) {
-                tCopy[tIdx].stops = sch.stops.map { RelationStop(stationId: $0.node_id, minDwellTime: 2, track: $0.platform.map { "\($0)" }, arrival: df.date(from: $0.arrival), departure: df.date(from: $0.departure)) }
+                var previousTime: Date? = nil
+                var dayOffset: TimeInterval = 0
+                let secondsPerDay: TimeInterval = 86400
+                
+                tCopy[tIdx].stops = sch.stops.map { stopData in
+                    var arrival = parseTime(stopData.arrival)?.addingTimeInterval(dayOffset)
+                    if let arr = arrival, let prev = previousTime, arr < prev {
+                        arrival = arr.addingTimeInterval(secondsPerDay)
+                        dayOffset += secondsPerDay
+                    }
+                    if let arr = arrival { previousTime = arr }
+                    
+                    var departure = parseTime(stopData.departure)?.addingTimeInterval(dayOffset)
+                    if let dep = departure, let prev = previousTime, dep < prev {
+                        departure = dep.addingTimeInterval(secondsPerDay)
+                        dayOffset += secondsPerDay
+                    }
+                    if let dep = departure { previousTime = dep }
+                    
+                    return RelationStop(
+                        stationId: stopData.node_id,
+                        minDwellTime: 2,
+                        track: stopData.platform.map { "\($0)" },
+                        arrival: arrival,
+                        departure: departure
+                    )
+                }
                 tCopy[tIdx].departureTime = tCopy[tIdx].stops.first?.departure
             }
         }

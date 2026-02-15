@@ -6,7 +6,17 @@ struct NetworkListView: View {
     @Binding var selectedNode: Node?
     @Binding var selectedEdgeId: String?
     
+    let initialMode: NetworkListMode?
     @State private var mode: NetworkListMode = .stations
+    @State private var showDeleteAllConfirmation = false
+    
+    init(network: NetworkModel, selectedNode: Binding<Node?>, selectedEdgeId: Binding<String?>, initialMode: NetworkListMode? = nil) {
+        self.network = network
+        self._selectedNode = selectedNode
+        self._selectedEdgeId = selectedEdgeId
+        self.initialMode = initialMode
+        self._mode = State(initialValue: initialMode ?? .stations)
+    }
     
     enum NetworkListMode: String, CaseIterable, Identifiable {
         case stations = "stations"
@@ -16,10 +26,6 @@ struct NetworkListView: View {
         var localizedName: String {
             self.rawValue.localized
         }
-    }
-    
-    private func stationName(for id: String) -> String {
-        network.nodes.first(where: { $0.id == id })?.name ?? "Unknown (\(id.prefix(4)))"
     }
     
     var body: some View {
@@ -32,79 +38,59 @@ struct NetworkListView: View {
             .pickerStyle(.segmented)
             .padding()
             
-            List {
-                if mode == .stations {
-                    Section(String(format: "stations_count".localized, network.nodes.count)) {
-                        ForEach(network.sortedNodes) { node in
-                            StationRowView(node: node, selectedNode: $selectedNode)
-                        }
-                        .onDelete { indexSet in
-                            let sorted = network.sortedNodes
-                            for index in indexSet {
-                                let node = sorted[index]
-                                network.removeNode(node.id)
-                                if selectedNode?.id == node.id {
-                                    selectedNode = nil
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    Section(String(format: "tracks_count".localized, network.edges.count)) {
-                        ForEach(network.sortedEdges) { edge in
-                            EdgeRowView(
-                                edge: edge,
-                                selectedEdgeId: $selectedEdgeId,
-                                fromName: stationName(for: edge.from),
-                                toName: stationName(for: edge.to)
-                            )
-                        }
-                        .onDelete { indexSet in
-                            let sorted = network.sortedEdges
-                            for index in indexSet {
-                                let edge = network.sortedEdges[index]
-                                network.removeEdge(from: edge.from, to: edge.to)
-                                if selectedEdgeId == edge.id.uuidString {
-                                    selectedEdgeId = nil
-                                }
-                            }
-                        }
-                    }
-                }
+            if mode == .stations {
+                stationsListView
+            } else {
+                tracksListView
             }
-        }
-        .navigationTitle("network".localized)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    Button(role: .destructive, action: { showDeleteAllConfirmation = true }) {
-                        Label("delete_all".localized, systemImage: "trash")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-            }
-        }
-        .alert(
-            mode == .stations ? "delete_all_stations".localized : "delete_all_tracks".localized,
-            isPresented: $showDeleteAllConfirmation
-        ) {
-            Button("cancel".localized, role: .cancel) { }
-            Button("delete".localized, role: .destructive) {
-                if mode == .stations {
-                    network.nodes.removeAll()
-                    network.edges.removeAll() // Cannot have edges without nodes
-                    selectedNode = nil
-                } else {
-                    network.edges.removeAll()
-                    selectedEdgeId = nil
-                }
-                network.createCheckpoint()
-            }
-        } message: {
-            Text(mode == .stations ? "delete_all_stations_confirm".localized : "delete_all_tracks_confirm".localized)
         }
     }
     
-    @State private var showDeleteAllConfirmation = false
+    private var stationsListView: some View {
+        GenericEntityListView(
+            title: String(format: "stations_count".localized, network.nodes.count),
+            items: network.sortedNodes,
+            selectedItem: $selectedNode,
+            onAdd: { /* Add station action */ },
+            onEdit: { station in /* Edit station action */ },
+            onDelete: { station in
+                network.removeNode(station.id)
+                if selectedNode?.id == station.id {
+                    selectedNode = nil
+                }
+                network.createCheckpoint()
+            },
+            onDeleteAll: {
+                network.nodes.removeAll()
+                network.edges.removeAll()
+                selectedNode = nil
+                network.createCheckpoint()
+            }
+        )
+    }
+    
+    private var tracksListView: some View {
+        GenericEntityListView(
+            title: String(format: "tracks_count".localized, network.edges.count),
+            items: network.sortedEdges,
+            selectedItem: Binding(
+                get: { network.edges.first { $0.id.uuidString == selectedEdgeId } },
+                set: { selectedEdgeId = $0?.id.uuidString }
+            ),
+            onAdd: { /* Add track action */ },
+            onEdit: { track in /* Edit track action */ },
+            onDelete: { track in
+                network.removeEdge(from: track.from, to: track.to)
+                if selectedEdgeId == track.id.uuidString {
+                    selectedEdgeId = nil
+                }
+                network.createCheckpoint()
+            },
+            onDeleteAll: {
+                network.edges.removeAll()
+                selectedEdgeId = nil
+                network.createCheckpoint()
+            }
+        )
+    }
 }

@@ -6,8 +6,21 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		31294B452F40AB6500E80C34 /* GenericEntityListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B442F40AB6500E80C34 /* GenericEntityListView.swift */; };
+		31294B542F4259D900E80C34 /* LineColorAssigner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B532F4259D900E80C34 /* LineColorAssigner.swift */; };
+		313F356D2F3F4EB100250B1A /* LayoutConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 313F356C2F3F4EB100250B1A /* LayoutConstants.swift */; };
+		313F356F2F3F4EE700250B1A /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 313F356E2F3F4EE700250B1A /* AppSettings.swift */; };
+		313F35712F3F4F9600250B1A /* ContentViewOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = 313F35702F3F4F9600250B1A /* ContentViewOverlays.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		31234B412F1FD849003C8FEC /* FdC Railway Manager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "FdC Railway Manager.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		31294B442F40AB6500E80C34 /* GenericEntityListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenericEntityListView.swift; sourceTree = "<group>"; };
+		31294B532F4259D900E80C34 /* LineColorAssigner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineColorAssigner.swift; sourceTree = "<group>"; };
+		313F356C2F3F4EB100250B1A /* LayoutConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutConstants.swift; sourceTree = "<group>"; };
+		313F356E2F3F4EE700250B1A /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		313F35702F3F4F9600250B1A /* ContentViewOverlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewOverlays.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -34,6 +47,11 @@
 			children = (
 				31234B432F1FD849003C8FEC /* FdC Railway Manager */,
 				31234B422F1FD849003C8FEC /* Products */,
+				313F356C2F3F4EB100250B1A /* LayoutConstants.swift */,
+				313F356E2F3F4EE700250B1A /* AppSettings.swift */,
+				313F35702F3F4F9600250B1A /* ContentViewOverlays.swift */,
+				31294B442F40AB6500E80C34 /* GenericEntityListView.swift */,
+				31294B532F4259D900E80C34 /* LineColorAssigner.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -119,6 +137,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				313F356F2F3F4EE700250B1A /* AppSettings.swift in Sources */,
+				31294B452F40AB6500E80C34 /* GenericEntityListView.swift in Sources */,
+				31294B542F4259D900E80C34 /* LineColorAssigner.swift in Sources */,
+				313F35712F3F4F9600250B1A /* ContentViewOverlays.swift in Sources */,
+				313F356D2F3F4EB100250B1A /* LayoutConstants.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

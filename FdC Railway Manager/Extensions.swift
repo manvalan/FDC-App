@@ -107,11 +107,36 @@ extension Date {
         return Date(timeIntervalSinceReferenceDate: rounded)
     }
     
-    var timeFormat: String {
+    private static let hhmmFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm"
         f.locale = Locale(identifier: "en_US_POSIX")
-        return f.string(from: self)
+        return f
+    }()
+
+    var timeFormat: String {
+        return Date.hhmmFormatter.string(from: self)
+    }
+    
+    /// Returns a date normalized to the same day as the reference date, 
+    /// but potentially on the next day (+1) or previous day (-1) if it makes it closer to the original time.
+    func normalized(relativeTo reference: Date) -> Date {
+        let secondsPerDay: TimeInterval = 86400
+        let myNormalized = self.normalized()
+        let refNormalized = reference.normalized()
+        
+        // Start by putting 'self' on the same day as 'reference'
+        let sameDay = reference.addingTimeInterval(myNormalized.timeIntervalSince(refNormalized))
+        
+        // If the jump is too large (e.g. going from 23:00 to 01:00), 
+        // it likely means we crossed a day boundary.
+        let diff = sameDay.timeIntervalSince(reference)
+        if diff < -43200 { // more than 12h behind? probably next day
+            return sameDay.addingTimeInterval(secondsPerDay)
+        } else if diff > 43200 { // more than 12h ahead? probably previous day
+            return sameDay.addingTimeInterval(-secondsPerDay)
+        }
+        return sameDay
     }
 }
 

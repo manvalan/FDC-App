@@ -154,20 +154,118 @@ struct MapGeometryEngine {
             nodeNeighbors[edge.to, default: []].insert(edge.from)
         }
         
-        var edgeGeometries: [String: [CGPoint]] = [:]
-        var drawnKeys = Set<String>()
+        // Group edges by station pairs to handle parallel tracks
+        var edgesByPair: [String: [Edge]] = [:]
         for edge in network.edges {
             let key = edge.canonicalKey
-            if drawnKeys.contains(key) { continue }
-            drawnKeys.insert(key)
+            edgesByPair[key, default: []].append(edge)
+        }
+        
+        var edgeGeometries: [String: [CGPoint]] = [:]
+        for (canonicalKey, edges) in edgesByPair {
+            guard let firstEdge = edges.first else { continue }
+            guard let p1 = nodePositions[firstEdge.from], let p2 = nodePositions[firstEdge.to] else { continue }
             
-            guard let p1 = nodePositions[edge.from], let p2 = nodePositions[edge.to] else { continue }
             let avoid = nodePositions.values.filter { $0 != p1 && $0 != p2 }
-            let nPosStart = (nodeNeighbors[edge.from]?.filter { $0 != edge.to } ?? []).compactMap { nodePositions[$0] }
-            let nPosEnd = (nodeNeighbors[edge.to]?.filter { $0 != edge.from } ?? []).compactMap { nodePositions[$0] }
+            let nPosStart = (nodeNeighbors[firstEdge.from]?.filter { $0 != firstEdge.to } ?? []).compactMap { nodePositions[$0] }
+            let nPosEnd = (nodeNeighbors[firstEdge.to]?.filter { $0 != firstEdge.from } ?? []).compactMap { nodePositions[$0] }
             
-            let points = generateSchematicPoints(from: p1, to: p2, avoidPoints: Array(avoid), neighborsStart: nPosStart, neighborsEnd: nPosEnd)
-            edgeGeometries[key] = points
+            // Check if the first edge has custom geometry points
+            let basePoints: [CGPoint]
+            if let customPoints = firstEdge.geometryPoints, !customPoints.isEmpty {
+                // Use custom geometry points if defined
+                var points: [CGPoint] = [p1]
+                for gp in customPoints {
+                    let x = (gp.longitude - bounds.minLon) / bounds.xRange * (size.width - MapConstants.canvasPadding * 2) + MapConstants.canvasPadding
+                    let y = (1.0 - (gp.latitude - bounds.minLat) / bounds.yRange) * (size.height - MapConstants.canvasPadding * 2) + MapConstants.canvasPadding
+                    points.append(CGPoint(x: x, y: y))
+                }
+                points.append(p2)
+                basePoints = points
+            } else {
+                // Generate automatic schematic path
+                basePoints = generateSchematicPoints(from: p1, to: p2, avoidPoints: Array(avoid), neighborsStart: nPosStart, neighborsEnd: nPosEnd)
+            }
+            
+            // Calculate perpendicular offset for parallel tracks
+            let trackCount = edges.count
+            if trackCount == 1 {
+                // Single track - no offset needed
+                edgeGeometries[edges[0].id.uuidString] = basePoints
+            } else {
+                // Multiple parallel tracks - apply angular offset
+                let offsetDistance: CGFloat = 4.0 // Distance between parallel tracks
+                
+                for (index, edge) in edges.enumerated() {
+                    // Calculate offset: centered around the base path
+                    let offset = (CGFloat(index) - CGFloat(trackCount - 1) / 2.0) * offsetDistance
+                    
+                    // Apply perpendicular offset to each point
+                    var offsetPoints: [CGPoint] = []
+                    for i in 0..<basePoints.count {
+                        let p = basePoints[i]
+                        
+                        // Calculate perpendicular direction
+                        var perpX: CGFloat = 0
+                        var perpY: CGFloat = 0
+                        
+                        if i == 0 && basePoints.count > 1 {
+                            // First point: use direction to next point
+                            let next = basePoints[i + 1]
+                            let dx = next.x - p.x
+                            let dy = next.y - p.y
+                            let len = sqrt(dx * dx + dy * dy)
+                            if len > 0 {
+                                perpX = -dy / len
+                                perpY = dx / len
+                            }
+                        } else if i == basePoints.count - 1 && basePoints.count > 1 {
+                            // Last point: use direction from previous point
+                            let prev = basePoints[i - 1]
+                            let dx = p.x - prev.x
+                            let dy = p.y - prev.y
+                            let len = sqrt(dx * dx + dy * dy)
+                            if len > 0 {
+                                perpX = -dy / len
+                                perpY = dx / len
+                            }
+                        } else if basePoints.count > 2 {
+                            // Middle points: average of directions
+                            let prev = basePoints[i - 1]
+                            let next = basePoints[i + 1]
+                            let dx1 = p.x - prev.x
+                            let dy1 = p.y - prev.y
+                            let len1 = sqrt(dx1 * dx1 + dy1 * dy1)
+                            let dx2 = next.x - p.x
+                            let dy2 = next.y - p.y
+                            let len2 = sqrt(dx2 * dx2 + dy2 * dy2)
+                            
+                            if len1 > 0 && len2 > 0 {
+                                let perp1X = -dy1 / len1
+                                let perp1Y = dx1 / len1
+                                let perp2X = -dy2 / len2
+                                let perp2Y = dx2 / len2
+                                perpX = (perp1X + perp2X) / 2
+                                perpY = (perp1Y + perp2Y) / 2
+                                let perpLen = sqrt(perpX * perpX + perpY * perpY)
+                                if perpLen > 0 {
+                                    perpX /= perpLen
+                                    perpY /= perpLen
+                                }
+                            }
+                        }
+                        
+                        // Apply offset
+                        let offsetPoint = CGPoint(
+                            x: p.x + perpX * offset,
+                            y: p.y + perpY * offset
+                        )
+                        offsetPoints.append(offsetPoint)
+                    }
+                    
+                    edgeGeometries[edge.id.uuidString] = offsetPoints
+                }
+            }
         }
         
         var commercialLines: [SegmentKey: [MapRenderData.PrecomputedLine]] = [:]

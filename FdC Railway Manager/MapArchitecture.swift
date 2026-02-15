@@ -6,7 +6,7 @@ struct MapConstants {
     // Dimensioni e Padding
     static let canvasPadding: CGFloat = 50.0
     static let stationRadius: CGFloat = 20.0
-    static let hitTestRadius: CGFloat = 20.0
+    static let hitTestRadius: CGFloat = 40.0
     static let nodeLabelOffset: CGFloat = 28.0
     
     // Linee e Binari

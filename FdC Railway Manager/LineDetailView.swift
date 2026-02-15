@@ -9,6 +9,7 @@ struct LineDetailView: View {
     @Binding var selectedEdgeId: String?
     
     @State private var showScheduleCreator = false
+    @State private var showFleetManager = false
     
     private var colorBinding: Binding<Color> {
         Binding(
@@ -96,7 +97,8 @@ struct LineDetailView: View {
                                 }
                             }
                         ),
-                        externalSelectedEdgeID: $selectedEdgeId
+                        externalSelectedEdgeID: $selectedEdgeId,
+                        isSidebarEditMode: $appState.isInspectorEditingMode
                     )
                     .frame(minHeight: 400)
                     .cornerRadius(8)
@@ -134,8 +136,51 @@ struct LineDetailView: View {
                 .background(Color.secondary.opacity(0.05))
                 .cornerRadius(8)
                 
-                // 5. Actions
-                Button(action: { showScheduleCreator = true }) {
+                .padding()
+                .background(Color.secondary.opacity(0.05))
+                .cornerRadius(8)
+                
+                // 5. Fleet / Rolling Stock
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("materiale_rotabile".localized.uppercased())
+                            .font(.caption.bold())
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        let unassignedTrains = appState.railroad.lines.trains.filter({ $0.lineId == line.id && $0.vehicleId == nil })
+                        if !unassignedTrains.isEmpty {
+                            Text("\(unassignedTrains.count) Da Assegnare")
+                                .font(.caption2.bold())
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.red)
+                                .foregroundColor(.white)
+                                .cornerRadius(4)
+                        }
+                    }
+                    
+                    Button(action: { showFleetManager = true }) {
+                        HStack {
+                            Image(systemName: "tram.fill")
+                            Text("Gestione Assegnazioni Flotta")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                        }
+                        .padding()
+                        .background(Color.white)
+                        .cornerRadius(8)
+                        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding()
+                .background(Color.secondary.opacity(0.05))
+                .cornerRadius(8)
+                
+                // 6. Actions
+                Button(action: { 
+                    appState.startTrainCreation(lineId: line.id)
+                }) {
                     HStack {
                         Image(systemName: "clock.badge.checkmark")
                         Text("generate_schedule".localized)
@@ -155,12 +200,134 @@ struct LineDetailView: View {
         .onLongPressGesture(minimumDuration: 1.0) {
             appState.isInspectorEditingMode.toggle()
         }
-        .sheet(isPresented: $showScheduleCreator) {
-            ScheduleCreationView(line: line)
+        .sheet(isPresented: $showFleetManager) {
+            LineFleetManagementView(line: line, manager: appState.railroad.lines)
         }
     }
      
      private func stopName(_ id: String) -> String {
          network.nodes.first(where: { $0.id == id })?.name ?? id
      }
+}
+
+struct LineFleetManagementView: View {
+    let line: RailwayLine
+    @ObservedObject var manager: LinesManager
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationStack {
+            LineFleetManagementContent(line: line, manager: manager)
+                .navigationTitle("Gestione Flotta: \(line.name)")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Chiudi") { dismiss() }
+                    }
+                }
+        }
+    }
+}
+
+struct LineFleetManagementContent: View {
+    let line: RailwayLine
+    @ObservedObject var manager: LinesManager
+    @State private var showUnassignedOnly = true
+    @State private var showingAddVehicle = false
+    
+    var body: some View {
+        List {
+            Section {
+                Toggle("Mostra solo treni non assegnati", isOn: $showUnassignedOnly)
+            }
+            
+            let trains = manager.trains.filter { 
+                $0.lineId == line.id && 
+                (!showUnassignedOnly || $0.vehicleId == nil)
+            }.sorted { ($0.departureTime ?? Date.distantPast) < ($1.departureTime ?? Date.distantPast) }
+            
+            if trains.isEmpty {
+                Text("Nessun treno da visualizzare.")
+                    .foregroundColor(.secondary)
+            } else {
+                ForEach(trains) { train in
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(train.name).bold()
+                            if let dep = train.departureTime {
+                                Text("Partenza: \(dep.timeFormat)").font(.caption).foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        Menu {
+                            Button("Rimuovi Assegnazione", role: .destructive) {
+                                if let idx = manager.trains.firstIndex(where: { $0.id == train.id }) {
+                                    manager.trains[idx].vehicleId = nil
+                                }
+                            }
+                            Divider()
+                            
+                            // Group vehicles by Model
+                            let groupedVehicles = Dictionary(grouping: manager.vehicles, by: { $0.model })
+                            let sortedModels = groupedVehicles.keys.sorted()
+                            
+                            ForEach(sortedModels, id: \.self) { model in
+                                Section(header: Text(model)) { 
+                                    if let modelVehicles = groupedVehicles[model] {
+                                        ForEach(modelVehicles) { v in
+                                            Button(v.name) {
+                                                if let idx = manager.trains.firstIndex(where: { $0.id == train.id }) {
+                                                    manager.trains[idx].vehicleId = v.id
+                                                    manager.trains[idx].maxSpeed = v.maxSpeed
+                                                    manager.trains[idx].acceleration = v.acceleration
+                                                    manager.trains[idx].deceleration = v.deceleration
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            if let vId = train.vehicleId, let v = manager.vehicles.first(where: { $0.id == vId }) {
+                                HStack {
+                                    Text(v.name)
+                                    Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.green.opacity(0.1))
+                                .cornerRadius(6)
+                            } else {
+                                Text("Assegna")
+                                    .bold()
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.accentColor.opacity(0.1))
+                                    .foregroundColor(.accentColor)
+                                    .cornerRadius(6)
+                            }
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                    }
+                }
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                HStack {
+                    Button(action: { showingAddVehicle = true }) {
+                        Label("Nuovo Mezzo", systemImage: "plus.circle")
+                    }
+                    Button("Auto-Assegna") {
+                        manager.autoAssignRollingStock(for: line.id)
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showingAddVehicle) {
+            VehicleEditSheet(manager: manager, vehicle: nil)
+        }
+    }
 }

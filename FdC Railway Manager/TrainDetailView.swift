@@ -6,6 +6,7 @@ struct TrainDetailView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var manager: LinesManager
     @StateObject private var wikiImageService = WikiImageService()
+    @State private var showVehicleSheet = false
     private var network: NetworkModel { appState.railroad.network }
     
     var trainConflicts: [ScheduleConflict] {
@@ -38,6 +39,10 @@ struct TrainDetailView: View {
                 
                 if !trainConflicts.isEmpty {
                     conflictBanner
+                }
+                
+                if let error = train.wrappedValue.schedulingError {
+                    schedulingErrorBanner(error)
                 }
                 
                 if appState.isInspectorEditingMode {
@@ -88,6 +93,23 @@ struct TrainDetailView: View {
         .padding()
         .frame(maxWidth: .infinity)
         .background(Color.red)
+        .cornerRadius(12)
+    }
+    
+    private func schedulingErrorBanner(_ error: String) -> some View {
+        HStack {
+            Image(systemName: "xmark.octagon.fill")
+            VStack(alignment: .leading) {
+                Text("Errore Calcolo Orario")
+                    .font(.headline)
+                Text(error)
+                    .font(.caption)
+            }
+        }
+        .foregroundColor(.white)
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(Color.orange)
         .cornerRadius(12)
     }
     
@@ -206,34 +228,85 @@ struct TrainDetailView: View {
                 }
             }
             
-            Picker("Mezzo", selection: Binding(
-                get: { train.wrappedValue.vehicleId },
-                set: { newId in
-                    train.wrappedValue.vehicleId = newId
-                    if let vId = newId, let vehicle = manager.vehicles.first(where: { $0.id == vId }) {
-                        // AUTO-POPULATE TECHNICAL DATA
-                        train.wrappedValue.maxSpeed = vehicle.maxSpeed
-                        train.wrappedValue.acceleration = vehicle.acceleration
-                        train.wrappedValue.deceleration = vehicle.deceleration
+            Menu {
+                Button("Nessun Mezzo") {
+                    train.wrappedValue.vehicleId = nil
+                }
+                
+                let models = Array(Set(manager.vehicles.map { $0.model })).sorted()
+                
+                ForEach(models, id: \.self) { model in
+                    Menu(model) {
+                         let vehiclesInModel = manager.vehicles.filter { $0.model == model }
+                         ForEach(vehiclesInModel) { v in
+                            Button(v.name) {
+                                train.wrappedValue.vehicleId = v.id
+                                // AUTO-POPULATE TECHNICAL DATA
+                                train.wrappedValue.maxSpeed = v.maxSpeed
+                                train.wrappedValue.acceleration = v.acceleration
+                                train.wrappedValue.deceleration = v.deceleration
+                            }
+                        }
                     }
                 }
-            )) {
-                if train.wrappedValue.vehicleId == nil {
-                    Text("Seleziona un mezzo...").tag(UUID?.none)
+            } label: {
+                HStack {
+                    if let vId = train.wrappedValue.vehicleId, 
+                       let v = manager.vehicles.first(where: { $0.id == vId }) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(v.name)
+                                .font(.system(.body, design: .rounded).bold())
+                                .foregroundColor(.primary)
+                            Text(v.model)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } else {
+                        Text("Seleziona un mezzo...")
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                        .padding(6)
+                        .background(Circle().fill(Color.secondary.opacity(0.1)))
                 }
-                ForEach(manager.vehicles) { v in
-                    Text(v.name).tag(UUID?.some(v.id))
-                }
+                .padding(12)
+                .background(Color(UIColor.secondarySystemBackground))
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                )
             }
-            .pickerStyle(.menu)
             .disabled(!appState.isInspectorEditingMode)
             
-            if let vId = train.wrappedValue.vehicleId, let vehicle = manager.vehicles.first(where: { $0.id == vId }) {
-                HStack {
-                    Text(vehicle.model).font(.caption).foregroundColor(.secondary)
-                    Spacer()
-                    Text("\(Int(vehicle.length))m • \(Int(vehicle.maxSpeed))km/h").font(.caption).foregroundColor(.secondary)
+            if let vId = train.wrappedValue.vehicleId, let v = manager.vehicles.first(where: { $0.id == vId }) {
+                Button(action: { showVehicleSheet = true }) {
+                    HStack {
+                        Image(systemName: "info.circle")
+                        Text("Scheda Materiale Rotabile")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.blue)
                 }
+                .buttonStyle(.plain)
+                .sheet(isPresented: $showVehicleSheet) {
+                    VehicleEditSheet(manager: manager, vehicle: v)
+                }
+            }
+            
+            if let vId = train.wrappedValue.vehicleId, let vehicle = manager.vehicles.first(where: { $0.id == vId }) {
+                HStack(spacing: 16) {
+                    MetricView(label: "Lunghezza", value: "\(Int(vehicle.length))m")
+                    MetricView(label: "Velocità Max", value: "\(Int(vehicle.maxSpeed))km/h")
+                    MetricView(label: "Accelerazione", value: String(format: "%.2f m/s²", vehicle.acceleration))
+                    Spacer()
+                }
+                .padding(.top, 4)
                 
                 // Check for conflicts involving THIS train
                 let conflicts = manager.getVehicleConflicts(for: vId).filter {
@@ -329,14 +402,4 @@ struct TrainDetailView: View {
 }
 
 
-struct MetricView: View {
-    let label: String
-    let value: String
-    
-    var body: some View {
-        VStack(alignment: .leading) {
-            Text(label).font(.caption2).foregroundColor(.secondary)
-            Text(value).font(.subheadline).bold()
-        }
-    }
-}
+

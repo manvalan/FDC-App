@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ConflictCard: View {
+    @EnvironmentObject var appState: AppState
     let conflict: ScheduleConflict
     var suggestedResolution: String? = nil
     var onFocus: (() -> Void)? = nil
@@ -11,22 +12,22 @@ struct ConflictCard: View {
                 // Icon based on location type
                 ZStack {
                     Circle()
-                        .fill(conflict.locationType == .station ? Color.blue.opacity(0.15) : Color.orange.opacity(0.15))
+                        .fill(conflict.locationType == .station ? appState.theme.accent.opacity(0.15) : Color.orange.opacity(0.15))
                         .frame(width: 44, height: 44)
                     
                     Image(systemName: conflict.locationType == .station ? "building.2.fill" : "road.lanes")
-                        .foregroundColor(conflict.locationType == .station ? .blue : .orange)
+                        .foregroundColor(conflict.locationType == .station ? appState.theme.accent : .orange)
                         .font(.title3)
                 }
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(conflict.locationName)
                         .font(.headline)
-                        .foregroundColor(.primary)
+                        .foregroundColor(appState.theme.dark)
                     
                     Text(conflict.locationType == .station ? "Conflitto in Stazione" : "Occupazione Tratta Singola")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(appState.theme.medium)
                 }
                 
                 Spacer()
@@ -35,18 +36,19 @@ struct ConflictCard: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(formatTime(conflict.timeStart))
                         .font(.system(.subheadline, design: .monospaced).bold())
+                        .foregroundColor(appState.theme.dark)
                     Text("Durata: \(Int(conflict.timeEnd.timeIntervalSince(conflict.timeStart)))s")
                         .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(appState.theme.medium)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Color.secondary.opacity(0.1))
+                .background(appState.theme.backgroundSecondary)
                 .cornerRadius(8)
                 
                 Image(systemName: "chevron.right")
                     .font(.caption2.bold())
-                    .foregroundColor(.secondary)
+                    .foregroundColor(appState.theme.medium)
             }
             
             Divider()
@@ -69,16 +71,14 @@ struct ConflictCard: View {
             }
         }
         .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
-        )
+        .background(appState.theme.surface)
+        .cornerRadius(12)
+        .shadow(color: appState.theme.line.opacity(0.1), radius: 5, x: 0, y: 2)
         .overlay(
-            RoundedRectangle(cornerRadius: 20)
-                .stroke(Color.white.opacity(0.5), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(appState.theme.line.opacity(0.1), lineWidth: 1)
         )
-        .contentShape(RoundedRectangle(cornerRadius: 20))
+        .contentShape(RoundedRectangle(cornerRadius: 12))
         .onTapGesture {
             onFocus?()
         }
@@ -92,6 +92,7 @@ struct ConflictCard: View {
 }
 
 struct TrainParticipantView: View {
+    @EnvironmentObject var appState: AppState
     let name: String
     let id: UUID
     
@@ -100,15 +101,16 @@ struct TrainParticipantView: View {
             HStack(spacing: 6) {
                 Image(systemName: "train.side.front.car")
                     .font(.caption)
-                    .foregroundColor(.blue)
+                    .foregroundColor(appState.theme.accent)
                 Text(name)
                     .font(.subheadline.bold())
+                    .foregroundColor(appState.theme.dark)
                     .lineLimit(1)
             }
             
             Text(id.uuidString.prefix(8))
                 .font(.system(size: 9, design: .monospaced))
-                .foregroundColor(.secondary)
+                .foregroundColor(appState.theme.medium)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

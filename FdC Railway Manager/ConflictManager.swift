@@ -109,6 +109,22 @@ class ConflictManager: ObservableObject {
     // MARK: - Detect Methods
     
     func detectConflicts(nodes: [Node], edges: [Edge], trains: [Train], pathCache: [String: [Edge]]? = nil) {
+        // Guard against empty data to prevent crashes
+        guard !trains.isEmpty else {
+            DispatchQueue.main.async { [weak self] in
+                self?.conflicts = []
+                self?.lastResourceCapacities = [:]
+            }
+            #if DEBUG
+            print("ℹ️ [ConflictManager] No trains to analyze, clearing conflicts")
+            #endif
+            return
+        }
+        
+        #if DEBUG
+        print("🔍 [ConflictManager] Analyzing \(trains.count) trains across \(nodes.count) nodes and \(edges.count) edges")
+        #endif
+        
         let nodesCopy = nodes
         let edgesCopy = edges
         let trainsCopy = trains
@@ -126,6 +142,19 @@ class ConflictManager: ObservableObject {
             DispatchQueue.main.async {
                 let allConflicts = (trackConflicts + scheduleConflicts)
                 let sortedNew = Array(Set(allConflicts)).sorted(by: { $0.id < $1.id })
+                
+                #if DEBUG
+                if sortedNew.count != self.conflicts.count {
+                    print("⚠️ [ConflictManager] Found \(sortedNew.count) conflicts (\(trackConflicts.count) track + \(scheduleConflicts.count) schedule)")
+                    // Log first 3 conflicts for debugging
+                    for (idx, conflict) in sortedNew.prefix(3).enumerated() {
+                        print("  \(idx+1). \(conflict.trainAName) ↔ \(conflict.trainBName) at \(conflict.locationName)")
+                    }
+                    if sortedNew.count > 3 {
+                        print("  ... and \(sortedNew.count - 3) more")
+                    }
+                }
+                #endif
                 
                 if self.conflicts != sortedNew {
                     self.conflicts = sortedNew
@@ -296,8 +325,26 @@ class ConflictManager: ObservableObject {
     
     private func calculateEffectiveOccupationTimes(train: Train, stop: RelationStop, vehicleMissions: [UUID: [(trainId: UUID, stationId: String, arrival: Date?, departure: Date?)]]) -> (entry: Date, exit: Date) {
         let defaultBuffer: TimeInterval = 10 * 60 // 10 min default sosta se manca dato
-        var entry = (stop.arrival ?? stop.departure?.addingTimeInterval(-defaultBuffer)) ?? Date()
-        var exit = (stop.departure ?? stop.arrival?.addingTimeInterval(defaultBuffer)) ?? Date()
+        
+        // Safety: Use train's departure time as fallback if stop times are completely missing
+        let fallbackTime = train.departureTime ?? Date()
+        var entry = (stop.arrival ?? stop.departure?.addingTimeInterval(-defaultBuffer)) ?? fallbackTime
+        var exit = (stop.departure ?? stop.arrival?.addingTimeInterval(defaultBuffer)) ?? fallbackTime.addingTimeInterval(defaultBuffer)
+        
+        #if DEBUG
+        // Log missing schedule data
+        if stop.arrival == nil && stop.departure == nil {
+            print("⚠️ [ConflictManager] Train '\(train.name)' at station '\(stop.stationId)' has no arrival/departure times (using fallback)")
+        }
+        #endif
+        
+        // Ensure entry is always before exit
+        if entry >= exit {
+            #if DEBUG
+            print("⚠️ [ConflictManager] Train '\(train.name)' at '\(stop.stationId)': entry >= exit, adjusting")
+            #endif
+            exit = entry.addingTimeInterval(defaultBuffer)
+        }
         
         if let vId = train.vehicleId, let missions = vehicleMissions[vId] {
             if let myIdx = missions.firstIndex(where: { $0.trainId == train.id && ($0.arrival == stop.arrival || $0.departure == stop.departure) }) {

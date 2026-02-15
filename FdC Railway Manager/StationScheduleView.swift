@@ -84,115 +84,38 @@ struct StationScheduleView: View {
                     Spacer()
                 }
             } else {
-                List {
+            ScrollView {
+                LazyVStack(spacing: 8) {
                     ForEach(filteredArrivals) { item in
-                    // ... (stesso contenuto della riga) ...
-                    HStack {
-                        HStack(spacing: 4) {
-                            if let arr = item.arrivalTime {
-                                VStack(alignment: .trailing) {
-                                    Text("Arr.")
-                                        .font(.system(size: 8)).foregroundColor(.secondary)
-                                    Text(arr.timeFormat)
-                                        .font(.system(size: 14)).bold()
+                        arrivalRow(for: item)
+                            .onTapGesture {
+                                appState.jumpToTrainId = item.trainId
+                            }
+                            .contextMenu {
+                                Button {
+                                    appState.selectTrain(item.trainId)
+                                    appState.isInspectorEditingMode = true
+                                    appState.showPanel(.inspector)
+                                } label: {
+                                    Label("Modifica Treno", systemImage: "pencil")
                                 }
-                                .frame(width: 45)
-                            } else {
-                                Spacer().frame(width: 45)
-                            }
-                            
-                            if let dep = item.departureTime {
-                                VStack(alignment: .leading) {
-                                    Text("Part.")
-                                        .font(.system(size: 8)).foregroundColor(.fdcGreyMedium)
-                                    Text(dep.timeFormat)
-                                        .font(.system(size: 14)).bold()
-                                        .foregroundColor(.fdcGreyLine)
+                                
+                                Button(role: .destructive) {
+                                    if let idx = manager.trains.firstIndex(where: { $0.id == item.trainId }) {
+                                        manager.trains.remove(at: idx)
+                                        // Trigger refresh
+                                        calculateArrivals()
+                                    }
+                                } label: {
+                                    Label("Elimina", systemImage: "trash")
                                 }
-                                .frame(width: 45)
-                            } else {
-                                Spacer().frame(width: 45)
                             }
-                        }
-                        .frame(width: 100)
-                        
-                        VStack(alignment: .leading) {
-                            Text(item.trainType)
-                                .font(.caption2).bold()
-                                .foregroundColor(.secondary)
-                            Text(item.trainName)
-                                .font(.caption2).bold()
-                                .padding(.horizontal, 4)
-                                .background(Color.blue.opacity(0.1))
-                                .cornerRadius(4)
-                        }
-                        .frame(width: 80, alignment: .leading)
-                        .padding(.vertical, 4)
-                        .background(
-                            appState.selectedTrainIds.contains(item.trainId) 
-                            ? Color.fdcGreyLight 
-                            : Color.clear
-                        )
-                        .cornerRadius(4)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            appState.jumpToTrainId = item.trainId
-                        }
-                        .contextMenu {
-                            Button {
-                                appState.selectTrain(item.trainId)
-                                appState.isInspectorEditingMode = true
-                                appState.showPanel(.inspector)
-                            } label: {
-                                Label("Modifica Treno", systemImage: "pencil")
-                            }
-                            
-                            Button(role: .destructive) {
-                                if let idx = manager.trains.firstIndex(where: { $0.id == item.trainId }) {
-                                    manager.trains.remove(at: idx)
-                                    // Trigger refresh
-                                    calculateArrivals()
-                                }
-                            } label: {
-                                Label("Elimina", systemImage: "trash")
-                            }
-                        }
-                        
-                        VStack(alignment: .leading) {
-                            Text(item.destination)
-                                .font(.headline)
-                            Text(item.relationName)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            
-                            if let vName = item.vehicleName {
-                                Text(vName)
-                                    .font(.system(size: 9, weight: .bold))
-                                    .padding(.horizontal, 4)
-                                    .padding(.vertical, 1)
-                                    .background(Color.purple.opacity(0.1))
-                                    .foregroundColor(.purple)
-                                    .cornerRadius(3)
-                            }
-                        }
-                        
-                        Spacer()
-                        
-                        Button(action: {
-                            editingArrival = item
-                        }) {
-                            Text(item.track ?? "-")
-                                .font(.title2)
-                                .bold()
-                                .frame(width: 40)
-                                .background(RoundedRectangle(cornerRadius: 6).fill(Color.fdcGreyLight))
-                                .foregroundColor(.fdcGreyDark)
-                        }
-                        .buttonStyle(.plain)
                     }
                 }
+                .padding(.horizontal)
+                .padding(.bottom, 20)
             }
-            .listStyle(.plain)
+            .background(Color(UIColor.systemGroupedBackground))
             } // Close else block
         }
         .onAppear(perform: calculateArrivals)
@@ -291,14 +214,16 @@ struct StationScheduleView: View {
                 
                 let originId = train.stops.first?.stationId ?? ""
                 let destId = train.stops.last?.stationId ?? ""
+                let originName = getName(originId)
+                let destName = getName(destId)
                 
                 results.append(StationArrival(
                     trainId: train.id,
                     trainType: train.type,
                     trainName: train.name,
                     relationName: relationName,
-                    origin: nodeMap[originId] ?? originId,
-                    destination: nodeMap[destId] ?? destId,
+                    origin: originName,
+                    destination: destName,
                     arrivalTime: isOrigin ? nil : (stop.plannedArrival ?? stop.arrival),
                     departureTime: isTerminus ? nil : (stop.plannedDeparture ?? stop.departure),
                     track: stop.track,
@@ -326,44 +251,53 @@ struct StationScheduleView: View {
             VStack(alignment: .leading, spacing: 2) {
                 if let dep = item.departureTime {
                     Text(dep.timeFormat)
-                        .font(.system(size: 18, weight: .black, design: .rounded))
-                        .foregroundColor(.white)
+                        .font(.system(size: 20, weight: .black, design: .monospaced))
+                        .foregroundColor(.primary)
                 } else if let arr = item.arrivalTime {
                     VStack(alignment: .leading, spacing: 0) {
                         Text("ARR")
-                            .font(.system(size: 8, weight: .black))
+                            .font(.system(size: 9, weight: .black))
                             .foregroundColor(.secondary)
                         Text(arr.timeFormat)
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .font(.system(size: 18, weight: .bold, design: .monospaced))
                             .foregroundColor(.secondary)
                     }
                 }
             }
-            .frame(width: 60, alignment: .leading)
+            .frame(width: 70, alignment: .leading)
             
             // INFO BLOCK
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(item.trainType)
-                        .font(.system(size: 9, weight: .black))
+                    let catColor = TrainCategory(rawValue: item.trainType)?.color ?? .gray
+                    
+                    Text(item.trainType.prefix(3).uppercased())
+                        .font(.system(size: 10, weight: .black))
                         .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.fdcGreyLight)
-                        .foregroundColor(.fdcGreyDark)
+                        .padding(.vertical, 3)
+                        .background(catColor.opacity(0.2))
+                        .foregroundColor(catColor)
                         .cornerRadius(4)
                     
                     Text(item.trainName)
                         .font(.system(.headline, design: .rounded))
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                 }
                 
                 HStack(spacing: 4) {
-                    Image(systemName: "chevron.right.circle")
+                    Image(systemName: "arrow.right")
                         .font(.caption2)
                         .foregroundColor(.secondary)
+                        .bold()
                     Text(item.destination)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.secondary)
+                    
+                    if let vName = item.vehicleName {
+                         Text("• \(vName)")
+                             .font(.caption2)
+                             .foregroundColor(.secondary)
+                    }
                 }
             }
             
@@ -373,21 +307,25 @@ struct StationScheduleView: View {
             Button(action: { editingArrival = item }) {
                 VStack(spacing: 0) {
                     Text(item.track ?? "-")
-                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .font(.system(size: 20, weight: .black, design: .rounded))
                     Text("BIN")
                         .font(.system(size: 8, weight: .bold))
                 }
-                .frame(width: 45, height: 45)
-                .background(item.track != nil ? Color.fdcGreyLight : Color.fdcGreyBackground.opacity(0.3))
-                .foregroundColor(item.track != nil ? .fdcGreyDark : .fdcGreyMedium)
-                .cornerRadius(10)
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(item.track != nil ? Color.fdcGreyLine.opacity(0.3) : Color.clear, lineWidth: 1))
+                .frame(width: 50, height: 50)
+                .background(item.track != nil ? Color.blue.opacity(0.1) : Color.gray.opacity(0.1))
+                .foregroundColor(item.track != nil ? .blue : .gray)
+                .cornerRadius(12)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(item.track != nil ? Color.blue.opacity(0.3) : Color.gray.opacity(0.2), lineWidth: 1))
             }
             .buttonStyle(.plain)
         }
         .padding()
-        .background(Color.fdcGreySurface)
-        .cornerRadius(16)
-        .shadow(color: .fdcGreyDark.opacity(0.05), radius: 4, x: 0, y: 2)
+        .background(Color(UIColor.secondarySystemGroupedBackground))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(appState.selectedTrainIds.contains(item.trainId) ? appState.theme.accent : Color.clear, lineWidth: 2)
+        )
+        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
     }
 }

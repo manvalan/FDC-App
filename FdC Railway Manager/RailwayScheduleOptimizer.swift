@@ -48,10 +48,16 @@ final class RailwayScheduleOptimizer {
         useGA: Bool = true,
         geneticOptimizer: GeneticOptimizer? = nil
     ) async -> [Train] {
-        if Task.isCancelled { return newTrains }
+        if Task.isCancelled { 
+            print("⚠️ [PIPELINE] Task cancellata all'avvio!")
+            return newTrains 
+        }
         var localPathCache: [String: [Edge]] = [:] 
         
         print("\n🚀 [PIPELINE] AVVIO PIPELINE DI OTTIMIZZAZIONE (7 STEP) per \(newTrains.count) treni")
+        print("   Input: \(newTrains.count) nuovi treni, \(existingTrains.count) esistenti")
+        print("   Rete: \(nodes.count) nodi, \(edges.count) edges")
+        print("   Flags: useAI=\(useAI), useGA=\(useGA)")
         
         // --- STEP 1: Time Optimization (Orari di Partenza) ---
         // Cerchiamo di evitare i conflitti più banali spostando la partenza di +/- 15 minuti.
@@ -543,18 +549,40 @@ final class RailwayScheduleOptimizer {
     }
     
     private func refreshSingleTrainSchedule(_ train: inout [Train].Element, nodes: [Node], edges: [Edge], pathCache: inout [String: [Edge]]) {
-        guard let depTime = train.departureTime else { return }
+        guard let depTime = train.departureTime else {
+            #if DEBUG
+            print("⚠️ [Optimizer] Train '\(train.name)' has no departureTime")
+            #endif
+            return
+        }
         var currentTime = depTime.normalized()
+        
+        #if DEBUG
+        print("🔄 [Optimizer] Refreshing schedule for train '\(train.name)' (\(train.stops.count) stops)")
+        #endif
         
         for j in train.stops.indices {
             let stop = train.stops[j]
             if j == 0 {
                 train.stops[j].arrival = nil
                 train.stops[j].departure = currentTime
+                #if DEBUG
+                print("   Stop 0: \(stop.stationId) → Departure: \(formatTime(currentTime))")
+                #endif
             } else {
                 let prevId = train.stops[j-1].stationId
                 let pathKey = "\(prevId)--\(stop.stationId)"
-                let pathEdges = pathCache[pathKey] ?? NetworkModel.findPathEdges(from: prevId, to: stop.stationId, nodes: nodes, edges: edges)
+                
+                // Try bidirectional path finding
+                var pathEdges = pathCache[pathKey]
+                if pathEdges == nil {
+                    pathEdges = NetworkModel.findPathEdges(from: prevId, to: stop.stationId, nodes: nodes, edges: edges, ignoreDirection: false)
+                    
+                    // If no directed path found, try ignoring direction
+                    if pathEdges == nil {
+                        pathEdges = NetworkModel.findPathEdges(from: prevId, to: stop.stationId, nodes: nodes, edges: edges, ignoreDirection: true)
+                    }
+                }
                 
                 if let actualPath = pathEdges {
                     pathCache[pathKey] = actualPath
@@ -579,9 +607,50 @@ final class RailwayScheduleOptimizer {
                     
                     currentTime = currentTime.addingTimeInterval(dwellDuration)
                     train.stops[j].departure = (j < train.stops.count - 1) ? currentTime : nil
+                    
+                    #if DEBUG
+                    let arr = train.stops[j].arrival.map { formatTime($0) } ?? "nil"
+                    let dep = train.stops[j].departure.map { formatTime($0) } ?? "nil"
+                    print("   Stop \(j): \(stop.stationId) → Arrival: \(arr), Departure: \(dep)")
+                    #endif
+                } else {
+                    // FALLBACK: Use estimated time based on distance if no path found
+                    #if DEBUG
+                    print("   ⚠️ Stop \(j): No path found from \(prevId) to \(stop.stationId) - using fallback")
+                    #endif
+                    
+                    // Use 5km fallback distance and 60 km/h speed
+                    let fallbackDist = 5.0
+                    let fallbackSpeed = 60.0
+                    let hours = FDCSchedulerEngine.calculateTravelTime(
+                        distanceKm: fallbackDist,
+                        maxSpeedKmh: fallbackSpeed,
+                        train: train,
+                        initialSpeedKmh: 0,
+                        finalSpeedKmh: 0
+                    )
+                    
+                    currentTime = currentTime.addingTimeInterval(hours * 3600)
+                    train.stops[j].arrival = currentTime
+                    
+                    let baseDwell = Double(stop.minDwellTime)
+                    let extraDwell = stop.extraDwellTime
+                    let dwellDuration = (baseDwell + extraDwell) * 60
+                    
+                    currentTime = currentTime.addingTimeInterval(dwellDuration)
+                    train.stops[j].departure = (j < train.stops.count - 1) ? currentTime : nil
+                    
+                    // Mark train as having a scheduling error
+                    train.schedulingError = "Missing path: \(prevId) → \(stop.stationId)"
                 }
             }
         }
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter.string(from: date)
     }
     
     private func minutesDiff(_ t1: Train, _ t2: Train) -> Int {

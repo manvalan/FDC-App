@@ -128,3 +128,9 @@ struct FDCLinkData: Codable {
     let max_speed: Double?
     let track_type: String?
 }
+
+enum RailElementType {
+    case station
+    case track
+    case route
+}

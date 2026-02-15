@@ -67,15 +67,20 @@ struct GeneticEngine {
                 if r < 0.4 {
                     chromosome.genes[i].departureOffset += Double.random(in: -300...300)
                 } else if r < 0.7 {
-                    let j = Int.random(in: 0..<chromosome.genes[i].stopDwellOffsets.count)
-                    chromosome.genes[i].stopDwellOffsets[j] = max(-5.0, min(15.0, chromosome.genes[i].stopDwellOffsets[j] + Double.random(in: -1...2)))
+                    if !chromosome.genes[i].stopDwellOffsets.isEmpty {
+                        let j = Int.random(in: 0..<chromosome.genes[i].stopDwellOffsets.count)
+                        chromosome.genes[i].stopDwellOffsets[j] = max(-5.0, min(15.0, chromosome.genes[i].stopDwellOffsets[j] + Double.random(in: -1...2)))
+                    }
                 } else {
-                    let j = Int.random(in: 0..<chromosome.genes[i].stopTracks.count)
-                    if let trainIdx = contextTrains.firstIndex(where: { $0.id == trainId }),
-                       contextTrains[trainIdx].stops[j].isManualTrack { continue }
-                    
-                    let allowed = allowedTracks[trainId]?[j] ?? ["1"]
-                    chromosome.genes[i].stopTracks[j] = allowed.randomElement() ?? "1"
+                    if !chromosome.genes[i].stopTracks.isEmpty {
+                        let j = Int.random(in: 0..<chromosome.genes[i].stopTracks.count)
+                        if let trainIdx = contextTrains.firstIndex(where: { $0.id == trainId }),
+                           contextTrains[trainIdx].stops.indices.contains(j),
+                           !contextTrains[trainIdx].stops[j].isManualTrack { 
+                            let allowed = allowedTracks[trainId]?[j] ?? ["1"]
+                            chromosome.genes[i].stopTracks[j] = allowed.randomElement() ?? "1"
+                        }
+                    }
                 }
             }
         }

@@ -60,6 +60,16 @@ struct SettingsView: View {
                     }
                 }
                 
+                Section(header: Text("Gestione Linee")) {
+                    Button(action: assignColorsToAllLines) {
+                        Label("Assegna Colori Automaticamente", systemImage: "paintpalette.fill")
+                    }
+                    
+                    Text("Assegna colori simili a linee con caratteristiche simili (AV, Regionali, IC, ecc.)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                
                 Section(header: Text("railway_ai".localized)) {
                     NavigationLink(destination: AISettingsView()) {
                         Label("railway_ai".localized, systemImage: "sparkles")
@@ -114,5 +124,11 @@ struct SettingsView: View {
                 Text("reset_confirm_message".localized)
             }
         }
+    }
+    
+    private func assignColorsToAllLines() {
+        let updatedLines = LineColorAssigner.assignColors(to: trainManager.lines)
+        trainManager.lines = updatedLines
+        print("✅ Colori assegnati automaticamente a \(updatedLines.count) linee")
     }
 }

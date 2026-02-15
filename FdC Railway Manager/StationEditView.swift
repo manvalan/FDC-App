@@ -90,18 +90,50 @@ struct StationEditView: View {
     }
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                headerSection
-                stationDataSection
-                hubsSection
-                visualStyleSection
-                coordinatesSection
-                routingConstraintsSection
-                deleteSection
+        ZStack(alignment: .top) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // Editing mode banner
+                    if !appState.isInspectorEditingMode {
+                        HStack {
+                            Image(systemName: "lock.fill")
+                                .foregroundColor(.orange)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Modalità Sola Lettura")
+                                    .font(.subheadline.bold())
+                                Text("Tieni premuto per 1 secondo per abilitare le modifiche")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .padding()
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(8)
+                    } else {
+                        HStack {
+                            Image(systemName: "pencil.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Modalità Modifica Attiva")
+                                .font(.subheadline.bold())
+                            Spacer()
+                        }
+                        .padding()
+                        .background(Color.green.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                    
+                    headerSection
+                    stationDataSection
+                    hubsSection
+                    visualStyleSection
+                    coordinatesSection
+                    routingConstraintsSection
+                    deleteSection
+                }
+                .padding()
+                .disabled(!appState.isInspectorEditingMode)
             }
-            .padding()
-            .disabled(!appState.isInspectorEditingMode)
         }
         .onLongPressGesture(minimumDuration: 1.0) {
             appState.isInspectorEditingMode.toggle()
@@ -114,6 +146,8 @@ struct StationEditView: View {
             // Sync local copies
             localConstraints = station.routingConstraints
             localPlatforms = station.platforms ?? 2
+            // Enable editing mode by default when opening the editor
+            appState.isInspectorEditingMode = true
         }
         .onChange(of: station.routingConstraints) { newValue in
             // Keep local in sync if parent changes (rare)
@@ -128,6 +162,7 @@ struct StationEditView: View {
             Text("delete_confirm".localized)
         }
         .onDisappear {
+            appState.isInspectorEditingMode = false
             Task { await loader.saveCurrentState() }
         }
     }
@@ -185,15 +220,40 @@ struct StationEditView: View {
     private var hubsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("hubs_interchanges".localized.uppercased()).font(.caption.bold()).foregroundColor(.secondary)
+            
             Picker("belongs_to_hub".localized, selection: $station.parentHubId) {
                 Text("no_hub".localized).tag(String?.none)
                 Divider()
-                ForEach(availableHubs) { node in Text(node.name).tag(String?.some(node.id)) }
+                ForEach(availableHubs) { node in 
+                    Text(node.name).tag(String?.some(node.id)) 
+                }
             }
+            
             if station.parentHubId != nil {
-                Picker("hub_position".localized, selection: $station.hubOffsetDirection) {
-                    Text("hub_standard_pos".localized).tag(Node.HubOffsetDirection?.none)
-                    ForEach(Node.HubOffsetDirection.allCases) { dir in Text(dir.localizedName).tag(Node.HubOffsetDirection?.some(dir)) }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("hub_position".localized)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Picker("hub_position".localized, selection: $station.hubOffsetDirection) {
+                        Text("hub_standard_pos".localized).tag(Node.HubOffsetDirection?.none)
+                        ForEach(Node.HubOffsetDirection.allCases) { dir in 
+                            Text(dir.localizedName).tag(Node.HubOffsetDirection?.some(dir)) 
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .id(station.hubOffsetDirection) // Force refresh when value changes
+                    
+                    // Debug info
+                    if let offset = station.hubOffsetDirection {
+                        Text("Selezionato: \(offset.rawValue)")
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                    } else {
+                        Text("Selezionato: Standard (nessuno)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
         }
@@ -226,13 +286,22 @@ struct StationEditView: View {
             Text("coordinates".localized.uppercased()).font(.caption.bold()).foregroundColor(.secondary)
             HStack {
                 Text("latitude".localized); Spacer()
-                TextField("lat", value: Binding(get: { station.latitude ?? 0.0 }, set: { station.latitude = $0 }), format: .number).textFieldStyle(.roundedBorder).disabled(!isMoveModeEnabled).frame(width: 150)
+                TextField("lat", value: Binding(get: { station.latitude ?? 0.0 }, set: { station.latitude = $0 }), format: .number).textFieldStyle(.roundedBorder).frame(width: 150)
             }
             HStack {
                 Text("longitude".localized); Spacer()
-                TextField("lon", value: Binding(get: { station.longitude ?? 0.0 }, set: { station.longitude = $0 }), format: .number).textFieldStyle(.roundedBorder).disabled(!isMoveModeEnabled).frame(width: 150)
+                TextField("lon", value: Binding(get: { station.longitude ?? 0.0 }, set: { station.longitude = $0 }), format: .number).textFieldStyle(.roundedBorder).frame(width: 150)
             }
-            Toggle(isOn: $isMoveModeEnabled) { Label("move_mode".localized, systemImage: "hand.draw") }
+            
+            HStack {
+                Image(systemName: "info.circle.fill")
+                    .foregroundColor(.blue)
+                    .font(.caption)
+                Text("Le coordinate possono essere modificate anche trascinando la stazione sulla mappa")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.top, 4)
         }
         .padding().background(Color.secondary.opacity(0.05)).cornerRadius(8)
     }

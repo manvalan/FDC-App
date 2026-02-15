@@ -206,6 +206,8 @@ struct LineEditView: View {
             TextField("number_prefix_placeholder".localized, value: $numberPrefix, format: .number)
                 .keyboardType(.numberPad)
             
+            ColorPicker("Colore Linea", selection: $lineColor, supportsOpacity: false)
+            
             VStack(alignment: .leading) {
                 HStack {
                     Text("cadence_frequency".localized)

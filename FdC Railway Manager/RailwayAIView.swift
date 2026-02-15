@@ -196,7 +196,7 @@ struct RailwayAIView: View {
         RailwayAIService.shared.syncCredentials(
             endpoint: trimmedEndpoint,
             apiKey: appState.aiApiKey,
-            token: appState.aiToken
+            token: nil
         )
         
         if trimmedPassword.isEmpty && appState.aiApiKey.isEmpty {
@@ -213,8 +213,8 @@ struct RailwayAIView: View {
                         isLoading = false
                         errorMessage = "Login fallito: \(error.localizedDescription)"
                     }
-                } receiveValue: { token in
-                    appState.aiToken = token
+                } receiveValue: { _ in
+                    // JWT tokens are deprecated - just proceed with optimization
                     self.performOptimizationCall()
                 }
                 .store(in: &cancellables)
@@ -289,7 +289,7 @@ struct RailwayAIView: View {
         RailwayAIService.shared.syncCredentials(
             endpoint: appState.aiEndpoint,
             apiKey: appState.aiApiKey,
-            token: appState.aiToken
+            token: nil
         )
         
         let graph = RailwayGraphManager.shared

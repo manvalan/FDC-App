@@ -22,8 +22,13 @@
     <string>3</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
-    <key>UILaunchStoryboardName</key>
-    <string>LaunchScreen</string>
+    <key>UILaunchScreen</key>
+    <dict>
+        <key>UIImageName</key>
+        <string>LaunchImage</string>
+        <key>UIColorName</key>
+        <string>AccentColor</string>
+    </dict>
     <!-- UIMainStoryboardFile intentionally omitted: SwiftUI lifecycle -->
     <key>NSAppTransportSecurity</key>
     <dict>
@@ -67,7 +72,7 @@
             </array>
         </dict>
     </array>
-    <key>UTExportedTypeDeclarations</key>
+    <key>UTImportedTypeDeclarations</key>
     <array>
         <dict>
             <key>UTTypeIdentifier</key>

@@ -52,16 +52,17 @@ struct WidePanelView: View {
     
     @ViewBuilder
     private var content: some View {
-        if appState.sidebarSelection == .lines {
-            if let line = appState.selectedLine {
-                LineScheduleView(line: line)
-                    .environmentObject(appState.railroad.lines)
-                    .environmentObject(appState.railroad.network)
-            }
-        } else if appState.sidebarSelection == .trains {
-            TrainsByLineListView()
+        if let line = appState.selectedLine {
+            LineScheduleView(line: line)
+                .environmentObject(appState.railroad.lines)
+                .environmentObject(appState.railroad.network)
         } else {
-            Color.clear
+            VStack {
+                Spacer()
+                Text("Seleziona una linea per visualizzare l'orario")
+                    .foregroundColor(appState.theme.medium)
+                Spacer()
+            }
         }
     }
 }

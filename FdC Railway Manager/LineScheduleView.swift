@@ -138,15 +138,12 @@ struct LineScheduleView: View {
             
                 // Traverse the rest
             for nextId in stationIds.dropFirst() {
-                // Find distance from prev to next
-                // Note: This assumes the line stations are ordered physically.
-                // If they are not connected directly, findShortestPath will find the route.
-                
-                if let distInfo = appState.railroad.network.findShortestPath(from: prevId, to: nextId) {
+                if let edge = network.findEdge(from: prevId, to: nextId) {
+                    currentDist += edge.distance
+                } else if let distInfo = network.findShortestPath(from: prevId, to: nextId, ignoreDirection: true) {
                     currentDist += distInfo.1
                 } else {
-                    // If no path found (disconnected graph?), add a provisional distance
-                    currentDist += 10.0 
+                    currentDist += 5.0 
                 }
                 
                 if let node = network.nodes.first(where: { $0.id == nextId }) {
