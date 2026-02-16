@@ -192,9 +192,12 @@ struct MapGeometryEngine {
             if trackCount == 1 {
                 // Single track - no offset needed
                 edgeGeometries[edges[0].id.uuidString] = basePoints
-            } else {
-                // Multiple parallel tracks - apply angular offset
-                let offsetDistance: CGFloat = 4.0 // Distance between parallel tracks
+            } else if trackCount > 4 {
+                // INNOVATIVE SOLUTION: For busy junctions (>4 lines), use compact bundling
+                // Instead of spreading tracks infinitely, group them in a tight bundle
+                // This is inspired by Apple Maps' approach to complex transit networks
+                let maxSpread: CGFloat = 28.0  // Maximum total width for the bundle
+                let offsetDistance: CGFloat = maxSpread / CGFloat(trackCount - 1)
                 
                 for (index, edge) in edges.enumerated() {
                     // Calculate offset: centered around the base path
@@ -265,19 +268,103 @@ struct MapGeometryEngine {
                     
                     edgeGeometries[edge.id.uuidString] = offsetPoints
                 }
+            } else {
+                // For 2-4 lines, use normal spacing
+                let baseOffset: CGFloat = 8.0
+                let offsetDistance: CGFloat = baseOffset
+                
+                for (index, edge) in edges.enumerated() {
+                    // Calculate offset: centered around the base path
+                    let offset = (CGFloat(index) - CGFloat(trackCount - 1) / 2.0) * offsetDistance
+                    
+                    // Apply perpendicular offset to each point
+                    var offsetPoints: [CGPoint] = []
+                    for i in 0..<basePoints.count {
+                        let p = basePoints[i]
+                        
+                        // Calculate perpendicular direction
+                        var perpX: CGFloat = 0
+                        var perpY: CGFloat = 0
+                        
+                        if i == 0 && basePoints.count > 1 {
+                            let next = basePoints[i + 1]
+                            let dx = next.x - p.x
+                            let dy = next.y - p.y
+                            let len = sqrt(dx * dx + dy * dy)
+                            if len > 0 {
+                                perpX = -dy / len
+                                perpY = dx / len
+                            }
+                        } else if i == basePoints.count - 1 && basePoints.count > 1 {
+                            let prev = basePoints[i - 1]
+                            let dx = p.x - prev.x
+                            let dy = p.y - prev.y
+                            let len = sqrt(dx * dx + dy * dy)
+                            if len > 0 {
+                                perpX = -dy / len
+                                perpY = dx / len
+                            }
+                        } else if basePoints.count > 2 {
+                            let prev = basePoints[i - 1]
+                            let next = basePoints[i + 1]
+                            let dx1 = p.x - prev.x
+                            let dy1 = p.y - prev.y
+                            let len1 = sqrt(dx1 * dx1 + dy1 * dy1)
+                            let dx2 = next.x - p.x
+                            let dy2 = next.y - p.y
+                            let len2 = sqrt(dx2 * dx2 + dy2 * dy2)
+                            
+                            if len1 > 0 && len2 > 0 {
+                                let perp1X = -dy1 / len1
+                                let perp1Y = dx1 / len1
+                                let perp2X = -dy2 / len2
+                                let perp2Y = dx2 / len2
+                                perpX = (perp1X + perp2X) / 2
+                                perpY = (perp1Y + perp2Y) / 2
+                                let perpLen = sqrt(perpX * perpX + perpY * perpY)
+                                if perpLen > 0 {
+                                    perpX /= perpLen
+                                    perpY /= perpLen
+                                }
+                            }
+                        }
+                        
+                        // Apply offset
+                        let offsetPoint = CGPoint(
+                            x: p.x + perpX * offset,
+                            y: p.y + perpY * offset
+                        )
+                        offsetPoints.append(offsetPoint)
+                    }
+                    
+                    edgeGeometries[edge.id.uuidString] = offsetPoints
+                }
             }
         }
         
-        var commercialLines: [SegmentKey: [MapRenderData.PrecomputedLine]] = [:]
+        // First pass: collect lines by segment to determine bundle sizes
+        var segmentLines: [SegmentKey: [(line: RailwayLine, color: Color, isSelected: Bool)]] = [:]
         for line in lines.lines {
             if hiddenLineIds.contains(line.id) { continue }
             guard line.stations.count >= 2 else { continue }
             for i in 0..<(line.stations.count - 1) {
                 let key = SegmentKey(line.stations[i], line.stations[i+1])
+                let color = Color(hex: line.color ?? "#000000") ?? .black
+                let isSelected = line.id == selectedLine?.id
+                segmentLines[key, default: []].append((line, color, isSelected))
+            }
+        }
+        
+        // Second pass: create PrecomputedLine with bundleSize
+        var commercialLines: [SegmentKey: [MapRenderData.PrecomputedLine]] = [:]
+        for (key, linesOnSegment) in segmentLines {
+            let bundleSize = linesOnSegment.count
+            for item in linesOnSegment {
                 let precomputed = MapRenderData.PrecomputedLine(
-                    line: line,
-                    color: Color(hex: line.color ?? "#000000") ?? .black,
-                    isSelected: line.id == selectedLine?.id
+                    line: item.line,
+                    color: item.color,
+                    isSelected: item.isSelected,
+                    bundleSize: bundleSize
                 )
                 commercialLines[key, default: []].append(precomputed)
             }

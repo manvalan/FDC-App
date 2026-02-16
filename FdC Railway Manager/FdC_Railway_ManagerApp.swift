@@ -53,11 +53,12 @@ struct SplashScreen: View {
         ZStack {
             Color.black.edgesIgnoringSafeArea(.all) // Background color
             VStack {
-                Image("SplashImage") // Name of the asset
+                Image(systemName: "train.side.front.car")
                     .resizable()
                     .scaledToFit()
-                    .frame(maxWidth: 500)
-                Text("RailWay Manager")
+                    .frame(maxWidth: 200)
+                    .foregroundColor(.white)
+                Text("Railway Manager")
                     .font(.largeTitle)
                     .foregroundColor(.white)
                     .bold()

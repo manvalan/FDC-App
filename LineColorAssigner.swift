@@ -4,10 +4,29 @@ import SwiftUI
 /// Assegna colori simili a linee con caratteristiche simili
 class LineColorAssigner {
     
-    /// Palette di colori distinti per linee
+    /// Palette di colori distinti ottimizzata per massima leggibilità
+    /// Colori scelti per essere ben distinguibili anche quando sovrapposti
     static let distinctColors: [Color] = [
-        .red, .blue, .green, .orange, .purple, .pink,
-        .yellow, .cyan, .mint, .indigo, .teal, .brown
+        Color(hex: "#E53935")!,  // Rosso intenso
+        Color(hex: "#1E88E5")!,  // Blu oceano
+        Color(hex: "#43A047")!,  // Verde bosco
+        Color(hex: "#FB8C00")!,  // Arancione
+        Color(hex: "#8E24AA")!,  // Viola
+        Color(hex: "#00ACC1")!,  // Ciano
+        Color(hex: "#D81B60")!,  // Rosa fucsia
+        Color(hex: "#FDD835")!,  // Giallo oro
+        Color(hex: "#3949AB")!,  // Indaco
+        Color(hex: "#00897B")!,  // Verde acqua (teal)
+        Color(hex: "#F4511E")!,  // Rosso arancio
+        Color(hex: "#6D4C41")!,  // Marrone
+        Color(hex: "#5E35B1")!,  // Viola profondo
+        Color(hex: "#C0CA33")!,  // Verde lime
+        Color(hex: "#00BFA5")!,  // Turchese
+        Color(hex: "#FF6F00")!,  // Arancione scuro
+        Color(hex: "#7CB342")!,  // Verde chiaro
+        Color(hex: "#1565C0")!,  // Blu profondo
+        Color(hex: "#AD1457")!,  // Magenta
+        Color(hex: "#FFB300")!   // Ambra
     ]
     
     /// Palette di colori per linee ad alta velocità (tonalità rosse)
@@ -173,7 +192,7 @@ class LineColorAssigner {
     static func assignDistinguishableColors(to lines: [RailwayLine], existingColors: Set<String>) -> [RailwayLine] {
         var updatedLines = lines
         var usedColors = existingColors
-        
+
         for index in 0..<updatedLines.count {
             // Cerca un colore non ancora usato
             for color in distinctColors {
@@ -184,7 +203,118 @@ class LineColorAssigner {
                 }
             }
         }
-        
+
         return updatedLines
+    }
+
+    /// Assegna colori intelligentemente evitando colori simili per linee che si incrociano
+    /// - Parameters:
+    ///   - lines: Array di linee da colorare
+    ///   - network: Network model per analizzare le intersezioni
+    /// - Returns: Array di linee con colori ottimizzati
+    static func assignSmartColors(to lines: [RailwayLine], in network: RailwayNetwork) -> [RailwayLine] {
+        guard !lines.isEmpty else { return lines }
+
+        var updatedLines = lines
+        var lineColorMap: [String: Color] = [:]
+
+        // Crea grafo di adiacenza (linee che condividono stazioni)
+        var adjacencyMap: [String: Set<String>] = [:]
+        for line in lines {
+            adjacencyMap[line.id] = Set<String>()
+        }
+
+        // Trova linee adiacenti (che condividono almeno una stazione)
+        for i in 0..<lines.count {
+            for j in (i+1)..<lines.count {
+                let line1 = lines[i]
+                let line2 = lines[j]
+
+                let stations1 = Set(line1.stops.map { $0.stationId })
+                let stations2 = Set(line2.stops.map { $0.stationId })
+
+                if !stations1.intersection(stations2).isEmpty {
+                    adjacencyMap[line1.id]?.insert(line2.id)
+                    adjacencyMap[line2.id]?.insert(line1.id)
+                }
+            }
+        }
+
+        // Ordina linee per numero di adiacenze (linee più connesse per prime)
+        let sortedLines = lines.sorted { line1, line2 in
+            let adj1 = adjacencyMap[line1.id]?.count ?? 0
+            let adj2 = adjacencyMap[line2.id]?.count ?? 0
+            return adj1 > adj2
+        }
+
+        // Assegna colori usando algoritmo greedy con massimo contrasto
+        for line in sortedLines {
+            let adjacentLineIds = adjacencyMap[line.id] ?? Set<String>()
+            let adjacentColors = adjacentLineIds.compactMap { lineColorMap[$0] }
+
+            // Trova il colore con massima distanza dai colori adiacenti
+            let bestColor = findBestColor(avoiding: adjacentColors, from: distinctColors)
+            lineColorMap[line.id] = bestColor
+
+            // Applica il colore alla linea
+            if let index = updatedLines.firstIndex(where: { $0.id == line.id }),
+               let hexColor = bestColor.toHex() {
+                updatedLines[index].color = hexColor
+            }
+        }
+
+        return updatedLines
+    }
+
+    /// Trova il miglior colore che massimizza la distanza dai colori da evitare
+    private static func findBestColor(avoiding colorsToAvoid: [Color], from palette: [Color]) -> Color {
+        guard !colorsToAvoid.isEmpty else {
+            return palette.first ?? .blue
+        }
+
+        var bestColor = palette[0]
+        var maxMinDistance = 0.0
+
+        for candidateColor in palette {
+            // Calcola la distanza minima da tutti i colori da evitare
+            var minDistance = Double.infinity
+
+            for avoidColor in colorsToAvoid {
+                let distance = colorDistance(candidateColor, avoidColor)
+                minDistance = min(minDistance, distance)
+            }
+
+            // Scegli il colore con la massima distanza minima
+            if minDistance > maxMinDistance {
+                maxMinDistance = minDistance
+                bestColor = candidateColor
+            }
+        }
+
+        return bestColor
+    }
+
+    /// Calcola la distanza euclidea tra due colori nello spazio RGB
+    private static func colorDistance(_ color1: Color, _ color2: Color) -> Double {
+        guard let components1 = UIColor(color1).cgColor.components,
+              let components2 = UIColor(color2).cgColor.components,
+              components1.count >= 3,
+              components2.count >= 3 else {
+            return 0.0
+        }
+
+        let r1 = components1[0]
+        let g1 = components1[1]
+        let b1 = components1[2]
+
+        let r2 = components2[0]
+        let g2 = components2[1]
+        let b2 = components2[2]
+
+        let dr = r1 - r2
+        let dg = g1 - g2
+        let db = b1 - b2
+
+        return sqrt(dr*dr + dg*dg + db*db)
     }
 }

@@ -62,6 +62,7 @@ struct MapRenderData {
         let line: RailwayLine
         let color: Color
         let isSelected: Bool
+        let bundleSize: Int  // Number of parallel lines on this segment
     }
 }
 

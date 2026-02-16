@@ -129,8 +129,9 @@ struct FloatingSideMenu: View {
                     
                     // GROUP 3: SYSTEM
                     Group {
-                        MenuRow(title: "Impostazioni", icon: "gearshape.fill", isSelected: appState.sidebarSelection == .settings) {
-                            appState.sidebarSelection = .settings
+                        MenuRow(title: "Impostazioni", icon: "gearshape.fill", isSelected: appState.isShowingSettings) {
+                            appState.clearSelection()
+                            appState.isShowingSettings = true
                             appState.showPanel(.inspector)
                         }
                         

@@ -2,7 +2,7 @@ import Foundation
 import Combine
 import SwiftUI
 
-struct FdCTheme {
+struct FdCTheme: Equatable {
     var background: Color = Color(hex: "#F2F5F8")! // Default App Background
     var surface: Color = Color(hex: "#FFFFFF")!    // Card Surface
     var light: Color = Color(hex: "#E5E7EB")!      // Subtle Dividers / Unselected background
@@ -12,6 +12,33 @@ struct FdCTheme {
     var accent: Color = Color.blue                 // Selected items
     var line: Color = Color(hex: "#111827")!       // Graph Lines / Very dark accents
     var backgroundSecondary: Color = Color(hex: "#E5E7EB")! // Slightly darker/lighter background for contrast
+    
+    static let light = FdCTheme(
+        background: Color(hex: "#F2F5F8")!,
+        surface: Color(hex: "#FFFFFF")!,
+        light: Color(hex: "#E5E7EB")!,
+        medium: Color(hex: "#9CA3AF")!,
+        dark: Color(hex: "#4B5563")!,
+        accent: Color.blue,
+        line: Color(hex: "#111827")!,
+        backgroundSecondary: Color(hex: "#E5E7EB")!
+    )
+    
+    static let dark = FdCTheme(
+        background: Color(hex: "#1F2937")!,
+        surface: Color(hex: "#374151")!,
+        light: Color(hex: "#4B5563")!,
+        medium: Color(hex: "#9CA3AF")!,
+        dark: Color(hex: "#E5E7EB")!,
+        accent: Color.blue,
+        line: Color(hex: "#F9FAFB")!,
+        backgroundSecondary: Color(hex: "#111827")!
+    )
+    
+    static func == (lhs: FdCTheme, rhs: FdCTheme) -> Bool {
+        // Simple comparison based on background color
+        lhs.background == rhs.background && lhs.surface == rhs.surface
+    }
 }
 
 @MainActor
@@ -86,6 +113,9 @@ final class AppState: ObservableObject {
     @Published var selectedVehicleId: UUID? = nil {
         didSet { updateInspectorVisibilityForSelection() }
     }
+    @Published var isShowingSettings: Bool = false {
+        didSet { updateInspectorVisibilityForSelection() }
+    }
     @Published var isInspectorEditingMode: Bool = false
     @Published var lastVehicleAssignmentLineId: String? = nil
     @Published var isLineEditing: Bool = false
@@ -110,6 +140,28 @@ final class AppState: ObservableObject {
             }
         }
     }
+    
+    // Schedule Preview State
+    @Published var schedulePreviewTrains: [Train]? = nil
+    @Published var schedulePreviewLine: RailwayLine? = nil
+    @Published var schedulePreviewMode: ScheduleCreationView.ScheduleMode = .single
+    var schedulePreviewSelectedModel: TrainModel? = nil
+    var schedulePreviewOptimizeVehicles: Bool = false
+    var schedulePreviewMinTurnaroundTime: Int = 15
+    
+    // Optimized Times Preview State (Step 1 of two-step preview)
+    struct OptimizedTimesPreviewData {
+        let line: RailwayLine
+        let mode: ScheduleCreationView.ScheduleMode
+        let currentOutboundTime: Date
+        let currentReturnTime: Date?
+        let proposedOutboundTime: Date
+        let proposedReturnTime: Date?
+        let proposedInterval: Int?
+        let proposedReturnInterval: Int?
+    }
+    @Published var optimizedTimesPreviewData: OptimizedTimesPreviewData? = nil
+    @Published var optimizedTimesConfirmed: Bool = false
     
     // MARK: - Selection Management Methods
     private func updateInspectorVisibilityForSelection() {
@@ -188,10 +240,17 @@ final class AppState: ObservableObject {
         selectedTrainIds = []
         selectedVehicleId = nil
         creationLineId = nil
+        isShowingSettings = false
         // Don't close inspector if we're creating a line
         if activePanel == .inspector && !isCreatingLine {
             activePanel = .none
         }
+    }
+    
+    func showSettings() {
+        clearSelection()
+        isShowingSettings = true
+        showPanel(.inspector)
     }
     
     var isSomethingSelected: Bool {

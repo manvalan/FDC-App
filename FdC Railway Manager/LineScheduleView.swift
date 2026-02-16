@@ -38,7 +38,6 @@ struct LineScheduleView: View {
             .onAppear {
                 calculateLineGeometry()
             }
-            .id(line.id)
             .onChange(of: appState.selectedTrainIds) { ids in
                 if !ids.isEmpty {
                     appState.activePanel = .inspector

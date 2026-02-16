@@ -4,6 +4,10 @@ import Foundation
 /// Trova gli orari ottimali che minimizzano conflitti e tempi di attesa
 class DepartureTimeOptimizer {
     
+    // MARK: - Progress Callback
+    
+    var progressCallback: ((Int, Int, Double) -> Void)?  // (currentGen, totalGen, bestFitness)
+    
     // MARK: - Configuration
     
     struct Config {
@@ -74,6 +78,9 @@ class DepartureTimeOptimizer {
             if generation % 20 == 0 {
                 print("   Gen \(generation): Best fitness = \(String(format: "%.2f", population[0].fitness))")
             }
+            
+            // Notifica progresso
+            progressCallback?(generation, config.maxGenerations, population[0].fitness)
             
             // Early stopping se trovata soluzione ottima
             if population[0].fitness < 10 {
@@ -363,6 +370,9 @@ class DepartureTimeOptimizer {
             if generation % 20 == 0 {
                 print("   Gen \(generation): Best fitness = \(String(format: "%.2f", population[0].fitness))")
             }
+            
+            // Notifica progresso
+            progressCallback?(generation, config.maxGenerations, population[0].fitness)
             
             if population[0].fitness < 20 {
                 print("   ✅ Optimal cadence found at generation \(generation)")

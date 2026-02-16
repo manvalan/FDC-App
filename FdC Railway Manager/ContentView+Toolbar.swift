@@ -58,10 +58,20 @@ extension ContentView {
             Spacer()
             
             // Connection Status and global info
-            HStack(spacing: 20) {
+            HStack(spacing: 12) {
                 if let selection = appState.sidebarSelection, selection == .ai {
                     connectionIndicator
                 }
+                
+                Button(action: { appState.showSettings() }) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 14))
+                        .padding(8)
+                        .background(Circle().fill(appState.isShowingSettings ? Color.blue.opacity(0.1) : Color.primary.opacity(0.05)))
+                        .foregroundColor(appState.isShowingSettings ? .blue : .primary)
+                }
+                .buttonStyle(.plain)
+                .help("settings".localized)
                 
                 Button(action: { showCredits = true }) {
                     Image(systemName: "info.circle")
@@ -69,6 +79,8 @@ extension ContentView {
                         .padding(8)
                         .background(Circle().fill(Color.primary.opacity(0.05)))
                 }
+                .buttonStyle(.plain)
+                .help("Informazioni")
             }
             .padding(.horizontal, 20)
         }

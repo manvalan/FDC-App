@@ -22,12 +22,11 @@ struct TrainDetailView: View {
         Group {
             if let binding = trainBinding {
                 content(train: binding)
-                    .id(train.id) // FORCE REFRESH when selection changes
                     .onLongPressGesture(minimumDuration: 1.0) {
                         appState.isInspectorEditingMode.toggle()
                     }
             } else {
-                Text("train_not_found".localized).foregroundColor(.secondary)
+                Text("train_not_found".localized).foregroundColor(appState.theme.medium)
             }
         }
     }
@@ -59,7 +58,7 @@ struct TrainDetailView: View {
                 timetableSection(trainBinding: train)
             }
             .padding()
-            .background(Color(UIColor.systemGray6).opacity(0.95))
+            .background(appState.theme.background)
         }
     }
     
@@ -68,15 +67,16 @@ struct TrainDetailView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(train.wrappedValue.name)
                     .font(.title2.bold())
+                    .foregroundColor(appState.theme.dark)
                 Text(train.wrappedValue.type)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(appState.theme.medium)
             }
             Spacer()
             
             if appState.isInspectorEditingMode {
                 Image(systemName: "pencil.circle.fill")
-                    .foregroundColor(.blue)
+                    .foregroundColor(appState.theme.accent)
                     .font(.title2)
             }
         }
@@ -158,7 +158,7 @@ struct TrainDetailView: View {
             }
         }
         .padding()
-        .background(Color.secondary.opacity(0.05))
+        .background(appState.theme.backgroundSecondary)
         .cornerRadius(12)
     }
     
@@ -185,16 +185,16 @@ struct TrainDetailView: View {
                     // Fallback Icon
                     Image(systemName: "train.side.front.car")
                         .font(.title)
-                        .foregroundColor(.blue)
+                        .foregroundColor(appState.theme.accent)
                 }
             } else {
                 Image(systemName: "train.side.front.car")
                     .font(.title)
-                    .foregroundColor(.blue)
+                    .foregroundColor(appState.theme.accent)
             }
         }
         .frame(width: 80, height: 80)
-        .background(Color.blue.opacity(0.1))
+        .background(appState.theme.accent.opacity(0.1))
         .cornerRadius(12)
         .clipped()
         .onAppear {
@@ -213,8 +213,8 @@ struct TrainDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "bus.doubledecker.fill")
-                    .foregroundColor(.purple)
-                Text("materiale_rotabile".localized).font(.headline)
+                    .foregroundColor(appState.theme.accent)
+                Text("materiale_rotabile".localized).font(.headline).foregroundColor(appState.theme.dark)
                 
                 if train.wrappedValue.vehicleId == nil {
                     Spacer()
@@ -253,33 +253,51 @@ struct TrainDetailView: View {
                 HStack {
                     if let vId = train.wrappedValue.vehicleId, 
                        let v = manager.vehicles.first(where: { $0.id == vId }) {
+                        
+                        // Vehicle photo thumbnail
+                        Group {
+                            if let imageName = v.imageName, let _ = UIImage(named: imageName) {
+                                Image(imageName)
+                                    .resizable()
+                                    .scaledToFill()
+                            } else {
+                                Image(systemName: "train.side.front.car")
+                                    .font(.title3)
+                                    .foregroundColor(appState.theme.accent)
+                            }
+                        }
+                        .frame(width: 50, height: 50)
+                        .background(appState.theme.accent.opacity(0.1))
+                        .cornerRadius(8)
+                        .clipped()
+                        
                         VStack(alignment: .leading, spacing: 2) {
                             Text(v.name)
                                 .font(.system(.body, design: .rounded).bold())
-                                .foregroundColor(.primary)
+                                .foregroundColor(appState.theme.dark)
                             Text(v.model)
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(appState.theme.medium)
                         }
                     } else {
                         Text("Seleziona un mezzo...")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(appState.theme.medium)
                     }
                     
                     Spacer()
                     
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.caption.bold())
-                        .foregroundColor(.secondary)
+                        .foregroundColor(appState.theme.medium)
                         .padding(6)
-                        .background(Circle().fill(Color.secondary.opacity(0.1)))
+                        .background(Circle().fill(appState.theme.backgroundSecondary))
                 }
                 .padding(12)
-                .background(Color(UIColor.secondarySystemBackground))
+                .background(appState.theme.surface)
                 .cornerRadius(12)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                        .stroke(appState.theme.line.opacity(0.1), lineWidth: 1)
                 )
             }
             .disabled(!appState.isInspectorEditingMode)
@@ -291,7 +309,7 @@ struct TrainDetailView: View {
                         Text("Scheda Materiale Rotabile")
                     }
                     .font(.caption)
-                    .foregroundColor(.blue)
+                    .foregroundColor(appState.theme.accent)
                 }
                 .buttonStyle(.plain)
                 .sheet(isPresented: $showVehicleSheet) {
@@ -328,17 +346,17 @@ struct TrainDetailView: View {
             }
         }
         .padding()
-        .background(.ultraThinMaterial)
-        .cornerRadius(16)
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(train.wrappedValue.vehicleId == nil ? Color.red.opacity(0.5) : (appState.isInspectorEditingMode ? Color.yellow.opacity(0.5) : Color.white.opacity(0.1)), lineWidth: 1))
+        .background(appState.theme.backgroundSecondary)
+        .cornerRadius(12)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(train.wrappedValue.vehicleId == nil ? Color.red.opacity(0.5) : (appState.isInspectorEditingMode ? Color.yellow.opacity(0.5) : appState.theme.line.opacity(0.1)), lineWidth: 1))
     }
     
     private func timetableSection(trainBinding: Binding<Train>) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "clock.fill")
-                    .foregroundColor(.orange)
-                Text("Servizio Assegnato").font(.headline)
+                    .foregroundColor(appState.theme.accent)
+                Text("Servizio Assegnato").font(.headline).foregroundColor(appState.theme.dark)
             }
             
             if let lineId = trainBinding.wrappedValue.lineId,
@@ -355,7 +373,7 @@ struct TrainDetailView: View {
                     
                     // Move Priority here since technical column is gone
                     HStack(spacing: 4) {
-                        Text("Priorità:").font(.caption).foregroundColor(.secondary)
+                        Text("Priorità:").font(.caption).foregroundColor(appState.theme.medium)
                         Stepper(value: trainBinding.priority, in: 1...10) {
                             Text("\(trainBinding.wrappedValue.priority)")
                                 .font(.caption.bold())
@@ -381,17 +399,17 @@ struct TrainDetailView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "map")
                         .font(.largeTitle)
-                        .foregroundColor(.gray.opacity(0.3))
-                    Text("no_line_assigned".localized).italic().foregroundColor(.secondary)
+                        .foregroundColor(appState.theme.medium.opacity(0.3))
+                    Text("no_line_assigned".localized).italic().foregroundColor(appState.theme.medium)
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
             }
         }
         .padding()
-        .background(.ultraThinMaterial)
-        .cornerRadius(16)
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(appState.isInspectorEditingMode ? Color.yellow.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1))
+        .background(appState.theme.backgroundSecondary)
+        .cornerRadius(12)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(appState.isInspectorEditingMode ? Color.yellow.opacity(0.5) : appState.theme.line.opacity(0.1), lineWidth: 1))
     }
     
     private func priorityColor(_ p: Int) -> Color {

@@ -60,16 +60,26 @@ class CadenceOptimizer: ObservableObject {
             
             if self.fitness == 0 { break }
             
-            // Breeding
-            var nextGen = Array(population.prefix(5))
+            // Breeding: Elitismo + Tournament Selection
+            var nextGen = Array(population.prefix(5))  // Mantieni i 5 migliori
             while nextGen.count < populationSize {
-                let p1 = population.randomElement()!
-                let p2 = population.randomElement()!
-                var child = CadenceChromosome(offsetMinutes: (p1.offsetMinutes + p2.offsetMinutes) / 2.0)
+                // Tournament selection per entrambi i genitori
+                let p1 = tournamentSelect(from: population, tournamentSize: 3)
+                let p2 = tournamentSelect(from: population, tournamentSize: 3)
                 
-                // Mutazione
-                if Double.random(in: 0...1) < 0.3 {
-                    child.offsetMinutes += Double.random(in: -2.0...2.0)
+                // Crossover: media pesata verso il migliore
+                let betterParent = p1.fitness < p2.fitness ? p1 : p2
+                let weight = Double.random(in: 0.3...0.7)
+                var child = CadenceChromosome(
+                    offsetMinutes: betterParent.offsetMinutes * weight + 
+                                   (p1.fitness < p2.fitness ? p2 : p1).offsetMinutes * (1.0 - weight)
+                )
+                
+                // Mutazione con intensità decrescente
+                let mutationRate = 0.3 * (1.0 - Double(gen) / Double(generations))  // Diminuisce col tempo
+                if Double.random(in: 0...1) < mutationRate {
+                    let mutationStrength = Double.random(in: -5.0...5.0)
+                    child.offsetMinutes += mutationStrength
                     child.offsetMinutes = (child.offsetMinutes + frequency).truncatingRemainder(dividingBy: frequency)
                 }
                 nextGen.append(child)
@@ -82,6 +92,18 @@ class CadenceOptimizer: ObservableObject {
         return self.bestOffset
     }
     
+    /// Tournament selection: seleziona il migliore tra N candidati casuali
+    private func tournamentSelect(from population: [CadenceChromosome], tournamentSize: Int) -> CadenceChromosome {
+        var best = population.randomElement()!
+        for _ in 1..<tournamentSize {
+            let candidate = population.randomElement()!
+            if candidate.fitness < best.fitness {
+                best = candidate
+            }
+        }
+        return best
+    }
+    
     private func evaluateCadence(offset: Double, line: RailwayLine, frequency: Double, existingTrains: [Train], nodes: [Node], edges: [Edge]) async -> Double {
         // Simuliamo una serie di treni durante la giornata (es. 10 treni campioni)
         var testTrains: [Train] = []
@@ -89,19 +111,45 @@ class CadenceOptimizer: ObservableObject {
         
         for i in 0..<8 { // 8 treni di prova per coprire varie fasce orarie
             let departure = baseDate.addingTimeInterval((Double(i) * frequency + offset) * 60)
+            
+            // Calcola il numero corretto del treno
+            let trainNumber = (line.numberPrefix ?? 0) * 100 + i
+            
+            // Genera il nome corretto
+            let trainName: String
+            if let prefix = line.codePrefix, let code = line.numberPrefix {
+                trainName = "\(prefix)\(code) \(trainNumber)"
+            } else {
+                trainName = "\(trainNumber)"
+            }
+            
+            // Usa parametri realistici basati sul tipo di treno
+            let trainCategory = TrainCategory.regional // Default per cadenze
+            
+            // Parametri fisici tipici per categoria
+            let (acceleration, deceleration): (Double, Double) = {
+                switch trainCategory {
+                case .highSpeed: return (0.6, 0.8)
+                case .direct: return (0.5, 0.7)
+                case .regional: return (0.5, 0.7)
+                case .freight: return (0.2, 0.4)
+                case .support: return (0.3, 0.5)
+                }
+            }()
+            
             let train = Train(
                 id: UUID(),
-                number: (line.numberPrefix ?? 0) * 1000 + i,
-                name: "\(line.name) \(i)",
-                type: line.codePrefix ?? "REG",
+                number: trainNumber,
+                name: trainName,
+                type: line.codePrefix ?? trainCategory.rawValue,
                 lineId: line.id,
                 departureTime: departure,
                 stops: line.stops,
                 vehicleId: nil,
-                maxSpeed: 140,
-                acceleration: 0.5,
-                deceleration: 0.5,
-                priority: 5
+                maxSpeed: Double(trainCategory.defaultMaxSpeed),
+                acceleration: acceleration,
+                deceleration: deceleration,
+                priority: trainCategory.defaultPriority
             )
             testTrains.append(train)
         }
@@ -114,11 +162,22 @@ class CadenceOptimizer: ObservableObject {
         var dummyCache: [String: [Edge]]? = nil
         let conflicts = conflictManager.calculateConflictsWithCapacities(nodes: nodes, edges: edges, trains: localTrains + existingTrains, pathCache: &dummyCache).0
         
-        // Penalità: Conflitti + Deviazione (preferiamo offset arrotondati se possibile)
-        let conflictPenalty = Double(conflicts.count) * 1000.0
-        let roundnessPenalty = abs(offset - round(offset)) * 10.0
+        // Penalità: Conflitti + Preferenza per orari cadenzati
+        let conflictPenalty = Double(conflicts.count) * 500.0  // Ridotto da 1000 per permettere convergenza
         
-        return conflictPenalty + roundnessPenalty
+        // Bonus per offset che sono multipli di 5, 15, o 30 minuti
+        let roundnessBonus: Double
+        if offset.truncatingRemainder(dividingBy: 30.0) < 0.5 {
+            roundnessBonus = -20.0  // Perfetto: multiplo di 30
+        } else if offset.truncatingRemainder(dividingBy: 15.0) < 0.5 {
+            roundnessBonus = -10.0  // Buono: multiplo di 15
+        } else if offset.truncatingRemainder(dividingBy: 5.0) < 0.5 {
+            roundnessBonus = -5.0   // Accettabile: multiplo di 5
+        } else {
+            roundnessBonus = abs(offset - round(offset)) * 2.0  // Penalità per decimali strani
+        }
+        
+        return max(0, conflictPenalty + roundnessBonus)
     }
     
     private func refreshSchedules(trains: inout [Train], nodes: [Node], edges: [Edge]) {
@@ -136,11 +195,14 @@ class CadenceOptimizer: ObservableObject {
                     let prevId = trains[i].stops[j-1].stationId
                     if let pathEdges = NetworkModel.findPathEdges(from: prevId, to: stop.stationId, nodes: nodes, edges: edges) {
                         let dist = pathEdges.reduce(0.0) { $0 + $1.distance }
-                        let speed = pathEdges.map { Double($0.maxSpeed) }.min() ?? 100.0
+                        let trackMaxSpeed = pathEdges.map { Double($0.maxSpeed) }.min() ?? 100.0
+                        
+                        // Usa la velocità minima tra tracciato e treno
+                        let effectiveSpeed = min(trackMaxSpeed, trains[i].maxSpeed)
                         
                         let hours = FDCSchedulerEngine.calculateTravelTime(
                             distanceKm: dist,
-                            maxSpeedKmh: speed,
+                            maxSpeedKmh: effectiveSpeed,
                             train: trains[i],
                             initialSpeedKmh: 0,
                             finalSpeedKmh: 0

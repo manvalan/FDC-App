@@ -59,47 +59,25 @@ struct Conflict: Identifiable, Hashable {
 class FDCSchedulerEngine {
     
     /// Calculate travel time in hours between two points using physics (acceleration/deceleration)
-    /// Ported from FDC C++: calculate_travel_time
+    /// Uses centralized TrainPhysicsEngine for realistic calculations
     static func calculateTravelTime(distanceKm: Double, 
                                    maxSpeedKmh: Double, 
                                    train: Train,
                                    initialSpeedKmh: Double = 0, 
                                    finalSpeedKmh: Double = 0) -> Double {
         
-        let distance = distanceKm * 1000.0 // meters
-        let vMax = min(Double(train.maxSpeed), maxSpeedKmh) / 3.6 // m/s
-        let vStart = initialSpeedKmh / 3.6 // m/s
-        let vEnd = finalSpeedKmh / 3.6 // m/s
-        let a = train.acceleration // m/s^2
-        let d = train.deceleration // m/s^2
+        // Create physics model from train
+        let physics = TrainPhysicsEngine.TrainPhysics(from: train)
         
-        // Calculate distances for acceleration and braking
-        let accelDistance = (vMax * vMax - vStart * vStart) / (2.0 * a)
-        let brakeDistance = (vMax * vMax - vEnd * vEnd) / (2.0 * d)
-        
-        if accelDistance + brakeDistance <= distance {
-            // We reach max speed and cruise
-            let cruiseDistance = distance - accelDistance - brakeDistance
-            let tAccel = (vMax - vStart) / a
-            let tBrake = (vMax - vEnd) / d
-            let tCruise = cruiseDistance / vMax
-            return (tAccel + tCruise + tBrake) / 3600.0 // hours
-        } else {
-            // We don't reach max speed - calculate peak velocity
-            let numerator = distance + (vStart * vStart) / (2.0 * a) + (vEnd * vEnd) / (2.0 * d)
-            let denominator = 1.0 / (2.0 * a) + 1.0 / (2.0 * d)
-            let vPeakSquared = numerator / denominator
-            
-            if vPeakSquared < 0 {
-                let avgSpeed = (vStart + vEnd) / 2.0
-                return distance / (max(avgSpeed, 1.0) * 3600.0)
-            }
-            
-            let vPeak = sqrt(vPeakSquared)
-            let tUp = (vPeak - vStart) / a
-            let tDown = (vPeak - vEnd) / d
-            return (tUp + tDown) / 3600.0 // hours
-        }
+        // Use centralized physics engine
+        return TrainPhysicsEngine.calculateTravelTime(
+            distance: distanceKm,
+            trackMaxSpeed: maxSpeedKmh,
+            physics: physics,
+            initialSpeed: initialSpeedKmh,
+            finalSpeed: finalSpeedKmh,
+            gradient: 0  // TODO: Get gradient from track data
+        )
     }
     
     /// Build a full schedule for a train along a route

@@ -9,6 +9,15 @@
 /* Begin PBXBuildFile section */
 		31294B452F40AB6500E80C34 /* GenericEntityListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B442F40AB6500E80C34 /* GenericEntityListView.swift */; };
 		31294B542F4259D900E80C34 /* LineColorAssigner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B532F4259D900E80C34 /* LineColorAssigner.swift */; };
+		31294B562F425FDB00E80C34 /* SettingsInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B552F425FDB00E80C34 /* SettingsInspectorView.swift */; };
+		31294B5A2F426D4200E80C34 /* TrainDatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B592F426D4200E80C34 /* TrainDatabaseModels.swift */; };
+		31294B5C2F426FEB00E80C34 /* VehicleRotationOptimizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B5B2F426FEB00E80C34 /* VehicleRotationOptimizer.swift */; };
+		31294B5E2F42EBFA00E80C34 /* SchedulePreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B5D2F42EBFA00E80C34 /* SchedulePreviewView.swift */; };
+		31294B602F42F00200E80C34 /* TrainModelSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B5F2F42F00200E80C34 /* TrainModelSelector.swift */; };
+		31294B622F42F4B500E80C34 /* TrainPhysicsEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B612F42F4B500E80C34 /* TrainPhysicsEngine.swift */; };
+		31294B642F42F52500E80C34 /* TrainPhysicsEngine.md in Resources */ = {isa = PBXBuildFile; fileRef = 31294B632F42F52500E80C34 /* TrainPhysicsEngine.md */; };
+		31294B662F42F81E00E80C34 /* SchedulePreviewInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B652F42F81E00E80C34 /* SchedulePreviewInspectorView.swift */; };
+		31294B682F432F6000E80C34 /* OptimizedTimesPreviewInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B672F432F6000E80C34 /* OptimizedTimesPreviewInspectorView.swift */; };
 		313F356D2F3F4EB100250B1A /* LayoutConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 313F356C2F3F4EB100250B1A /* LayoutConstants.swift */; };
 		313F356F2F3F4EE700250B1A /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 313F356E2F3F4EE700250B1A /* AppSettings.swift */; };
 		313F35712F3F4F9600250B1A /* ContentViewOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = 313F35702F3F4F9600250B1A /* ContentViewOverlays.swift */; };
@@ -18,6 +27,15 @@
 		31234B412F1FD849003C8FEC /* FdC Railway Manager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "FdC Railway Manager.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		31294B442F40AB6500E80C34 /* GenericEntityListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenericEntityListView.swift; sourceTree = "<group>"; };
 		31294B532F4259D900E80C34 /* LineColorAssigner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineColorAssigner.swift; sourceTree = "<group>"; };
+		31294B552F425FDB00E80C34 /* SettingsInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsInspectorView.swift; sourceTree = "<group>"; };
+		31294B592F426D4200E80C34 /* TrainDatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainDatabaseModels.swift; sourceTree = "<group>"; };
+		31294B5B2F426FEB00E80C34 /* VehicleRotationOptimizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VehicleRotationOptimizer.swift; sourceTree = "<group>"; };
+		31294B5D2F42EBFA00E80C34 /* SchedulePreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchedulePreviewView.swift; sourceTree = "<group>"; };
+		31294B5F2F42F00200E80C34 /* TrainModelSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainModelSelector.swift; sourceTree = "<group>"; };
+		31294B612F42F4B500E80C34 /* TrainPhysicsEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainPhysicsEngine.swift; sourceTree = "<group>"; };
+		31294B632F42F52500E80C34 /* TrainPhysicsEngine.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = TrainPhysicsEngine.md; sourceTree = "<group>"; };
+		31294B652F42F81E00E80C34 /* SchedulePreviewInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchedulePreviewInspectorView.swift; sourceTree = "<group>"; };
+		31294B672F432F6000E80C34 /* OptimizedTimesPreviewInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimizedTimesPreviewInspectorView.swift; sourceTree = "<group>"; };
 		313F356C2F3F4EB100250B1A /* LayoutConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutConstants.swift; sourceTree = "<group>"; };
 		313F356E2F3F4EE700250B1A /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		313F35702F3F4F9600250B1A /* ContentViewOverlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewOverlays.swift; sourceTree = "<group>"; };
@@ -52,6 +70,15 @@
 				313F35702F3F4F9600250B1A /* ContentViewOverlays.swift */,
 				31294B442F40AB6500E80C34 /* GenericEntityListView.swift */,
 				31294B532F4259D900E80C34 /* LineColorAssigner.swift */,
+				31294B552F425FDB00E80C34 /* SettingsInspectorView.swift */,
+				31294B592F426D4200E80C34 /* TrainDatabaseModels.swift */,
+				31294B5B2F426FEB00E80C34 /* VehicleRotationOptimizer.swift */,
+				31294B5D2F42EBFA00E80C34 /* SchedulePreviewView.swift */,
+				31294B5F2F42F00200E80C34 /* TrainModelSelector.swift */,
+				31294B612F42F4B500E80C34 /* TrainPhysicsEngine.swift */,
+				31294B632F42F52500E80C34 /* TrainPhysicsEngine.md */,
+				31294B652F42F81E00E80C34 /* SchedulePreviewInspectorView.swift */,
+				31294B672F432F6000E80C34 /* OptimizedTimesPreviewInspectorView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -127,6 +154,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				31294B642F42F52500E80C34 /* TrainPhysicsEngine.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -138,8 +166,16 @@
 			buildActionMask = 2147483647;
 			files = (
 				313F356F2F3F4EE700250B1A /* AppSettings.swift in Sources */,
+				31294B602F42F00200E80C34 /* TrainModelSelector.swift in Sources */,
+				31294B562F425FDB00E80C34 /* SettingsInspectorView.swift in Sources */,
+				31294B622F42F4B500E80C34 /* TrainPhysicsEngine.swift in Sources */,
+				31294B5A2F426D4200E80C34 /* TrainDatabaseModels.swift in Sources */,
 				31294B452F40AB6500E80C34 /* GenericEntityListView.swift in Sources */,
+				31294B662F42F81E00E80C34 /* SchedulePreviewInspectorView.swift in Sources */,
+				31294B682F432F6000E80C34 /* OptimizedTimesPreviewInspectorView.swift in Sources */,
+				31294B5E2F42EBFA00E80C34 /* SchedulePreviewView.swift in Sources */,
 				31294B542F4259D900E80C34 /* LineColorAssigner.swift in Sources */,
+				31294B5C2F426FEB00E80C34 /* VehicleRotationOptimizer.swift in Sources */,
 				313F35712F3F4F9600250B1A /* ContentViewOverlays.swift in Sources */,
 				313F356D2F3F4EB100250B1A /* LayoutConstants.swift in Sources */,
 			);

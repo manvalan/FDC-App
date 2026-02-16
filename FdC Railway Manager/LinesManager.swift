@@ -351,9 +351,24 @@ final class LinesManager: ObservableObject {
             print("   Station sequence: \(stationSequence)")
             #endif
             // Return a minimal valid train with empty stops (will be filtered later)
+            let trainNumber: Int
+            let fallbackName: String
+            
+            if let line = line, let lineCode = line.numberPrefix {
+                trainNumber = lineCode * 100 + number
+                if let prefix = line.codePrefix {
+                    fallbackName = "\(prefix)\(lineCode) \(trainNumber)"
+                } else {
+                    fallbackName = "\(trainNumber)"
+                }
+            } else {
+                trainNumber = number
+                fallbackName = "\(number)"
+            }
+            
             return Train(
-                number: number,
-                name: name ?? "\(category.rawValue) \(number)",
+                number: trainNumber,
+                name: name ?? fallbackName,
                 type: category.rawValue,
                 lineId: line?.id,
                 departureTime: departureTime,
@@ -387,10 +402,26 @@ final class LinesManager: ObservableObject {
             stops.append(stop)
         }
         
-        let trainName = name ?? "\(category.rawValue) \(number)"
+        let trainNumber: Int
+        let trainName: String
+        
+        if let customName = name {
+            trainNumber = number
+            trainName = customName
+        } else if let line = line, let lineCode = line.numberPrefix {
+            trainNumber = lineCode * 100 + number
+            if let prefix = line.codePrefix {
+                trainName = "\(prefix)\(lineCode) \(trainNumber)"
+            } else {
+                trainName = "\(trainNumber)"
+            }
+        } else {
+            trainNumber = number
+            trainName = "\(number)"
+        }
         
         return Train(
-            number: number,
+            number: trainNumber,
             name: trainName,
             type: category.rawValue,
             lineId: line?.id,

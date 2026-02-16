@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ConflictDashboardView: View {
+    @EnvironmentObject var appState: AppState
     let conflicts: [ScheduleConflict]
     let network: RailwayNetwork
     let trains: [Train] // PIGNOLO: Needed to calculate suggestions
@@ -72,6 +73,7 @@ struct ConflictDashboardView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text(key)
                     .font(.headline)
+                    .foregroundColor(appState.theme.dark)
                     .padding(.leading, 4)
                 
                 ForEach(grouped[key] ?? []) { conflict in
@@ -194,37 +196,41 @@ struct HotspotInfo: Identifiable {
 }
 
 struct SuccessBanner: View {
+    @EnvironmentObject var appState: AppState
+    
     var body: some View {
         VStack(spacing: 15) {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 60))
-                .foregroundColor(.green)
+                .foregroundColor(appState.theme.accent)
                 .symbolEffect(.bounce, value: true)
             
             VStack(spacing: 5) {
                 Text("perfect_timetable".localized)
                     .font(.title2.bold())
+                    .foregroundColor(appState.theme.dark)
                 Text("no_conflicts_desc".localized)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(appState.theme.medium)
                     .multilineTextAlignment(.center)
             }
         }
         .padding(30)
         .frame(maxWidth: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(Color.green.opacity(0.1))
+            RoundedRectangle(cornerRadius: 12)
+                .fill(appState.theme.accent.opacity(0.1))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(Color.green.opacity(0.2), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(appState.theme.accent.opacity(0.2), lineWidth: 1)
         )
         .padding()
     }
 }
 
 struct ConflictHeader: View {
+    @EnvironmentObject var appState: AppState
     let count: Int
     
     var body: some View {
@@ -232,9 +238,10 @@ struct ConflictHeader: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(String(format: "conflicts_detected_fmt_short".localized, count))
                     .font(.title3.bold())
+                    .foregroundColor(appState.theme.dark)
                 Text("conflict_analysis_desc".localized)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(appState.theme.medium)
             }
             Spacer()
             
@@ -251,6 +258,7 @@ struct ConflictHeader: View {
 }
 
 struct HotspotCard: View {
+    @EnvironmentObject var appState: AppState
     let hotspot: HotspotInfo
     let network: RailwayNetwork
     
@@ -267,9 +275,10 @@ struct HotspotCard: View {
                 let name = network.nodes.first(where: { $0.id == hotspot.id })?.name ?? hotspot.id
                 Text(name)
                     .font(.headline)
+                    .foregroundColor(appState.theme.dark)
                 Text("consecutive_collisions".localized)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(appState.theme.medium)
             }
             Spacer()
             
@@ -277,7 +286,7 @@ struct HotspotCard: View {
                 .foregroundColor(.orange)
         }
         .padding()
-        .background(Color.secondary.opacity(0.05))
-        .cornerRadius(15)
+        .background(appState.theme.backgroundSecondary)
+        .cornerRadius(12)
     }
 }

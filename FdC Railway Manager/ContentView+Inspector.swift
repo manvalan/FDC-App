@@ -56,7 +56,29 @@ extension ContentView {
             
             ScrollView {
                 VStack(spacing: 16) {
-                    if appState.isCreatingLine {
+                    if appState.isShowingSettings {
+                        SettingsInspectorView()
+                            .id("settings")
+                    } else if let previewData = appState.optimizedTimesPreviewData {
+                        OptimizedTimesPreviewInspectorView(
+                            line: previewData.line,
+                            mode: previewData.mode,
+                            currentOutboundTime: previewData.currentOutboundTime,
+                            currentReturnTime: previewData.currentReturnTime,
+                            proposedOutboundTime: previewData.proposedOutboundTime,
+                            proposedReturnTime: previewData.proposedReturnTime,
+                            proposedInterval: previewData.proposedInterval,
+                            proposedReturnInterval: previewData.proposedReturnInterval
+                        )
+                        .id("optimized-times-preview")
+                    } else if let trains = appState.schedulePreviewTrains, let line = appState.schedulePreviewLine {
+                        SchedulePreviewInspectorView(
+                            trains: trains,
+                            line: line,
+                            mode: appState.schedulePreviewMode
+                        )
+                        .id("schedule-preview")
+                    } else if appState.isCreatingLine {
                         LineCreationInspectorView()
                             .id("line-creation")
                     } else if let lineId = appState.creationLineId, let line = appState.railroad.lines.lines.first(where: { $0.id == lineId }) {

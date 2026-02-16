@@ -10,10 +10,11 @@ struct CreditsView: View {
                 // Header Section
                 Section {
                     VStack(spacing: 20) {
-                        Image("SplashImage") // Ensure this asset exists, or use a system placeholder if unsure
+                        Image(systemName: "train.side.front.car")
                             .resizable()
                             .scaledToFit()
                             .frame(height: 120)
+                            .foregroundColor(.blue)
                             .shadow(radius: 8)
                             .padding(.vertical, 10)
                         

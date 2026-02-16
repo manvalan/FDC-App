@@ -291,15 +291,24 @@ struct VehicleRowContent: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            // Badge icon
-            ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(modelColor.opacity(0.15))
-                    .frame(width: 50, height: 50)
-                Text(String(vehicle.model.prefix(3)).uppercased())
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(modelColor)
+            // Vehicle photo or badge icon
+            Group {
+                if let imageName = vehicle.imageName, !imageName.isEmpty, let _ = UIImage(named: imageName) {
+                    Image(imageName)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(modelColor.opacity(0.15))
+                        Text(String(vehicle.model.prefix(3)).uppercased())
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(modelColor)
+                    }
+                }
             }
+            .frame(width: 50, height: 50)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(vehicle.name)
@@ -440,6 +449,10 @@ struct VehicleEditSheet: View {
     @State private var length: Double = 200
     @State private var maxSpeed: Double = 160
     @State private var selectedTemplateId: String? = nil
+    @State private var showTrainDatabase = false
+    @State private var acceleration: Double = 1.0
+    @State private var deceleration: Double = 1.0
+    @State private var imageName: String? = nil
     
     init(manager: LinesManager, vehicle: Vehicle?) {
         self.manager = manager
@@ -448,11 +461,26 @@ struct VehicleEditSheet: View {
         _model = State(initialValue: vehicle?.model ?? "")
         _length = State(initialValue: vehicle?.length ?? 200)
         _maxSpeed = State(initialValue: vehicle?.maxSpeed ?? 160)
+        _acceleration = State(initialValue: vehicle?.acceleration ?? 1.0)
+        _deceleration = State(initialValue: vehicle?.deceleration ?? 1.0)
+        _imageName = State(initialValue: vehicle?.imageName)
     }
     
     var body: some View {
         NavigationStack {
             Form {
+                Section("Database Treni") {
+                    Button(action: { showTrainDatabase = true }) {
+                        Label("Importa da Database", systemImage: "square.and.arrow.down")
+                    }
+                    
+                    if let img = imageName {
+                        Text("Immagine: \(img)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
                 Section("Template Modello") {
                     Picker("Scegli Template", selection: $selectedTemplateId) {
                         Text("Manuale / Nessuno").tag(String?.none)
@@ -560,6 +588,19 @@ struct VehicleEditSheet: View {
                     .disabled(name.isEmpty)
                 }
             }
+            .sheet(isPresented: $showTrainDatabase) {
+                TrainDatabasePickerView { selectedTrain in
+                    // Populate form fields from selected train
+                    self.name = selectedTrain.nome
+                    self.model = selectedTrain.tipo
+                    self.maxSpeed = selectedTrain.specifiche.velocitaMaxKmh
+                    self.acceleration = selectedTrain.fisica.accelerazioneMS2
+                    self.deceleration = selectedTrain.fisica.frenaturaServizioMS2
+                    self.imageName = selectedTrain.assetName
+                    showTrainDatabase = false
+                }
+                .environmentObject(appState)
+            }
         }
         .frame(width: 400, height: 500)
     }
@@ -570,11 +611,22 @@ struct VehicleEditSheet: View {
             existing.model = model
             existing.length = length
             existing.maxSpeed = maxSpeed
+            existing.acceleration = acceleration
+            existing.deceleration = deceleration
+            existing.imageName = imageName
             if let idx = manager.vehicles.firstIndex(where: { $0.id == existing.id }) {
                 manager.vehicles[idx] = existing
             }
         } else {
-            let newV = Vehicle(name: name, model: model, length: length, maxSpeed: maxSpeed)
+            let newV = Vehicle(
+                name: name,
+                model: model,
+                length: length,
+                maxSpeed: maxSpeed,
+                acceleration: acceleration,
+                deceleration: deceleration,
+                imageName: imageName
+            )
             manager.vehicles.append(newV)
         }
         

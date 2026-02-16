@@ -101,9 +101,10 @@ struct StationEditView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Modalità Sola Lettura")
                                     .font(.subheadline.bold())
+                                    .foregroundColor(appState.theme.dark)
                                 Text("Tieni premuto per 1 secondo per abilitare le modifiche")
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(appState.theme.medium)
                             }
                             Spacer()
                         }
@@ -113,13 +114,14 @@ struct StationEditView: View {
                     } else {
                         HStack {
                             Image(systemName: "pencil.circle.fill")
-                                .foregroundColor(.green)
+                                .foregroundColor(appState.theme.accent)
                             Text("Modalità Modifica Attiva")
                                 .font(.subheadline.bold())
+                                .foregroundColor(appState.theme.dark)
                             Spacer()
                         }
                         .padding()
-                        .background(Color.green.opacity(0.1))
+                        .background(appState.theme.accent.opacity(0.1))
                         .cornerRadius(8)
                     }
                     
@@ -172,20 +174,20 @@ struct StationEditView: View {
     @ViewBuilder
     private var headerSection: some View {
         HStack {
-            Image(systemName: "building.2.fill").font(.largeTitle).foregroundColor(.blue)
+            Image(systemName: "building.2.fill").font(.largeTitle).foregroundColor(appState.theme.accent)
             VStack(alignment: .leading) {
-                Text(station.name).font(.title).fontWeight(.bold)
-                Text("edit_station".localized).font(.subheadline).foregroundColor(.secondary)
+                Text(station.name).font(.title).fontWeight(.bold).foregroundColor(appState.theme.dark)
+                Text("edit_station".localized).font(.subheadline).foregroundColor(appState.theme.medium)
             }
             Spacer()
         }
-        .padding().background(Color.secondary.opacity(0.05)).cornerRadius(8)
+        .padding().background(appState.theme.backgroundSecondary).cornerRadius(12)
     }
     
     @ViewBuilder
     private var stationDataSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("station_data".localized.uppercased()).font(.caption.bold()).foregroundColor(.secondary)
+            Text("station_data".localized.uppercased()).font(.caption.bold()).foregroundColor(appState.theme.medium)
             TextField("station_name".localized, text: $station.name).textFieldStyle(.roundedBorder)
             
             Picker("functional_type".localized, selection: $station.type) {
@@ -209,17 +211,17 @@ struct StationEditView: View {
                 HStack {
                     Text("platform_count".localized)
                     Spacer()
-                    Text("\(localPlatforms)").foregroundColor(.secondary).fontWeight(.bold)
+                    Text("\(localPlatforms)").foregroundColor(appState.theme.medium).fontWeight(.bold)
                 }
             }
         }
-        .padding().background(Color.secondary.opacity(0.05)).cornerRadius(8)
+        .padding().background(appState.theme.backgroundSecondary).cornerRadius(12)
     }
     
     @ViewBuilder
     private var hubsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("hubs_interchanges".localized.uppercased()).font(.caption.bold()).foregroundColor(.secondary)
+            Text("hubs_interchanges".localized.uppercased()).font(.caption.bold()).foregroundColor(appState.theme.medium)
             
             Picker("belongs_to_hub".localized, selection: $station.parentHubId) {
                 Text("no_hub".localized).tag(String?.none)
@@ -233,7 +235,7 @@ struct StationEditView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("hub_position".localized)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(appState.theme.medium)
                     
                     Picker("hub_position".localized, selection: $station.hubOffsetDirection) {
                         Text("hub_standard_pos".localized).tag(Node.HubOffsetDirection?.none)
@@ -252,18 +254,18 @@ struct StationEditView: View {
                     } else {
                         Text("Selezionato: Standard (nessuno)")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(appState.theme.medium)
                     }
                 }
             }
         }
-        .padding().background(Color.secondary.opacity(0.05)).cornerRadius(8)
+        .padding().background(appState.theme.backgroundSecondary).cornerRadius(12)
     }
     
     @ViewBuilder
     private var visualStyleSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("visual_style".localized.uppercased()).font(.caption.bold()).foregroundColor(.secondary)
+            Text("visual_style".localized.uppercased()).font(.caption.bold()).foregroundColor(appState.theme.medium)
             Picker("type".localized, selection: $station.visualType) {
                 ForEach(Node.StationVisualType.allCases) { type in symbolImage(for: type).tag(Node.StationVisualType?.some(type)) }
             }
@@ -277,13 +279,13 @@ struct StationEditView: View {
                 )).labelsHidden()
             }
         }
-        .padding().background(Color.secondary.opacity(0.05)).cornerRadius(8)
+        .padding().background(appState.theme.backgroundSecondary).cornerRadius(12)
     }
     
     @ViewBuilder
     private var coordinatesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("coordinates".localized.uppercased()).font(.caption.bold()).foregroundColor(.secondary)
+            Text("coordinates".localized.uppercased()).font(.caption.bold()).foregroundColor(appState.theme.medium)
             HStack {
                 Text("latitude".localized); Spacer()
                 TextField("lat", value: Binding(get: { station.latitude ?? 0.0 }, set: { station.latitude = $0 }), format: .number).textFieldStyle(.roundedBorder).frame(width: 150)
@@ -295,15 +297,15 @@ struct StationEditView: View {
             
             HStack {
                 Image(systemName: "info.circle.fill")
-                    .foregroundColor(.blue)
+                    .foregroundColor(appState.theme.accent)
                     .font(.caption)
                 Text("Le coordinate possono essere modificate anche trascinando la stazione sulla mappa")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(appState.theme.medium)
             }
             .padding(.top, 4)
         }
-        .padding().background(Color.secondary.opacity(0.05)).cornerRadius(8)
+        .padding().background(appState.theme.backgroundSecondary).cornerRadius(12)
     }
     
     @ViewBuilder
@@ -319,27 +321,27 @@ struct StationEditView: View {
             }
             
             if station.routingConstraints.isEmpty {
-                Text("-").font(.caption).foregroundColor(.secondary)
+                Text("-").font(.caption).foregroundColor(appState.theme.medium)
             } else {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(station.routingConstraints.prefix(3)) { constraint in
                         let lineName = lines.lines.first(where: { $0.id == constraint.lineId })?.name ?? "???"
-                        Text("• \(lineName): [\(constraint.allowedTracks.joined(separator: ", "))]").font(.caption)
+                        Text("• \(lineName): [\(constraint.allowedTracks.joined(separator: ", "))]").font(.caption).foregroundColor(appState.theme.dark)
                     }
                     if station.routingConstraints.count > 3 {
-                        Text("+ \(station.routingConstraints.count - 3) ...").font(.caption2).foregroundColor(.secondary)
+                        Text("+ \(station.routingConstraints.count - 3) ...").font(.caption2).foregroundColor(appState.theme.medium)
                     }
                 }
             }
         }
-        .padding().background(Color.blue.opacity(0.05)).cornerRadius(8)
+        .padding().background(appState.theme.accent.opacity(0.05)).cornerRadius(12)
     }
     
     @ViewBuilder
     private var deleteSection: some View {
         if let _ = onDelete {
             Button(role: .destructive) { showDeleteConfirmation = true } label: {
-                Text("delete_station".localized).frame(maxWidth: .infinity).padding().background(Color.red.opacity(0.1)).cornerRadius(8)
+                Text("delete_station".localized).frame(maxWidth: .infinity).padding().background(Color.red.opacity(0.1)).cornerRadius(12)
             }
         }
     }
@@ -363,19 +365,19 @@ struct StationEditView: View {
             VStack(spacing: 0) {
                 // Info Header
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(station.name).font(.headline).foregroundColor(.blue)
-                    Text("Scegli una direzione per configurare i binari dedicati alle linee corrispondenti.").font(.caption).foregroundColor(.secondary)
+                    Text(station.name).font(.headline).foregroundColor(appState.theme.accent)
+                    Text("Scegli una direzione per configurare i binari dedicati alle linee corrispondenti.").font(.caption).foregroundColor(appState.theme.medium)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading).padding().background(Color(UIColor.secondarySystemBackground))
                 
                 List {
                     if directionGroups.isEmpty {
-                        Text("Nessuna linea attraversa questa stazione.").foregroundColor(.secondary).padding()
+                        Text("Nessuna linea attraversa questa stazione.").foregroundColor(appState.theme.medium).padding()
                     }
                     
                     // 1. Vincoli per Direzione Specifica (Derivati dalle linee esistenti)
                     ForEach(directionGroups) { group in
-                        Section(header: Text("Collegamento: \(group.name)").font(.caption.bold()).foregroundColor(.blue)) {
+                        Section(header: Text("Collegamento: \(group.name)").font(.caption.bold()).foregroundColor(appState.theme.accent)) {
                             ForEach(group.lines) { line in
                                 let dirId: String? = (group.id == "terminus" ? nil : group.id)
                                 RoutingLineRow(
@@ -398,7 +400,7 @@ struct StationEditView: View {
                     }.sorted { $0.name < $1.name }
                     
                     if !stationLines.isEmpty {
-                        Section(header: Text("Valido per Tutte le Direzioni").font(.caption.bold()).foregroundColor(.secondary)) {
+                        Section(header: Text("Valido per Tutte le Direzioni").font(.caption.bold()).foregroundColor(appState.theme.medium)) {
                             ForEach(stationLines) { line in
                                 RoutingLineRow(
                                     line: line,
@@ -445,6 +447,7 @@ struct StationEditView: View {
 
 // MARK: - ROW View semplificata per linea e direzione
 struct RoutingLineRow: View {
+    @EnvironmentObject var appState: AppState
     let line: RailwayLine
     @Binding var allowedTracks: [String]
     let totalPlatforms: Int
@@ -460,9 +463,9 @@ struct RoutingLineRow: View {
                 if !allowedTracks.isEmpty {
                     Text(allowedTracks.joined(separator: ", "))
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundColor(.blue)
+                        .foregroundColor(appState.theme.accent)
                         .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Color.blue.opacity(0.1)).cornerRadius(4)
+                        .background(appState.theme.accent.opacity(0.1)).cornerRadius(4)
                 }
             }
             
@@ -481,8 +484,8 @@ struct RoutingLineRow: View {
                         Text(track)
                             .font(.caption.bold())
                             .frame(width: 28, height: 28)
-                            .background(isSelected ? Color.blue : Color.gray.opacity(0.1))
-                            .foregroundColor(isSelected ? .white : .primary)
+                            .background(isSelected ? appState.theme.accent : appState.theme.backgroundSecondary)
+                            .foregroundColor(isSelected ? .white : appState.theme.dark)
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)

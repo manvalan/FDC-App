@@ -25,7 +25,7 @@ struct LineDetailView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("identification".localized.uppercased())
                         .font(.caption.bold())
-                        .foregroundColor(.secondary)
+                        .foregroundColor(appState.theme.medium)
                     
                     TextField("line_name_placeholder".localized, text: $line.name)
                         .textFieldStyle(.roundedBorder)
@@ -38,14 +38,14 @@ struct LineDetailView: View {
                     }
                 }
                 .padding()
-                .background(Color.secondary.opacity(0.05))
-                .cornerRadius(8)
+                .background(appState.theme.backgroundSecondary)
+                .cornerRadius(12)
                 
                 // 2. Numbering
                 VStack(alignment: .leading, spacing: 8) {
                     Text("train_numbering".localized.uppercased())
                         .font(.caption.bold())
-                        .foregroundColor(.secondary)
+                        .foregroundColor(appState.theme.medium)
                     
                     HStack {
                         VStack(alignment: .leading) {
@@ -70,18 +70,18 @@ struct LineDetailView: View {
                     
                     Text(String(format: "numbering_example".localized, line.codePrefix ?? "RE", line.numberPrefix ?? 5))
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(appState.theme.medium)
                         .italic()
                 }
                 .padding()
-                .background(Color.secondary.opacity(0.05))
-                .cornerRadius(8)
+                .background(appState.theme.backgroundSecondary)
+                .cornerRadius(12)
                 
                 // 3. Diagram
                 VStack(alignment: .leading, spacing: 12) {
                     Text("vertical_diagram".localized.uppercased())
                         .font(.caption.bold())
-                        .foregroundColor(.secondary)
+                        .foregroundColor(appState.theme.medium)
                     
                     VerticalTrackDiagramView(
                         line: $line,
@@ -101,14 +101,14 @@ struct LineDetailView: View {
                         isSidebarEditMode: $appState.isInspectorEditingMode
                     )
                     .frame(minHeight: 400)
-                    .cornerRadius(8)
+                    .cornerRadius(12)
                 }
                 
                 // 4. Dwell Times & Tracks
                 VStack(alignment: .leading, spacing: 12) {
                     Text("tracks_dwells".localized.uppercased())
                         .font(.caption.bold())
-                        .foregroundColor(.secondary)
+                        .foregroundColor(appState.theme.medium)
                     
                     ForEach($line.stops) { $stop in
                         HStack {
@@ -133,19 +133,15 @@ struct LineDetailView: View {
                     }
                 }
                 .padding()
-                .background(Color.secondary.opacity(0.05))
-                .cornerRadius(8)
-                
-                .padding()
-                .background(Color.secondary.opacity(0.05))
-                .cornerRadius(8)
+                .background(appState.theme.backgroundSecondary)
+                .cornerRadius(12)
                 
                 // 5. Fleet / Rolling Stock
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text("materiale_rotabile".localized.uppercased())
                             .font(.caption.bold())
-                            .foregroundColor(.secondary)
+                            .foregroundColor(appState.theme.medium)
                         Spacer()
                         let unassignedTrains = appState.railroad.lines.trains.filter({ $0.lineId == line.id && $0.vehicleId == nil })
                         if !unassignedTrains.isEmpty {
@@ -167,15 +163,15 @@ struct LineDetailView: View {
                             Image(systemName: "chevron.right")
                         }
                         .padding()
-                        .background(Color.white)
-                        .cornerRadius(8)
-                        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                        .background(appState.theme.surface)
+                        .cornerRadius(12)
+                        .shadow(color: appState.theme.line.opacity(0.1), radius: 3, x: 0, y: 1)
                     }
                     .buttonStyle(.plain)
                 }
                 .padding()
-                .background(Color.secondary.opacity(0.05))
-                .cornerRadius(8)
+                .background(appState.theme.backgroundSecondary)
+                .cornerRadius(12)
                 
                 // 6. Actions
                 Button(action: { 
@@ -189,7 +185,7 @@ struct LineDetailView: View {
                     .foregroundColor(.white)
                     .padding()
                     .frame(maxWidth: .infinity)
-                    .background(Color.blue)
+                    .background(appState.theme.accent)
                     .cornerRadius(12)
                 }
                 .padding(.top, 10)
@@ -229,6 +225,7 @@ struct LineFleetManagementView: View {
 }
 
 struct LineFleetManagementContent: View {
+    @EnvironmentObject var appState: AppState
     let line: RailwayLine
     @ObservedObject var manager: LinesManager
     @State private var showUnassignedOnly = true
@@ -247,14 +244,14 @@ struct LineFleetManagementContent: View {
             
             if trains.isEmpty {
                 Text("Nessun treno da visualizzare.")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(appState.theme.medium)
             } else {
                 ForEach(trains) { train in
                     HStack {
                         VStack(alignment: .leading) {
-                            Text(train.name).bold()
+                            Text(train.name).bold().foregroundColor(appState.theme.dark)
                             if let dep = train.departureTime {
-                                Text("Partenza: \(dep.timeFormat)").font(.caption).foregroundColor(.secondary)
+                                Text("Partenza: \(dep.timeFormat)").font(.caption).foregroundColor(appState.theme.medium)
                             }
                         }
                         
@@ -292,19 +289,19 @@ struct LineFleetManagementContent: View {
                             if let vId = train.vehicleId, let v = manager.vehicles.first(where: { $0.id == vId }) {
                                 HStack {
                                     Text(v.name)
-                                    Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                                    Image(systemName: "checkmark.circle.fill").foregroundColor(appState.theme.accent)
                                 }
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(Color.green.opacity(0.1))
+                                .background(appState.theme.accent.opacity(0.1))
                                 .cornerRadius(6)
                             } else {
                                 Text("Assegna")
                                     .bold()
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
-                                    .background(Color.accentColor.opacity(0.1))
-                                    .foregroundColor(.accentColor)
+                                    .background(appState.theme.accent.opacity(0.1))
+                                    .foregroundColor(appState.theme.accent)
                                     .cornerRadius(6)
                             }
                         }

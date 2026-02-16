@@ -1,0 +1,380 @@
+[
+    {
+        "costruttore": "HITACHI",
+        "nome": "ETR 1000 Frecciarossa",
+        "tipo": "Alta Velocità",
+        "specifiche": {
+            "velocita_max_kmh": 400,
+            "massa_tonnellate": 500,
+            "potenza_kw": 9800
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.65,
+            "frenatura_servizio_m_s2": 1.0,
+            "frenatura_emergenza_m_s2": 1.3,
+            "coefficiente_aderenza": 0.2
+        },
+        "file_immagine": "HITACHI/etr400.jpg",
+        "asset_name": "ETR_1000_Frecciarossa"
+    },
+    {
+        "costruttore": "LEONARDO",
+        "nome": "ETR 500 Frecciarossa",
+        "tipo": "Alta Velocità",
+        "specifiche": {
+            "velocita_max_kmh": 300,
+            "massa_tonnellate": 600,
+            "potenza_kw": 8800
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.55,
+            "frenatura_servizio_m_s2": 0.9,
+            "frenatura_emergenza_m_s2": 1.2,
+            "coefficiente_aderenza": 0.19
+        },
+        "file_immagine": "LEONARDO/ETR500.jpg",
+        "asset_name": "ETR_500_Frecciarossa"
+    },
+    {
+        "costruttore": "BOMBARDIER",
+        "nome": "ETR 700 Frecciargento",
+        "tipo": "Alta Velocità",
+        "specifiche": {
+            "velocita_max_kmh": 250,
+            "massa_tonnellate": 360,
+            "potenza_kw": 4600
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.6,
+            "frenatura_servizio_m_s2": 0.95,
+            "frenatura_emergenza_m_s2": 1.25,
+            "coefficiente_aderenza": 0.21
+        },
+        "file_immagine": "BOMBARDIER/etr700.jpg",
+        "asset_name": "ETR_700_Frecciargento"
+    },
+    {
+        "costruttore": "ALSTOM",
+        "nome": "ETR 600 Pendolino",
+        "tipo": "Alta Velocità",
+        "specifiche": {
+            "velocita_max_kmh": 250,
+            "massa_tonnellate": 390,
+            "potenza_kw": 5500
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.6,
+            "frenatura_servizio_m_s2": 0.9,
+            "frenatura_emergenza_m_s2": 1.2,
+            "coefficiente_aderenza": 0.2
+        },
+        "file_immagine": "ALSTOM/ETR600.jpg",
+        "asset_name": "ETR_600_Pendolino"
+    },
+    {
+        "costruttore": "ALSTOM",
+        "nome": "ETR 103 Pop",
+        "tipo": "Regionale",
+        "specifiche": {
+            "velocita_max_kmh": 160,
+            "massa_tonnellate": 160,
+            "potenza_kw": 2000
+        },
+        "fisica": {
+            "accelerazione_m_s2": 1.05,
+            "frenatura_servizio_m_s2": 1.0,
+            "frenatura_emergenza_m_s2": 1.35,
+            "coefficiente_aderenza": 0.22
+        },
+        "file_immagine": "ALSTOM/etr103.jpg",
+        "asset_name": "ETR_103_Pop"
+    },
+    {
+        "costruttore": "ALSTOM",
+        "nome": "ETR 104 Pop",
+        "tipo": "Regionale",
+        "specifiche": {
+            "velocita_max_kmh": 160,
+            "massa_tonnellate": 190,
+            "potenza_kw": 2600
+        },
+        "fisica": {
+            "accelerazione_m_s2": 1.0,
+            "frenatura_servizio_m_s2": 1.0,
+            "frenatura_emergenza_m_s2": 1.3,
+            "coefficiente_aderenza": 0.22
+        },
+        "file_immagine": "ALSTOM/etr104.jpg",
+        "asset_name": "ETR_104_Pop"
+    },
+    {
+        "costruttore": "ALSTOM",
+        "nome": "ETR 204 Pop",
+        "tipo": "Regionale",
+        "specifiche": {
+            "velocita_max_kmh": 160,
+            "massa_tonnellate": 200,
+            "potenza_kw": 2800
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.98,
+            "frenatura_servizio_m_s2": 1.0,
+            "frenatura_emergenza_m_s2": 1.32,
+            "coefficiente_aderenza": 0.22
+        },
+        "file_immagine": "ALSTOM/etr204.jpg",
+        "asset_name": "ETR_204_Pop"
+    },
+    {
+        "costruttore": "ALSTOM",
+        "nome": "ETR 255 Pop",
+        "tipo": "Regionale",
+        "specifiche": {
+            "velocita_max_kmh": 160,
+            "massa_tonnellate": 220,
+            "potenza_kw": 3000
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.95,
+            "frenatura_servizio_m_s2": 1.0,
+            "frenatura_emergenza_m_s2": 1.3,
+            "coefficiente_aderenza": 0.22
+        },
+        "file_immagine": "ALSTOM/etr205.jpg",
+        "asset_name": "ETR_255_Pop"
+    },
+    {
+        "costruttore": "ALSTOM",
+        "nome": "ETR 324 Jazz",
+        "tipo": "Regionale",
+        "specifiche": {
+            "velocita_max_kmh": 160,
+            "massa_tonnellate": 145,
+            "potenza_kw": 2100
+        },
+        "fisica": {
+            "accelerazione_m_s2": 1.1,
+            "frenatura_servizio_m_s2": 1.05,
+            "frenatura_emergenza_m_s2": 1.35,
+            "coefficiente_aderenza": 0.23
+        },
+        "file_immagine": "ALSTOM/etr324.jpg",
+        "asset_name": "ETR_324_Jazz"
+    },
+    {
+        "costruttore": "ALSTOM",
+        "nome": "ETR 425 Jazz",
+        "tipo": "Regionale",
+        "specifiche": {
+            "velocita_max_kmh": 160,
+            "massa_tonnellate": 185,
+            "potenza_kw": 2800
+        },
+        "fisica": {
+            "accelerazione_m_s2": 1.05,
+            "frenatura_servizio_m_s2": 1.0,
+            "frenatura_emergenza_m_s2": 1.3,
+            "coefficiente_aderenza": 0.23
+        },
+        "file_immagine": "ALSTOM/etr425.jpg",
+        "asset_name": "ETR_425_Jazz"
+    },
+    {
+        "costruttore": "ALSTOM",
+        "nome": "ALn 501 Minuetto",
+        "tipo": "Regionale",
+        "specifiche": {
+            "velocita_max_kmh": 130,
+            "massa_tonnellate": 95,
+            "potenza_kw": 1200
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.85,
+            "frenatura_servizio_m_s2": 0.95,
+            "frenatura_emergenza_m_s2": 1.25,
+            "coefficiente_aderenza": 0.21
+        },
+        "file_immagine": "ALSTOM/ALN501.jpg",
+        "asset_name": "ALn_501_Minuetto"
+    },
+    {
+        "costruttore": "HITACHI",
+        "nome": "ETR 421 Rock",
+        "tipo": "Regionale",
+        "specifiche": {
+            "velocita_max_kmh": 160,
+            "massa_tonnellate": 200,
+            "potenza_kw": 2400
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.92,
+            "frenatura_servizio_m_s2": 1.0,
+            "frenatura_emergenza_m_s2": 1.3,
+            "coefficiente_aderenza": 0.23
+        },
+        "file_immagine": "HITACHI/etr421.jpg",
+        "asset_name": "ETR_421_Rock"
+    },
+    {
+        "costruttore": "HITACHI",
+        "nome": "ETR 521 Rock",
+        "tipo": "Regionale",
+        "specifiche": {
+            "velocita_max_kmh": 160,
+            "massa_tonnellate": 250,
+            "potenza_kw": 3000
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.9,
+            "frenatura_servizio_m_s2": 1.0,
+            "frenatura_emergenza_m_s2": 1.3,
+            "coefficiente_aderenza": 0.23
+        },
+        "file_immagine": "HITACHI/etr521.jpg",
+        "asset_name": "ETR_521_Rock"
+    },
+    {
+        "costruttore": "HITACHI",
+        "nome": "ETR 621 Rock",
+        "tipo": "Regionale",
+        "specifiche": {
+            "velocita_max_kmh": 160,
+            "massa_tonnellate": 280,
+            "potenza_kw": 3400
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.88,
+            "frenatura_servizio_m_s2": 1.0,
+            "frenatura_emergenza_m_s2": 1.3,
+            "coefficiente_aderenza": 0.23
+        },
+        "file_immagine": "HITACHI/etr621.jpg",
+        "asset_name": "ETR_621_Rock"
+    },
+    {
+        "costruttore": "HITACHI",
+        "nome": "HTR 312 Blues",
+        "tipo": "Regionale",
+        "specifiche": {
+            "velocita_max_kmh": 140,
+            "massa_tonnellate": 120,
+            "potenza_kw": 1600
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.95,
+            "frenatura_servizio_m_s2": 0.98,
+            "frenatura_emergenza_m_s2": 1.28,
+            "coefficiente_aderenza": 0.22
+        },
+        "file_immagine": "HITACHI/htr312.jpg",
+        "asset_name": "HTR_312_Blues"
+    },
+    {
+        "costruttore": "HITACHI",
+        "nome": "HTR 412 Blues",
+        "tipo": "Regionale",
+        "specifiche": {
+            "velocita_max_kmh": 140,
+            "massa_tonnellate": 150,
+            "potenza_kw": 2000
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.93,
+            "frenatura_servizio_m_s2": 0.98,
+            "frenatura_emergenza_m_s2": 1.28,
+            "coefficiente_aderenza": 0.22
+        },
+        "file_immagine": "HITACHI/htr412.jpg",
+        "asset_name": "HTR_412_Blues"
+    },
+    {
+        "costruttore": "STADLER",
+        "nome": "ETR 170 FLIRT",
+        "tipo": "Regionale",
+        "specifiche": {
+            "velocita_max_kmh": 160,
+            "massa_tonnellate": 135,
+            "potenza_kw": 2100
+        },
+        "fisica": {
+            "accelerazione_m_s2": 1.15,
+            "frenatura_servizio_m_s2": 1.05,
+            "frenatura_emergenza_m_s2": 1.4,
+            "coefficiente_aderenza": 0.24
+        },
+        "file_immagine": "STADLER/etr170.jpg",
+        "asset_name": "ETR_170_FLIRT"
+    },
+    {
+        "costruttore": "STADLER",
+        "nome": "ATR 803 Colleoni",
+        "tipo": "Regionale",
+        "specifiche": {
+            "velocita_max_kmh": 140,
+            "massa_tonnellate": 110,
+            "potenza_kw": 1800
+        },
+        "fisica": {
+            "accelerazione_m_s2": 1.08,
+            "frenatura_servizio_m_s2": 1.02,
+            "frenatura_emergenza_m_s2": 1.35,
+            "coefficiente_aderenza": 0.23
+        },
+        "file_immagine": "STADLER/atr803.jpg",
+        "asset_name": "ATR_803_Colleoni"
+    },
+    {
+        "costruttore": "PESA",
+        "nome": "ATR 220 Swing",
+        "tipo": "Regionale",
+        "specifiche": {
+            "velocita_max_kmh": 140,
+            "massa_tonnellate": 100,
+            "potenza_kw": 1500
+        },
+        "fisica": {
+            "accelerazione_m_s2": 1.0,
+            "frenatura_servizio_m_s2": 1.0,
+            "frenatura_emergenza_m_s2": 1.3,
+            "coefficiente_aderenza": 0.22
+        },
+        "file_immagine": "PESA/atr220.png",
+        "asset_name": "ATR_220_Swing"
+    },
+    {
+        "costruttore": "HITACHI",
+        "nome": "TSR",
+        "tipo": "Regionale",
+        "specifiche": {
+            "velocita_max_kmh": 140,
+            "massa_tonnellate": 130,
+            "potenza_kw": 1800
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.92,
+            "frenatura_servizio_m_s2": 0.98,
+            "frenatura_emergenza_m_s2": 1.28,
+            "coefficiente_aderenza": 0.22
+        },
+        "file_immagine": "HITACHI/tsr.jpg",
+        "asset_name": "TSR"
+    },
+    {
+        "costruttore": "BOMBARDIER",
+        "nome": "E464 + Carrozze",
+        "tipo": "Intercity",
+        "specifiche": {
+            "velocita_max_kmh": 180,
+            "massa_tonnellate": 450,
+            "potenza_kw": 4500
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.45,
+            "frenatura_servizio_m_s2": 0.75,
+            "frenatura_emergenza_m_s2": 1.0,
+            "coefficiente_aderenza": 0.18
+        },
+        "file_immagine": "BOMBARDIER/e464.jpeg",
+        "asset_name": "E464_Carrozze"
+    }
+]
