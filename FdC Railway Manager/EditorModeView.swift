@@ -78,6 +78,22 @@ struct EditorModeView: View {
                         AltimetricProfileView(lockedNodeIds: $lockedNodeIds, selectedFerroviaId: $selectedFerroviaId)
                     }
                 }
+                
+                // Inspector Panel (right side)
+                if appState.selectedNodeId != nil || appState.selectedEdgeId != nil || appState.selectedLineId != nil {
+                    FdCInspectorPanel(
+                        title: inspectorTitle,
+                        onClose: {
+                            appState.selectedNodeId = nil
+                            appState.selectedEdgeId = nil
+                            appState.selectedLineId = nil
+                        }
+                    ) {
+                        StationPropertyEditor(editingLineId: $editingLineId)
+                    }
+                    .frame(width: 320)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
             }
             #if os(macOS)
             .onDeleteCommand {
@@ -101,6 +117,20 @@ struct EditorModeView: View {
         .onDisappear {
             loader.saveCurrentState()
         }
+    }
+    
+    // MARK: - Inspector Title
+    
+    private var inspectorTitle: String {
+        if let node = appState.selectedNode {
+            return node.name ?? "Stazione"
+        } else if appState.selectedEdgeId != nil {
+            return "Binario"
+        } else if let lineId = appState.selectedLineId,
+                  let line = appState.railroad.lines.findLine(id: lineId) {
+            return line.name
+        }
+        return "Proprietà"
     }
     
     // MARK: - Editor Toolbar
@@ -431,34 +461,24 @@ struct StationPropertyEditor: View {
     @Binding var editingLineId: String?
     
     var body: some View {
-        VStack(spacing: 0) {
-            Text("Proprietà")
-                .font(.headline)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
-                .background(Color.gray.opacity(0.1))
-            
-            Divider()
-            
-            ScrollView {
-                VStack(spacing: 20) {
-                    if let node = appState.selectedNode {
-                        stationEditor(node: node)
-                    } else if let edgeId = appState.selectedEdgeId,
-                              let edge = appState.railroad.network.edges.first(where: { $0.id.uuidString == edgeId }) {
-                        edgeEditor(edge: edge)
-                    } else if let lineId = appState.selectedLineId,
-                              let line = appState.railroad.lines.findLine(id: lineId) {
-                        lineEditor(line: line)
-                    } else {
-                        Text("Seleziona una ferrovia, stazione o binario per modificare le proprietà.")
-                            .multilineTextAlignment(.center)
-                            .foregroundColor(.secondary)
-                            .padding()
-                    }
+        ScrollView {
+            VStack(spacing: 20) {
+                if let node = appState.selectedNode {
+                    stationEditor(node: node)
+                } else if let edgeId = appState.selectedEdgeId,
+                          let edge = appState.railroad.network.edges.first(where: { $0.id.uuidString == edgeId }) {
+                    edgeEditor(edge: edge)
+                } else if let lineId = appState.selectedLineId,
+                          let line = appState.railroad.lines.findLine(id: lineId) {
+                    lineEditor(line: line)
+                } else {
+                    Text("Seleziona una ferrovia, stazione o binario per modificare le proprietà.")
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(.secondary)
+                        .padding()
                 }
-                .padding()
             }
+            .padding()
         }
     }
     
