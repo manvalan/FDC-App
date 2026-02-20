@@ -51,6 +51,9 @@ struct SchedulePreviewInspectorView: View {
                 let t1End = train.estimatedArrival ?? t1Start.addingTimeInterval(3600)
                 let t2End = other.estimatedArrival ?? t2Start.addingTimeInterval(3600)
                 
+                // Ensure valid ranges (arrival must be after departure)
+                guard t1End >= t1Start, t2End >= t2Start else { return false }
+                
                 return (t1Start...t1End).overlaps(t2Start...t2End)
             }.count
         }.max() ?? 1
@@ -299,6 +302,11 @@ struct SchedulePreviewInspectorView: View {
         .padding(12)
         .background(color.opacity(0.05))
         .cornerRadius(10)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // Select the train to show details
+            appState.selectedTrainIds = [train.id]
+        }
     }
     
     private var actionsSection: some View {

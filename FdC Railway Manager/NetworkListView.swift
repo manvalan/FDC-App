@@ -2,6 +2,7 @@ import SwiftUI
 
 @MainActor
 struct NetworkListView: View {
+    @EnvironmentObject var appState: AppState
     @ObservedObject var network: NetworkModel
     @Binding var selectedNode: Node?
     @Binding var selectedEdgeId: String?
@@ -47,12 +48,29 @@ struct NetworkListView: View {
     }
     
     private var stationsListView: some View {
-        GenericEntityListView(
+        FdCEntityList(
             title: String(format: "stations_count".localized, network.nodes.count),
             items: network.sortedNodes,
             selectedItem: $selectedNode,
-            onAdd: { /* Add station action */ },
-            onEdit: { station in /* Edit station action */ },
+            onAdd: {
+                // Add a new station at a default location (e.g., center of Italy)
+                let newStation = Node(
+                    id: UUID().uuidString,
+                    name: String(format: "station_default_name".localized, network.nodes.count + 1),
+                    type: .station,
+                    latitude: 42.0, // Default lat (near Rome)
+                    longitude: 12.5, // Default lon
+                    platforms: 2
+                )
+                network.nodes.append(newStation)
+                selectedNode = newStation
+                network.createCheckpoint()
+                appState.showPanel(.inspector)
+            },
+            onEdit: { station in 
+                selectedNode = station
+                appState.showPanel(.inspector)
+            },
             onDelete: { station in
                 network.removeNode(station.id)
                 if selectedNode?.id == station.id {
@@ -70,15 +88,21 @@ struct NetworkListView: View {
     }
     
     private var tracksListView: some View {
-        GenericEntityListView(
+        FdCEntityList(
             title: String(format: "tracks_count".localized, network.edges.count),
             items: network.sortedEdges,
             selectedItem: Binding(
                 get: { network.edges.first { $0.id.uuidString == selectedEdgeId } },
                 set: { selectedEdgeId = $0?.id.uuidString }
             ),
-            onAdd: { /* Add track action */ },
-            onEdit: { track in /* Edit track action */ },
+            onAdd: { 
+                appState.isCreatingTrack = true
+                appState.showPanel(.inspector)
+            },
+            onEdit: { track in 
+                selectedEdgeId = track.id.uuidString
+                appState.showPanel(.inspector)
+            },
             onDelete: { track in
                 network.removeEdge(from: track.from, to: track.to)
                 if selectedEdgeId == track.id.uuidString {

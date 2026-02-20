@@ -284,7 +284,7 @@ struct LineCreationView: View {
                     }
                 }
             }
-            .navigationTitle("Dettagli Linea")
+            .navigationTitle("Dettagli Relazione")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -305,32 +305,35 @@ struct LineCreationView: View {
     private var detailsSection: some View {
         Section(header: Text("line_details".localized)) {
             TextField("line_name_example".localized, text: $lineName)
-            TextField("code_prefix_placeholder".localized, text: $codePrefix)
-            TextField("number_prefix_example".localized, value: $numberPrefix, format: .number)
-                .keyboardType(.numberPad)
             
-            VStack(alignment: .leading) {
-                HStack {
-                    Text("cadence_frequency".localized)
-                    Spacer()
-                    TextField("minutes", value: $cadenceFrequency, format: .number)
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 80)
-                }
+            if appState.currentMode != .design {
+                TextField("code_prefix_placeholder".localized, text: $codePrefix)
+                TextField("number_prefix_example".localized, value: $numberPrefix, format: .number)
+                    .keyboardType(.numberPad)
                 
-                HStack {
-                    Button(action: { findIdealOffset() }) {
-                        Label(cadenceOptimizer.isRunning ? "finding_slot".localized : "propose_ideal_slot".localized, 
-                              systemImage: "wand.and.stars")
-                    }
-                    .disabled(cadenceOptimizer.isRunning || stationSequence.count < 2)
-                    
-                    if let offset = proposedOffset {
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("cadence_frequency".localized)
                         Spacer()
-                        Text(String(format: "suggested_offset_fmt".localized, Int(offset)))
-                            .foregroundColor(.green)
-                            .font(.caption.bold())
+                        TextField("minutes", value: $cadenceFrequency, format: .number)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
+                    
+                    HStack {
+                        Button(action: { findIdealOffset() }) {
+                            Label(cadenceOptimizer.isRunning ? "finding_slot".localized : "propose_ideal_slot".localized, 
+                                  systemImage: "wand.and.stars")
+                        }
+                        .disabled(cadenceOptimizer.isRunning || stationSequence.count < 2)
+                        
+                        if let offset = proposedOffset {
+                            Spacer()
+                            Text(String(format: "suggested_offset_fmt".localized, Int(offset)))
+                                .foregroundColor(.green)
+                                .font(.caption.bold())
+                        }
                     }
                 }
             }

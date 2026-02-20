@@ -1,7 +1,11 @@
 import SwiftUI
 import Combine
 import MapKit
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 // MARK: - Helper Functions per curve morbide
 
@@ -357,6 +361,7 @@ struct RailwayMapView: View {
         
         struct EdgeDraw: Sendable {
             let path: Path
+            let points: [CGPoint]
             let color: Color
             let type: Edge.TrackType
             let baseColor: Color
@@ -374,6 +379,8 @@ struct RailwayMapView: View {
             let pos: CGPoint
             let name: String
             let isHub: Bool
+            let visualType: Node.StationVisualType
+            let color: Color
         }
         
         let bounds: MapBounds
@@ -567,7 +574,7 @@ struct RailwayMapView: View {
                     let path = createSmoothPath(points: offsetPoints)
                     
                     let baseColor: Color = mode.isSchedulerMode ? .gray.opacity(0.3) : .gray
-                    edgesDraw.append(EdgeDraw(path: path, color: (edge.trackType == .highSpeed ? .red.opacity(0.8) : .black.opacity(0.8)), type: edge.trackType, baseColor: baseColor))
+                    edgesDraw.append(EdgeDraw(path: path, points: offsetPoints, color: (edge.trackType == .highSpeed ? .red.opacity(0.8) : .black.opacity(0.8)), type: edge.trackType, baseColor: baseColor))
                 }
             }
             
@@ -618,7 +625,9 @@ struct RailwayMapView: View {
             }
             
             let nodesDraw = nodes.map { node -> NodeDraw in
-                return NodeDraw(pos: finalPosition(for: node), name: node.name, isHub: node.type == .interchange)
+                let visualType = node.visualType ?? node.defaultVisualType
+                let color = Color(hex: node.customColor ?? node.defaultColor) ?? .black
+                return NodeDraw(pos: finalPosition(for: node), name: node.name, isHub: node.type == .interchange, visualType: visualType, color: color)
             }
             
             let linesDraw = mode.isSchedulerMode ? generateLineDraws() : []
@@ -706,6 +715,72 @@ struct RailwayMapView: View {
         @EnvironmentObject var appState: AppState
         let data: MapSnapshotData
         
+        private func offsetPoints(_ points: [CGPoint], by offset: CGFloat) -> [CGPoint] {
+            guard points.count > 1 else { return points }
+            var result: [CGPoint] = []
+            result.reserveCapacity(points.count)
+            for i in 0..<points.count {
+                let p = points[i]
+                var perpX: CGFloat = 0
+                var perpY: CGFloat = 0
+                
+                if i == 0 {
+                    let next = points[i + 1]
+                    let dx = next.x - p.x
+                    let dy = next.y - p.y
+                    let len = sqrt(dx * dx + dy * dy)
+                    if len > 0 {
+                        perpX = -dy / len
+                        perpY = dx / len
+                    }
+                } else if i == points.count - 1 {
+                    let prev = points[i - 1]
+                    let dx = p.x - prev.x
+                    let dy = p.y - prev.y
+                    let len = sqrt(dx * dx + dy * dy)
+                    if len > 0 {
+                        perpX = -dy / len
+                        perpY = dx / len
+                    }
+                } else {
+                    let prev = points[i - 1]
+                    let next = points[i + 1]
+                    let dx1 = p.x - prev.x
+                    let dy1 = p.y - prev.y
+                    let len1 = sqrt(dx1 * dx1 + dy1 * dy1)
+                    let dx2 = next.x - p.x
+                    let dy2 = next.y - p.y
+                    let len2 = sqrt(dx2 * dx2 + dy2 * dy2)
+                    if len1 > 0 && len2 > 0 {
+                        let perp1X = -dy1 / len1
+                        let perp1Y = dx1 / len1
+                        let perp2X = -dy2 / len2
+                        let perp2Y = dx2 / len2
+                        perpX = (perp1X + perp2X) / 2
+                        perpY = (perp1Y + perp2Y) / 2
+                        let perpLen = sqrt(perpX * perpX + perpY * perpY)
+                        if perpLen > 0 {
+                            perpX /= perpLen
+                            perpY /= perpLen
+                        }
+                    }
+                }
+                
+                result.append(CGPoint(x: p.x + perpX * offset, y: p.y + perpY * offset))
+            }
+            return result
+        }
+        
+        private func symbolSystemName(for type: Node.StationVisualType) -> String {
+            switch type {
+            case .filledSquare: return "square.fill"
+            case .emptySquare: return "square"
+            case .filledCircle: return "circle.fill"
+            case .emptyCircle: return "circle"
+            case .filledStar: return "star.fill"
+            }
+        }
+        
         var body: some View {
             Canvas { context, size in
                 // 1. Draw Edges
@@ -715,9 +790,12 @@ struct RailwayMapView: View {
                         context.stroke(edge.path, with: .color(.red), style: StrokeStyle(lineWidth: appState.trackWidthHighSpeed, lineCap: .square))
                         context.stroke(edge.path, with: .color(.white.opacity(0.8)), style: StrokeStyle(lineWidth: appState.trackWidthHighSpeed * 0.4, lineCap: .round, dash: [3, 3]))
                     } else if edge.type == .double {
-                        context.stroke(edge.path, with: .color(.black.opacity(0.7)), style: StrokeStyle(lineWidth: appState.trackWidthDouble, lineCap: .round))
-                        context.stroke(edge.path, with: .color(.gray.opacity(0.5)), style: StrokeStyle(lineWidth: appState.trackWidthDouble - 1.5, lineCap: .round))
-                        context.stroke(edge.path, with: .color(.black.opacity(0.9)), style: StrokeStyle(lineWidth: appState.trackWidthDouble * 0.23, lineCap: .round))
+                        let separation = max(3.0, appState.trackWidthDouble * 0.6)
+                        let lineWidth = max(1.5, appState.trackWidthDouble * 0.35)
+                        let leftPath = createSmoothPath(points: offsetPoints(edge.points, by: separation / 2))
+                        let rightPath = createSmoothPath(points: offsetPoints(edge.points, by: -separation / 2))
+                        context.stroke(leftPath, with: .color(.black.opacity(0.8)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                        context.stroke(rightPath, with: .color(.black.opacity(0.8)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                     } else if edge.type == .regional {
                         context.stroke(edge.path, with: .color(.blue.opacity(0.6)), style: StrokeStyle(lineWidth: appState.trackWidthRegional, lineCap: .round))
                     } else {
@@ -795,10 +873,15 @@ struct RailwayMapView: View {
                          context.stroke(Path(ellipseIn: CGRect(x: node.pos.x - 9.5, y: node.pos.y - 9.5, width: 19, height: 19)), with: .color(.red), lineWidth: 5)
                     } else {
                          context.fill(Path(ellipseIn: CGRect(x: node.pos.x - 10, y: node.pos.y - 10, width: 20, height: 20)), with: .color(.white))
-                         context.stroke(Path(ellipseIn: CGRect(x: node.pos.x - 12, y: node.pos.y - 12, width: 24, height: 24)), with: .color(.black), lineWidth: 2)
-                         
-                         let label = Text(node.name).font(.system(size: data.globalFontSize, weight: .black)).foregroundColor(.black)
-                         context.draw(label, at: CGPoint(x: node.pos.x, y: node.pos.y + 28))
+                        let symbol = Text(Image(systemName: symbolSystemName(for: node.visualType)))
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(node.color)
+                        context.draw(symbol, at: node.pos)
+                        
+                        let label = Text(node.name)
+                            .font(.system(size: data.globalFontSize, weight: .black))
+                            .foregroundColor(.black)
+                        context.draw(label, at: CGPoint(x: node.pos.x, y: node.pos.y + 28))
                     }
                 }
                 
@@ -975,10 +1058,24 @@ struct SchematicRailwayView: View {
     
     @ViewBuilder
     private func mainViewContainer(size: CGSize, bounds: MapBounds, renderData: MapRenderData) -> some View {
-        ZStack(alignment: .bottomTrailing) {
+        ZStack {
+            // 1. Map Content (Base)
             scrollViewLayer(size: size, bounds: bounds, renderData: renderData)
             
+            // 2. Overlays (Middle)
             lineCreationOverlay
+            
+            trackCreationOverlay
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .allowsHitTesting(editMode == .addTrack) // Only block interaction when active
+            
+            stationPickingIndicator
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            
+            moveModeOverlay
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            
+            // 3. Controls (Top - Highest Z-Index)
             MapControlsView(
                 isEditToolbarVisible: $isEditToolbarVisible,
                 editMode: $editMode,
@@ -987,9 +1084,7 @@ struct SchematicRailwayView: View {
                 onExport: onExport,
                 onPrint: onPrint
             )
-            trackCreationOverlay
-            stationPickingIndicator
-            moveModeOverlay
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         }
     }
     
@@ -1005,7 +1100,6 @@ struct SchematicRailwayView: View {
                 .frame(width: size.width, height: size.height)
                 .id("content")
             }
-            .gesture(zoomGesture)
             .simultaneousGesture(zoomGesture)
             .onChange(of: appState.selectedNodeId) { _, newNodeId in
                 if let node = network.nodes.first(where: { $0.id == newNodeId }) {
@@ -1023,6 +1117,20 @@ struct SchematicRailwayView: View {
             .onChange(of: appState.selectedTrainIds) { _, newIds in centerOnTrain(Array(newIds), size: size, bounds: bounds, proxy: proxy) }
             .onChange(of: appState.isCreatingLine) { _, isCreating in
                 setupLineCreationCallback(isCreating: isCreating)
+            }
+            .onChange(of: appState.isCreatingTrack) { _, isCreating in
+                if isCreating {
+                    editMode = .addTrack
+                    newTrackFrom = nil
+                    newTrackTo = nil
+                    // Also ensure sidebar/inspector doesn't block map if we need to tap
+                } else {
+                    if editMode == .addTrack {
+                        editMode = .explore
+                        newTrackFrom = nil
+                        newTrackTo = nil
+                    }
+                }
             }
         }
     }
@@ -1330,10 +1438,9 @@ struct SchematicRailwayView: View {
                     .bold()
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
-                    .background((newTrackFrom != nil && newTrackTo != nil) ? Color.accentColor.opacity(0.8) : Color.gray.opacity(0.3))
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
             }
+            .buttonStyle(.borderedProminent)
+            .tint((newTrackFrom != nil && newTrackTo != nil) ? Color.accentColor : Color.gray)
             .disabled(newTrackFrom == nil || newTrackTo == nil)
         }
     }
@@ -1414,16 +1521,18 @@ struct SchematicRailwayView: View {
         }
         
         if editMode == .addTrack {
-            // New Logic: Populate Box
-            if newTrackFrom == nil {
+             // ... (keep existing logic)
+             if appState.trackDraftFromId == nil {
+                appState.trackDraftFromId = node.id
                 newTrackFrom = node
-            } else if newTrackFrom?.id == node.id {
-                // Deselect if tapping same
+            } else if appState.trackDraftFromId == node.id {
+                appState.trackDraftFromId = nil
                 newTrackFrom = nil
             } else {
+                appState.trackDraftToId = node.id
                 newTrackTo = node
-                // Auto-calc distance
-                if let n1 = newTrackFrom {
+                if let fromId = appState.trackDraftFromId,
+                   let n1 = network.nodes.first(where: { $0.id == fromId }) {
                     let lat1 = n1.latitude ?? 0; let lon1 = n1.longitude ?? 0
                     let lat2 = node.latitude ?? 0; let lon2 = node.longitude ?? 0
                     let dLat = lat1 - lat2
@@ -1433,8 +1542,10 @@ struct SchematicRailwayView: View {
                 }
             }
         } else {
-            // Priority selection logic
+            // Priority selection logic with Animation
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                // If we want multi-selection, we need AppState support. 
+                // For now, standard behavior:
                 selectedNode = node
                 selectedLine = nil
                 selectedEdgeId = nil
@@ -1474,9 +1585,12 @@ struct SchematicRailwayView: View {
         // Reset selection contents for logic
         newTrackFrom = nil
         newTrackTo = nil
+        appState.trackDraftFromId = nil
+        appState.trackDraftToId = nil
         
         // Auto-exit mode
         editMode = .explore
+        appState.isCreatingTrack = false
     }
     
     private func handleCanvasTap(at location: CGPoint, in size: CGSize) {
@@ -1697,7 +1811,7 @@ struct SchematicRailwayView: View {
 // MARK: - Station Node View
 struct StationNodeView: View {
     @EnvironmentObject var appState: AppState
-    @Binding var node: Node
+    @Binding var node: RailwayNode
     private var network: NetworkModel { appState.railroad.network }
     var canvasSize: CGSize
     var isSelected: Bool
@@ -1716,14 +1830,54 @@ struct StationNodeView: View {
             .background(Circle().fill(Color.white).opacity(0.001))
             .overlay(selectionOverlay)
             .overlay(alignment: .top) { labelOverlay }
-            .onLongPressGesture(minimumDuration: MapConstants.longPressDuration) {
-                withAnimation(.spring(response: MapConstants.springResponse, dampingFraction: MapConstants.springDamping)) {
+            .onLongPressGesture(minimumDuration: 0.5) { // Use explicit value if MapConstants not visible, or assume MapConstants
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
                     isMoveModeEnabled.toggle()
                 }
+                #if os(macOS)
+                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+                #elseif canImport(UIKit)
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                #endif
             }
             .onTapGesture { onTap() }
-            .gesture(dragGesture)
+            .gesture(
+                isMoveModeEnabled ?
+                    DragGesture(minimumDistance: 1)
+                        .onChanged { val in
+                            if dragOffset == .zero { onDragStarted?() }
+                            dragOffset = val.translation
+                        }
+                        .onEnded { val in
+                            // Commit changes using the final drag offset
+                            let drawWidth = max(canvasSize.width - 100, 1) // Using 100 padding as per projection logic
+                            let drawHeight = max(canvasSize.height - 100, 1)
+                            
+                            // Inverse projection delta
+                            // We use val.translation which is total drag from start
+                            
+                            let dLon = (val.translation.width / drawWidth) * bounds.xRange
+                            let dLat = -(val.translation.height / drawHeight) * bounds.yRange // Y is inverted because map Y grows down
+                            
+                            var newNode = node
+                            let lat = (newNode.latitude ?? 0) + dLat
+                            let lon = (newNode.longitude ?? 0) + dLon
+                            
+                            if snapToGrid {
+                                let unit = gridUnit
+                                newNode.latitude = round(lat / unit) * unit
+                                newNode.longitude = round(lon / unit) * unit
+                            } else {
+                                newNode.latitude = lat
+                                newNode.longitude = lon
+                            }
+                            
+                            node = newNode // This triggers AppState update
+                            dragOffset = .zero
+                        }
+                : nil
+            )
+            .offset(dragOffset)
     }
 
     @ViewBuilder
@@ -1770,40 +1924,9 @@ struct StationNodeView: View {
                 .allowsHitTesting(false)
         }
     }
-
-    private var dragGesture: some Gesture {
-        isMoveModeEnabled ?
-        DragGesture(minimumDistance: MapConstants.dragMinimumDistance)
-            .onChanged { val in
-                if dragOffset == .zero { onDragStarted?() }
-                let deltaX = val.translation.width - dragOffset.width
-                let deltaY = val.translation.height - dragOffset.height
-                dragOffset = val.translation
-                
-                let drawWidth = max(canvasSize.width - MapConstants.canvasPadding * 2, 1)
-                let drawHeight = max(canvasSize.height - MapConstants.canvasPadding * 2, 1)
-                let dLon = (deltaX / drawWidth) * bounds.xRange
-                let dLat = -(deltaY / drawHeight) * bounds.yRange
-                
-                node.latitude = (node.latitude ?? 0) + dLat
-                node.longitude = (node.longitude ?? 0) + dLon
-            }
-            .onEnded { _ in
-                dragOffset = .zero
-                if snapToGrid { snapNodeToGrid() }
-            }
-        : nil
-    }
-    
-    // Helper to snap ACTUAL lat/lon based on coordinate units
-    private func snapNodeToGrid() {
-        let unit = gridUnit
-        node.latitude = round((node.latitude ?? 0) / unit) * unit
-        node.longitude = round((node.longitude ?? 0) / unit) * unit
-    }
     
     @ViewBuilder
-    func symbolView(type: Node.StationVisualType, color: Color) -> some View {
+    func symbolView(type: RailwayNode.StationVisualType, color: Color) -> some View {
         switch type {
         case .filledSquare:
             Image(systemName: "square.fill").symbolRenderingMode(.palette).foregroundStyle(color)
@@ -1880,18 +2003,47 @@ struct MapControlsView: View {
     var body: some View {
         VStack(alignment: .trailing, spacing: 20) {
             
-            // Top: Edit Tools (Only visible after long press)
+            // Edit Mode Toggle (Always Visible)
+            Button(action: {
+                withAnimation {
+                    isEditToolbarVisible.toggle()
+                    if !isEditToolbarVisible {
+                        editMode = .explore
+                        isMoveModeEnabled = false
+                    }
+                }
+            }) {
+                RailwayInteractionIcon(
+                    systemName: isEditToolbarVisible ? "pencil.circle.fill" : "pencil.circle",
+                    isActive: isEditToolbarVisible,
+                    activeColor: .blue
+                )
+            }
+            .help(isEditToolbarVisible ? "Nascondi Strumenti" : "Mostra Strumenti Modifica")
+            .buttonStyle(.plain)
+            
+            // Top: Edit Tools (Only visible when toggled)
             if isEditToolbarVisible {
                 VStack(spacing: 8) {
-                    Button(action: { editMode = .addStation }) {
+                    Button(action: {
+                        editMode = .addStation
+                        // No specific AppState flag for station adding yet, but map handles tap
+                    }) {
                         RailwayInteractionIcon(systemName: "building.2.fill", isActive: editMode == .addStation, activeColor: .green)
                     }
                     .help("Aggiungi Stazione")
+                    // Use plain style to avoid conflicts
+                    .buttonStyle(.plain)
                     
-                    Button(action: { editMode = .addTrack }) {
+                    Button(action: {
+                        editMode = .addTrack
+                        appState.isCreatingTrack = true
+                        appState.showPanel(.inspector)
+                    }) {
                         RailwayInteractionIcon(systemName: "point.topleft.down.curvedto.point.bottomright.up", isActive: editMode == .addTrack, activeColor: .orange)
                     }
                     .help("Crea Binari")
+                    .buttonStyle(.plain)
                     
                     Button(action: { withAnimation { isMoveModeEnabled.toggle() } }) {
                         RailwayInteractionIcon(systemName: isMoveModeEnabled ? "hand.draw.fill" : "hand.draw", isActive: isMoveModeEnabled, activeColor: .blue)
@@ -2133,24 +2285,37 @@ struct StationMarkersView: View {
     let onTap: (Node) -> Void
     
     var body: some View {
-        ForEach(network.nodes.indices, id: \.self) { index in
+        ForEach(network.nodes) { node in
+            // Safe binding creation to avoid Index out of range
+            let nodeBinding = Binding<Node>(
+                get: {
+                    if let index = network.nodes.firstIndex(where: { $0.id == node.id }) {
+                        return network.nodes[index]
+                    }
+                    return node
+                },
+                set: { newNode in
+                    if let index = network.nodes.firstIndex(where: { $0.id == node.id }) {
+                        network.nodes[index] = newNode
+                    }
+                }
+            )
+            
             StationNodeView(
-                node: Binding(
-                    get: { network.nodes[index] },
-                    set: { network.nodes[index] = $0 }
-                ),
+                node: nodeBinding,
                 canvasSize: canvasSize,
-                isSelected: selectedNode?.id == network.nodes[index].id,
+                isSelected: selectedNode?.id == node.id || appState.selectedNodeIds.contains(node.id),
                 snapToGrid: showGrid,
                 gridUnit: coordinateGridStep,
                 bounds: bounds,
-                onTap: { onTap(network.nodes[index]) },
+                onTap: { onTap(node) },
                 isMoveModeEnabled: $isMoveModeEnabled,
                 onDragStarted: { network.createCheckpoint() }
             )
-            .position(MapGeometryEngine.finalPosition(for: network.nodes[index], in: canvasSize, bounds: bounds, network: network))
-            .id("node-\(network.nodes[index].id)")
+            .position(MapGeometryEngine.finalPosition(for: node, in: canvasSize, bounds: bounds, network: network))
+            .id("node-\(node.id)")
         }
+         
     }
 }
 

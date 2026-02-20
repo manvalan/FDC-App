@@ -131,6 +131,7 @@ private struct LineTrainsSection: View {
     let trains: [Train]
     let onCreateTrain: () -> Void
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var linesManager: LinesManager
     
     var body: some View {
         DisclosureGroup {
@@ -163,6 +164,14 @@ private struct LineTrainsSection: View {
                     Button(action: onCreateTrain) {
                         Label("Crea Nuova Corsa", systemImage: "plus")
                     }
+                    
+                    Divider()
+                    
+                    Button(action: {
+                        linesManager.autoAssignRollingStock(for: line.id)
+                    }) {
+                        Label("Ottimizza Giri Macchina", systemImage: "arrow.triangle.2.circlepath")
+                    }
                 }
         }
     }
@@ -183,12 +192,23 @@ private struct LineTrainsSection: View {
 private struct TrainRowButton: View {
     let train: Train
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var linesManager: LinesManager
     
     var body: some View {
         Button(action: { appState.selectTrain(train.id) }) {
             HStack {
                 trainTypeBadge
-                Text(train.name).font(.subheadline.bold()).foregroundColor(appState.theme.dark)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(train.name)
+                        .font(.subheadline.bold())
+                        .foregroundColor(appState.theme.dark)
+                    
+                    if let vid = train.vehicleId, let vehicle = linesManager.vehicles.first(where: { $0.id == vid }) {
+                        Text(vehicle.name)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
                 Spacer()
                 departureTimeText
             }
@@ -201,11 +221,6 @@ private struct TrainRowButton: View {
             Button("Duplica", systemImage: "doc.on.doc") {
                 // TODO: Logic to duplicate train
             }
-            /*
-             Button("Elimina", systemImage: "trash", role: .destructive) {
-                // Logic to delete train -> Need access to LinesManager or pass closure
-             }
-             */
         }
     }
     

@@ -1,3 +1,7 @@
+//
+//  Created by Michele Bigi
+//
+
 import Foundation
 import SwiftUI
 import Combine
@@ -8,11 +12,40 @@ import MapKit
 // Bridge for refactoring compatibility
 typealias RailwayNetwork = NetworkModel
 typealias TrainManager = LinesManager
+typealias RailwayEdge = Edge // Disambiguation from SwiftUI.Edge
+typealias RailwayTrackSegment = TrackSegment
+typealias RailwayNode = Node
+
+// MARK: - Relazione (Infrastruttura Fisica)
+/// Una Relazione rappresenta un percorso fisico dell'infrastruttura ferroviaria:
+/// un segmento della rete composto da una sequenza ordinata di stazioni/nodi collegati da binari.
+/// NON contiene informazioni di servizio (treni, orari, cadenzamento).
+struct Relazione: Identifiable, Codable, Hashable {
+    let id: String
+    var name: String
+    var color: String? // Colore per visualizzazione (hex)
+    var stationIds: [String] // Sequenza ordinata di stazioni/nodi
+    
+    var uiColor: Color {
+        if let hex = color, let c = Color(hex: hex) {
+            return c
+        }
+        return .gray
+    }
+    
+    init(id: String = UUID().uuidString, name: String, color: String? = nil, stationIds: [String] = []) {
+        self.id = id
+        self.name = name
+        self.color = color
+        self.stationIds = stationIds
+    }
+}
 
 struct RailwayNetworkDTO: Codable {
     var name: String?
     let nodes: [Node]
     let edges: [Edge]
+    var relazioni: [Relazione]?
     var lines: [RailwayLine]?
     var trains: [Train]?
     var vehicles: [Vehicle]?
@@ -20,13 +53,14 @@ struct RailwayNetworkDTO: Codable {
 
 extension NetworkModel {
     func toDTO() -> RailwayNetworkDTO {
-        return RailwayNetworkDTO(name: name, nodes: nodes, edges: edges, lines: nil, trains: nil)
+        return RailwayNetworkDTO(name: name, nodes: nodes, edges: edges, relazioni: relazioni, lines: nil, trains: nil)
     }
     
     func apply(dto: RailwayNetworkDTO) {
         self.name = dto.name ?? "Network"
         self.nodes = dto.nodes
         self.edges = dto.edges
+        self.relazioni = dto.relazioni ?? []
     }
 }
 
@@ -43,32 +77,40 @@ struct AIScheduleSuggestion: Identifiable, Codable {
 }
 
 // Routing Constraint for a station: defines which tracks are allowed for a specific line/direction
-struct RoutingConstraint: Identifiable, Codable, Hashable {
-    var id: UUID = UUID()
-    var lineId: String
-    var directionStationId: String? // Target station for direction (terminus or next node)
-    var allowedTracks: [String] // List of track names, e.g. ["1", "2"]
+// Routing Constraint for a station: defines which tracks are allowed for a specific line/direction
+public struct RoutingConstraint: Identifiable, Codable, Hashable {
+    public var id: UUID = UUID()
+    public var lineId: String
+    public var directionStationId: String? // Target station for direction (terminus or next node)
+    public var allowedTracks: [String] // List of track names, e.g. ["1", "2"]
     
     enum CodingKeys: String, CodingKey {
         case id, lineId, directionStationId, allowedTracks
     }
+    
+    public init(id: UUID = UUID(), lineId: String, directionStationId: String? = nil, allowedTracks: [String]) {
+        self.id = id
+        self.lineId = lineId
+        self.directionStationId = directionStationId
+        self.allowedTracks = allowedTracks
+    }
 }
 
 // Nodo della rete ferroviaria (stazione o interscambio)
-struct Node: Identifiable, Codable, Hashable {
-    enum NodeType: String, Codable {
+public struct Node: Identifiable, Codable, Hashable {
+    public enum NodeType: String, Codable {
         case station, interchange, depot, junction
     }
-    enum StationVisualType: String, Codable, CaseIterable, Identifiable {
+    public enum StationVisualType: String, Codable, CaseIterable, Identifiable {
         case filledStar = "Stella piena"
         case filledSquare = "Quadrato pieno"
         case emptySquare = "Quadrato vuoto"
         case filledCircle = "Cerchio pieno"
         case emptyCircle = "Cerchio vuoto"
         
-        var id: String { self.rawValue }
+        public var id: String { self.rawValue }
         
-        var localizedName: String {
+        public var localizedName: String {
             switch self {
             case .filledStar: return "filled_star".localized
             case .filledSquare: return "filled_square".localized
@@ -79,15 +121,15 @@ struct Node: Identifiable, Codable, Hashable {
         }
     }
     
-    enum HubOffsetDirection: String, Codable, CaseIterable, Identifiable {
+    public enum HubOffsetDirection: String, Codable, CaseIterable, Identifiable {
         case topLeft = "In Alto a Sx"
         case topRight = "In Alto a Dx"
         case bottomLeft = "In Basso a Sx"
         case bottomRight = "In Basso a Dx"
         
-        var id: String { self.rawValue }
+        public var id: String { self.rawValue }
         
-        var localizedName: String {
+        public var localizedName: String {
             switch self {
             case .topLeft: return "top_left_offset".localized
             case .topRight: return "top_right_offset".localized
@@ -97,26 +139,27 @@ struct Node: Identifiable, Codable, Hashable {
         }
     }
     
-    let id: String // es: "MI"
-    var name: String
-    var type: NodeType
-    var visualType: StationVisualType?
-    var customColor: String?
-    var latitude: Double?
-    var longitude: Double?
-    var capacity: Int?
-    var platforms: Int?
-    var parentHubId: String? // ID of parent hub station for linked stations
-    var hubOffsetDirection: HubOffsetDirection? // Position offset for hub visualization
-    var routingConstraints: [RoutingConstraint] = []
-
+    public let id: String // es: "MI"
+    public var name: String
+    public var type: NodeType
+    public var visualType: StationVisualType?
+    public var customColor: String?
+    public var latitude: Double?
+    public var longitude: Double?
+    public var altitude: Double? // Altezza sul livello del mare (m)
+    public var capacity: Int?
+    public var platforms: Int?
+    public var parentHubId: String? // ID of parent hub station for linked stations
+    public var hubOffsetDirection: HubOffsetDirection? // Position offset for hub visualization
+    public var routingConstraints: [RoutingConstraint] = []
+    
     enum CodingKeys: String, CodingKey {
-        case id, name, type, visualType, customColor, latitude, longitude, capacity, platforms
+        case id, name, type, visualType, customColor, latitude, longitude, altitude, capacity, platforms
         case platformCount = "platform_count"
         case parentHubId, hubOffsetDirection, routingConstraints
     }
 
-    init(id: String, name: String, type: NodeType = .station, visualType: StationVisualType? = nil, customColor: String? = nil, latitude: Double? = nil, longitude: Double? = nil, capacity: Int? = nil, platforms: Int? = 2, parentHubId: String? = nil, hubOffsetDirection: HubOffsetDirection? = nil) {
+    public init(id: String, name: String, type: NodeType = .station, visualType: StationVisualType? = nil, customColor: String? = nil, latitude: Double? = nil, longitude: Double? = nil, altitude: Double? = nil, capacity: Int? = nil, platforms: Int? = 2, parentHubId: String? = nil, hubOffsetDirection: HubOffsetDirection? = nil) {
         self.id = id
         self.name = name
         self.type = type
@@ -124,6 +167,7 @@ struct Node: Identifiable, Codable, Hashable {
         self.customColor = customColor
         self.latitude = latitude
         self.longitude = longitude
+        self.altitude = altitude
         self.capacity = capacity
         self.platforms = platforms
         self.parentHubId = parentHubId
@@ -131,7 +175,7 @@ struct Node: Identifiable, Codable, Hashable {
         self.routingConstraints = []
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         name = try container.decodeIfPresent(String.self, forKey: .name) ?? id
@@ -140,6 +184,7 @@ struct Node: Identifiable, Codable, Hashable {
         customColor = try container.decodeIfPresent(String.self, forKey: .customColor)
         latitude = try container.decodeIfPresent(Double.self, forKey: .latitude)
         longitude = try container.decodeIfPresent(Double.self, forKey: .longitude)
+        altitude = try container.decodeIfPresent(Double.self, forKey: .altitude)
         capacity = try container.decodeIfPresent(Int.self, forKey: .capacity)
         platforms = try container.decodeIfPresent(Int.self, forKey: .platforms) ?? 
                     container.decodeIfPresent(Int.self, forKey: .platformCount) ?? 2
@@ -148,7 +193,7 @@ struct Node: Identifiable, Codable, Hashable {
         routingConstraints = try container.decodeIfPresent([RoutingConstraint].self, forKey: .routingConstraints) ?? []
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
@@ -157,6 +202,7 @@ struct Node: Identifiable, Codable, Hashable {
         try container.encodeIfPresent(customColor, forKey: .customColor)
         try container.encodeIfPresent(latitude, forKey: .latitude)
         try container.encodeIfPresent(longitude, forKey: .longitude)
+        try container.encodeIfPresent(altitude, forKey: .altitude)
         try container.encodeIfPresent(capacity, forKey: .capacity)
         try container.encodeIfPresent(platforms, forKey: .platforms)
         try container.encodeIfPresent(parentHubId, forKey: .parentHubId)
@@ -285,12 +331,12 @@ enum TrainCategory: String, CaseIterable, Identifiable {
 }
 
 // Binario (arco del grafo)
-struct Edge: Identifiable, Codable, Hashable {
-    enum TrackType: String, Codable, CaseIterable, Identifiable {
+public struct Edge: Identifiable, Codable, Hashable {
+    public enum TrackType: String, Codable, CaseIterable, Identifiable {
         case highSpeed, regional, single, double
-        var id: String { rawValue }
+        public var id: String { rawValue }
         
-        var displayName: String {
+        public var displayName: String {
             switch self {
             case .highSpeed: return "AV"
             case .regional: return "Reg"
@@ -299,7 +345,7 @@ struct Edge: Identifiable, Codable, Hashable {
             }
         }
         
-        var color: Color {
+        public var color: Color {
             switch self {
             case .highSpeed: return .red
             case .regional: return .blue
@@ -308,32 +354,32 @@ struct Edge: Identifiable, Codable, Hashable {
             }
         }
     }
-    var id: UUID = UUID()
-    var from: String // id nodo di partenza
-    var to: String   // id nodo di arrivo
-    var distance: Double
-    var trackType: TrackType
-    var maxSpeed: Int
-    var capacity: Int?
-    var segments: [TrackSegment] = [] // Segmenti fisici (blocchi) del binario
-    var geometryPoints: [GeometryPoint]? // Punti intermedi personalizzati per controllare la geometria del binario
+    public var id: UUID = UUID()
+    public var from: String // id nodo di partenza
+    public var to: String   // id nodo di arrivo
+    public var distance: Double
+    public var trackType: TrackType
+    public var maxSpeed: Int
+    public var capacity: Int?
+    public var segments: [TrackSegment] = [] // Segmenti fisici (blocchi) del binario
+    public var geometryPoints: [GeometryPoint]? // Punti intermedi personalizzati per controllare la geometria del binario
 
-    var canonicalKey: String {
+    public var canonicalKey: String {
         let sorted = [from, to].sorted()
         return "\(sorted[0])-\(sorted[1])"
     }
     
-    struct GeometryPoint: Codable, Hashable, Identifiable {
-        var id: UUID = UUID()
-        var latitude: Double
-        var longitude: Double
+    public struct GeometryPoint: Codable, Hashable, Identifiable {
+        public var id: UUID = UUID()
+        public var latitude: Double
+        public var longitude: Double
     }
 
     enum CodingKeys: String, CodingKey {
         case id, from, to, distance, trackType, maxSpeed, capacity, segments, geometryPoints
     }
 
-    init(id: UUID = UUID(), from: String, to: String, distance: Double, trackType: TrackType, maxSpeed: Int, capacity: Int? = nil) {
+    public init(id: UUID = UUID(), from: String, to: String, distance: Double, trackType: TrackType, maxSpeed: Int, capacity: Int? = nil) {
         self.id = id
         self.from = from
         self.to = to
@@ -343,7 +389,7 @@ struct Edge: Identifiable, Codable, Hashable {
         self.capacity = capacity
     }
     
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         from = try container.decode(String.self, forKey: .from)
@@ -359,29 +405,54 @@ struct Edge: Identifiable, Codable, Hashable {
 // MARK: - Dynamic Infrastructure Models
 
 /// Rappresenta un tratto elementare di binario (circuito di binario / blocco).
-struct TrackSegment: Identifiable, Codable, Hashable {
-    let id: UUID
-    let order: Int
-    let length: Double // km
-    var isOccupied: Bool = false
-    var signal: Signal?
+public struct TrackSegment: Identifiable, Codable, Hashable {
+    public var id: UUID = UUID()
+    public var order: Int
+    public var length: Double // km
+    public var isOccupied: Bool = false
+    public var signal: Signal?
+    
+    // Physical Properties
+    public var latitude: Double?
+    public var longitude: Double?
+    public var altitude: Double?
+    public var speedLimit: Int?
     
     enum CodingKeys: String, CodingKey {
-        case id, order, length, isOccupied, signal
+        case id, order, length, isOccupied, signal, latitude, longitude, altitude, speedLimit
+    }
+    
+    public init(id: UUID = UUID(), order: Int, length: Double, isOccupied: Bool = false, signal: Signal? = nil, latitude: Double? = nil, longitude: Double? = nil, altitude: Double? = nil, speedLimit: Int? = nil) {
+        self.id = id
+        self.order = order
+        self.length = length
+        self.isOccupied = isOccupied
+        self.signal = signal
+        self.latitude = latitude
+        self.longitude = longitude
+        self.altitude = altitude
+        self.speedLimit = speedLimit
     }
 }
 
 /// Rappresenta un segnale ferroviario.
-struct Signal: Identifiable, Codable, Hashable {
-    let id: UUID
-    let name: String
+public struct Signal: Identifiable, Codable, Hashable {
+    public let id: UUID
+    public let name: String
     
-    enum SignalAspect: String, Codable {
+    public enum SignalAspect: String, Codable {
         case stop, proceed, caution
     }
     
-    var aspect: SignalAspect = .stop
-    let positionAtEnd: Bool // Se true, il segnale è alla fine del segmento
+    public var aspect: SignalAspect = .stop
+    public let positionAtEnd: Bool // Se true, il segnale è alla fine del segmento
+    
+    public init(id: UUID, name: String, aspect: SignalAspect = .stop, positionAtEnd: Bool) {
+        self.id = id
+        self.name = name
+        self.aspect = aspect
+        self.positionAtEnd = positionAtEnd
+    }
 }
 
 /// Rappresenta uno scambio in una stazione o bivio.
@@ -749,3 +820,27 @@ extension Train {
 extension Int: Identifiable {
     public var id: Int { self }
 }
+/// Simple exporter for nodes and edges only (stations and tracks)
+final class NetworkIOExporter: ObservableObject {
+    static let shared = NetworkIOExporter()
+    private init() {}
+
+    /// Returns JSON Data with only stations (nodes) and tracks (edges)
+    func exportStationsAndTracksJSON(nodes: [Node], edges: [Edge]) -> Data? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        struct Payload: Encodable {
+            let nodes: [Node]
+            let edges: [Edge]
+        }
+        let payload = Payload(nodes: nodes, edges: edges)
+        return try? encoder.encode(payload)
+    }
+
+    /// Convenience string version
+    func exportString(nodes: [Node], edges: [Edge]) -> String? {
+        guard let data = exportStationsAndTracksJSON(nodes: nodes, edges: edges) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+}
+

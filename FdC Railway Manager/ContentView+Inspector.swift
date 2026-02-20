@@ -2,6 +2,19 @@ import SwiftUI
 
 extension ContentView {
     
+    private var headerTitle: String {
+        if appState.sidebarSelection == .io {
+            return "io_title".localized
+        }
+        if appState.isCreatingLine {
+            return "Crea Nuova Linea"
+        }
+        if appState.creationLineId != nil {
+            return "Genera Orari"
+        }
+        return "details".localized
+    }
+
     @ViewBuilder
     var sidebarPropertiesContent: some View {
         VStack(spacing: 0) {
@@ -29,7 +42,7 @@ extension ContentView {
                      .buttonStyle(.plain)
                 }
 
-                Text(appState.isCreatingLine ? "Crea Nuova Linea" : (appState.creationLineId != nil ? "Genera Orari" : "details".localized))
+                Text(headerTitle)
                     .font(.system(.headline, design: .rounded))
 
                 Spacer()
@@ -56,7 +69,10 @@ extension ContentView {
             
             ScrollView {
                 VStack(spacing: 16) {
-                    if appState.isShowingSettings {
+                    if appState.sidebarSelection == .io {
+                        IOManagementView()
+                            .id("io-management")
+                    } else if appState.isShowingSettings {
                         SettingsInspectorView()
                             .id("settings")
                     } else if let previewData = appState.optimizedTimesPreviewData {
@@ -78,6 +94,9 @@ extension ContentView {
                             mode: appState.schedulePreviewMode
                         )
                         .id("schedule-preview")
+                    } else if appState.isCreatingTrack {
+                        TrackCreationWizard()
+                            .id("track-creation")
                     } else if appState.isCreatingLine {
                         LineCreationInspectorView()
                             .id("line-creation")
@@ -100,15 +119,89 @@ extension ContentView {
                         )
                         .id("node-\(node.id)")
                     } else if let line = appState.selectedLine {
-                        LineDetailView(line: Binding(
-                            get: { line },
-                            set: { newVal in
-                                if let idx = lines.lines.firstIndex(where: { $0.id == line.id }) {
-                                    lines.lines[idx] = newVal
-                                    appState.selectedLineId = newVal.id
+                        ScrollView {
+                            VStack(spacing: 16) {
+                                // DEBUG - Very visible test
+                                Text("🔴 CAMPI EDITING QUI SOPRA 🔴")
+                                    .font(.title.bold())
+                                    .foregroundColor(.red)
+                                    .padding()
+                                    .background(Color.yellow)
+                                
+                                // Line properties editor at the top - INLINE TEST
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("PROPRIETÀ LINEA")
+                                        .font(.caption.bold())
+                                        .foregroundColor(appState.theme.medium)
+                                    
+                                    TextField("Nome linea", text: Binding(
+                                        get: { line.name },
+                                        set: { newName in
+                                            if let idx = lines.lines.firstIndex(where: { $0.id == line.id }) {
+                                                lines.lines[idx].name = newName
+                                            }
+                                        }
+                                    ))
+                                    .textFieldStyle(.roundedBorder)
+                                    
+                                    HStack {
+                                        TextField("Prefisso", text: Binding(
+                                            get: { line.codePrefix ?? "" },
+                                            set: { newPrefix in
+                                                if let idx = lines.lines.firstIndex(where: { $0.id == line.id }) {
+                                                    lines.lines[idx].codePrefix = newPrefix.isEmpty ? nil : newPrefix
+                                                }
+                                            }
+                                        ))
+                                        .textFieldStyle(.roundedBorder)
+                                        
+                                        TextField("Codice", value: Binding(
+                                            get: { line.numberPrefix ?? 0 },
+                                            set: { newCode in
+                                                if let idx = lines.lines.firstIndex(where: { $0.id == line.id }) {
+                                                    lines.lines[idx].numberPrefix = newCode == 0 ? nil : newCode
+                                                }
+                                            }
+                                        ), format: .number)
+                                        .textFieldStyle(.roundedBorder)
+                                    }
+                                }
+                                .padding()
+                                .background(appState.theme.backgroundSecondary)
+                                .cornerRadius(12)
+                                .padding(.horizontal)
+                                .padding(.top, 16)
+                                
+                                LineQuickStats(line: line)
+                                
+                                Divider()
+                                    .background(appState.theme.line.opacity(0.1))
+                                
+                                switch appState.lineInspectorMode {
+                                case .infrastructure:
+                                    VerticalTrackDiagramView(
+                                        line: Binding(
+                                            get: { appState.selectedLine ?? line },
+                                            set: { newLine in
+                                                if let idx = lines.lines.firstIndex(where: { $0.id == line.id }) {
+                                                    lines.lines[idx] = newLine
+                                                }
+                                            }
+                                        ),
+                                        network: network,
+                                        isMoveModeEnabled: .constant(false),
+                                        externalSelectedStationID: $appState.selectedNodeId,
+                                        externalSelectedEdgeID: $appState.selectedEdgeId,
+                                        isSidebarEditMode: $appState.isLineEditing
+                                    )
+                                case .schedule:
+                                    LineScheduleSummaryView(line: line)
+                                case .vehicles:
+                                    LineVehiclesView(lineId: line.id)
                                 }
                             }
-                        ), isMoveModeEnabled: $appState.isMoveModeEnabled, selectedNode: Binding(get: { appState.selectedNode }, set: { appState.selectedNodeId = $0?.id }), selectedEdgeId: $appState.selectedEdgeId)
+                            .padding(.horizontal, 16)
+                        }
                         .id("line-\(line.id)")
                     } else if let edgeId = appState.selectedEdgeId, let index = network.edges.firstIndex(where: { $0.id.uuidString == edgeId }) {
                         TrackInspectorView(

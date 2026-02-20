@@ -102,8 +102,49 @@ final class AppState: ObservableObject {
         }
     }
     @Published var selectedNodeId: String? = nil { 
-        didSet { updateInspectorVisibilityForSelection() }
+        didSet { 
+            if let id = selectedNodeId {
+                // Sync with set if not in multi-select mode? 
+                // Or just independent?
+                if !isMultiSelectMode {
+                    selectedNodeIds = [id]
+                }
+            } else if !isMultiSelectMode {
+                selectedNodeIds = []
+            }
+            updateInspectorVisibilityForSelection() 
+        }
     }
+    
+    // Multi-Selection Support
+    @Published var isMultiSelectMode: Bool = false
+    @Published var selectedNodeIds: Set<String> = [] {
+        didSet {
+           // Maybe trigger inspector update?
+        }
+    }
+    
+    func toggleNodeSelection(_ id: String) {
+        if selectedNodeIds.contains(id) {
+            selectedNodeIds.remove(id)
+        } else {
+            selectedNodeIds.insert(id)
+        }
+        
+        // If we are in single selection mode via toggle (shift-click?), we might want to update selectedNodeId
+        if selectedNodeIds.count == 1 {
+            selectedNodeId = selectedNodeIds.first
+        } else if selectedNodeIds.isEmpty {
+            selectedNodeId = nil
+        } else {
+            // Multiple selected: Clear single selection to avoid confusion or keep primary?
+            // Let's keep primary as the LAST added?
+            // selectedNodeId = id // This might trigger single inspector logic. 
+            // Better to have specific MultiSelectInspector.
+            selectedNodeId = nil 
+        }
+    }
+
     @Published var selectedEdgeId: String? = nil { 
         didSet { updateInspectorVisibilityForSelection() }
     }
@@ -132,6 +173,8 @@ final class AppState: ObservableObject {
     // Line Creation / Editing Picking State
     var stationPickingCallback: ((String) -> Void)? = nil
     @Published var lineDraftStations: [String] = []
+    @Published var trackDraftFromId: String? = nil
+    @Published var trackDraftToId: String? = nil
     @Published var isCreatingLine: Bool = false
     @Published var creationLineId: String? = nil { 
         didSet { 
@@ -162,6 +205,7 @@ final class AppState: ObservableObject {
     }
     @Published var optimizedTimesPreviewData: OptimizedTimesPreviewData? = nil
     @Published var optimizedTimesConfirmed: Bool = false
+    @Published var scheduleCreationViewRefreshId: Int = 0  // Counter to force ScheduleCreationView recreation
     
     // MARK: - Selection Management Methods
     private func updateInspectorVisibilityForSelection() {
@@ -175,8 +219,10 @@ final class AppState: ObservableObject {
     }
     
     private func shouldShowInspectorForSelection() -> Bool {
+        // Now supports multi-selection scenarios
         return selectedLineId != nil || selectedNodeId != nil || 
-               selectedEdgeId != nil || !selectedTrainIds.isEmpty
+               selectedEdgeId != nil || !selectedTrainIds.isEmpty ||
+               isInspectorEditingMode // Keep open if editing
     }
     
     private func shouldHideInspectorForSelection() -> Bool {
@@ -508,7 +554,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 }
 
 enum AppMode: String, CaseIterable, Identifiable {
-    case design, schedule, live
+    case design, schedule, live, editor
     var id: String { rawValue }
     
     var title: String {
@@ -516,6 +562,7 @@ enum AppMode: String, CaseIterable, Identifiable {
         case .design: return "Progetto"
         case .schedule: return "Programmazione"
         case .live: return "Esercizio"
+        case .editor: return "Modifica"
         }
     }
 }

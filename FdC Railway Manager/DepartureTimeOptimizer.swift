@@ -427,23 +427,21 @@ class DepartureTimeOptimizer {
             let interval = Int.random(in: 10...120) // 10-120 minuti
             
             let returnStart: Int
-            let returnInterval: Int
             
             if context.scheduleReturn {
                 // Ritorno idealmente dopo il tempo di viaggio + attesa
                 let idealReturn = start + context.estimatedTravelTime + Int.random(in: 15...30)
                 returnStart = min(context.timeWindow.upperBound, max(context.timeWindow.lowerBound, idealReturn))
-                returnInterval = Int.random(in: 10...120)
             } else {
                 returnStart = 0
-                returnInterval = 0
             }
             
+            // IMPORTANTE: Stesso intervallo per andata e ritorno
             population.append(CadenceIndividual(
                 start: start,
                 interval: interval,
                 returnStart: returnStart,
-                returnInterval: returnInterval
+                returnInterval: interval  // Uguale all'intervallo di andata
             ))
         }
         
@@ -543,18 +541,22 @@ class DepartureTimeOptimizer {
         let useParent1Start = Bool.random()
         let useParent1Interval = Bool.random()
         
+        // IMPORTANTE: L'intervallo deve essere uguale per andata e ritorno
+        let interval1 = useParent1Interval ? parent1.intervalMinutes : parent2.intervalMinutes
+        let interval2 = useParent1Interval ? parent2.intervalMinutes : parent1.intervalMinutes
+        
         let offspring1 = CadenceIndividual(
             start: useParent1Start ? parent1.startMinute : parent2.startMinute,
-            interval: useParent1Interval ? parent1.intervalMinutes : parent2.intervalMinutes,
+            interval: interval1,
             returnStart: useParent1Start ? parent1.returnStartMinute : parent2.returnStartMinute,
-            returnInterval: useParent1Interval ? parent1.returnIntervalMinutes : parent2.returnIntervalMinutes
+            returnInterval: interval1  // Stesso intervallo per andata e ritorno
         )
         
         let offspring2 = CadenceIndividual(
             start: useParent1Start ? parent2.startMinute : parent1.startMinute,
-            interval: useParent1Interval ? parent2.intervalMinutes : parent1.intervalMinutes,
+            interval: interval2,
             returnStart: useParent1Start ? parent2.returnStartMinute : parent1.returnStartMinute,
-            returnInterval: useParent1Interval ? parent2.returnIntervalMinutes : parent1.returnIntervalMinutes
+            returnInterval: interval2  // Stesso intervallo per andata e ritorno
         )
         
         return (offspring1, offspring2)
@@ -570,21 +572,19 @@ class DepartureTimeOptimizer {
                                          mutated.startMinute + Int.random(in: -30...30)))
         }
         
-        // Muta intervallo (±5 minuti)
+        // Muta intervallo (±5 minuti) - IMPORTANTE: stesso intervallo per andata e ritorno
         if Bool.random() {
-            mutated.intervalMinutes = max(10, min(120, mutated.intervalMinutes + Int.random(in: -5...5)))
+            let newInterval = max(10, min(120, mutated.intervalMinutes + Int.random(in: -5...5)))
+            mutated.intervalMinutes = newInterval
+            mutated.returnIntervalMinutes = newInterval  // Mantieni uguale
         }
         
-        // Muta ritorno
+        // Muta ritorno (solo orario di partenza, non intervallo)
         if context.scheduleReturn {
             if Bool.random() {
                 mutated.returnStartMinute = max(context.timeWindow.lowerBound,
                                                min(context.timeWindow.upperBound,
                                                    mutated.returnStartMinute + Int.random(in: -30...30)))
-            }
-            
-            if Bool.random() {
-                mutated.returnIntervalMinutes = max(10, min(120, mutated.returnIntervalMinutes + Int.random(in: -5...5)))
             }
         }
         

@@ -96,97 +96,113 @@ final class LinesManager: ObservableObject {
     
     func autoAssignRollingStock(for lineId: String) {
         guard let line = findLine(id: lineId) else { return }
-        let terminalPrefs = line.terminalTracks
         
+        // 1. Setup: Identifica flotta e treni
         let dedicatedFleetIds = Set(trains.filter { $0.lineId == lineId }.compactMap { $0.vehicleId })
         let dedicatedFleet = vehicles.filter { dedicatedFleetIds.contains($0.id) }
         let otherFleet = vehicles.filter { !dedicatedFleetIds.contains($0.id) }
         
+        // Ordiniamo i treni per orario di partenza
         var localTrains = self.trains
         let lineTrainsIndices = localTrains.indices.filter { localTrains[$0].lineId == lineId && localTrains[$0].departureTime != nil }
             .sorted { (localTrains[$0].departureTime ?? Date.distantPast) < (localTrains[$1].departureTime ?? Date.distantPast) }
         
         if lineTrainsIndices.isEmpty { return }
         
-        for i in localTrains.indices {
-            if localTrains[i].lineId == lineId { localTrains[i].vehicleId = nil }
+        // 2. Reset: Rimuove assegnazioni precedenti per questa linea
+        for i in lineTrainsIndices {
+            localTrains[i].vehicleId = nil
         }
         
+        // 3. Simulation State: Traccia lo stato di ogni veicolo (dove e quando è disponibile)
+        // [VehicleID : (stationId, availableTime, tripCount, lastTrack)]
         var fleetStatus: [UUID: (station: String, time: Date, serviceCount: Int, track: String?)] = [:]
-        let buffer: TimeInterval = 15 * 60
+        let buffer: TimeInterval = 15 * 60 // 15 minuti di giro macchina
+        
+        // Helper per determinare il binario di attestamento stabile
+        func getStableTerminalTrack(stationId: String) -> String {
+            if let prefs = line.terminalTracks[stationId] { return prefs }
+            // Se non c'è preferenza, usa un determinismo basato su hash linea/stazione per coerenza
+            // O semplicemente il binario 1 se non specificato, ma deve essere 'costante' per questa linea
+            let stationNode = network.nodes.first(where: { $0.id == stationId })
+            let platformCount = stationNode?.platforms ?? 2
+            // Esempio semplice: (LineNumber % PlatformCount) + 1
+            let lineInt = line.numberPrefix ?? 1
+            let trackNum = (lineInt % platformCount) + 1
+            return "\(trackNum)"
+        }
         
         for idx in lineTrainsIndices {
             let train = localTrains[idx]
             guard let depTime = train.departureTime,
-                  let startStation = train.stops.first?.stationId else { continue }
+                  let startStation = train.stops.first?.stationId,
+                  let endStation = train.stops.last?.stationId else { continue }
             
-            let candidates = fleetStatus.filter { $0.value.station == startStation && depTime >= $0.value.time.addingTimeInterval(buffer) }
-            var bestCandidate: UUID? = candidates.filter { $0.value.serviceCount % 2 != 0 }.min(by: { $0.value.serviceCount < $1.value.serviceCount })?.key
+            // A. Trova veicolo disponibile
+            // Criteri:
+            // 1. Deve essere alla stazione di partenza 'startStation'
+            // 2. Deve essere disponibile prima di 'depTime' (considerando buffer 15 min)
+            let candidates = fleetStatus.filter { (vid, status) in
+                return status.station == startStation && depTime >= status.time.addingTimeInterval(buffer)
+            }
+            
+            // Strategia di scelta:
+            // - Priorità 1: Veicolo che deve "chiudere" il giro (numero corse dispari) -> Ritorno
+            // - Priorità 2: Veicolo con meno corse totali (Bilanciamento usura)
+            var bestCandidate: UUID? = candidates.filter { $0.value.serviceCount % 2 != 0 }
+                .min(by: { $0.value.serviceCount < $1.value.serviceCount })?.key
+            
             if bestCandidate == nil {
+                // Se nessun ritorno prioritario, prendi qualsiasi disponibile, preferendo chi ha lavorato meno
                 bestCandidate = candidates.min(by: { $0.value.serviceCount < $1.value.serviceCount })?.key
             }
             
+            // Se ancora null, prendiamo un veicolo nuovo dalla flotta (prima dedicata, poi altra)
             if bestCandidate == nil {
-                bestCandidate = dedicatedFleet.first(where: { fleetStatus[$0.id] == nil })?.id ?? otherFleet.first(where: { fleetStatus[$0.id] == nil })?.id
+                bestCandidate = dedicatedFleet.first(where: { fleetStatus[$0.id] == nil })?.id 
+                             ?? otherFleet.first(where: { fleetStatus[$0.id] == nil })?.id
             }
             
+            // B. Assegna e Aggiorna
             if let vid = bestCandidate {
+                // Assegna ID veicolo al treno
                 localTrains[idx].vehicleId = vid
+                
                 let currentStatus = fleetStatus[vid]
                 let currentCount = currentStatus?.serviceCount ?? 0
                 
-                let originId = startStation
-                let destId = localTrains[idx].stops.last?.stationId ?? ""
-                
-                // Logic for Departure Track:
-                // 1. If vehicle just arrived here, use the arrival track (consistency).
-                // 2. Else check if there is a mandatary terminal track for this line.
-                // 3. Fallback to first available.
-                
-                var departureTrack: String? = nil
-                
-                if let status = currentStatus, status.station == originId, let lastTrack = status.track {
-                     departureTrack = lastTrack
+                // TRACK MANAGEMENT ---------------------------------------------------------
+                // 1. Binario di Partenza
+                // Se il veicolo era già lì, DEVE ripartire dallo stesso binario dove è arrivato (giro macchina)
+                var departureTrack: String
+                if let status = currentStatus, status.station == startStation, let lastTrack = status.track {
+                    departureTrack = lastTrack
                 } else {
-                     departureTrack = terminalPrefs[originId] ?? line.terminalTracks[originId]
+                    // Se è un nuovo inserimento o reset, usa il binario stabile per questa linea
+                    departureTrack = getStableTerminalTrack(stationId: startStation)
                 }
                 
-                if let track = departureTrack {
-                    localTrains[idx].stops[0].track = track
-                    localTrains[idx].stops[0].isManualTrack = true
-                }
+                // Applica al primo stop
+                localTrains[idx].stops[0].track = departureTrack
+                localTrains[idx].stops[0].isManualTrack = true
                 
-                // Logic for Arrival Track:
-                // 1. Check for terminal preference at destination.
-                // 2. Retain departure track if single track shuttle (rare).
-                // 3. Let scheduler decide (nil).
-                
-                let arrivalTrack = terminalPrefs[destId] ?? line.terminalTracks[destId]
-                
-                if let track = arrivalTrack {
-                    let lastStopIdx = localTrains[idx].stops.count - 1
-                    localTrains[idx].stops[lastStopIdx].track = track
-                    // Update fleet status so next departure uses this track
-                    let arrivalTime = localTrains[idx].stops[lastStopIdx].arrival ?? Date.distantFuture
-                    fleetStatus[vid] = (destId, arrivalTime, currentCount + 1, track)
-                } else {
-                    // If no specific arrival track is forced, we let the scheduler pick one (usually default 1).
-                    // BUT we must capture what the scheduler picks to reuse it for return!
-                    // Since we are PRE-scheduling here, we will default to the LAST STOP's current default if available, or "1".
-                     let lastStopIdx = localTrains[idx].stops.count - 1
-                     let defaultTrack = localTrains[idx].stops[lastStopIdx].track ?? "1"
-                     localTrains[idx].stops[lastStopIdx].track = defaultTrack
-                     
-                     let arrivalTime = localTrains[idx].stops[lastStopIdx].arrival ?? Date.distantFuture
-                     fleetStatus[vid] = (destId, arrivalTime, currentCount + 1, defaultTrack)
-                }
+                // 2. Binario di Arrivo
+                // Usa sempre il binario stabile della linea per la destinazione
+                let arrivalTrack = getStableTerminalTrack(stationId: endStation)
                 
                 let lastStopIdx = localTrains[idx].stops.count - 1
+                localTrains[idx].stops[lastStopIdx].track = arrivalTrack
                 localTrains[idx].stops[lastStopIdx].isManualTrack = true
+                // --------------------------------------------------------------------------
                 
-                // Fleet status updated above
+                // Calcola orario di arrivo stimato per disponibilità futura
+                let arrivalTime = localTrains[idx].stops[lastStopIdx].arrival ?? depTime.addingTimeInterval(3600) // Fallback +1h
+                
+                // Aggiorna stato flotta
+                fleetStatus[vid] = (endStation, arrivalTime, currentCount + 1, arrivalTrack)
             }
         }
+        
         self.trains = localTrains
         validateSchedules()
     }
@@ -408,12 +424,14 @@ final class LinesManager: ObservableObject {
         if let customName = name {
             trainNumber = number
             trainName = customName
-        } else if let line = line, let lineCode = line.numberPrefix {
-            trainNumber = lineCode * 100 + number
+        } else if let line = line, let _ = line.numberPrefix {
+            // Extract the base number (last digits after removing prefix)
+            let baseNumber = number % 1000
+            trainNumber = number
             if let prefix = line.codePrefix {
-                trainName = "\(prefix)\(lineCode) \(trainNumber)"
+                trainName = "\(prefix)\(baseNumber)"
             } else {
-                trainName = "\(trainNumber)"
+                trainName = "\(baseNumber)"
             }
         } else {
             trainNumber = number

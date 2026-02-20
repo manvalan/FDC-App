@@ -36,7 +36,7 @@ extension ContentView {
                         railroadService: railroadService
                     )
                 case .io:
-                    IOManagementView()
+                    EmptyView()
                 case .simulation:
                     LiveSimulationDashboard()
                 case .settings:

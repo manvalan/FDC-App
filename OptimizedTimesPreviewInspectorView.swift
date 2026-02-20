@@ -250,11 +250,33 @@ struct OptimizedTimesPreviewInspectorView: View {
     }
     
     private func confirmAndGenerate() {
-        // Apply optimized times and trigger generation
+        print("🎯 [confirmAndGenerate] User confirmed optimized times")
+        print("   previewData exists: \(appState.optimizedTimesPreviewData != nil)")
+        
+        // Set confirmed flag so ScheduleCreationView knows to apply the times
         appState.optimizedTimesConfirmed = true
-        appState.optimizedTimesPreviewData = nil
-        // Ripristina creationLineId per mostrare ScheduleCreationView durante la generazione
+        print("   ✅ optimizedTimesConfirmed set to true")
+        
+        // DON'T clear optimizedTimesPreviewData here - ScheduleCreationView needs it!
+        // It will be cleared after ScheduleCreationView reads it in handleOnAppear
+        
+        // Ensure creationLineId is set first
         appState.creationLineId = line.id
+        
+        // Small delay before forcing view recreation to avoid state inconsistency
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            // Only increment if still confirmed (not already processed)
+            guard self.appState.optimizedTimesConfirmed else {
+                print("   ⏭️ Skipping view recreation - already processed")
+                return
+            }
+            
+            // Force recreation of ScheduleCreationView by incrementing refresh counter
+            // This ensures handleOnAppear runs with the confirmed flag
+            self.appState.scheduleCreationViewRefreshId += 1
+            print("   🔄 Incremented scheduleCreationViewRefreshId to \(self.appState.scheduleCreationViewRefreshId)")
+            print("   📍 ScheduleCreationView will be recreated with confirmed flag and preview data")
+        }
     }
     
     private func cancelPreview() {

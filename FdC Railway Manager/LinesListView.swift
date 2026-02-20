@@ -9,7 +9,7 @@ struct LinesListView: View {
     @State private var editingLineId: String? = nil
     
     var body: some View {
-        GenericEntityListView(
+        FdCEntityList(
             title: "lines".localized,
             items: lines.sortedLines,
             selectedItem: $selectedLine,

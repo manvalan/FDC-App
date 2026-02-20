@@ -119,7 +119,7 @@ struct LineEditView: View {
                     suggestionsOverlay
                 }
             }
-            .navigationTitle("edit_line".localized)
+            .navigationTitle("Dettagli Relazione")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("cancel".localized) { dismiss() }
@@ -202,38 +202,39 @@ struct LineEditView: View {
     private var detailsSection: some View {
         Section(header: Text("line_details".localized)) {
             TextField("line_name_placeholder".localized, text: $lineName)
-            TextField("code_prefix_placeholder".localized, text: $codePrefix)
-            TextField("number_prefix_placeholder".localized, value: $numberPrefix, format: .number)
-                .keyboardType(.numberPad)
             
-            ColorPicker("Colore Linea", selection: $lineColor, supportsOpacity: false)
-            
-            VStack(alignment: .leading) {
-                HStack {
-                    Text("cadence_frequency".localized)
-                    Spacer()
-                    TextField("minutes", value: $cadenceFrequency, format: .number)
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 80)
-                }
+            if appState.currentMode != .design {
+                TextField("code_prefix_placeholder".localized, text: $codePrefix)
+                TextField("number_prefix_placeholder".localized, value: $numberPrefix, format: .number)
+                    .keyboardType(.numberPad)
                 
-                HStack {
-                    Button(action: { findIdealOffset() }) {
-                        Label(cadenceOptimizer.isRunning ? "finding_slot".localized : "propose_ideal_slot".localized, 
-                              systemImage: "wand.and.stars")
-                    }
-                    .disabled(cadenceOptimizer.isRunning || stationSequence.count < 2)
-                    
-                    if let offset = proposedOffset {
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("cadence_frequency".localized)
                         Spacer()
-                        Text(String(format: "suggested_offset_fmt".localized, Int(offset)))
-                            .foregroundColor(.green)
-                            .font(.caption.bold())
+                        TextField("minutes", value: $cadenceFrequency, format: .number)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
+                    
+                    HStack {
+                        Button(action: { findIdealOffset() }) {
+                            Label(cadenceOptimizer.isRunning ? "finding_slot".localized : "propose_ideal_slot".localized, 
+                                  systemImage: "wand.and.stars")
+                        }
+                        .disabled(cadenceOptimizer.isRunning || stationSequence.count < 2)
+                        
+                        if let offset = proposedOffset {
+                            Spacer()
+                            Text(String(format: "suggested_offset_fmt".localized, Int(offset)))
+                                .foregroundColor(.green)
+                                .font(.caption.bold())
+                        }
                     }
                 }
             }
-            ColorPicker("line_color".localized, selection: $lineColor)
+            ColorPicker("Colore Relazione", selection: $lineColor, supportsOpacity: false)
                 
             Section(header: Text("capolinea_e_binari".localized)) {
                 if let startNode = network.nodes.first(where: { $0.id == stationSequence.first }) {
@@ -324,8 +325,6 @@ struct LineEditView: View {
         }
         
         // Update the existing line through a checkpoint
-        // Update the existing line through a checkpoint
-        // lines.createCheckpoint() // TODO: Implement undo for LinesManager
         lines.lines[index].name = lineName
         lines.lines[index].color = hexColor
         lines.lines[index].originId = stationSequence.first ?? startStationId

@@ -285,11 +285,16 @@ struct TrackCreationWizard: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var network: RailwayNetwork
     
-    @State private var fromStationId: String? = nil
-    @State private var toStationId: String? = nil
+    var fromStationId: Binding<String?> {
+        Binding(get: { appState.trackDraftFromId }, set: { appState.trackDraftFromId = $0 })
+    }
+    
+    var toStationId: Binding<String?> {
+        Binding(get: { appState.trackDraftToId }, set: { appState.trackDraftToId = $0 })
+    }
     
     private var hasSelection: Bool {
-        fromStationId != nil && toStationId != nil
+        appState.trackDraftFromId != nil && appState.trackDraftToId != nil
     }
     
     var body: some View {
@@ -306,17 +311,19 @@ struct TrackCreationWizard: View {
             isEmpty: !hasSelection,
             onClose: {
                 appState.isCreatingTrack = false
+                appState.trackDraftFromId = nil
+                appState.trackDraftToId = nil
             },
             buildingContent: {
                 TrackCreationBuildingView(
-                    fromStationId: $fromStationId,
-                    toStationId: $toStationId
+                    fromStationId: fromStationId,
+                    toStationId: toStationId
                 )
             },
             detailsContent: {
                 TrackCreationDetailsView(
-                    fromStationId: fromStationId ?? "",
-                    toStationId: toStationId ?? ""
+                    fromStationId: appState.trackDraftFromId ?? "",
+                    toStationId: appState.trackDraftToId ?? ""
                 )
             }
         )

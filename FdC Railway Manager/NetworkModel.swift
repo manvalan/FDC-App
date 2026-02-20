@@ -8,6 +8,7 @@ final class NetworkModel: ObservableObject {
     @Published var name: String = "My Network"
     @Published var nodes: [Node] = []
     @Published var edges: [Edge] = []
+    @Published var relazioni: [Relazione] = []
     
     /// Global system owner
     weak var owner: RailroadNetwork?
@@ -141,6 +142,11 @@ final class NetworkModel: ObservableObject {
     func removeEdge(from: String, to: String) {
         createCheckpoint()
         edges.removeAll { ($0.from == from && $0.to == to) || ($0.from == to && $0.to == from) }
+    }
+    
+    func removeEdge(_ id: UUID) {
+        createCheckpoint()
+        edges.removeAll { $0.id == id }
     }
     
     func createCheckpoint() {

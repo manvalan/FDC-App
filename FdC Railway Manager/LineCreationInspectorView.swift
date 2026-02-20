@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct LineCreationInspectorView: View {
     @EnvironmentObject var network: RailwayNetwork
@@ -41,7 +44,7 @@ struct LineCreationInspectorView: View {
             Text("Tocca le stazioni sulla mappa")
                 .font(.headline)
 
-            Text("Seleziona le stazioni una dopo l'altra per creare il percorso della linea")
+            Text("Seleziona le stazioni una dopo l'altra per creare il percorso della relazione")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -178,50 +181,81 @@ struct LineCreationInspectorView: View {
     }
 
     private var detailsFormView: some View {
-        Form {
-            Section(header: Text("Dettagli Linea")) {
-                TextField("Nome linea (es. Milano-Roma)", text: $lineName)
-
-                TextField("Prefisso codice (es. IC)", text: $codePrefix)
-
-                TextField("Numero linea (es. 600)", value: $numberPrefix, format: .number)
-                    .keyboardType(.numberPad)
-
-                ColorPicker("Colore linea", selection: $lineColor)
-            }
-
-            Section(header: Text("Percorso")) {
-                Text("\(appState.lineDraftStations.count) stazioni • \(String(format: "%.1f", totalDistance)) km")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            if let error = errorMessage {
-                Section {
-                    Text(error)
-                        .foregroundColor(.red)
-                        .font(.caption)
-                }
-            }
-
-            Section {
-                Button(action: saveLine) {
-                    HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                        Text("Salva Linea")
-                            .font(.headline)
+        ScrollView {
+            VStack(spacing: 24) {
+                InspectorSection(title: "Dettagli Relazione", icon: "pencil", iconColor: .blue) {
+                    InspectorTextField(label: "Nome relazione", text: $lineName, placeholder: "es. Milano-Roma")
+                    
+                    InspectorTextField(label: "Prefisso codice", text: $codePrefix, placeholder: "es. IC")
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Numero relazione")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        TextField("es. 600", value: $numberPrefix, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .keyboardType(.numberPad)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding()
+                    
+                    ColorPicker("Colore relazione", selection: $lineColor)
+                        .padding(.vertical, 4)
                 }
-                .disabled(lineName.isEmpty || appState.lineDraftStations.count < 2)
-
-                Button(action: { showingConfirmation = false }) {
-                    Text("Torna al Percorso")
+                
+                InspectorSection(title: "Percorso", icon: "map", iconColor: .green) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("\(appState.lineDraftStations.count) stazioni")
+                            .font(.headline)
+                        Text(String(format: "%.1f km", totalDistance))
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        Divider()
+                        
+                        if let start = appState.lineDraftStations.first,
+                           let end = appState.lineDraftStations.last {
+                            HStack {
+                                Text(stationName(for: start))
+                                Image(systemName: "arrow.right")
+                                Text(stationName(for: end))
+                            }
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                
+                if let error = errorMessage {
+                    InspectorInfoBanner(type: .error, title: "Errore", message: error)
+                }
+                
+                VStack(spacing: 12) {
+                        Button(action: saveLine) {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                            Text("Salva Relazione")
+                                .font(.headline)
+                        }
                         .frame(maxWidth: .infinity)
                         .padding()
+                        .background(Color.green)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(lineName.isEmpty || appState.lineDraftStations.count < 2)
+                    
+                    Button(action: { showingConfirmation = false }) {
+                        Text("Torna al Percorso")
+                            .foregroundColor(.blue)
+                    }
+                    .buttonStyle(.plain)
                 }
+                .padding(.top, 16)
             }
+            .padding()
+        }
+        .onAppear {
+            suggestColorForLine()
         }
     }
 

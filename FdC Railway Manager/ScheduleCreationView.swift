@@ -132,7 +132,11 @@ struct ScheduleCreationView: View {
             handleOnAppear()
         }
         .onChange(of: appState.optimizedTimesConfirmed) { _, confirmed in
+            print("🔔 [onChange] optimizedTimesConfirmed changed to: \(confirmed)")
+            print("   previewData exists: \(appState.optimizedTimesPreviewData != nil)")
+            
             if confirmed, let previewData = appState.optimizedTimesPreviewData {
+                print("✅ [onChange] Applying optimized times and generating schedule")
                 // User confirmed optimized times, apply them and generate trains
                 startTime = previewData.proposedOutboundTime
                 if let returnTime = previewData.proposedReturnTime {
@@ -145,12 +149,17 @@ struct ScheduleCreationView: View {
                     returnIntervalMinutes = returnInterval
                 }
                 
+                print("   Applied times - Start: \(formatTime(startTime)), Interval: \(intervalMinutes)min")
+                
                 // Clear preview state
                 appState.optimizedTimesPreviewData = nil
                 appState.optimizedTimesConfirmed = false
                 
                 // Now generate the schedule with the confirmed times
+                print("   Launching generateSchedule task...")
                 aiTask = Task { await generateSchedule() }
+            } else {
+                print("⚠️ [onChange] Conditions not met - confirmed: \(confirmed), previewData: \(appState.optimizedTimesPreviewData != nil)")
             }
         }
     }
@@ -595,13 +604,15 @@ struct ScheduleCreationView: View {
     }
     
     /// Calcola gli orari ottimizzati e mostra l'alert di conferma
+    /// NOTA: DepartureTimeOptimizer (genetico) DISABILITATO - mantiene frequenza impostata dall'utente
     @MainActor
     private func proposeOptimizedTimes() async {
-        print("🧬 [OPTIMIZER] proposeOptimizedTimes() called")
-        print("   useDepartureOptimizer: \(useDepartureOptimizer)")
+        print("🧬 [OPTIMIZER] proposeOptimizedTimes() called - SIMPLIFIED VERSION")
         print("   scheduleReturn: \(scheduleReturn)")
         print("   mode: \(mode.rawValue)")
         print("   stationSequence.count: \(stationSequence.count)")
+        print("   intervalMinutes: \(intervalMinutes) (MUST BE PRESERVED)")
+        print("   returnIntervalMinutes: \(returnIntervalMinutes) (MUST BE PRESERVED)")
         
         // Verifica che ci siano almeno 2 stazioni
         guard stationSequence.count >= 2 else {
@@ -612,107 +623,10 @@ struct ScheduleCreationView: View {
             return
         }
         
-        // BYPASS TEMPORANEO: Forza sempre l'uso dell'ottimizzatore
-        print("   ⚠️ FORCING OPTIMIZER (useDepartureOptimizer was: \(useDepartureOptimizer))")
-        
-        if !useDepartureOptimizer {
-            print("   ⚠️ Optimizer was disabled! Forcing generation...")
-            // Genera direttamente senza ottimizzazione
-            aiTask = Task { await generateSchedule() }
-            return
-        }
-        
-        let calendar = Calendar.current
-        let normalizedStart = normalizeDate(startTime)
-        
-        print("🧬 [OPTIMIZER] Calculating optimal departure times...")
-        aiStatus = "Calcolo orari ottimali..."
-        optimizerProgress = 0.0
-        
-        let timeWindow = calendar.component(.hour, from: normalizedStart) * 60 + calendar.component(.minute, from: normalizedStart)
-        let windowStart = max(0, timeWindow - 120) // 2 hours before
-        let windowEnd = min(1439, timeWindow + 240) // 4 hours after
-        
-        // Imposta il callback di progresso usando MainActor
-        departureOptimizer.progressCallback = { @MainActor currentGen, totalGen, fitness in
-            let progress = Double(currentGen) / Double(totalGen)
-            optimizerProgress = progress
-            aiStatus = String(format: "Ottimizzazione: %.0f%% (Gen %d/%d)", progress * 100.0, currentGen, totalGen)
-        }
-        
-        if mode == .single {
-            // Modalità singola: ottimizza solo gli orari di partenza
-            let context = DepartureTimeOptimizer.OptimizationContext(
-                line: line,
-                network: network,
-                existingTrains: manager.trains,
-                timeWindow: windowStart...windowEnd,
-                estimatedTravelTime: estimatedTravelTime
-            )
-            
-            let optimizedTimes = departureOptimizer.optimize(context: context)
-            
-            // Mostra preview in inspector invece di applicare direttamente
-            print("   📋 Showing optimized times in inspector for review")
-            print("   Proposed outbound: \(formatTime(optimizedTimes.outbound))")
-            if scheduleReturn {
-                print("   Proposed return: \(formatTime(optimizedTimes.returnTrip))")
-            }
-            
-            appState.optimizedTimesPreviewData = AppState.OptimizedTimesPreviewData(
-                line: line,
-                mode: mode,
-                currentOutboundTime: startTime,
-                currentReturnTime: scheduleReturn ? returnStartTime : nil,
-                proposedOutboundTime: optimizedTimes.outbound,
-                proposedReturnTime: scheduleReturn ? optimizedTimes.returnTrip : nil,
-                proposedInterval: nil,
-                proposedReturnInterval: nil
-            )
-        } else {
-            // Modalità cadenzata: ottimizza orari iniziali e intervalli
-            let normalizedEnd = normalizeDate(endTime)
-            let endMinutes = calendar.component(.hour, from: normalizedEnd) * 60 + calendar.component(.minute, from: normalizedEnd)
-            
-            let normalizedReturnEnd = normalizeDate(returnEndTime)
-            let returnEndMinutes = calendar.component(.hour, from: normalizedReturnEnd) * 60 + calendar.component(.minute, from: normalizedReturnEnd)
-            
-            let cadenceContext = DepartureTimeOptimizer.CadenceContext(
-                line: line,
-                network: network,
-                existingTrains: manager.trains,
-                timeWindow: windowStart...windowEnd,
-                endTime: endMinutes,
-                estimatedTravelTime: estimatedTravelTime,
-                scheduleReturn: scheduleReturn,
-                returnEndTime: returnEndMinutes
-            )
-            
-            let optimized = departureOptimizer.optimizeCadence(context: cadenceContext)
-            
-            // Mostra preview in inspector invece di applicare direttamente
-            print("   📋 Showing optimized times in inspector for review")
-            print("   Proposed outbound start: \(formatTime(optimized.startTime)) @ \(optimized.interval)min")
-            if scheduleReturn {
-                print("   Proposed return start: \(formatTime(optimized.returnStartTime)) @ \(optimized.returnInterval)min")
-            }
-            
-            appState.optimizedTimesPreviewData = AppState.OptimizedTimesPreviewData(
-                line: line,
-                mode: mode,
-                currentOutboundTime: startTime,
-                currentReturnTime: scheduleReturn ? returnStartTime : nil,
-                proposedOutboundTime: optimized.startTime,
-                proposedReturnTime: scheduleReturn ? optimized.returnStartTime : nil,
-                proposedInterval: optimized.interval,
-                proposedReturnInterval: scheduleReturn ? optimized.returnInterval : nil
-            )
-        }
-        
-        aiStatus = nil
-        optimizerProgress = 0.0
-        departureOptimizer.progressCallback = nil
-        appState.showPanel(.inspector)
+        // Genera direttamente usando gli orari e frequenze impostati dall'utente
+        // L'unica ottimizzazione è trovare lo slot migliore (offset) per ridurre conflitti
+        print("   ✅ Generating schedule with USER-SET frequency (no genetic optimization)")
+        aiTask = Task { await generateSchedule() }
     }
     
     @MainActor
@@ -1379,11 +1293,6 @@ struct ScheduleCreationView: View {
                                 .font(.caption.monospacedDigit())
                                 .foregroundColor(.white.opacity(0.8))
                             Spacer()
-                            if let time = estimatedTimeRemaining {
-                                Text(time)
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundColor(.white.opacity(0.8))
-                            }
                         }
                     }
                 }
@@ -1402,25 +1311,6 @@ struct ScheduleCreationView: View {
     }
     
     @State private var optimizationStartTime: Date? = nil
-    
-    private var estimatedTimeRemaining: String? {
-        let isCad = cadenceOptimizer.isRunning
-        guard isCad else { return nil }
-        
-        let prog = cadenceOptimizer.progress
-        guard let start = optimizationStartTime, prog > 0.02 else { return nil }
-        
-        let elapsed = Date().timeIntervalSince(start)
-        let totalEstimated = elapsed / prog
-        let remaining = totalEstimated - elapsed
-        
-        if remaining < 0 { return "0s" }
-        
-        let m = Int(remaining) / 60
-        let s = Int(remaining) % 60
-        return m > 0 ? "\(m)m \(s)s" : "\(s)s"
-    }
-
     private func handleOnAppear() {
         print("📍 [ScheduleCreationView] handleOnAppear for line: \(line.name)")
         print("   Line ID: \(line.id)")
@@ -1439,6 +1329,40 @@ struct ScheduleCreationView: View {
         
         // Mark initialization as complete to allow onChange handlers to work
         isInitializing = false
+        
+        // Debug: Check optimized times state
+        print("🔍 [handleOnAppear] Checking optimized times state:")
+        print("   optimizedTimesConfirmed: \(appState.optimizedTimesConfirmed)")
+        print("   optimizedTimesPreviewData exists: \(appState.optimizedTimesPreviewData != nil)")
+        
+        // Check if there are confirmed optimized times to apply
+        if appState.optimizedTimesConfirmed, let previewData = appState.optimizedTimesPreviewData {
+            print("✅ [handleOnAppear] Found confirmed optimized times, applying and generating...")
+            // Apply optimized times
+            startTime = previewData.proposedOutboundTime
+            if let returnTime = previewData.proposedReturnTime {
+                returnStartTime = returnTime
+            }
+            if let interval = previewData.proposedInterval {
+                intervalMinutes = interval
+            }
+            if let returnInterval = previewData.proposedReturnInterval {
+                returnIntervalMinutes = returnInterval
+            }
+            
+            // Clear preview state
+            appState.optimizedTimesPreviewData = nil
+            appState.optimizedTimesConfirmed = false
+            
+            // Generate schedule with confirmed times
+            print("   Launching generateSchedule from handleOnAppear...")
+            aiTask = Task { await generateSchedule() }
+            return  // Don't continue with normal initialization
+        } else if appState.optimizedTimesPreviewData != nil {
+            print("⚠️ [handleOnAppear] Preview data exists but not confirmed yet - showing preview")
+        } else {
+            print("ℹ️ [handleOnAppear] No optimized times to apply, proceeding with normal init")
+        }
         
         // Sync return times
         returnStartTime = startTime
@@ -1532,19 +1456,84 @@ struct ScheduleCreationView: View {
     private func vehicleSuitabilityScore(_ vehicle: Vehicle, lineDistance: Double, lineMaxSpeed: Double) -> Double {
         var score = 0.0
         
-        // Speed match (most important)
+        // 1. Speed match (most important - 40% weight)
         let speedDiff = abs(vehicle.maxSpeed - lineMaxSpeed)
-        score += max(0, 100 - speedDiff)
+        let speedScore = max(0, 100 - speedDiff)
+        score += speedScore * 0.4
         
-        // Acceleration (better for frequent stops)
-        let avgStopDistance = lineDistance / Double(max(stationSequence.count - 1, 1))
-        if avgStopDistance < 10 { // Frequent stops
-            score += vehicle.acceleration * 20
+        // 2. Number of stops and acceleration (30% weight)
+        let numberOfStops = stationSequence.count
+        let avgStopDistance = lineDistance / Double(max(numberOfStops - 1, 1))
+        
+        // For frequent stops (< 10km average), prioritize good acceleration
+        if avgStopDistance < 10 {
+            let accelerationScore = min(vehicle.acceleration * 30, 100) // Max 100 points
+            score += accelerationScore * 0.3
+        } else if avgStopDistance < 20 {
+            // Medium stops - balanced acceleration/speed
+            let accelerationScore = min(vehicle.acceleration * 20, 100)
+            score += accelerationScore * 0.2
+            // Add some speed bonus for longer distances
+            score += min((vehicle.maxSpeed / lineMaxSpeed) * 50, 50) * 0.1
+        } else {
+            // Long distances - prioritize high speed and capacity
+            let speedCapabilityScore = min((vehicle.maxSpeed / lineMaxSpeed) * 100, 100)
+            score += speedCapabilityScore * 0.3
         }
         
-        // Prefer vehicles with photos
+        // 3. Line distance vs vehicle range/capacity (20% weight)
+        // Prefer vehicles suitable for the total distance
+        if lineDistance > 100 {
+            // Long lines - prefer high-capacity, long-range vehicles
+            if vehicle.maxSpeed >= 160 {
+                score += 20 * 0.2
+            }
+        } else if lineDistance > 50 {
+            // Medium lines - balanced vehicles
+            if vehicle.maxSpeed >= 120 && vehicle.maxSpeed <= 200 {
+                score += 20 * 0.2
+            }
+        } else {
+            // Short lines - agile vehicles with good acceleration
+            if vehicle.acceleration > 1.0 {
+                score += 20 * 0.2
+            }
+        }
+        
+        // 4. Station infrastructure compatibility (10% weight)
+        // Check if line has stations with platform/capacity constraints
+        let minPlatforms = network.nodes
+            .filter { node in stationSequence.contains(node.id) }
+            .compactMap { $0.platforms }
+            .min() ?? 2
+        
+        // Penalize if vehicle might be too demanding for small stations
+        if minPlatforms <= 2 && vehicle.maxSpeed > 200 {
+            // High-speed trains in small stations - slight penalty
+            score -= 10 * 0.1
+        }
+        
+        // 5. Prefer vehicles with photos (aesthetic bonus - 5% weight)
         if vehicle.imageName != nil {
-            score += 10
+            score += 5 * 0.05
+        }
+        
+        // 6. Bonus for matching service type
+        switch selectedTrainType {
+        case .highSpeed:
+            if vehicle.maxSpeed >= 250 && vehicle.acceleration >= 1.2 {
+                score += 10
+            }
+        case .direct:
+            if vehicle.maxSpeed >= 160 && vehicle.maxSpeed < 250 {
+                score += 10
+            }
+        case .regional:
+            if vehicle.acceleration >= 1.0 && vehicle.maxSpeed >= 100 && vehicle.maxSpeed < 160 {
+                score += 10
+            }
+        case .freight, .support:
+            break
         }
         
         return score

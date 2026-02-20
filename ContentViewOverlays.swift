@@ -81,7 +81,7 @@ struct ModernInspectorPanel: View {
                     } else if let _ = appState.schedulePreviewTrains {
                         Text("Anteprima Orari").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
                     } else if appState.isCreatingLine {
-                        Text("Crea Nuova Linea").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
+                        Text("Crea Nuova Relazione").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
                     } else if let lineId = appState.creationLineId, let line = appState.railroad.lines.lines.first(where: { $0.id == lineId }) {
                         Text("Genera Orari: \(line.name)").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
                     } else if let node = appState.selectedNode {
@@ -145,7 +145,7 @@ struct ModernInspectorPanel: View {
             if appState.selectedLine == nil && appState.selectedNode == nil && appState.selectedEdgeId == nil && (appState.sidebarSelection == .stations || appState.sidebarSelection == .tracks) {
                 HStack(spacing: 0) {
                     Button(action: { appState.sidebarSelection = .stations }) {
-                        Text("Rete")
+                        Text("Stazioni")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
@@ -179,6 +179,11 @@ struct ModernInspectorPanel: View {
                         ScrollView {
                             SettingsInspectorView()
                                 .id("settings")
+                                .padding(16)
+                        }
+                    } else if !appState.selectedTrainIds.isEmpty, let trainId = appState.selectedTrainIds.first, let train = linesManager.trains.first(where: { $0.id == trainId }) {
+                        ScrollView {
+                            TrainDetailView(train: train)
                                 .padding(16)
                         }
                     } else if let previewData = appState.optimizedTimesPreviewData {
@@ -277,11 +282,6 @@ struct ModernInspectorPanel: View {
                             )
                             .padding(16)
                         }
-                    } else if !appState.selectedTrainIds.isEmpty, let trainId = appState.selectedTrainIds.first, let train = linesManager.trains.first(where: { $0.id == trainId }) {
-                        ScrollView {
-                            TrainDetailView(train: train)
-                                .padding(16)
-                        }
                     } else if let vehicle = appState.selectedVehicle {
                         ScrollView {
                             VehicleInspectorView(vehicle: vehicle)
@@ -344,21 +344,7 @@ struct ModernInspectorPanel: View {
                                 
                                 switch appState.lineInspectorMode {
                                 case .infrastructure:
-                                    VerticalTrackDiagramView(
-                                        line: Binding(
-                                            get: { appState.selectedLine ?? line },
-                                            set: { newLine in
-                                                if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }) {
-                                                    linesManager.lines[idx] = newLine
-                                                }
-                                            }
-                                        ),
-                                        network: appState.railroad.network,
-                                        isMoveModeEnabled: .constant(false),
-                                        externalSelectedStationID: $appState.selectedNodeId,
-                                        externalSelectedEdgeID: $appState.selectedEdgeId,
-                                        isSidebarEditMode: $appState.isLineEditing
-                                    )
+                                    LineInfrastructureView(line: line)
                                 case .schedule:
                                     LineScheduleSummaryView(line: line)
                                 case .vehicles:
@@ -420,7 +406,7 @@ struct ModernInspectorPanel: View {
         case .tracks:
             tracksList
         case .lines:
-            linesList
+            relazioniList
         case .trains:
             trainsByLineList
         case .vehicles:
@@ -547,7 +533,7 @@ struct ModernInspectorPanel: View {
         }
     }
     
-    private var linesList: some View {
+    private var relazioniList: some View {
         let sortedLines = linesManager.lines.sorted { l1, l2 in
             let p1 = l1.numberPrefix ?? 0
             let p2 = l2.numberPrefix ?? 0
@@ -557,7 +543,7 @@ struct ModernInspectorPanel: View {
         
         return VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Linee").font(.headline).foregroundColor(appState.theme.dark)
+                Text("Relazioni").font(.headline).foregroundColor(appState.theme.dark)
                 Spacer()
                 Button(action: {
                     // Activate graphical line creation mode

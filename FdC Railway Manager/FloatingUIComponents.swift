@@ -50,6 +50,7 @@ struct FloatingModeBar: View {
         case .design: return "pencil.and.outline"
         case .schedule: return "calendar.badge.clock"
         case .live: return "play.fill"
+        case .editor: return "pencil"
         }
     }
 }
@@ -129,9 +130,8 @@ struct FloatingSideMenu: View {
                     
                     // GROUP 3: SYSTEM
                     Group {
-                        MenuRow(title: "Impostazioni", icon: "gearshape.fill", isSelected: appState.isShowingSettings) {
-                            appState.clearSelection()
-                            appState.isShowingSettings = true
+                        MenuRow(title: "Impostazioni", icon: "gearshape.fill", isSelected: appState.sidebarSelection == .settings) {
+                            appState.sidebarSelection = .settings
                             appState.showPanel(.inspector)
                         }
                         
@@ -329,6 +329,13 @@ struct ContextualInspector: View {
                 }
             } else if let line = appState.selectedLine {
                 VStack(spacing: 0) {
+                    // DEBUG TEST
+                    Text("🟢 FLOATING UI - CAMPI QUI 🟢")
+                        .font(.title.bold())
+                        .foregroundColor(.green)
+                        .padding()
+                        .background(Color.orange)
+                    
                     LineQuickStats(line: line)
                         .padding(16)
                     
@@ -341,21 +348,7 @@ struct ContextualInspector: View {
                         VStack(spacing: 0) {
                             switch appState.lineInspectorMode {
                             case .infrastructure:
-                                VerticalTrackDiagramView(
-                                    line: Binding(
-                                        get: { appState.selectedLine ?? line },
-                                        set: { newLine in
-                                            if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }) {
-                                                linesManager.lines[idx] = newLine
-                                            }
-                                        }
-                                    ),
-                                    network: appState.railroad.network,
-                                    isMoveModeEnabled: .constant(false),
-                                    externalSelectedStationID: $appState.selectedNodeId,
-                                    externalSelectedEdgeID: $appState.selectedEdgeId,
-                                    isSidebarEditMode: $appState.isLineEditing
-                                )
+                                LineInfrastructureView(line: line)
                             case .schedule:
                                 LineScheduleSummaryView(line: line)
                                     .padding(16)
@@ -521,6 +514,8 @@ struct ContextualInspector: View {
                 trainsByLineList
             case .vehicles:
                 vehiclesList
+            case .io:
+                ioPanel
             default:
                 EmptyView()
             }
@@ -823,6 +818,66 @@ struct ContextualInspector: View {
     private var vehiclesList: some View {
         RollingStockView(manager: linesManager)
     }
+
+//  Added per requirement:
+    private var ioPanel: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Import/Export").font(.headline).foregroundColor(appState.theme.dark)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+
+            VStack(spacing: 12) {
+                Button(action: exportNodesAndEdges) {
+                    Label("Esporta Stazioni+Binari (JSON)", systemImage: "square.and.arrow.up")
+                        .font(.subheadline.bold())
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(appState.theme.accent)
+                .foregroundColor(.white)
+                .cornerRadius(12)
+            }
+            .padding(.horizontal, 16)
+
+            Spacer()
+        }
+    }
+
+    private func exportNodesAndEdges() {
+        let nodes = appState.railroad.network.nodes
+        let edges = appState.railroad.network.edges
+        guard let data = NetworkIOExporter.shared.exportStationsAndTracksJSON(nodes: nodes, edges: edges) else { return }
+        let fileName = "network_stations_tracks.json"
+
+        #if canImport(UIKit)
+        let tmpURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(fileName)
+        do {
+            try data.write(to: tmpURL, options: .atomic)
+            let activityVC = UIActivityViewController(activityItems: [tmpURL], applicationActivities: nil)
+            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let root = scene.keyWindow?.rootViewController {
+                root.present(activityVC, animated: true)
+            } else if let root = UIApplication.shared.windows.first?.rootViewController {
+                root.present(activityVC, animated: true)
+            }
+        } catch {
+            print("Export error: \(error)")
+        }
+        #else
+        // Fallback: write to Desktop
+        let desktop = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop").appendingPathComponent(fileName)
+        do {
+            try data.write(to: desktop, options: .atomic)
+            print("✅ Esportato su Desktop: \(desktop.path)")
+        } catch {
+            print("Export error: \(error)")
+        }
+        #endif
+    }
 }
 
 struct LineRow: View {
@@ -964,7 +1019,8 @@ struct LineRowContent: View {
 struct LineQuickStats: View {
     let line: RailwayLine
     @EnvironmentObject var appState: AppState
-    @State private var isPressing: AppState.LineInspectorMode? = nil
+    @EnvironmentObject var linesManager: LinesManager
+    @State private var longPressMode: AppState.LineInspectorMode? = nil
     
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -972,12 +1028,16 @@ struct LineQuickStats: View {
             HStack(spacing: 4) {
                 ForEach(AppState.LineInspectorMode.allCases) { mode in
                     Button(action: {
-                        withAnimation(.spring(response: 0.3)) { 
-                            appState.lineInspectorMode = mode 
-                            appState.isLineEditing = (mode == .infrastructure)
-                            appState.isScheduleGeneratorVisible = false
-                            appState.isVehicleManagementVisible = false
+                        // Don't execute tap action if long press just completed on this mode
+                        if longPressMode != mode {
+                            withAnimation(.spring(response: 0.3)) { 
+                                appState.lineInspectorMode = mode 
+                                appState.isLineEditing = (mode == .infrastructure)
+                                appState.isScheduleGeneratorVisible = false
+                                appState.isVehicleManagementVisible = false
+                            }
                         }
+                        longPressMode = nil
                     }) {
                         ZStack {
                             if appState.lineInspectorMode == mode {
@@ -998,11 +1058,17 @@ struct LineQuickStats: View {
                     .simultaneousGesture(
                         LongPressGesture(minimumDuration: 0.45)
                             .onEnded { _ in
+                                longPressMode = mode
                                 let generator = UIImpactFeedbackGenerator(style: .medium)
                                 generator.impactOccurred()
                                 withAnimation(.spring(response: 0.4)) {
                                     appState.lineInspectorMode = mode
-                                    if mode == .schedule {
+                                    if mode == .infrastructure {
+                                        appState.isLineEditing = true
+                                        appState.isScheduleGeneratorVisible = false
+                                        appState.isVehicleManagementVisible = false
+                                    } else if mode == .schedule {
+                                        appState.creationLineId = line.id
                                         appState.isScheduleGeneratorVisible = true
                                         appState.isVehicleManagementVisible = false
                                     } else if mode == .vehicles {
@@ -1020,7 +1086,86 @@ struct LineQuickStats: View {
             
             VStack(alignment: .leading, spacing: 12) {
                 CompactInfoRow(label: "Fermate", value: "\(line.stops.count)")
-                CompactInfoRow(label: "Codice", value: line.codePrefix ?? "-")
+                
+                Divider()
+                    .padding(.vertical, 8)
+                
+                // LINE PROPERTIES EDITOR
+                Text("PROPRIETÀ LINEA")
+                    .font(.caption.bold())
+                    .foregroundColor(appState.theme.medium)
+                    .padding(.bottom, 4)
+                
+                // Name
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Nome")
+                        .font(.caption2.bold())
+                        .foregroundColor(appState.theme.medium)
+                    TextField("Nome linea", text: Binding(
+                        get: { linesManager.lines.first(where: { $0.id == line.id })?.name ?? line.name },
+                        set: { newName in
+                            if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }) {
+                                linesManager.lines[idx].name = newName
+                            }
+                        }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                }
+                
+                // Prefix and Code
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Prefisso")
+                            .font(.caption2.bold())
+                            .foregroundColor(appState.theme.medium)
+                        TextField("RE", text: Binding(
+                            get: { linesManager.lines.first(where: { $0.id == line.id })?.codePrefix ?? "" },
+                            set: { newPrefix in
+                                if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }) {
+                                    linesManager.lines[idx].codePrefix = newPrefix.isEmpty ? nil : newPrefix
+                                }
+                            }
+                        ))
+                        .textFieldStyle(.roundedBorder)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Codice")
+                            .font(.caption2.bold())
+                            .foregroundColor(appState.theme.medium)
+                        TextField("5", value: Binding(
+                            get: { linesManager.lines.first(where: { $0.id == line.id })?.numberPrefix ?? 0 },
+                            set: { newCode in
+                                if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }) {
+                                    linesManager.lines[idx].numberPrefix = newCode == 0 ? nil : newCode
+                                }
+                            }
+                        ), format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .keyboardType(.numberPad)
+                    }
+                }
+                
+                // Color
+                HStack {
+                    Text("Colore")
+                        .font(.caption2.bold())
+                        .foregroundColor(appState.theme.medium)
+                    Spacer()
+                    ColorPicker("", selection: Binding(
+                        get: { 
+                            let currentLine = linesManager.lines.first(where: { $0.id == line.id }) ?? line
+                            return Color(hex: currentLine.color ?? "") ?? .blue
+                        },
+                        set: { newColor in
+                            if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }),
+                               let hex = newColor.toHex() {
+                                linesManager.lines[idx].color = hex
+                            }
+                        }
+                    ))
+                    .labelsHidden()
+                }
             }
         }
         .contentShape(Rectangle())
@@ -1030,6 +1175,7 @@ struct LineQuickStats: View {
                 let generator = UIImpactFeedbackGenerator(style: .medium)
                 generator.impactOccurred()
                 withAnimation(.spring(response: 0.4)) {
+                    appState.creationLineId = line.id
                     appState.isScheduleGeneratorVisible = true
                     appState.isVehicleManagementVisible = false
                 }
@@ -2175,4 +2321,159 @@ struct TrackRowContent: View {
     }
 }
 
+struct LineInfrastructureView: View {
+    let line: RailwayLine
+    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var linesManager: LinesManager
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                // Line properties editor (always visible in infrastructure mode)
+                LinePropertyEditor(line: line)
+                
+                // Track Diagram
+                VerticalTrackDiagramView(
+                    line: Binding(
+                        get: { appState.selectedLine ?? line },
+                        set: { newLine in
+                            if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }) {
+                                linesManager.lines[idx] = newLine
+                            }
+                        }
+                    ),
+                    network: appState.railroad.network,
+                    isMoveModeEnabled: .constant(false),
+                    externalSelectedStationID: $appState.selectedNodeId,
+                    externalSelectedEdgeID: $appState.selectedEdgeId,
+                    isSidebarEditMode: $appState.isLineEditing
+                )
+            }
+            .padding(.vertical, 16)
+        }
+    }
+}
+
+struct LinePropertyEditor: View {
+    let line: RailwayLine
+    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var linesManager: LinesManager
+    
+    var body: some View {
+        let _ = print("🔍 [LinePropertyEditor] Rendering for line: \(line.name)")
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("PROPRIETÀ LINEA")
+                .font(.caption.bold())
+                .foregroundColor(appState.theme.medium)
+            
+            // Name
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Nome")
+                    .font(.caption2.bold())
+                    .foregroundColor(appState.theme.medium)
+                TextField("Nome linea", text: lineNameBinding)
+                    .textFieldStyle(.roundedBorder)
+            }
+            
+            // Prefix and Code
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Prefisso")
+                        .font(.caption2.bold())
+                        .foregroundColor(appState.theme.medium)
+                    TextField("RE", text: linePrefixBinding)
+                        .textFieldStyle(.roundedBorder)
+                }
+                
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Codice")
+                        .font(.caption2.bold())
+                        .foregroundColor(appState.theme.medium)
+                    TextField("5", value: lineCodeBinding, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .keyboardType(.numberPad)
+                }
+            }
+            
+            // Color
+            HStack {
+                Text("Colore")
+                    .font(.caption2.bold())
+                    .foregroundColor(appState.theme.medium)
+                Spacer()
+                ColorPicker("", selection: lineColorBinding)
+                    .labelsHidden()
+            }
+            
+            Divider()
+                .padding(.top, 4)
+        }
+        .padding(16)
+        .background(appState.theme.backgroundSecondary)
+        .cornerRadius(12)
+        .padding(.horizontal, 16)
+    }
+    
+    private var lineNameBinding: Binding<String> {
+        Binding(
+            get: { 
+                linesManager.lines.first(where: { $0.id == line.id })?.name ?? line.name
+            },
+            set: { newName in
+                if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }) {
+                    linesManager.lines[idx].name = newName
+                    // Force UI update
+                    appState.selectedLineId = line.id
+                }
+            }
+        )
+    }
+    
+    private var linePrefixBinding: Binding<String> {
+        Binding(
+            get: { 
+                linesManager.lines.first(where: { $0.id == line.id })?.codePrefix ?? line.codePrefix ?? ""
+            },
+            set: { newPrefix in
+                if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }) {
+                    linesManager.lines[idx].codePrefix = newPrefix.isEmpty ? nil : newPrefix
+                    // Force UI update
+                    appState.selectedLineId = line.id
+                }
+            }
+        )
+    }
+    
+    private var lineCodeBinding: Binding<Int> {
+        Binding(
+            get: { 
+                linesManager.lines.first(where: { $0.id == line.id })?.numberPrefix ?? line.numberPrefix ?? 0
+            },
+            set: { newCode in
+                if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }) {
+                    linesManager.lines[idx].numberPrefix = newCode == 0 ? nil : newCode
+                    // Force UI update
+                    appState.selectedLineId = line.id
+                }
+            }
+        )
+    }
+    
+    private var lineColorBinding: Binding<Color> {
+        Binding(
+            get: { 
+                let currentLine = linesManager.lines.first(where: { $0.id == line.id }) ?? line
+                return Color(hex: currentLine.color ?? "") ?? .blue
+            },
+            set: { newColor in
+                if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }),
+                   let hex = newColor.toHex() {
+                    linesManager.lines[idx].color = hex
+                    // Force UI update
+                    appState.selectedLineId = line.id
+                }
+            }
+        )
+    }
+}
 
