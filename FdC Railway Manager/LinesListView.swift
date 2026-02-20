@@ -12,9 +12,26 @@ struct LinesListView: View {
         FdCEntityList(
             title: "lines".localized,
             items: lines.sortedLines,
-            selectedItem: $selectedLine,
+            selectedItemId: Binding(
+                get: { selectedLine?.id },
+                set: { _ in }
+            ),
+            rowContent: { line in
+                HStack {
+                    Circle()
+                        .fill(Color(hex: line.color ?? "#007AFF") ?? .blue)
+                        .frame(width: 10, height: 10)
+                    Text(line.name)
+                        .font(.subheadline)
+                    Spacer()
+                    Text("\(line.stops.count) fermate")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            },
+            searchText: { $0.name },
+            onSelect: { line in editingLineId = line.id },
             onAdd: { showCreate = true },
-            onEdit: { line in editingLineId = line.id },
             onDelete: { line in
                 if let idx = lines.lines.firstIndex(where: { $0.id == line.id }) {
                     lines.lines.remove(at: idx)

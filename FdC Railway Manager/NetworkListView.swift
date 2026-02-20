@@ -51,24 +51,42 @@ struct NetworkListView: View {
         FdCEntityList(
             title: String(format: "stations_count".localized, network.nodes.count),
             items: network.sortedNodes,
-            selectedItem: $selectedNode,
+            selectedItemId: Binding(
+                get: { selectedNode?.id },
+                set: { _ in }
+            ),
+            rowContent: { node in
+                HStack {
+                    Circle()
+                        .fill(node.type == .station ? Color.blue : Color.orange)
+                        .frame(width: 8, height: 8)
+                    Text(node.name ?? node.id)
+                        .font(.subheadline)
+                    Spacer()
+                    if let platforms = node.platforms, platforms > 0 {
+                        Text("\(platforms) bin.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            },
+            searchText: { $0.name ?? $0.id },
+            onSelect: { station in
+                selectedNode = station
+                appState.showPanel(.inspector)
+            },
             onAdd: {
-                // Add a new station at a default location (e.g., center of Italy)
                 let newStation = Node(
                     id: UUID().uuidString,
                     name: String(format: "station_default_name".localized, network.nodes.count + 1),
                     type: .station,
-                    latitude: 42.0, // Default lat (near Rome)
-                    longitude: 12.5, // Default lon
+                    latitude: 42.0,
+                    longitude: 12.5,
                     platforms: 2
                 )
                 network.nodes.append(newStation)
                 selectedNode = newStation
                 network.createCheckpoint()
-                appState.showPanel(.inspector)
-            },
-            onEdit: { station in 
-                selectedNode = station
                 appState.showPanel(.inspector)
             },
             onDelete: { station in
@@ -91,16 +109,33 @@ struct NetworkListView: View {
         FdCEntityList(
             title: String(format: "tracks_count".localized, network.edges.count),
             items: network.sortedEdges,
-            selectedItem: Binding(
-                get: { network.edges.first { $0.id.uuidString == selectedEdgeId } },
-                set: { selectedEdgeId = $0?.id.uuidString }
+            selectedItemId: Binding(
+                get: { selectedEdgeId },
+                set: { selectedEdgeId = $0 }
             ),
-            onAdd: { 
-                appState.isCreatingTrack = true
+            rowContent: { edge in
+                HStack {
+                    let fromName = network.nodes.first(where: { $0.id == edge.from })?.name ?? edge.from
+                    let toName = network.nodes.first(where: { $0.id == edge.to })?.name ?? edge.to
+                    Text("\(fromName) → \(toName)")
+                        .font(.subheadline)
+                    Spacer()
+                    Text(String(format: "%.1f km", edge.distance))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            },
+            searchText: { edge in
+                let fromName = network.nodes.first(where: { $0.id == edge.from })?.name ?? edge.from
+                let toName = network.nodes.first(where: { $0.id == edge.to })?.name ?? edge.to
+                return "\(fromName) \(toName)"
+            },
+            onSelect: { track in
+                selectedEdgeId = track.id.uuidString
                 appState.showPanel(.inspector)
             },
-            onEdit: { track in 
-                selectedEdgeId = track.id.uuidString
+            onAdd: { 
+                appState.isCreatingTrack = true
                 appState.showPanel(.inspector)
             },
             onDelete: { track in

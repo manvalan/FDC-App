@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 // MARK: - FdCInspectorPanel
 /// Inspector laterale riutilizzabile con navigazione a stack.
