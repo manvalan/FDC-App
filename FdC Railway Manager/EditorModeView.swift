@@ -87,9 +87,10 @@ struct EditorModeView: View {
                             appState.selectedNodeId = nil
                             appState.selectedEdgeId = nil
                             appState.selectedLineId = nil
+                            selectedFerroviaId = nil
                         }
                     ) {
-                        StationPropertyEditor(editingLineId: $editingLineId)
+                        StationPropertyEditor(editingLineId: $editingLineId, selectedFerroviaId: $selectedFerroviaId)
                     }
                     .frame(width: 320)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -124,8 +125,9 @@ struct EditorModeView: View {
     private var inspectorTitle: String {
         if let node = appState.selectedNode {
             return node.name ?? "Stazione"
-        } else if appState.selectedEdgeId != nil {
-            return "Binario"
+        } else if let fId = selectedFerroviaId,
+                  let ferrovia = appState.railroad.network.ferrovie.first(where: { $0.id == fId }) {
+            return ferrovia.name
         } else if let lineId = appState.selectedLineId,
                   let line = appState.railroad.lines.findLine(id: lineId) {
             return line.name
@@ -156,7 +158,13 @@ struct EditorModeView: View {
                 }
             }, isActive: appState.isCreatingTrack),
             .divider,
-            .button(icon: "plus.rectangle.on.rectangle", label: "Ferrovia", action: createLogicalLine),
+            .button(icon: "plus.rectangle.on.rectangle", label: "Ferrovia", action: {
+                if appState.selectedNodeIds.count > 1 {
+                    createNewFerrovia()
+                } else {
+                    createLogicalLine()
+                }
+            }),
             .custom(id: "ferrovie-list", content: AnyView(
                 Button(action: { showLineList.toggle() }) {
                     Label("Ferrovie", systemImage: "list.bullet.rectangle")
@@ -246,6 +254,7 @@ struct EditorModeView: View {
         appState.railroad.network.ferrovie.append(newFerrovia)
         selectedFerroviaId = newFerrovia.id
         appState.selectedNodeIds = Set(newFerrovia.stationIds)
+        appState.showPanel(.inspector)
         appState.objectWillChange.send()
     }
     
@@ -307,6 +316,7 @@ struct EditorModeView: View {
             appState.selectedNodeId = node.id
             appState.selectedEdgeId = nil
             appState.selectedLineId = nil
+            selectedFerroviaId = nil
             appState.showPanel(.inspector)
         }
     }
@@ -345,6 +355,9 @@ struct EditorModeView: View {
         // Use addEdge to ensure checkpoint creation (Undo/Redo)
         appState.railroad.network.addEdge(newEdge)
         appState.selectedEdgeId = newEdge.id.uuidString
+        appState.selectedNodeId = nil
+        appState.selectedLineId = nil
+        selectedFerroviaId = nil
     }
     
     // MARK: - Scenario Management
@@ -459,6 +472,7 @@ struct EditorButtonStyle: ButtonStyle {
 struct StationPropertyEditor: View {
     @EnvironmentObject var appState: AppState
     @Binding var editingLineId: String?
+    @Binding var selectedFerroviaId: String?
     
     var body: some View {
         ScrollView {
@@ -468,6 +482,9 @@ struct StationPropertyEditor: View {
                 } else if let edgeId = appState.selectedEdgeId,
                           let edge = appState.railroad.network.edges.first(where: { $0.id.uuidString == edgeId }) {
                     edgeEditor(edge: edge)
+                } else if let ferroviaId = selectedFerroviaId,
+                          let ferrovia = appState.railroad.network.ferrovie.first(where: { $0.id == ferroviaId }) {
+                    ferroviaEditor(ferrovia: ferrovia)
                 } else if let lineId = appState.selectedLineId,
                           let line = appState.railroad.lines.findLine(id: lineId) {
                     lineEditor(line: line)
@@ -570,6 +587,56 @@ struct StationPropertyEditor: View {
             appState.selectedNodeIds.remove(node.id)
         } label: {
             Label("Elimina Stazione", systemImage: "trash")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .padding(.top, 10)
+    }
+    
+    @ViewBuilder
+    private func ferroviaEditor(ferrovia: Ferrovia) -> some View {
+        GroupBox(label: Label("Dettagli Ferrovia", systemImage: "map")) {
+            VStack(alignment: .leading, spacing: 12) {
+                TextField("Nome Ferrovia", text: Binding(
+                    get: { ferrovia.name },
+                    set: { newName in
+                        if let idx = appState.railroad.network.ferrovie.firstIndex(where: { $0.id == ferrovia.id }) {
+                            appState.railroad.network.ferrovie[idx].name = newName
+                        }
+                    }
+                ))
+                .textFieldStyle(.roundedBorder)
+                .font(.headline)
+                
+                ColorPicker("Colore", selection: Binding(
+                    get: { Color(hex: ferrovia.color ?? "#000000") ?? .blue },
+                    set: { newColor in
+                        if let idx = appState.railroad.network.ferrovie.firstIndex(where: { $0.id == ferrovia.id }) {
+                            appState.railroad.network.ferrovie[idx].color = newColor.toHex()
+                        }
+                    }
+                ))
+                
+                Divider()
+                
+                Text("Percorso (\(ferrovia.stationIds.count) stazioni)")
+                    .font(.caption.bold())
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(ferrovia.stationIds, id: \.self) { sid in
+                        Text("• \(getNodeName(sid))")
+                            .font(.caption)
+                    }
+                }
+            }
+            .padding(8)
+        }
+        
+        Button(role: .destructive) {
+            appState.railroad.network.ferrovie.removeAll(where: { $0.id == ferrovia.id })
+            selectedFerroviaId = nil
+        } label: {
+            Label("Elimina Ferrovia", systemImage: "trash")
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.bordered)
@@ -968,18 +1035,24 @@ struct AltimetricProfileView: View {
             Menu {
                 Text("Seleziona Ferrovia")
                 Divider()
-                ForEach(appState.railroad.lines.lines) { line in
-                    Button(line.name) {
-                        appState.selectedLineId = line.id
+                ForEach(appState.railroad.network.ferrovie) { ferrovia in
+                    Button(ferrovia.name) {
+                        selectedFerroviaId = ferrovia.id
+                        appState.selectedLineId = nil
                         appState.selectedNodeId = nil
                         appState.selectedEdgeId = nil
-                        appState.selectedNodeIds = [] // Clear multi-select
+                        appState.selectedNodeIds = Set(ferrovia.stationIds)
                     }
                 }
             } label: {
                 HStack {
-                    Text(appState.selectedLineId != nil ? (appState.railroad.lines.findLine(id: appState.selectedLineId!)?.name ?? "Ferrovia") : "Profilo Altimetrico")
-                        .font(.caption.bold())
+                    if let fId = selectedFerroviaId, let f = appState.railroad.network.ferrovie.first(where: { $0.id == fId }) {
+                        Text(f.name)
+                            .font(.caption.bold())
+                    } else {
+                        Text("Profilo Altimetrico")
+                            .font(.caption.bold())
+                    }
                     Image(systemName: "chevron.down")
                         .font(.caption)
                 }
@@ -993,6 +1066,11 @@ struct AltimetricProfileView: View {
                 Text("Limiti: \(Int(limit.maxStandard))‰ / \(Int(limit.technicalLimit))‰")
                     .font(.caption2)
                     .foregroundColor(.secondary)
+            } else if selectedFerroviaId != nil {
+                // Standard limit for infrastructure view
+                Text("Limiti: 12‰ / 35‰")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
         }
         .padding(.horizontal)
@@ -1002,8 +1080,16 @@ struct AltimetricProfileView: View {
     
     @ViewBuilder
     private func contentView(geo: GeometryProxy) -> some View {
-        if let lineId = appState.selectedLineId,
-           let line = appState.railroad.lines.findLine(id: lineId) {
+        if let fId = selectedFerroviaId,
+           let ferrovia = appState.railroad.network.ferrovie.first(where: { $0.id == fId }) {
+            
+            let stations = ferrovia.stationIds.compactMap { sid in
+                appState.railroad.network.nodes.first(where: { $0.id == sid })
+            }
+            profileGraph(stations: stations, geo: geo)
+            
+        } else if let lineId = appState.selectedLineId,
+                  let line = appState.railroad.lines.findLine(id: lineId) {
             
             let stations = line.stops.compactMap { stop in
                 appState.railroad.network.nodes.first(where: { $0.id == stop.stationId })

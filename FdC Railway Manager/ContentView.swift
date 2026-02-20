@@ -35,11 +35,11 @@ struct ContentView: View {
                 SidebarOverlay()
             }
             
-            if appState.isWidePanelVisible && appState.activePanel == .inspector {
+            if appState.isWidePanelVisible && appState.activePanel == .inspector && appState.currentMode != .editor {
                 WidePanelOverlay()
             }
             
-            if appState.activePanel == .inspector {
+            if appState.activePanel == .inspector && appState.currentMode != .editor {
                 InspectorOverlay()
             }
             
