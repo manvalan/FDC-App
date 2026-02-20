@@ -23,7 +23,6 @@ struct EditorModeView: View {
     @State private var lockedNodeIds: Set<String> = []
     @State private var isShowingLineCreation = false
     @State private var editingLineId: String? = nil
-    @State private var selectedFerroviaId: String? = nil
     
     // Altimetry State
     // REMOVED local isCreatingTrackMode to sync with appState
@@ -79,12 +78,12 @@ struct EditorModeView: View {
                         title: "Profilo Altimetrico",
                         preferredHeight: 300
                     ) {
-                        AltimetricProfileView(lockedNodeIds: $lockedNodeIds, selectedFerroviaId: $selectedFerroviaId)
+                        AltimetricProfileView(lockedNodeIds: $lockedNodeIds)
                     }
                 }
                 
                 // Inspector Panel (right side)
-                if appState.selectedNodeId != nil || appState.selectedEdgeId != nil || appState.selectedLineId != nil {
+                if appState.selectedNodeId != nil || appState.selectedEdgeId != nil || appState.selectedLineId != nil || appState.selectedFerroviaId != nil {
                     FdCInspectorPanel(
                         title: inspectorTitle,
                         onClose: {
@@ -94,7 +93,7 @@ struct EditorModeView: View {
                             selectedFerroviaId = nil
                         }
                     ) {
-                        StationPropertyEditor(editingLineId: $editingLineId, selectedFerroviaId: $selectedFerroviaId)
+                        StationPropertyEditor(editingLineId: $editingLineId)
                     }
                     .frame(width: 320)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -151,6 +150,11 @@ struct EditorModeView: View {
         )
     }
     
+    private var selectedFerroviaId: String? {
+        get { appState.selectedFerroviaId }
+        nonmutating set { appState.selectedFerroviaId = newValue }
+    }
+    
     private var editorToolbarItems: [FdCToolbarItem] {
         var items: [FdCToolbarItem] = [
             .custom(id: "ferrovie-list", content: AnyView(
@@ -161,7 +165,7 @@ struct EditorModeView: View {
                 .popover(isPresented: $showLineList) {
                     FerrovieListPopover(onSelect: { ferrovia in
                         withAnimation(.spring()) {
-                            selectedFerroviaId = ferrovia.id
+                            appState.selectedFerroviaId = ferrovia.id
                             appState.selectedLineId = nil
                             appState.selectedNodeId = nil
                             appState.selectedEdgeId = nil
@@ -194,7 +198,7 @@ struct EditorModeView: View {
                     if appState.isCreatingTrack {
                         appState.selectedNodeId = nil
                         appState.selectedEdgeId = nil
-                        selectedFerroviaId = nil
+                        appState.selectedFerroviaId = nil
                     }
                 }
                 
@@ -262,14 +266,17 @@ struct EditorModeView: View {
     
     func createNewFerrovia() {
         let count = appState.railroad.network.ferrovie.count + 1
+        // Use the ordered selection if available, otherwise fallback to set (unordered)
+        let stations = appState.selectedNodeIdsOrder.isEmpty ? Array(appState.selectedNodeIds) : appState.selectedNodeIdsOrder
         let newFerrovia = Ferrovia(
             name: "Ferrovia \(count)",
             color: ["#3498db", "#e74c3c", "#2ecc71", "#f39c12", "#9b59b6", "#1abc9c"][count % 6],
-            stationIds: Array(appState.selectedNodeIds)
+            stationIds: stations
         )
         appState.railroad.network.ferrovie.append(newFerrovia)
-        selectedFerroviaId = newFerrovia.id
+        appState.selectedFerroviaId = newFerrovia.id
         appState.selectedNodeIds = Set(newFerrovia.stationIds)
+        appState.selectedNodeIdsOrder = Array(newFerrovia.stationIds)
         appState.showPanel(.inspector)
         appState.objectWillChange.send()
     }
@@ -332,7 +339,7 @@ struct EditorModeView: View {
             appState.selectedNodeId = node.id
             appState.selectedEdgeId = nil
             appState.selectedLineId = nil
-            selectedFerroviaId = nil
+            appState.selectedFerroviaId = nil
             
             // Non mostrare l'ispettore se stiamo creando binari o se abbiamo appena selezionato il secondo nodo per un binario
             if !appState.isCreatingTrack {
@@ -520,7 +527,6 @@ struct ToolIcon: View {
 struct StationPropertyEditor: View {
     @EnvironmentObject var appState: AppState
     @Binding var editingLineId: String?
-    @Binding var selectedFerroviaId: String?
     
     var body: some View {
         ScrollView {
@@ -530,7 +536,7 @@ struct StationPropertyEditor: View {
                 } else if let edgeId = appState.selectedEdgeId,
                           let edge = appState.railroad.network.edges.first(where: { $0.id.uuidString == edgeId }) {
                     edgeEditor(edge: edge)
-                } else if let ferroviaId = selectedFerroviaId,
+                } else if let ferroviaId = appState.selectedFerroviaId,
                           let ferrovia = appState.railroad.network.ferrovie.first(where: { $0.id == ferroviaId }) {
                     ferroviaEditor(ferrovia: ferrovia)
                 } else {
@@ -553,7 +559,7 @@ struct StationPropertyEditor: View {
                         Text("Latitudine")
                         TextField("0.0", value: Binding(
                             get: { node.latitude ?? 0.0 },
-                            set: { updateNode(node.id, lat: $0) }
+                            set: { appState.railroad.network.updateNode(node.id, lat: $0) }
                         ), format: .number)
                         .textFieldStyle(.roundedBorder)
                     }
@@ -561,7 +567,7 @@ struct StationPropertyEditor: View {
                         Text("Longitudine")
                         TextField("0.0", value: Binding(
                             get: { node.longitude ?? 0.0 },
-                            set: { updateNode(node.id, lon: $0) }
+                            set: { appState.railroad.network.updateNode(node.id, lon: $0) }
                         ), format: .number)
                         .textFieldStyle(.roundedBorder)
                     }
@@ -569,7 +575,7 @@ struct StationPropertyEditor: View {
                         Text("Altitudine (m)")
                         TextField("0.0", value: Binding(
                             get: { node.altitude ?? 0.0 },
-                            set: { updateNode(node.id, alt: $0) }
+                            set: { appState.railroad.network.updateNode(node.id, alt: $0) }
                         ), format: .number)
                         .textFieldStyle(.roundedBorder)
                     }
@@ -683,7 +689,7 @@ struct StationPropertyEditor: View {
         
         Button(role: .destructive) {
             appState.railroad.network.ferrovie.removeAll(where: { $0.id == ferrovia.id })
-            selectedFerroviaId = nil
+            appState.selectedFerroviaId = nil
         } label: {
             Label("Elimina Ferrovia", systemImage: "trash")
                 .frame(maxWidth: .infinity)
@@ -716,20 +722,40 @@ struct StationPropertyEditor: View {
                 Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 10) {
                     GridRow {
                         Text("Lunghezza (km)")
-                        TextField("0.0", value: Binding(
-                             get: { edge.distance },
-                             set: { updateEdge(edge.id, distance: $0) }
+                        TextField("0", value: Binding(
+                            get: { edge.distance },
+                            set: { appState.railroad.network.updateEdge(edge.id, distance: $0) }
                         ), format: .number)
                         .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                        Text("km")
+                        
+                        Spacer()
+                        
+                        Button(action: { appState.railroad.network.generateSegments(for: edge) }) {
+                            Label("Rigenera Tratte", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                        .buttonStyle(.bordered)
                     }
                     
-                    GridRow {
-                        Text("Vel. Max (km/h)")
-                        TextField("120", value: Binding(
-                             get: { edge.maxSpeed },
-                             set: { updateEdge(edge.id, speed: $0) }
+                    Divider()
+                    
+                    HStack {
+                        Text("Velocità Max").font(.caption.bold())
+                        TextField("0", value: Binding(
+                            get: { edge.maxSpeed },
+                            set: { appState.railroad.network.updateEdge(edge.id, speed: $0) }
                         ), format: .number)
                         .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                        Text("km/h")
+                        
+                        Spacer()
+                        
+                        Button(role: .destructive, action: { appState.railroad.network.splitEdge(edge) }) {
+                            Label("Spezza Binario", systemImage: "scissors")
+                        }
+                        .buttonStyle(.bordered)
                     }
                 }
             }
@@ -739,7 +765,7 @@ struct StationPropertyEditor: View {
         // Physical segments editor placeholder
         GroupBox(label: Label("Segmenti Fisici", systemImage: "ruler")) {
              VStack(alignment: .leading, spacing: 8) {
-                 Button(action: { splitEdge(edge) }) {
+                 Button(action: { appState.railroad.network.splitEdge(edge) }) {
                      Label("Dividi Tratta (Agg. Nodo)", systemImage: "scissors")
                          .frame(maxWidth: .infinity)
                  }
@@ -753,7 +779,7 @@ struct StationPropertyEditor: View {
                          .font(.caption)
                          .foregroundColor(.secondary)
                      Button("Genera Segmenti (2km)") {
-                         generateSegments(for: edge)
+                         appState.railroad.network.generateSegments(for: edge)
                      }
                      .buttonStyle(.bordered)
                  } else {
@@ -767,7 +793,7 @@ struct StationPropertyEditor: View {
                                  .font(.caption.monospacedDigit())
                              TextField("Vel", value: Binding(
                                  get: { Double(seg.speedLimit ?? 0) },
-                                 set: { updateSegment(edge.id, index: i, speed: $0) }
+                                 set: { appState.railroad.network.updateSegment(edge.id, index: i, speed: $0) }
                              ), format: .number)
                              .frame(width: 50)
                              .textFieldStyle(.roundedBorder)
@@ -833,7 +859,7 @@ struct StationPropertyEditor: View {
                             Spacer()
                             TextField("Alt", value: Binding(
                                 get: { node.altitude ?? 0 },
-                                set: { updateNode(node.id, alt: $0) }
+                                set: { appState.railroad.network.updateNode(node.id, alt: $0) }
                             ), format: .number)
                             .frame(width: 60)
                             .textFieldStyle(.roundedBorder)
@@ -871,7 +897,7 @@ struct StationPropertyEditor: View {
                                                     let deltaH = newSlope * dist // m (since slope is ‰ and dist is km, conversion cancels out: (‰/1000) * (km*1000) = ‰ * km = m? Wait.
                                                     // 10‰ * 1km = 0.01 * 1000m = 10m. Correct.
                                                     let newAlt = (node.altitude ?? 0) + deltaH
-                                                    updateNode(nextNode.id, alt: newAlt)
+                                                    appState.railroad.network.updateNode(nextNode.id, alt: newAlt)
                                                 }
                                             ), format: .number)
                                             .frame(width: 40)
@@ -914,130 +940,25 @@ struct StationPropertyEditor: View {
         appState.railroad.network.nodes.first(where: { $0.id == id })?.name ?? id
     }
     
-    func updateNode(_ id: String, lat: Double? = nil, lon: Double? = nil, alt: Double? = nil) {
-        appState.railroad.network.createCheckpoint()
-        if let idx = appState.railroad.network.nodes.firstIndex(where: { $0.id == id }) {
-            var node = appState.railroad.network.nodes[idx]
-            
-            // SPRING LOGIC: Propagate position changes?
-            // For now, simple update.
-            if let lat = lat { node.latitude = lat }
-            if let lon = lon { node.longitude = lon }
-            if let alt = alt { node.altitude = alt }
-            
-            appState.railroad.network.nodes[idx] = node
-            
-            // Trigger distance recalculation if desired?
-            // recalculateDistances(from: node)
-        }
-    }
-
-    func updateEdge(_ id: UUID, distance: Double? = nil, speed: Int? = nil) {
-        appState.railroad.network.createCheckpoint()
-        if let idx = appState.railroad.network.edges.firstIndex(where: { $0.id == id }) {
-            var edge = appState.railroad.network.edges[idx]
-            if let d = distance { edge.distance = d }
-            if let s = speed { edge.maxSpeed = s }
-            appState.railroad.network.edges[idx] = edge
-        }
-    }
-    
-    func generateSegments(for edge: Edge) {
-        if let idx = appState.railroad.network.edges.firstIndex(where: { $0.id == edge.id }) {
-            var newEdge = edge
-            // Use user preferred length? Default 2km
-            let segmentLength = 2.0 
-            let count = max(1, Int(ceil(edge.distance / segmentLength)))
-            var segments: [TrackSegment] = []
-            
-            for i in 0..<count {
-                // Last segment might be shorter
-                let len = (i == count - 1) ? (edge.distance - Double(i) * segmentLength) : segmentLength
-                segments.append(TrackSegment(
-                    order: i,
-                    length: len,
-                    speedLimit: edge.maxSpeed
-                ))
-            }
-            newEdge.segments = segments
-            appState.railroad.network.edges[idx] = newEdge
-        }
-    }
-    
-    func updateSegment(_ edgeId: UUID, index: Int, speed: Double) {
-        if let idx = appState.railroad.network.edges.firstIndex(where: { $0.id == edgeId }) {
-            var edge = appState.railroad.network.edges[idx]
-            if index < edge.segments.count {
-                var seg = edge.segments[index]
-                seg.speedLimit = Int(speed)
-                edge.segments[index] = seg
-                appState.railroad.network.edges[idx] = edge
-            }
-        }
-    }
-    
-    func splitEdge(_ edge: Edge) {
-        appState.railroad.network.createCheckpoint()
-        
-        // Find nodes
-        guard let n1 = appState.railroad.network.nodes.first(where: { $0.id == edge.from }),
-              let n2 = appState.railroad.network.nodes.first(where: { $0.id == edge.to }) else { return }
-              
-        // Calculate midpoint
-        let lat1 = n1.latitude ?? 0
-        let lon1 = n1.longitude ?? 0
-        let lat2 = n2.latitude ?? 0
-        let lon2 = n2.longitude ?? 0
-        let midLat = (lat1 + lat2) / 2
-        let midLon = (lon1 + lon2) / 2
-        
-        // Calculate altitude (average)
-        let alt1 = n1.altitude ?? 0
-        let alt2 = n2.altitude ?? 0
-        let midAlt = (alt1 + alt2) / 2
-        
-        // Create new Node
-        let newNodeId = "N-\(Int.random(in: 10000...99999))"
-        let newNode = Node(id: newNodeId, name: "Bivio \(newNodeId)", latitude: midLat, longitude: midLon, altitude: midAlt)
-        
-        // Create two new edges
-        let d1 = edge.distance / 2
-        let d2 = edge.distance / 2
-        
-        let e1 = Edge(from: n1.id, to: newNode.id, distance: d1, trackType: edge.trackType, maxSpeed: edge.maxSpeed)
-        let e2 = Edge(from: newNode.id, to: n2.id, distance: d2, trackType: edge.trackType, maxSpeed: edge.maxSpeed)
-        
-        // Remove old edge
-        appState.railroad.network.removeEdge(edge.id) // Remove by ID
-        
-        // Add new items
-        appState.railroad.network.nodes.append(newNode)
-        appState.railroad.network.edges.append(e1)
-        appState.railroad.network.edges.append(e2)
-        
-        // Also handle reverse edge if exists?
-        // Usually edges are directed.
-    }
-    
-
+    // Removed duplicate updateNode, updateEdge, generateSegments, updateSegment, splitEdge methods.
+    // Calls now directly reference appState.railroad.network.methodName
 }
 
 // MARK: - Altimetric Profile View
 struct AltimetricProfileView: View {
     @EnvironmentObject var appState: AppState
     @Binding var lockedNodeIds: Set<String>
-    @Binding var selectedFerroviaId: String?
     
     @State private var altitudeEditNodeId: String? = nil
     @State private var altitudeEditText: String = ""
     
+    private var selectedFerroviaId: String? {
+        get { appState.selectedFerroviaId }
+        nonmutating set { appState.selectedFerroviaId = newValue }
+    }
+    
     private func updateNode(_ id: String, lat: Double? = nil, lon: Double? = nil, alt: Double? = nil) {
-        guard let idx = appState.railroad.network.nodes.firstIndex(where: { $0.id == id }) else { return }
-        var node = appState.railroad.network.nodes[idx]
-        if let lat = lat { node.latitude = lat }
-        if let lon = lon { node.longitude = lon }
-        if let alt = alt { node.altitude = alt }
-        appState.railroad.network.nodes[idx] = node
+        appState.railroad.network.updateNode(id, lat: lat, lon: lon, alt: alt)
     }
     
     enum SlopeLimit {
@@ -1905,6 +1826,9 @@ struct FerrovieListPopover: View {
     func deleteFerrovia(at offsets: IndexSet) {
         offsets.forEach { index in
             let fer = appState.railroad.network.ferrovie[index]
+            if appState.selectedFerroviaId == fer.id {
+                appState.selectedFerroviaId = nil
+            }
             appState.railroad.network.ferrovie.removeAll { $0.id == fer.id }
         }
     }

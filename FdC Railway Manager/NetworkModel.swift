@@ -48,6 +48,88 @@ final class NetworkModel: ObservableObject {
         edges.first(where: { ($0.from == from && $0.to == to) || ($0.from == to && $0.to == from) })
     }
     
+    // MARK: - Infrastructure Updates
+    
+    func updateNode(_ id: String, lat: Double? = nil, lon: Double? = nil, alt: Double? = nil) {
+        if let idx = nodes.firstIndex(where: { $0.id == id }) {
+            var node = nodes[idx]
+            if let lat = lat { node.latitude = lat }
+            if let lon = lon { node.longitude = lon }
+            if let alt = alt { node.altitude = alt }
+            nodes[idx] = node
+        }
+    }
+
+    func updateEdge(_ id: UUID, distance: Double? = nil, speed: Int? = nil) {
+        owner?.createCheckpoint()
+        if let idx = edges.firstIndex(where: { $0.id == id }) {
+            var edge = edges[idx]
+            if let d = distance { edge.distance = d }
+            if let s = speed { edge.maxSpeed = s }
+            edges[idx] = edge
+        }
+    }
+    
+    func generateSegments(for edge: Edge) {
+        if let idx = edges.firstIndex(where: { $0.id == edge.id }) {
+            var newEdge = edge
+            let segmentLength = 2.0 
+            let count = max(1, Int(ceil(edge.distance / segmentLength)))
+            var segments: [TrackSegment] = []
+            
+            for i in 0..<count {
+                let len = (i == count - 1) ? (edge.distance - Double(i) * segmentLength) : segmentLength
+                segments.append(TrackSegment(
+                    order: i,
+                    length: len,
+                    speedLimit: edge.maxSpeed
+                ))
+            }
+            newEdge.segments = segments
+            edges[idx] = newEdge
+        }
+    }
+    
+    func updateSegment(_ edgeId: UUID, index: Int, speed: Double) {
+        if let idx = edges.firstIndex(where: { $0.id == edgeId }) {
+            var edge = edges[idx]
+            if index < edge.segments.count {
+                var seg = edge.segments[index]
+                seg.speedLimit = Int(speed)
+                edge.segments[index] = seg
+                edges[idx] = edge
+            }
+        }
+    }
+    
+    func splitEdge(_ edge: Edge) {
+        owner?.createCheckpoint()
+        guard let n1 = nodes.first(where: { $0.id == edge.from }),
+              let n2 = nodes.first(where: { $0.id == edge.to }) else { return }
+              
+        let lat1 = n1.latitude ?? 0; let lon1 = n1.longitude ?? 0
+        let lat2 = n2.latitude ?? 0; let lon2 = n2.longitude ?? 0
+        let midLat = (lat1 + lat2) / 2; let midLon = (lon1 + lon2) / 2
+        let midAlt = ((n1.altitude ?? 0) + (n2.altitude ?? 0)) / 2
+        
+        let checkpointId = "CP-\(Int.random(in: 1000...9999))"
+        let newNode = Node(
+            id: checkpointId,
+            name: "Checkpoint \(checkpointId)",
+            type: .junction,
+            latitude: midLat,
+            longitude: midLon,
+            altitude: midAlt
+        )
+        
+        addNode(newNode)
+        removeEdge(edge.id)
+        
+        let d1 = edge.distance / 2.0
+        addEdge(Edge(from: edge.from, to: newNode.id, distance: d1, trackType: edge.trackType, maxSpeed: edge.maxSpeed))
+        addEdge(Edge(from: newNode.id, to: edge.to, distance: d1, trackType: edge.trackType, maxSpeed: edge.maxSpeed))
+    }
+    
     // MARK: - Pathfinding logic
     
     func findPathEdges(from startId: String, to endId: String, ignoreDirection: Bool = false, restrictIntermediateStations: Bool = false) -> [Edge]? {

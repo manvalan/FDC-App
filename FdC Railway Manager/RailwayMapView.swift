@@ -1754,16 +1754,19 @@ struct SchematicRailwayView: View {
                 selectedLine = line
                 selectedNode = nil
                 selectedEdgeId = nil
+                appState.selectedFerroviaId = nil
                 print("🎯 [Map] Selected Line: \(line.name)")
             } else if let edgeId = newSelectedEdgeId {
                 selectedEdgeId = edgeId
                 selectedNode = nil
                 selectedLine = nil
+                appState.selectedFerroviaId = nil
                 print("🎯 [Map] Selected Track Segment: \(edgeId)")
             } else if editMode == .explore {
                 selectedNode = nil
                 selectedLine = nil
                 selectedEdgeId = nil
+                appState.selectedFerroviaId = nil
                 print("🎯 [Map] Selection Cleared")
             }
         }
@@ -2133,9 +2136,28 @@ struct InfrastructureCanvas: View {
                 
                 // Usa la nuova funzione per creare curve morbide
                 let path = createSmoothPath(points: points)
-                
                 let effectiveType = edge.trackType
                 var lineWidth: CGFloat = 1.0
+                
+                // --- HIGHLIGHT FERROVIA (BACK) ---
+                if let selectedFerrovia = appState.selectedFerrovia {
+                    let stationIds = selectedFerrovia.stationIds
+                    var isPartOfFerrovia = false
+                    for i in 0..<(stationIds.count - 1) {
+                        let s1 = stationIds[i]
+                        let s2 = stationIds[i+1]
+                        if (edge.from == s1 && edge.to == s2) || (edge.from == s2 && edge.to == s1) {
+                            isPartOfFerrovia = true
+                            break
+                        }
+                    }
+                    
+                    if isPartOfFerrovia {
+                        let fColor = Color(hex: selectedFerrovia.color ?? "#000000") ?? .blue
+                        context.stroke(path, with: .color(fColor.opacity(0.4)), style: StrokeStyle(lineWidth: 18, lineCap: .round))
+                    }
+                }
+                
                 if effectiveType == .highSpeed {
                     lineWidth = appState.trackWidthHighSpeed
                     context.stroke(path, with: .color(.red), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))

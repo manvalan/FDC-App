@@ -118,17 +118,16 @@ final class AppState: ObservableObject {
     
     // Multi-Selection Support
     @Published var isMultiSelectMode: Bool = false
-    @Published var selectedNodeIds: Set<String> = [] {
-        didSet {
-           // Maybe trigger inspector update?
-        }
-    }
+    @Published var selectedNodeIds: Set<String> = []
+    @Published var selectedNodeIdsOrder: [String] = []
     
     func toggleNodeSelection(_ id: String) {
         if selectedNodeIds.contains(id) {
             selectedNodeIds.remove(id)
+            selectedNodeIdsOrder.removeAll(where: { $0 == id })
         } else {
             selectedNodeIds.insert(id)
+            selectedNodeIdsOrder.append(id)
         }
         
         // If we are in single selection mode via toggle (shift-click?), we might want to update selectedNodeId
@@ -147,6 +146,15 @@ final class AppState: ObservableObject {
 
     @Published var selectedEdgeId: String? = nil { 
         didSet { updateInspectorVisibilityForSelection() }
+    }
+    
+    @Published var selectedFerroviaId: String? = nil {
+        didSet { updateInspectorVisibilityForSelection() }
+    }
+    
+    var selectedFerrovia: Ferrovia? {
+        guard let id = selectedFerroviaId else { return nil }
+        return railroad.network.ferrovie.first(where: { $0.id == id })
     }
     @Published var selectedTrainIds: Set<UUID> = [] { 
         didSet { updateInspectorVisibilityForSelection() }
@@ -224,7 +232,7 @@ final class AppState: ObservableObject {
         
         // Now supports multi-selection scenarios
         return selectedLineId != nil || selectedNodeId != nil || 
-               selectedEdgeId != nil || !selectedTrainIds.isEmpty ||
+               selectedEdgeId != nil || selectedFerroviaId != nil || !selectedTrainIds.isEmpty ||
                isInspectorEditingMode // Keep open if editing
     }
     
