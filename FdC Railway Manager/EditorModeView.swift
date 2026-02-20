@@ -63,105 +63,19 @@ struct EditorModeView: View {
                             mode: $appState.mapVisualizationMode 
                         )
                         .overlay(alignment: .top) {
-                            // Elegant Horizontal Toolbar (Top Center)
-                            HStack(spacing: 16) {
-                                Button(action: createStation) {
-                                    Label("Stazione", systemImage: "building.2.fill")
-                                }
-                                .help("Aggiungi Stazione")
-                                
-                                Button(action: { 
-                                    appState.isCreatingTrack.toggle()
-                                    if appState.isCreatingTrack {
-                                        appState.selectedNodeId = nil
-                                        appState.selectedEdgeId = nil
-                                    }
-                                }) {
-                                    Label("Binario", systemImage: "tram.fill")
-                                        .foregroundColor(appState.isCreatingTrack ? .blue : .primary)
-                                }
-                                .help("Crea Binario (Clicca due stazioni)")
-                                
-                                Divider().frame(height: 20)
-                                
-                                // Ferrovie
-                                Button(action: { createLogicalLine() }) {
-                                    Label("Ferrovia", systemImage: "plus.rectangle.on.rectangle")
-                                }
-                                .help("Crea Nuova Ferrovia")
-                                
-                                Button(action: { showLineList.toggle() }) {
-                                    Label("Ferrovie", systemImage: "list.bullet.rectangle")
-                                }
-                                .help("Lista Ferrovie")
-                                .popover(isPresented: $showLineList) {
-                                    FerrovieListPopover(onSelect: { ferrovia in
-                                        withAnimation(.spring()) {
-                                            selectedFerroviaId = ferrovia.id
-                                            appState.selectedLineId = nil
-                                            appState.selectedNodeId = nil
-                                            appState.selectedEdgeId = nil
-                                            appState.selectedNodeIds = Set(ferrovia.stationIds)
-                                            showLineList = false
-                                        }
-                                    }, onCreate: {
-                                        createNewFerrovia()
-                                    })
-                                    .frame(minWidth: 300, minHeight: 400)
-                                }
-                                
-                                Divider().frame(height: 20)
-                                
-                                Button(action: saveScenario) {
-                                    Label("Salva", systemImage: "square.and.arrow.down")
-                                }
-                                .help("Salva Scenario")
-                                
-                                Button(action: loadScenario) {
-                                    Label("Carica", systemImage: "folder")
-                                }
-                                .help("Carica Scenario")
-                                
-                                Divider().frame(height: 20)
-                                
-                                Button(action: toggleMultiSelect) {
-                                    Image(systemName: appState.isMultiSelectMode ? "checkmark.circle.fill" : "checkmark.circle")
-                                }
-                                .help("Multi-selezione")
-                                
-                                 if appState.selectedNodeIds.count > 1 {
-                                     Button(action: { createLineFromSelection() }) {
-                                         Label("Collega Nodi", systemImage: "arrow.triangle.merge")
-                                     }
-                                     .help("Crea Tracciato dai nodi selezionati")
-                                 }
-                                
-                                if !appState.selectedNodeIds.isEmpty || appState.selectedNodeId != nil || appState.selectedEdgeId != nil {
-                                    Button(action: deleteSelectedItems) {
-                                        Image(systemName: "trash")
-                                            .foregroundColor(.red)
-                                    }
-                                    .help("Elimina selezione")
-                                }
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .shadow(radius: 4)
-                            .padding(.top, 16)
+                            editorToolbar
+                                .padding(.top, 16)
                         }
                     }
                     
                     // Bottom Panel: Altimetric Profile
-                    if (appState.selectedLineId != nil) || (appState.selectedEdgeId != nil) || (appState.selectedNodeId != nil) || (appState.selectedNodeIds.count > 1) {
-                        Divider()
+                    let showProfile = (appState.selectedLineId != nil) || (appState.selectedEdgeId != nil) || (appState.selectedNodeId != nil) || (appState.selectedNodeIds.count > 1)
+                    FdCBottomPanel(
+                        isPresented: .constant(showProfile),
+                        title: "Profilo Altimetrico",
+                        preferredHeight: 300
+                    ) {
                         AltimetricProfileView(lockedNodeIds: $lockedNodeIds, selectedFerroviaId: $selectedFerroviaId)
-                            .frame(height: 300)
-                            .background(Color(UIColor.secondarySystemBackground))
-                            .cornerRadius(12, corners: [.topLeft, .topRight])
-                            .shadow(color: .black.opacity(0.15), radius: 10, y: -5)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
             }
@@ -187,6 +101,72 @@ struct EditorModeView: View {
         .onDisappear {
             loader.saveCurrentState()
         }
+    }
+    
+    // MARK: - Editor Toolbar
+    
+    private var editorToolbar: some View {
+        FdCToolbar(
+            items: editorToolbarItems,
+            onUndo: { appState.railroad.network.undo() },
+            onRedo: { appState.railroad.network.redo() },
+            canUndo: appState.railroad.network.canUndo,
+            canRedo: appState.railroad.network.canRedo
+        )
+    }
+    
+    private var editorToolbarItems: [FdCToolbarItem] {
+        var items: [FdCToolbarItem] = [
+            .button(icon: "building.2.fill", label: "Stazione", action: createStation),
+            .button(icon: "tram.fill", label: "Binario", action: {
+                appState.isCreatingTrack.toggle()
+                if appState.isCreatingTrack {
+                    appState.selectedNodeId = nil
+                    appState.selectedEdgeId = nil
+                }
+            }, isActive: appState.isCreatingTrack),
+            .divider,
+            .button(icon: "plus.rectangle.on.rectangle", label: "Ferrovia", action: createLogicalLine),
+            .custom(id: "ferrovie-list", content: AnyView(
+                Button(action: { showLineList.toggle() }) {
+                    Label("Ferrovie", systemImage: "list.bullet.rectangle")
+                }
+                .popover(isPresented: $showLineList) {
+                    FerrovieListPopover(onSelect: { ferrovia in
+                        withAnimation(.spring()) {
+                            selectedFerroviaId = ferrovia.id
+                            appState.selectedLineId = nil
+                            appState.selectedNodeId = nil
+                            appState.selectedEdgeId = nil
+                            appState.selectedNodeIds = Set(ferrovia.stationIds)
+                            showLineList = false
+                        }
+                    }, onCreate: {
+                        createNewFerrovia()
+                    })
+                    .frame(minWidth: 300, minHeight: 400)
+                }
+            )),
+            .divider,
+            .button(icon: "square.and.arrow.down", label: "Salva", action: saveScenario),
+            .button(icon: "folder", label: "Carica", action: loadScenario),
+            .divider,
+            .button(
+                icon: appState.isMultiSelectMode ? "checkmark.circle.fill" : "checkmark.circle",
+                action: toggleMultiSelect,
+                isActive: appState.isMultiSelectMode
+            ),
+        ]
+        
+        if appState.selectedNodeIds.count > 1 {
+            items.append(.button(icon: "arrow.triangle.merge", label: "Collega Nodi", action: createLineFromSelection))
+        }
+        
+        if !appState.selectedNodeIds.isEmpty || appState.selectedNodeId != nil || appState.selectedEdgeId != nil {
+            items.append(.button(icon: "trash", action: deleteSelectedItems, isDestructive: true))
+        }
+        
+        return items
     }
     
     // MARK: - Actions
