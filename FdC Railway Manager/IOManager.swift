@@ -18,7 +18,7 @@ final class IOManager: ObservableObject {
             name: "Current Network",
             nodes: railroad.network.nodes,
             edges: railroad.network.edges,
-            relazioni: railroad.network.relazioni,
+            ferrovie: railroad.network.ferrovie,
             lines: railroad.lines.lines,
             trains: railroad.lines.trains,
             vehicles: railroad.lines.vehicles
@@ -51,7 +51,7 @@ final class IOManager: ObservableObject {
         guard let railroad = railroad else { return }
         railroad.network.nodes = dto.nodes
         railroad.network.edges = dto.edges
-        railroad.network.relazioni = dto.relazioni ?? []
+        railroad.network.ferrovie = dto.ferrovie ?? []
         railroad.lines.lines = dto.lines ?? []
         railroad.lines.trains = dto.trains ?? []
         railroad.lines.vehicles = dto.vehicles ?? []

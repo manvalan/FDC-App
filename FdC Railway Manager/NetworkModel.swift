@@ -8,7 +8,7 @@ final class NetworkModel: ObservableObject {
     @Published var name: String = "My Network"
     @Published var nodes: [Node] = []
     @Published var edges: [Edge] = []
-    @Published var relazioni: [Relazione] = []
+    @Published var ferrovie: [Ferrovia] = []
     
     /// Global system owner
     weak var owner: RailroadNetwork?

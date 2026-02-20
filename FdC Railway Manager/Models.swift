@@ -16,11 +16,11 @@ typealias RailwayEdge = Edge // Disambiguation from SwiftUI.Edge
 typealias RailwayTrackSegment = TrackSegment
 typealias RailwayNode = Node
 
-// MARK: - Relazione (Infrastruttura Fisica)
-/// Una Relazione rappresenta un percorso fisico dell'infrastruttura ferroviaria:
+// MARK: - Ferrovia (Infrastruttura Fisica)
+/// Una Ferrovia rappresenta un percorso fisico dell'infrastruttura ferroviaria:
 /// un segmento della rete composto da una sequenza ordinata di stazioni/nodi collegati da binari.
 /// NON contiene informazioni di servizio (treni, orari, cadenzamento).
-struct Relazione: Identifiable, Codable, Hashable {
+struct Ferrovia: Identifiable, Codable, Hashable {
     let id: String
     var name: String
     var color: String? // Colore per visualizzazione (hex)
@@ -45,7 +45,7 @@ struct RailwayNetworkDTO: Codable {
     var name: String?
     let nodes: [Node]
     let edges: [Edge]
-    var relazioni: [Relazione]?
+    var ferrovie: [Ferrovia]?
     var lines: [RailwayLine]?
     var trains: [Train]?
     var vehicles: [Vehicle]?
@@ -53,14 +53,14 @@ struct RailwayNetworkDTO: Codable {
 
 extension NetworkModel {
     func toDTO() -> RailwayNetworkDTO {
-        return RailwayNetworkDTO(name: name, nodes: nodes, edges: edges, relazioni: relazioni, lines: nil, trains: nil)
+        return RailwayNetworkDTO(name: name, nodes: nodes, edges: edges, ferrovie: ferrovie, lines: nil, trains: nil)
     }
     
     func apply(dto: RailwayNetworkDTO) {
         self.name = dto.name ?? "Network"
         self.nodes = dto.nodes
         self.edges = dto.edges
-        self.relazioni = dto.relazioni ?? []
+        self.ferrovie = dto.ferrovie ?? []
     }
 }
 
@@ -467,7 +467,7 @@ struct Switch: Identifiable, Codable, Hashable {
     }
 }
 
-// Linea ferroviaria (insieme di stazioni con tempi di sosta) - Unificata con Relazione
+// Linea ferroviaria di servizio (insieme di stazioni con tempi di sosta, orari, treni)
 struct RailwayLine: Identifiable, Codable, Hashable {
     let id: String
     var name: String
@@ -528,7 +528,7 @@ struct RailwayLine: Identifiable, Codable, Hashable {
     }
 }
 
-// Fermata in una relazione (con tempo di sosta)
+// Fermata in una linea di servizio (con tempo di sosta)
 struct RelationStop: Identifiable, Codable, Hashable {
     var id: UUID = UUID()
     var stationId: String

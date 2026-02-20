@@ -83,7 +83,7 @@ struct LineCreationView: View {
     
     private var headerLabels: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(stationSequence.isEmpty ? "Crea nuova relazione" : "Configurazione percorso")
+            Text(stationSequence.isEmpty ? "Crea nuova linea" : "Configurazione percorso")
                 .font(.system(.subheadline, design: .rounded).bold())
             
             if !stationSequence.isEmpty {
@@ -284,7 +284,7 @@ struct LineCreationView: View {
                     }
                 }
             }
-            .navigationTitle("Dettagli Relazione")
+            .navigationTitle("Dettagli Linea")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

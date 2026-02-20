@@ -23,7 +23,7 @@ struct EditorModeView: View {
     @State private var lockedNodeIds: Set<String> = []
     @State private var isShowingLineCreation = false
     @State private var editingLineId: String? = nil
-    @State private var selectedRelazioneId: String? = nil
+    @State private var selectedFerroviaId: String? = nil
     
     // Altimetry State
     // REMOVED local isCreatingTrackMode to sync with appState
@@ -84,29 +84,28 @@ struct EditorModeView: View {
                                 
                                 Divider().frame(height: 20)
                                 
-                                // Logical Lines
+                                // Ferrovie
                                 Button(action: { createLogicalLine() }) {
-                                    Label("Relazione", systemImage: "plus.rectangle.on.rectangle")
+                                    Label("Ferrovia", systemImage: "plus.rectangle.on.rectangle")
                                 }
-                                .help("Crea Nuova Relazione Fisica")
+                                .help("Crea Nuova Ferrovia")
                                 
                                 Button(action: { showLineList.toggle() }) {
-                                    Label("Relazioni", systemImage: "list.bullet.rectangle")
+                                    Label("Ferrovie", systemImage: "list.bullet.rectangle")
                                 }
-                                .help("Lista Relazioni")
+                                .help("Lista Ferrovie")
                                 .popover(isPresented: $showLineList) {
-                                    RelazioniListPopover(onSelect: { relazione in
+                                    FerrovieListPopover(onSelect: { ferrovia in
                                         withAnimation(.spring()) {
-                                            selectedRelazioneId = relazione.id
+                                            selectedFerroviaId = ferrovia.id
                                             appState.selectedLineId = nil
                                             appState.selectedNodeId = nil
                                             appState.selectedEdgeId = nil
-                                            // Set selectedNodeIds to the relazione's stations for altimetric profile
-                                            appState.selectedNodeIds = Set(relazione.stationIds)
+                                            appState.selectedNodeIds = Set(ferrovia.stationIds)
                                             showLineList = false
                                         }
                                     }, onCreate: {
-                                        createNewRelazione()
+                                        createNewFerrovia()
                                     })
                                     .frame(minWidth: 300, minHeight: 400)
                                 }
@@ -157,7 +156,7 @@ struct EditorModeView: View {
                     // Bottom Panel: Altimetric Profile
                     if (appState.selectedLineId != nil) || (appState.selectedEdgeId != nil) || (appState.selectedNodeId != nil) || (appState.selectedNodeIds.count > 1) {
                         Divider()
-                        AltimetricProfileView(lockedNodeIds: $lockedNodeIds, selectedRelazioneId: $selectedRelazioneId)
+                        AltimetricProfileView(lockedNodeIds: $lockedNodeIds, selectedFerroviaId: $selectedFerroviaId)
                             .frame(height: 300)
                             .background(Color(UIColor.secondarySystemBackground))
                             .cornerRadius(12, corners: [.topLeft, .topRight])
@@ -227,18 +226,16 @@ struct EditorModeView: View {
         }
     }
     
-    func createNewRelazione() {
-        let count = appState.railroad.network.relazioni.count + 1
-        let newRelazione = Relazione(
-            name: "Relazione \(count)",
+    func createNewFerrovia() {
+        let count = appState.railroad.network.ferrovie.count + 1
+        let newFerrovia = Ferrovia(
+            name: "Ferrovia \(count)",
             color: ["#3498db", "#e74c3c", "#2ecc71", "#f39c12", "#9b59b6", "#1abc9c"][count % 6],
             stationIds: Array(appState.selectedNodeIds)
         )
-        appState.railroad.network.relazioni.append(newRelazione)
-        selectedRelazioneId = newRelazione.id
-        // Set selectedNodeIds so altimetric profile can display the relazione's stations
-        appState.selectedNodeIds = Set(newRelazione.stationIds)
-        // Force UI refresh for nested ObservableObject
+        appState.railroad.network.ferrovie.append(newFerrovia)
+        selectedFerroviaId = newFerrovia.id
+        appState.selectedNodeIds = Set(newFerrovia.stationIds)
         appState.objectWillChange.send()
     }
     
@@ -474,7 +471,7 @@ struct StationPropertyEditor: View {
                               let line = appState.railroad.lines.findLine(id: lineId) {
                         lineEditor(line: line)
                     } else {
-                        Text("Seleziona una relazione, stazione o binario per modificare le proprietà.")
+                        Text("Seleziona una ferrovia, stazione o binario per modificare le proprietà.")
                             .multilineTextAlignment(.center)
                             .foregroundColor(.secondary)
                             .padding()
@@ -552,11 +549,11 @@ struct StationPropertyEditor: View {
         }
         if let lineId = appState.selectedLineId, let line = appState.railroad.lines.findLine(id: lineId) {
             Divider()
-            GroupBox("Relazione: \(line.name)") {
+            GroupBox("Linea: \(line.name)") {
                 Button(action: {
                     addStationToLine(node: node, line: line)
                 }) {
-                    Label("Aggiungi a Relazione", systemImage: "plus.circle")
+                    Label("Aggiungi a Linea", systemImage: "plus.circle")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -683,7 +680,7 @@ struct StationPropertyEditor: View {
     private func lineEditor(line: RailwayLine) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Relazione: \(line.name)")
+                Text("Linea: \(line.name)")
                     .font(.headline)
                 Spacer()
                 
@@ -913,7 +910,7 @@ struct StationPropertyEditor: View {
 struct AltimetricProfileView: View {
     @EnvironmentObject var appState: AppState
     @Binding var lockedNodeIds: Set<String>
-    @Binding var selectedRelazioneId: String?
+    @Binding var selectedFerroviaId: String?
     
     @State private var altitudeEditNodeId: String? = nil
     @State private var altitudeEditText: String = ""
@@ -969,7 +966,7 @@ struct AltimetricProfileView: View {
     private var headerView: some View {
         HStack {
             Menu {
-                Text("Seleziona Relazione")
+                Text("Seleziona Ferrovia")
                 Divider()
                 ForEach(appState.railroad.lines.lines) { line in
                     Button(line.name) {
@@ -981,7 +978,7 @@ struct AltimetricProfileView: View {
                 }
             } label: {
                 HStack {
-                    Text(appState.selectedLineId != nil ? (appState.railroad.lines.findLine(id: appState.selectedLineId!)?.name ?? "Relazione") : "Profilo Altimetrico")
+                    Text(appState.selectedLineId != nil ? (appState.railroad.lines.findLine(id: appState.selectedLineId!)?.name ?? "Ferrovia") : "Profilo Altimetrico")
                         .font(.caption.bold())
                     Image(systemName: "chevron.down")
                         .font(.caption)
@@ -1014,12 +1011,12 @@ struct AltimetricProfileView: View {
             profileGraph(stations: stations, line: line, geo: geo)
             
         } else if appState.selectedNodeIds.count > 1 {
-            // If a relazione is selected, preserve its station order
-            let currentRelId = selectedRelazioneId
+            // If a ferrovia is selected, preserve its station order
+            let currentFerroviaId = selectedFerroviaId
             let stations: [Node] = {
-                if let relId = currentRelId,
-                   let rel = appState.railroad.network.relazioni.first(where: { $0.id == relId }) {
-                    return rel.stationIds.compactMap { sid in
+                if let fId = currentFerroviaId,
+                   let fer = appState.railroad.network.ferrovie.first(where: { $0.id == fId }) {
+                    return fer.stationIds.compactMap { sid in
                         appState.railroad.network.nodes.first(where: { $0.id == sid })
                     }
                 }
@@ -1715,15 +1712,15 @@ struct MultiSelectionEditor: View {
     }
 }
 
-struct RelazioniListPopover: View {
+struct FerrovieListPopover: View {
     @EnvironmentObject var appState: AppState
-    var onSelect: (Relazione) -> Void
+    var onSelect: (Ferrovia) -> Void
     var onCreate: () -> Void
     
     var body: some View {
         VStack {
             HStack {
-                Text("Relazioni Fisiche")
+                Text("Ferrovie")
                     .font(.headline)
                 Spacer()
                 Button(action: onCreate) {
@@ -1732,15 +1729,15 @@ struct RelazioniListPopover: View {
             }
             .padding()
             
-            if appState.railroad.network.relazioni.isEmpty {
+            if appState.railroad.network.ferrovie.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "point.topleft.down.to.point.bottomright.curvepath")
                         .font(.largeTitle)
                         .foregroundColor(.secondary)
-                    Text("Nessuna relazione")
+                    Text("Nessuna ferrovia")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                    Text("Crea una relazione per definire un percorso fisico della rete")
+                    Text("Crea una ferrovia per definire un percorso fisico della rete")
                         .font(.caption)
                         .foregroundColor(.secondary.opacity(0.7))
                         .multilineTextAlignment(.center)
@@ -1748,15 +1745,15 @@ struct RelazioniListPopover: View {
                 .padding()
             } else {
                 List {
-                    ForEach(appState.railroad.network.relazioni) { relazione in
-                        Button(action: { onSelect(relazione) }) {
+                    ForEach(appState.railroad.network.ferrovie) { ferrovia in
+                        Button(action: { onSelect(ferrovia) }) {
                            HStack {
                                Circle()
-                                   .fill(relazione.uiColor)
+                                   .fill(ferrovia.uiColor)
                                    .frame(width: 8, height: 8)
-                               Text(relazione.name)
+                               Text(ferrovia.name)
                                Spacer()
-                               Text("\(relazione.stationIds.count) staz.")
+                               Text("\(ferrovia.stationIds.count) staz.")
                                    .font(.caption)
                                    .foregroundColor(.secondary)
                            }
@@ -1764,16 +1761,16 @@ struct RelazioniListPopover: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    .onDelete(perform: deleteRelazione)
+                    .onDelete(perform: deleteFerrovia)
                 }
             }
         }
     }
     
-    func deleteRelazione(at offsets: IndexSet) {
+    func deleteFerrovia(at offsets: IndexSet) {
         offsets.forEach { index in
-            let rel = appState.railroad.network.relazioni[index]
-            appState.railroad.network.relazioni.removeAll { $0.id == rel.id }
+            let fer = appState.railroad.network.ferrovie[index]
+            appState.railroad.network.ferrovie.removeAll { $0.id == fer.id }
         }
     }
 }

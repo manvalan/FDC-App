@@ -12,7 +12,7 @@ final class RailroadNetwork: ObservableObject {
     /// Network: Tutto quello che si riferisce alla rete fisica (Stazioni, Binari, ecc.)
     @Published var network: NetworkModel
     
-    /// Linee: Le relazioni che saranno percorse da un treno (Lines, Trains)
+    /// Linee: Le linee di servizio percorse dai treni (Lines, Trains)
     @Published var lines: LinesManager
     
     /// Impostazioni: Dati di setup

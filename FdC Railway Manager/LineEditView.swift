@@ -119,7 +119,7 @@ struct LineEditView: View {
                     suggestionsOverlay
                 }
             }
-            .navigationTitle("Dettagli Relazione")
+            .navigationTitle("Dettagli Linea")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("cancel".localized) { dismiss() }
@@ -234,7 +234,7 @@ struct LineEditView: View {
                     }
                 }
             }
-            ColorPicker("Colore Relazione", selection: $lineColor, supportsOpacity: false)
+            ColorPicker("Colore Linea", selection: $lineColor, supportsOpacity: false)
                 
             Section(header: Text("capolinea_e_binari".localized)) {
                 if let startNode = network.nodes.first(where: { $0.id == stationSequence.first }) {

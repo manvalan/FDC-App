@@ -44,7 +44,7 @@ struct LineCreationInspectorView: View {
             Text("Tocca le stazioni sulla mappa")
                 .font(.headline)
 
-            Text("Seleziona le stazioni una dopo l'altra per creare il percorso della relazione")
+            Text("Seleziona le stazioni una dopo l'altra per creare il percorso della linea")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -183,13 +183,13 @@ struct LineCreationInspectorView: View {
     private var detailsFormView: some View {
         ScrollView {
             VStack(spacing: 24) {
-                InspectorSection(title: "Dettagli Relazione", icon: "pencil", iconColor: .blue) {
-                    InspectorTextField(label: "Nome relazione", text: $lineName, placeholder: "es. Milano-Roma")
+                InspectorSection(title: "Dettagli Linea", icon: "pencil", iconColor: .blue) {
+                    InspectorTextField(label: "Nome linea", text: $lineName, placeholder: "es. Milano-Roma")
                     
                     InspectorTextField(label: "Prefisso codice", text: $codePrefix, placeholder: "es. IC")
                     
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Numero relazione")
+                        Text("Numero linea")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         TextField("es. 600", value: $numberPrefix, format: .number)
@@ -197,7 +197,7 @@ struct LineCreationInspectorView: View {
                             .keyboardType(.numberPad)
                     }
                     
-                    ColorPicker("Colore relazione", selection: $lineColor)
+                    ColorPicker("Colore linea", selection: $lineColor)
                         .padding(.vertical, 4)
                 }
                 
@@ -232,7 +232,7 @@ struct LineCreationInspectorView: View {
                         Button(action: saveLine) {
                         HStack {
                             Image(systemName: "checkmark.circle.fill")
-                            Text("Salva Relazione")
+                            Text("Salva Linea")
                                 .font(.headline)
                         }
                         .frame(maxWidth: .infinity)
