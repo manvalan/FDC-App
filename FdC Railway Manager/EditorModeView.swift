@@ -66,6 +66,10 @@ struct EditorModeView: View {
                             editorToolbar
                                 .padding(.top, 16)
                         }
+                        .overlay(alignment: .leading) {
+                            verticalToolbox
+                                .padding(.leading, 16)
+                        }
                     }
                     
                     // Bottom Panel: Altimetric Profile
@@ -149,25 +153,10 @@ struct EditorModeView: View {
     
     private var editorToolbarItems: [FdCToolbarItem] {
         var items: [FdCToolbarItem] = [
-            .button(icon: "building.2.fill", label: "Stazione", action: createStation),
-            .button(icon: "tram.fill", label: "Binario", action: {
-                appState.isCreatingTrack.toggle()
-                if appState.isCreatingTrack {
-                    appState.selectedNodeId = nil
-                    appState.selectedEdgeId = nil
-                }
-            }, isActive: appState.isCreatingTrack),
-            .divider,
-            .button(icon: "plus.rectangle.on.rectangle", label: "Ferrovia", action: {
-                if appState.selectedNodeIds.count > 1 {
-                    createNewFerrovia()
-                } else {
-                    createLogicalLine()
-                }
-            }),
             .custom(id: "ferrovie-list", content: AnyView(
                 Button(action: { showLineList.toggle() }) {
-                    Label("Ferrovie", systemImage: "list.bullet.rectangle")
+                    Label("Gestisci Ferrovie", systemImage: "tray.full.fill")
+                        .font(.headline)
                 }
                 .popover(isPresented: $showLineList) {
                     FerrovieListPopover(onSelect: { ferrovia in
@@ -182,29 +171,56 @@ struct EditorModeView: View {
                     }, onCreate: {
                         createNewFerrovia()
                     })
-                    .frame(minWidth: 300, minHeight: 400)
+                    .frame(minWidth: 320, minHeight: 400)
                 }
             )),
             .divider,
-            .button(icon: "square.and.arrow.down", label: "Salva", action: saveScenario),
-            .button(icon: "folder", label: "Carica", action: loadScenario),
-            .divider,
-            .button(
-                icon: appState.isMultiSelectMode ? "checkmark.circle.fill" : "checkmark.circle",
-                action: toggleMultiSelect,
-                isActive: appState.isMultiSelectMode
-            ),
+            .button(icon: "square.and.arrow.down", label: "Esporta", action: saveScenario),
+            .button(icon: "folder", label: "Apri", action: loadScenario),
         ]
         
-        if appState.selectedNodeIds.count > 1 {
-            items.append(.button(icon: "arrow.triangle.merge", label: "Collega Nodi", action: createLineFromSelection))
-        }
-        
-        if !appState.selectedNodeIds.isEmpty || appState.selectedNodeId != nil || appState.selectedEdgeId != nil {
-            items.append(.button(icon: "trash", action: deleteSelectedItems, isDestructive: true))
-        }
-        
         return items
+    }
+    
+    private var verticalToolbox: some View {
+        VStack(spacing: 12) {
+            Group {
+                ToolIcon(icon: "building.2.fill", label: "S", help: "Nuova Stazione", active: false) {
+                    createStation()
+                }
+                
+                ToolIcon(icon: "tram.fill", label: "B", help: "Nuovo Binario", active: appState.isCreatingTrack) {
+                    appState.isCreatingTrack.toggle()
+                    if appState.isCreatingTrack {
+                        appState.selectedNodeId = nil
+                        appState.selectedEdgeId = nil
+                        selectedFerroviaId = nil
+                    }
+                }
+                
+                ToolIcon(icon: "plus.rectangle.on.rectangle", label: "F", help: "Crea Ferrovia", active: false) {
+                    if appState.selectedNodeIds.count > 1 {
+                        createNewFerrovia()
+                    }
+                }
+                .disabled(appState.selectedNodeIds.count < 2)
+                
+                Divider().frame(width: 30)
+                
+                ToolIcon(icon: appState.isMultiSelectMode ? "checkmark.circle.fill" : "checkmark.circle", label: "M", help: "Multiselezione", active: appState.isMultiSelectMode) {
+                    toggleMultiSelect()
+                }
+                
+                if !appState.selectedNodeIds.isEmpty || appState.selectedNodeId != nil || appState.selectedEdgeId != nil || selectedFerroviaId != nil {
+                    ToolIcon(icon: "trash", label: "", help: "Elimina", active: false, isDestructive: true) {
+                        deleteSelectedItems()
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 15))
+        .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
     }
     
     // MARK: - Actions
@@ -317,7 +333,11 @@ struct EditorModeView: View {
             appState.selectedEdgeId = nil
             appState.selectedLineId = nil
             selectedFerroviaId = nil
-            appState.showPanel(.inspector)
+            
+            // Non mostrare l'ispettore se stiamo creando binari o se abbiamo appena selezionato il secondo nodo per un binario
+            if !appState.isCreatingTrack {
+                appState.showPanel(.inspector)
+            }
         }
     }
     
@@ -469,6 +489,34 @@ struct EditorButtonStyle: ButtonStyle {
     }
 }
 
+struct ToolIcon: View {
+    let icon: String
+    let label: String
+    let help: String
+    let active: Bool
+    var isDestructive: Bool = false
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .bold))
+                if !label.isEmpty {
+                    Text(label)
+                        .font(.system(size: 10, weight: .black))
+                }
+            }
+            .frame(width: 44, height: 44)
+            .background(active ? Color.blue : (isDestructive ? Color.red.opacity(0.1) : Color.white.opacity(0.1)))
+            .foregroundColor(active ? .white : (isDestructive ? .red : .primary))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .help(help)
+    }
+}
+
 struct StationPropertyEditor: View {
     @EnvironmentObject var appState: AppState
     @Binding var editingLineId: String?
@@ -485,11 +533,8 @@ struct StationPropertyEditor: View {
                 } else if let ferroviaId = selectedFerroviaId,
                           let ferrovia = appState.railroad.network.ferrovie.first(where: { $0.id == ferroviaId }) {
                     ferroviaEditor(ferrovia: ferrovia)
-                } else if let lineId = appState.selectedLineId,
-                          let line = appState.railroad.lines.findLine(id: lineId) {
-                    lineEditor(line: line)
                 } else {
-                    Text("Seleziona una ferrovia, stazione o binario per modificare le proprietà.")
+                    Text("Seleziona una ferrovia, stazione o binario per modificare le proprietà fisiche.")
                         .multilineTextAlignment(.center)
                         .foregroundColor(.secondary)
                         .padding()
@@ -564,19 +609,23 @@ struct StationPropertyEditor: View {
             }
             .padding(8)
         }
-        if let lineId = appState.selectedLineId, let line = appState.railroad.lines.findLine(id: lineId) {
-            Divider()
-            GroupBox("Linea: \(line.name)") {
-                Button(action: {
-                    addStationToLine(node: node, line: line)
-                }) {
-                    Label("Aggiungi a Linea", systemImage: "plus.circle")
-                        .frame(maxWidth: .infinity)
+        
+        // Only show service line associations if NOT in infrastructure editor mode
+        if appState.currentMode != .editor && appState.currentMode != .design {
+            if let lineId = appState.selectedLineId, let line = appState.railroad.lines.findLine(id: lineId) {
+                Divider()
+                GroupBox("Linea: \(line.name)") {
+                    Button(action: {
+                        addStationToLine(node: node, line: line)
+                    }) {
+                        Label("Aggiungi a Linea", systemImage: "plus.circle")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(line.stations.contains(node.id))
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(line.stations.contains(node.id))
+                .padding(8)
             }
-            .padding(8)
         }
         
         Divider()

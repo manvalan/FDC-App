@@ -4,7 +4,7 @@ extension ContentView {
     @ViewBuilder
     var detailContent: some View {
         ZStack {
-            if appState.currentMode == .design {
+            if appState.currentMode == .design || appState.currentMode == .editor {
                 EditorModeView()
             } else {
                 switch appState.sidebarSelection {

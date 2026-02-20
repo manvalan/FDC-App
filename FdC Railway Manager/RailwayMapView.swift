@@ -1012,6 +1012,7 @@ struct SchematicRailwayView: View {
             
             mainViewContainer(size: size, bounds: bounds, renderData: renderData)
         }
+        .simultaneousGesture(zoomGesture)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 // Zoom to Fit
@@ -1100,7 +1101,6 @@ struct SchematicRailwayView: View {
                 .frame(width: size.width, height: size.height)
                 .id("content")
             }
-            .simultaneousGesture(zoomGesture)
             .onChange(of: appState.selectedNodeId) { _, newNodeId in
                 if let node = network.nodes.first(where: { $0.id == newNodeId }) {
                     centerOnNode(node, size: size, bounds: bounds, proxy: proxy)
@@ -1169,7 +1169,7 @@ struct SchematicRailwayView: View {
             )
             .allowsHitTesting(false)
             
-            if !appState.simulator.schedules.isEmpty {
+            if !appState.simulator.schedules.isEmpty && mode.isSchedulerMode {
                 TrainOverlayCanvas(bounds: bounds, canvasSize: size, totalZoom: totalZoom)
                     .allowsHitTesting(false)
             }

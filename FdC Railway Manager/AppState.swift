@@ -219,6 +219,9 @@ final class AppState: ObservableObject {
     }
     
     private func shouldShowInspectorForSelection() -> Bool {
+        // Don't show the generic inspector if we are in track creation mode
+        if isCreatingTrack { return false }
+        
         // Now supports multi-selection scenarios
         return selectedLineId != nil || selectedNodeId != nil || 
                selectedEdgeId != nil || !selectedTrainIds.isEmpty ||
@@ -232,6 +235,13 @@ final class AppState: ObservableObject {
     }
     
     private func updateMapVisualizationMode() {
+        // In Editor mode, we ALWAYS want to see the physical infrastructure (schematic)
+        // and NEVER the logical service lines (scheduler).
+        if currentMode == .editor {
+            mapVisualizationMode = .schematic
+            return
+        }
+        
         // Show colored lines when:
         // 1. Sidebar is on "Lines" or "Trains" section, OR
         // 2. A specific line is selected
