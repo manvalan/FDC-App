@@ -115,7 +115,13 @@ struct ModernInspectorPanel: View {
                             appState.lineDraftStations.removeAll()
                             appState.stationPickingCallback = nil
                         } else {
-                            appState.clearSelection()
+                            // Clear individual selections but keep inspector open
+                            appState.selectedNodeId = nil
+                            appState.selectedEdgeId = nil
+                            appState.selectedLineId = nil
+                            appState.selectedFerroviaId = nil
+                            appState.selectedTrainIds.removeAll()
+                            appState.selectedVehicleId = nil
                         }
                     }) {
                         Image(systemName: "chevron.left.circle.fill")
@@ -125,8 +131,17 @@ struct ModernInspectorPanel: View {
                 }
                 
                 // Close button
-                Button(action: { 
-                    appState.showPanel(.none) 
+                Button(action: {
+                    // Reset creationLineId if we're showing schedule creation
+                    if appState.creationLineId != nil {
+                        appState.creationLineId = nil
+                    }
+                    
+                    // Clear selections when closing the main inspector panel
+                    // Note: This overlay only appears in non-editor modes (see ContentView.swift line 43)
+                    // so we always clear selections here
+                    appState.clearSelection()
+                    appState.showPanel(.none)
                 }) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.title3)
@@ -141,12 +156,12 @@ struct ModernInspectorPanel: View {
                 .background(appState.theme.line.opacity(0.2))
                 .padding(.horizontal, 16)
             
-            // Tab selector for "Rete" and "Binari"
-            if appState.selectedLine == nil && appState.selectedNode == nil && appState.selectedEdgeId == nil && (appState.sidebarSelection == .stations || appState.sidebarSelection == .tracks) {
+            // Tab selector for "Stazioni", "Binari", and "Ferrovie"
+            if appState.selectedLine == nil && appState.selectedNode == nil && appState.selectedEdgeId == nil && (appState.sidebarSelection == .stations || appState.sidebarSelection == .tracks || appState.sidebarSelection == .ferrovie) {
                 HStack(spacing: 0) {
                     Button(action: { appState.sidebarSelection = .stations }) {
                         Text("Stazioni")
-                            .font(.headline)
+                            .font(.caption)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
                             .background(appState.sidebarSelection == .stations ? appState.theme.accent.opacity(0.12) : Color.clear)
@@ -156,12 +171,21 @@ struct ModernInspectorPanel: View {
                     
                     Button(action: { appState.sidebarSelection = .tracks }) {
                         Text("Binari")
-                            .font(.headline)
+                            .font(.caption)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
                             .background(appState.sidebarSelection == .tracks ? appState.theme.accent.opacity(0.12) : Color.clear)
                     }
                     .foregroundColor(appState.sidebarSelection == .tracks ? appState.theme.accent : appState.theme.dark)
+                    
+                    Button(action: { appState.sidebarSelection = .ferrovie }) {
+                        Text("Ferrovie")
+                            .font(.caption)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(appState.sidebarSelection == .ferrovie ? appState.theme.accent.opacity(0.12) : Color.clear)
+                    }
+                    .foregroundColor(appState.sidebarSelection == .ferrovie ? appState.theme.accent : appState.theme.dark)
                     .cornerRadius(10, corners: [.topRight, .bottomRight])
                 }
                 .padding(.horizontal)
@@ -172,7 +196,7 @@ struct ModernInspectorPanel: View {
             }
             
             // Content
-            if appState.sidebarSelection == .stations || appState.sidebarSelection == .tracks || appState.sidebarSelection == .lines || appState.sidebarSelection == .vehicles {
+            if appState.sidebarSelection == .stations || appState.sidebarSelection == .tracks || appState.sidebarSelection == .ferrovie || appState.sidebarSelection == .lines || appState.sidebarSelection == .vehicles {
                 // For list views, don't wrap in ScrollView - they handle their own scrolling
                 VStack(spacing: 0) {
                     if appState.isShowingSettings {
@@ -405,6 +429,8 @@ struct ModernInspectorPanel: View {
             stationsList
         case .tracks:
             tracksList
+        case .ferrovie:
+            ferrovieList
         case .lines:
             relazioniList
         case .trains:
@@ -531,6 +557,55 @@ struct ModernInspectorPanel: View {
             .scrollContentBackground(.hidden)
             .environment(\.editMode, $isListEditMode)
         }
+    }
+    
+    private var ferrovieList: some View {
+        let ferrovie = appState.railroad.network.sortedFerrovie
+        return FdCEntityList(
+                title: String(format: "Ferrovie: %d", ferrovie.count),
+                items: ferrovie,
+                selectedItemId: Binding(
+                    get: { appState.selectedFerroviaId },
+                    set: { appState.selectedFerroviaId = $0 }
+                ),
+                rowContent: { ferrovia in
+                    HStack {
+                        Circle()
+                            .fill(ferrovia.uiColor)
+                            .frame(width: 8, height: 8)
+                        Text(ferrovia.name)
+                            .font(.subheadline)
+                        Spacer()
+                        Text("\(ferrovia.stationIds.count) stazioni")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                },
+                searchText: { $0.name },
+                onSelect: { ferrovia in
+                    appState.selectedFerroviaId = ferrovia.id
+                    appState.selectedNodeIds = Set(ferrovia.stationIds)
+                    appState.selectedNodeIdsOrder = ferrovia.stationIds
+                    appState.selectedNodeId = nil
+                    appState.selectedEdgeId = nil
+                    appState.selectedLineId = nil
+                },
+                onAdd: {
+                    appState.isMultiSelectMode = true
+                },
+                onDelete: { ferrovia in
+                    if appState.selectedFerroviaId == ferrovia.id {
+                        appState.selectedFerroviaId = nil
+                    }
+                    appState.railroad.network.ferrovie.removeAll { $0.id == ferrovia.id }
+                    appState.railroad.network.createCheckpoint()
+                },
+                onDeleteAll: {
+                    appState.railroad.network.ferrovie.removeAll()
+                    appState.selectedFerroviaId = nil
+                    appState.railroad.network.createCheckpoint()
+                }
+            )
     }
     
     private var relazioniList: some View {
@@ -694,3 +769,5 @@ struct EdgeGestureDetectors: View {
             )
     }
 }
+
+

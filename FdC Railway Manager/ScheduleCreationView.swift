@@ -61,6 +61,9 @@ struct ScheduleCreationView: View {
     @State private var manualStationId: String = ""
     @State private var isInitializing: Bool = true
     
+    // Stop Pattern - Track which stops should be skipped
+    @State private var skippedStopIds: Set<String> = []
+    
     // Paired Return
     @State private var scheduleReturn: Bool = true // Enabled by default in this layout
     @State private var returnStartTime: Date = Date()
@@ -162,6 +165,29 @@ struct ScheduleCreationView: View {
                 print("⚠️ [onChange] Conditions not met - confirmed: \(confirmed), previewData: \(appState.optimizedTimesPreviewData != nil)")
             }
         }
+    }
+    
+    /// Updates stationSequence to include all stations between startStationId and endStationId
+    private func updateStationSequenceFromSelection() {
+        guard !startStationId.isEmpty, !endStationId.isEmpty else { return }
+        
+        // Find indices in line.stations
+        guard let startIdx = line.stations.firstIndex(of: startStationId),
+              let endIdx = line.stations.firstIndex(of: endStationId) else {
+            print("⚠️ Start or end station not found in line.stations")
+            return
+        }
+        
+        // Ensure start comes before end
+        if startIdx <= endIdx {
+            // Normal direction: start → end
+            stationSequence = Array(line.stations[startIdx...endIdx])
+        } else {
+            // Reversed direction: end → start (user picked them backwards)
+            stationSequence = Array(line.stations[endIdx...startIdx].reversed())
+        }
+        
+        print("✅ Updated stationSequence: \(stationSequence.count) stations from \(stationName(startStationId)) to \(stationName(endStationId))")
     }
     
     private func triggerLineAnalysis() {
@@ -313,6 +339,153 @@ struct ScheduleCreationView: View {
             .cornerRadius(16)
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
         }
+        .padding(.horizontal)
+    }
+    
+    private var stopPatternSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("SCHEMA FERMATE")
+                    .font(.system(.caption, design: .rounded).bold())
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                // Quick pattern buttons
+                Button(action: {
+                    // Local (all stops)
+                    skippedStopIds.removeAll()
+                }) {
+                    Text("Locale")
+                        .font(.caption2.bold())
+                        .foregroundColor(skippedStopIds.isEmpty ? .white : .blue)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(skippedStopIds.isEmpty ? Color.blue : Color.blue.opacity(0.2))
+                        .cornerRadius(6)
+                }
+                
+                Button(action: {
+                    // Intercity (skip stations without square symbol, keep first and last)
+                    skippedStopIds.removeAll()
+                    if stationSequence.count > 2 {
+                        for i in 1..<(stationSequence.count - 1) {
+                            let stationId = stationSequence[i]
+                            if let station = network.nodes.first(where: { $0.id == stationId }) {
+                                // Skip if NOT a square station (keep only squares + first/last)
+                                if station.visualType != .filledSquare && station.visualType != .emptySquare {
+                                    skippedStopIds.insert(stationId)
+                                }
+                            }
+                        }
+                    }
+                }) {
+                    Text("Intercity")
+                        .font(.caption2.bold())
+                        .foregroundColor(.purple)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.purple.opacity(0.2))
+                        .cornerRadius(6)
+                }
+                
+                Button(action: {
+                    // Express (skip intermediate stops, keep first and last)
+                    skippedStopIds.removeAll()
+                    if stationSequence.count > 2 {
+                        for i in 1..<(stationSequence.count - 1) {
+                            skippedStopIds.insert(stationSequence[i])
+                        }
+                    }
+                }) {
+                    Text("Diretto")
+                        .font(.caption2.bold())
+                        .foregroundColor(skippedStopIds.count == max(0, stationSequence.count - 2) ? .white : .orange)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(skippedStopIds.count == max(0, stationSequence.count - 2) ? Color.orange : Color.orange.opacity(0.2))
+                        .cornerRadius(6)
+                }
+            }
+            
+            if stationSequence.count >= 2 {
+                VStack(spacing: 8) {
+                    ForEach(Array(stationSequence.enumerated()), id: \.offset) { index, stationId in
+                        let isFirst = index == 0
+                        let isLast = index == stationSequence.count - 1
+                        let isSkipped = skippedStopIds.contains(stationId)
+                        
+                        HStack(spacing: 12) {
+                            // Stop indicator
+                            ZStack {
+                                Circle()
+                                    .fill(isSkipped ? Color.gray.opacity(0.3) : Color.blue)
+                                    .frame(width: 16, height: 16)
+                                
+                                if !isSkipped {
+                                    Circle()
+                                        .fill(Color.white)
+                                        .frame(width: 6, height: 6)
+                                }
+                            }
+                            
+                            // Station name
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(stationName(stationId))
+                                    .font(.subheadline)
+                                    .foregroundColor(isSkipped ? .secondary : .primary)
+                                
+                                if isFirst {
+                                    Text("Partenza")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                } else if isLast {
+                                    Text("Arrivo")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                } else if isSkipped {
+                                    Text("Transito senza fermata")
+                                        .font(.caption2)
+                                        .foregroundColor(.orange)
+                                }
+                            }
+                            
+                            Spacer()
+                            
+                            // Toggle skip (disabled for first and last station)
+                            if !isFirst && !isLast {
+                                Button(action: {
+                                    if isSkipped {
+                                        skippedStopIds.remove(stationId)
+                                    } else {
+                                        skippedStopIds.insert(stationId)
+                                    }
+                                }) {
+                                    Image(systemName: isSkipped ? "circle" : "checkmark.circle.fill")
+                                        .foregroundColor(isSkipped ? .gray : .green)
+                                        .font(.title3)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(isSkipped ? Color.gray.opacity(0.05) : Color.blue.opacity(0.05))
+                        .cornerRadius(10)
+                    }
+                }
+            } else {
+                Text("Aggiungi almeno 2 stazioni per configurare lo schema fermate")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .italic()
+                    .padding()
+            }
+        }
+        .padding()
+        .background(.ultraThinMaterial)
+        .cornerRadius(16)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
         .padding(.horizontal)
     }
 
@@ -664,29 +837,6 @@ struct ScheduleCreationView: View {
         if preferredParity == .even && !isEven { currentStart += 1 }
         if preferredParity == .odd && isEven { currentStart += 1 }
 
-        let outwardStops = stationSequence.enumerated().map { index, sid -> RelationStop in
-            let node = network.nodes.first(where: { $0.id == sid })
-            let defaultDwell = (node?.type == .interchange) ? 5 : 3
-            
-            // Platform assignment logic:
-            // - Departure station: Use platform 1
-            // - Arrival station: Use platform 1 (will switch for return)
-            // - Intermediate stations: Use platform 1 for outward direction
-            let isFirst = index == 0
-            let isLast = index == stationSequence.count - 1
-            let track: String
-            
-            if isFirst || isLast {
-                // Terminal stations: use platform 1 for outward
-                track = "1"
-            } else {
-                // Intermediate stations: use platform 1 (same direction)
-                track = "1"
-            }
-            
-            return RelationStop(stationId: sid, minDwellTime: defaultDwell, track: track)
-        }
-        
         let normalizedStart = normalizeDate(startTime)
         let normalizedRStartDraft = normalizeDate(returnStartTime)
 
@@ -728,7 +878,8 @@ struct ScheduleCreationView: View {
             stationSequence: stationSequence,
             acceleration: physics.acceleration,
             deceleration: physics.deceleration,
-            preferredTrack: "1"
+            preferredTrack: "1",
+            skippedStopIds: skippedStopIds
         )
         
             let pRetNum = (rLineObj.numberPrefix ?? 0) * 1000 + (currentStart + 1)
@@ -741,7 +892,8 @@ struct ScheduleCreationView: View {
             stationSequence: Array(stationSequence.reversed()),
             acceleration: physics.acceleration,
             deceleration: physics.deceleration,
-            preferredTrack: "2"
+            preferredTrack: "2",
+            skippedStopIds: skippedStopIds
         )
         
         
@@ -774,7 +926,8 @@ struct ScheduleCreationView: View {
                 acceleration: physics.acceleration,
                 deceleration: physics.deceleration,
                 preferredTrack: "1",
-                vehicleId: selectedVehicle?.id
+                vehicleId: selectedVehicle?.id,
+                skippedStopIds: skippedStopIds
             )
             #if DEBUG
             print("🚂 [GEN] Created outward train \(outwardTrain.name) with \(outwardTrain.stops.count) stops, departure: \(departureTime)")
@@ -810,7 +963,8 @@ struct ScheduleCreationView: View {
                     acceleration: physics.acceleration,
                     deceleration: physics.deceleration,
                     preferredTrack: "2",
-                    vehicleId: selectedVehicle?.id
+                    vehicleId: selectedVehicle?.id,
+                    skippedStopIds: skippedStopIds
                 )
                 #if DEBUG
                 print("🚂 [GEN] Created return train \(returnTrain.name) with \(returnTrain.stops.count) stops, departure: \(departureTime)")
@@ -1075,9 +1229,9 @@ struct ScheduleCreationView: View {
             name: "Tempo Stimato",
             type: selectedTrainType.rawValue,
             lineId: nil,
-            departureTime: nil,
             stops: [],
             vehicleId: nil,
+            departureTime: nil,
             maxSpeed: Double(selectedTrainType.defaultMaxSpeed),
             acceleration: 0.5,
             deceleration: 0.5,
@@ -1102,12 +1256,23 @@ struct ScheduleCreationView: View {
             }
             
             if legDistance > 0 {
+                // Calculate gradient
+                var legGradient: Double = 0
+                if let fromNode = network.nodes.first(where: { $0.id == prevId }),
+                   let toNode = network.nodes.first(where: { $0.id == currentId }),
+                   let fromAlt = fromNode.altitude,
+                   let toAlt = toNode.altitude {
+                    let deltaAlt = toAlt - fromAlt
+                    legGradient = (deltaAlt / (legDistance * 1000.0)) * 100.0
+                }
+
                 let hours = FDCSchedulerEngine.calculateTravelTime(
                     distanceKm: legDistance,
                     maxSpeedKmh: legMinSpeed == .infinity ? 100 : legMinSpeed,
                     train: dummyTrain,
                     initialSpeedKmh: 0,
-                    finalSpeedKmh: 0
+                    finalSpeedKmh: 0,
+                    gradient: legGradient
                 )
                 
                 // Add transit + safety padding (minimum 60s total)
@@ -1177,10 +1342,22 @@ struct ScheduleCreationView: View {
             // Don't override station sequence during initialization
             guard !isInitializing else { return }
             
-            if !new.isEmpty {
+            if !new.isEmpty && !endStationId.isEmpty {
+                // Build station sequence from line.stations between start and end
+                updateStationSequenceFromSelection()
+            } else if !new.isEmpty {
                 if stationSequence.isEmpty || !manualAddition {
                     stationSequence = [new]
                 }
+            }
+        }
+        .onChange(of: endStationId) { old, new in
+            // Don't override station sequence during initialization
+            guard !isInitializing else { return }
+            
+            if !new.isEmpty && !startStationId.isEmpty {
+                // Build station sequence from line.stations between start and end
+                updateStationSequenceFromSelection()
             }
         }
         .onChange(of: mode) { _ in updatePreview() }
@@ -1223,6 +1400,7 @@ struct ScheduleCreationView: View {
 
             stationSelectSection
             pathInfoRow
+            stopPatternSection
             
             generateReturnToggle
             
@@ -1408,20 +1586,33 @@ struct ScheduleCreationView: View {
             return
         }
         
-        // Filter by train type capabilities
+        // Check if line is electrified
+        let isElectrified = checkLineElectrification()
+        
+        // Filter by train type capabilities and electrification
         var filtered = allVehicles.filter { vehicle in
-            switch selectedTrainType {
-            case .highSpeed:
-                return vehicle.maxSpeed >= 250
-            case .direct:
-                return vehicle.maxSpeed >= 160 && vehicle.maxSpeed < 250
-            case .regional:
-                return vehicle.maxSpeed >= 120 && vehicle.maxSpeed < 200
-            case .freight:
-                return vehicle.maxSpeed < 120
-            case .support:
-                return true
+            // Basic performance filter
+            let performanceMatch: Bool = {
+                switch selectedTrainType {
+                case .highSpeed:
+                    return vehicle.maxSpeed >= 200 // Expanded range for TAV
+                case .direct:
+                    return vehicle.maxSpeed >= 160 && vehicle.maxSpeed < 250
+                case .regional:
+                    return vehicle.maxSpeed >= 100 && vehicle.maxSpeed < 200
+                case .freight:
+                    return vehicle.maxSpeed < 120
+                case .support:
+                    return true
+                }
+            }()
+            
+            // Electrification filter: Cannot run electric train on non-electrified line
+            if !isElectrified && vehicle.isElectric {
+                return false
             }
+            
+            return performanceMatch
         }
         
         // Calculate line requirements
@@ -1456,51 +1647,86 @@ struct ScheduleCreationView: View {
     private func vehicleSuitabilityScore(_ vehicle: Vehicle, lineDistance: Double, lineMaxSpeed: Double) -> Double {
         var score = 0.0
         
-        // 1. Speed match (most important - 40% weight)
+        // 1. Speed match (most important - 35% weight, reduced to make room for altitude)
         let speedDiff = abs(vehicle.maxSpeed - lineMaxSpeed)
         let speedScore = max(0, 100 - speedDiff)
-        score += speedScore * 0.4
+        score += speedScore * 0.35
         
-        // 2. Number of stops and acceleration (30% weight)
+        // 2. Altitude profile analysis (15% weight) - NEW!
+        let altitudeInfo = calculateAltitudeCharacteristics()
+        if let totalElevationGain = altitudeInfo.totalElevationGain,
+           let maxGradient = altitudeInfo.maxGradient {
+            
+            // Calculate altitude difficulty score
+            var altitudeScore = 0.0
+            
+            // For steep gradients, prioritize high acceleration and power
+            if maxGradient > 25 { // Very steep (> 2.5%)
+                altitudeScore = min(vehicle.acceleration * 40, 100)
+            } else if maxGradient > 15 { // Moderate (> 1.5%)
+                altitudeScore = min(vehicle.acceleration * 30, 100)
+            } else if maxGradient > 10 { // Gentle (> 1.0%)
+                altitudeScore = min(vehicle.acceleration * 20, 100)
+            } else {
+                // Flat terrain - acceleration less critical
+                altitudeScore = 50
+            }
+            
+            // Bonus for total elevation gain handling
+            let elevationPerKm = totalElevationGain / lineDistance
+            if elevationPerKm > 10 { // Very hilly (> 10m/km)
+                if vehicle.acceleration >= 1.5 {
+                    altitudeScore += 20
+                }
+            } else if elevationPerKm > 5 { // Moderately hilly (> 5m/km)
+                if vehicle.acceleration >= 1.2 {
+                    altitudeScore += 10
+                }
+            }
+            
+            score += altitudeScore * 0.15
+        }
+        
+        // 3. Number of stops and acceleration (25% weight, reduced from 30%)
         let numberOfStops = stationSequence.count
         let avgStopDistance = lineDistance / Double(max(numberOfStops - 1, 1))
         
         // For frequent stops (< 10km average), prioritize good acceleration
         if avgStopDistance < 10 {
             let accelerationScore = min(vehicle.acceleration * 30, 100) // Max 100 points
-            score += accelerationScore * 0.3
+            score += accelerationScore * 0.25
         } else if avgStopDistance < 20 {
             // Medium stops - balanced acceleration/speed
             let accelerationScore = min(vehicle.acceleration * 20, 100)
-            score += accelerationScore * 0.2
+            score += accelerationScore * 0.15
             // Add some speed bonus for longer distances
             score += min((vehicle.maxSpeed / lineMaxSpeed) * 50, 50) * 0.1
         } else {
             // Long distances - prioritize high speed and capacity
             let speedCapabilityScore = min((vehicle.maxSpeed / lineMaxSpeed) * 100, 100)
-            score += speedCapabilityScore * 0.3
+            score += speedCapabilityScore * 0.25
         }
         
-        // 3. Line distance vs vehicle range/capacity (20% weight)
+        // 4. Line distance vs vehicle range/capacity (15% weight, reduced from 20%)
         // Prefer vehicles suitable for the total distance
         if lineDistance > 100 {
             // Long lines - prefer high-capacity, long-range vehicles
             if vehicle.maxSpeed >= 160 {
-                score += 20 * 0.2
+                score += 20 * 0.15
             }
         } else if lineDistance > 50 {
             // Medium lines - balanced vehicles
             if vehicle.maxSpeed >= 120 && vehicle.maxSpeed <= 200 {
-                score += 20 * 0.2
+                score += 20 * 0.15
             }
         } else {
             // Short lines - agile vehicles with good acceleration
             if vehicle.acceleration > 1.0 {
-                score += 20 * 0.2
+                score += 20 * 0.15
             }
         }
         
-        // 4. Station infrastructure compatibility (10% weight)
+        // 5. Station infrastructure compatibility (10% weight)
         // Check if line has stations with platform/capacity constraints
         let minPlatforms = network.nodes
             .filter { node in stationSequence.contains(node.id) }
@@ -1513,12 +1739,78 @@ struct ScheduleCreationView: View {
             score -= 10 * 0.1
         }
         
-        // 5. Prefer vehicles with photos (aesthetic bonus - 5% weight)
+        // 6. Prefer vehicles with photos (aesthetic bonus - 5% weight)
         if vehicle.imageName != nil {
             score += 5 * 0.05
         }
         
-        // 6. Bonus for matching service type
+        // 7. Critical line parameters - Special recommendations (10% weight)
+        var criticalBonus = 0.0
+        
+        // Check if line is electrified
+        let isElectrified = checkLineElectrification()
+        
+        // Reuse altitude info already calculated above
+        let criticalMaxGradient = altitudeInfo.maxGradient ?? 0
+        
+        // Rule 1: Infrastructure matching (Electrification)
+        if !isElectrified {
+            if !vehicle.isElectric {
+                // Good match: diesel train on diesel line
+                criticalBonus += 40
+            } else {
+                // Physical impossibility or extreme penalty
+                criticalBonus -= 100
+            }
+        } else {
+            // Electrified line
+            if vehicle.isElectric {
+                // Preferred match
+                criticalBonus += 25
+            } else {
+                // Diesel on electrified line is possible but less efficient/sustainable
+                criticalBonus += 10 
+            }
+        }
+        
+        // Rule 2: High passenger demand (> 800 estimated) → Double-decker (Rock family)
+        let estimatedPassengers = Double(numberOfStops) * 100 // Rough estimate
+        if estimatedPassengers > 800 {
+            let isDoubleDecker = vehicle.name.lowercased().contains("rock") ||
+                                 vehicle.name.lowercased().contains("double") ||
+                                 vehicle.name.lowercased().contains("tav") ||
+                                 vehicle.maxSpeed >= 200 // High-speed usually has high capacity
+            if isDoubleDecker {
+                criticalBonus += 25
+            }
+        }
+        
+        // Rule 3: Steep gradients (> 20‰) → High power vehicles (Rock family)
+        if criticalMaxGradient > 20 {
+            let isHighPower = vehicle.acceleration >= 1.5 ||
+                             vehicle.name.lowercased().contains("rock") ||
+                             vehicle.name.lowercased().contains("e.6") ||
+                             vehicle.name.lowercased().contains("tav")
+            if isHighPower {
+                criticalBonus += 30
+            }
+        }
+        
+        // Rule 4: Frequent short stops (< 5 km average) → Agile vehicles (Jazz/Pop family)
+        if avgStopDistance < 5 {
+            let isAgile = vehicle.acceleration >= 1.2 ||
+                         vehicle.name.lowercased().contains("jazz") ||
+                         vehicle.name.lowercased().contains("pop") ||
+                         vehicle.name.lowercased().contains("metro") ||
+                         vehicle.name.lowercased().contains("suburban")
+            if isAgile {
+                criticalBonus += 25
+            }
+        }
+        
+        score += criticalBonus * 0.10
+        
+        // 8. Bonus for matching service type (5% weight, renumbered)
         switch selectedTrainType {
         case .highSpeed:
             if vehicle.maxSpeed >= 250 && vehicle.acceleration >= 1.2 {
@@ -1537,6 +1829,116 @@ struct ScheduleCreationView: View {
         }
         
         return score
+    }
+    
+    private func checkLineElectrification() -> Bool {
+        // TODO: Implement proper electrification checking when Edge model includes electrification field
+        // For now, check track type as a proxy:
+        // - High speed tracks are always electrified
+        // - Single/Double tracks without electrification info are assumed electrified (conservative)
+        
+        let stations = stationSequence.compactMap { stationId in
+            network.nodes.first(where: { $0.id == stationId })
+        }
+        
+        guard stations.count >= 2 else {
+            return true
+        }
+        
+        let service = InfrastructureService(network: network)
+        
+        for i in 0..<(stations.count - 1) {
+            let station1 = stations[i]
+            let station2 = stations[i + 1]
+            
+            guard let pathResult = service.findPath(from: station1.id, to: station2.id) else {
+                continue
+            }
+            
+            // Check track types along the path
+            for segment in pathResult.segments {
+                let fromId = segment.from
+                let toId = segment.to
+                
+                // Find edge in either direction
+                let edge = network.edges.first(where: {
+                    ($0.from == fromId && $0.to == toId) || ($0.from == toId && $0.to == fromId)
+                })
+                
+                // If we find an edge and it's explicitly marked for diesel, consider non-electrified
+                // Otherwise assume electrified (safer assumption)
+                if let trackType = edge?.trackType {
+                    // Currently all track types are assumed electrified
+                    // In future, add specific check for diesel/non-electric tracks
+                    continue
+                }
+            }
+        }
+        
+        return true // Default: assume electrified (most common case)
+    }
+    
+    private func calculateAltitudeCharacteristics() -> (totalElevationGain: Double?, maxGradient: Double?, avgGradient: Double?) {
+        // Get stations in sequence
+        let stations = stationSequence.compactMap { stationId in
+            network.nodes.first(where: { $0.id == stationId })
+        }
+        
+        guard stations.count >= 2 else {
+            return (nil, nil, nil)
+        }
+        
+        // Use InfrastructureService to get accurate path with all nodes (including junctions)
+        let service = InfrastructureService(network: network)
+        
+        var totalElevationGain = 0.0
+        var totalElevationLoss = 0.0
+        var maxGradient = 0.0
+        var totalDistance = 0.0
+        
+        // Calculate for each segment
+        for i in 0..<(stations.count - 1) {
+            let station1 = stations[i]
+            let station2 = stations[i + 1]
+            
+            guard let pathResult = service.findPath(from: station1.id, to: station2.id) else {
+                continue
+            }
+            
+            // Analyze altitude changes along the path
+            for j in 0..<(pathResult.nodes.count - 1) {
+                let node1 = pathResult.nodes[j]
+                let node2 = pathResult.nodes[j + 1]
+                
+                guard let alt1 = node1.altitude,
+                      let alt2 = node2.altitude,
+                      j < pathResult.segments.count else {
+                    continue
+                }
+                
+                let segmentDistance = pathResult.segments[j].distance
+                let altitudeDiff = alt2 - alt1
+                
+                // Accumulate elevation gain/loss
+                if altitudeDiff > 0 {
+                    totalElevationGain += altitudeDiff
+                } else {
+                    totalElevationLoss += abs(altitudeDiff)
+                }
+                
+                // Calculate gradient (in ‰ - per mille)
+                if segmentDistance > 0 {
+                    let gradient = abs(altitudeDiff / (segmentDistance * 1000)) * 1000 // Convert to ‰
+                    maxGradient = max(maxGradient, gradient)
+                }
+                
+                totalDistance += segmentDistance
+            }
+        }
+        
+        let avgGradient = totalDistance > 0 ? ((totalElevationGain + totalElevationLoss) / (totalDistance * 1000)) * 1000 : 0
+        
+        return (totalElevationGain, maxGradient, avgGradient)
     }
     
     private func calculateLineCharacteristics() -> LineCharacteristics {
@@ -1715,9 +2117,9 @@ struct ScheduleCreationView: View {
             name: "",
             type: selectedTrainType.rawValue,
             lineId: nil,
-            departureTime: nil,
             stops: [],
             vehicleId: nil,
+            departureTime: nil,
             maxSpeed: Double(selectedTrainType.defaultMaxSpeed),
             acceleration: 0.5,
             deceleration: 0.5,
