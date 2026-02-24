@@ -395,7 +395,15 @@ struct ScheduleCellView: View {
                 let stops = train.stops
                 let trainStart = stops.first?.departure ?? train.departureTime
                 
-                if let arrDate = cellData?.0 {
+                // Check if this station is skipped (train passes but doesn't stop)
+                let isSkipped = stop?.isSkipped ?? false
+                
+                if isSkipped {
+                    // Train passes but doesn't stop - show "|"
+                    Text("|")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.secondary)
+                } else if let arrDate = cellData?.0 {
                     let displayArr = stop?.plannedArrival ?? arrDate
                     let trainColor = TrainCategory(rawValue: train.type)?.color ?? .primary
                     Text(formatTime(displayArr, ref: trainStart))
@@ -404,7 +412,7 @@ struct ScheduleCellView: View {
                         .brightness(stop?.plannedArrival != nil ? 0 : -0.1) // Extra contrast
                 }
                 
-                if let depDate = cellData?.1 {
+                if !isSkipped, let depDate = cellData?.1 {
                     let trainColor = TrainCategory(rawValue: train.type)?.color ?? .primary
                     Text(formatTime(depDate, ref: trainStart))
                         .font(.system(size: 11, weight: .black, design: .monospaced))
@@ -412,7 +420,7 @@ struct ScheduleCellView: View {
                         .brightness(stop?.customDwellSeconds != nil ? 0 : -0.1)
                 }
                 
-                if let track = cellData?.2 {
+                if !isSkipped, let track = cellData?.2 {
                     Text(track)
                         .font(.system(size: 9, weight: .black))
                         .padding(.horizontal, 4)
@@ -428,10 +436,10 @@ struct ScheduleCellView: View {
                         .font(.system(size: 10))
                 }
                 
-                if cellData?.0 == nil && cellData?.1 == nil {
-                    Text("-")
+                // Empty cell if train doesn't pass through this station at all
+                if !isSkipped && cellData?.0 == nil && cellData?.1 == nil {
+                    Text("")
                         .font(.caption2)
-                        .foregroundColor(.secondary.opacity(0.5))
                 }
             }
             .frame(width: 100, height: 50)

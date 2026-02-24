@@ -5,7 +5,7 @@ import SwiftUI
 struct MapGeometryEngine {
     
     /// Trasforma coordinate geografiche in punti vista (Canvas).
-    static func schematicPoint(for node: Node, in size: CGSize, bounds: SchematicRailwayView.MapBounds) -> CGPoint {
+    static func schematicPoint(for node: RailwayNode, in size: CGSize, bounds: SchematicRailwayView.MapBounds) -> CGPoint {
         let lon = node.longitude ?? 0; let lat = node.latitude ?? 0
         let x = (lon - bounds.minLon) / bounds.xRange * (size.width - MapConstants.canvasPadding * 2) + MapConstants.canvasPadding
         let y = (1.0 - (lat - bounds.minLat) / bounds.yRange) * (size.height - MapConstants.canvasPadding * 2) + MapConstants.canvasPadding
@@ -13,7 +13,7 @@ struct MapGeometryEngine {
     }
     
     /// Calcola la posizione finale di un nodo, considerando gli offset dei Hub.
-    static func finalPosition(for node: Node, in size: CGSize, bounds: SchematicRailwayView.MapBounds, network: NetworkModel) -> CGPoint {
+    static func finalPosition(for node: RailwayNode, in size: CGSize, bounds: SchematicRailwayView.MapBounds, network: NetworkModel) -> CGPoint {
         if let parentId = node.parentHubId, let parent = network.nodes.first(where: { $0.id == parentId }) {
             let pPos = schematicPoint(for: parent, in: size, bounds: bounds)
             let offset: CGFloat = 25.0 // Offset fisso per chiarezza visiva nei hub
@@ -155,7 +155,7 @@ struct MapGeometryEngine {
         }
         
         // Group edges by station pairs to handle parallel tracks
-        var edgesByPair: [String: [Edge]] = [:]
+        var edgesByPair: [String: [RailwayEdge]] = [:]
         for edge in network.edges {
             let key = edge.canonicalKey
             edgesByPair[key, default: []].append(edge)
@@ -375,7 +375,7 @@ struct MapGeometryEngine {
         let hubNodes = network.nodes.filter { node in
             node.parentHubId != nil || network.nodes.contains(where: { $0.parentHubId == node.id })
         }
-        var hubGroups: [String: [Node]] = [:]
+        var hubGroups: [String: [RailwayNode]] = [:]
         for node in hubNodes {
             let hubId = node.parentHubId ?? node.id
             hubGroups[hubId, default: []].append(node)

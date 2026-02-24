@@ -376,5 +376,95 @@
         },
         "file_immagine": "BOMBARDIER/e464.jpeg",
         "asset_name": "E464_Carrozze"
+    },
+    {
+        "costruttore": "ADTRANZ",
+        "nome": "DB BR 101 + Carrozze IC",
+        "tipo": "Intercity",
+        "specifiche": {
+            "velocita_max_kmh": 220,
+            "massa_tonnellate": 600,
+            "potenza_kw": 6400
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.45,
+            "frenatura_servizio_m_s2": 0.8,
+            "frenatura_emergenza_m_s2": 1.1,
+            "coefficiente_aderenza": 0.19
+        },
+        "file_immagine": "ADTRANZ/br101.jpg",
+        "asset_name": "DB_BR101_IC"
+    },
+    {
+        "costruttore": "SIEMENS",
+        "nome": "ÖBB Railjet (Taurus)",
+        "tipo": "Alta Velocità",
+        "specifiche": {
+            "velocita_max_kmh": 230,
+            "massa_tonnellate": 450,
+            "potenza_kw": 6400
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.55,
+            "frenatura_servizio_m_s2": 1.0,
+            "frenatura_emergenza_m_s2": 1.3,
+            "coefficiente_aderenza": 0.2
+        },
+        "file_immagine": "SIEMENS/railjet.jpg",
+        "asset_name": "OBB_Railjet"
+    },
+    {
+        "costruttore": "SLM / ABB",
+        "nome": "SBB IC2000 (Re 460)",
+        "tipo": "Intercity",
+        "specifiche": {
+            "velocita_max_kmh": 200,
+            "massa_tonnellate": 600,
+            "potenza_kw": 6100
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.48,
+            "frenatura_servizio_m_s2": 0.85,
+            "frenatura_emergenza_m_s2": 1.15,
+            "coefficiente_aderenza": 0.19
+        },
+        "file_immagine": "SLM/ic2000.jpg",
+        "asset_name": "SBB_IC2000"
+    },
+    {
+        "costruttore": "ALSTOM",
+        "nome": "SBB RABe 503 Giruno",
+        "tipo": "Alta Velocità",
+        "specifiche": {
+            "velocita_max_kmh": 250,
+            "massa_tonnellate": 420,
+            "potenza_kw": 5500
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.6,
+            "frenatura_servizio_m_s2": 0.9,
+            "frenatura_emergenza_m_s2": 1.2,
+            "coefficiente_aderenza": 0.2
+        },
+        "file_immagine": "ALSTOM/rabe503.jpg",
+        "asset_name": "SBB_RABe503"
+    },
+    {
+        "costruttore": "SIEMENS",
+        "nome": "PKP IC Husarz",
+        "tipo": "Intercity",
+        "specifiche": {
+            "velocita_max_kmh": 230,
+            "massa_tonnellate": 550,
+            "potenza_kw": 6400
+        },
+        "fisica": {
+            "accelerazione_m_s2": 0.5,
+            "frenatura_servizio_m_s2": 0.85,
+            "frenatura_emergenza_m_s2": 1.15,
+            "coefficiente_aderenza": 0.19
+        },
+        "file_immagine": "SIEMENS/eu44.jpg",
+        "asset_name": "PKP_Husarz"
     }
 ]

@@ -221,6 +221,14 @@ private struct TrainRowButton: View {
             Button("Duplica", systemImage: "doc.on.doc") {
                 // TODO: Logic to duplicate train
             }
+            
+            Divider()
+            
+            Button(role: .destructive) {
+                linesManager.removeTrain(train.id)
+            } label: {
+                Label("Elimina Corsa", systemImage: "trash")
+            }
         }
     }
     

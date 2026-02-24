@@ -20,6 +20,13 @@ extension ContentView {
                         selectedEdgeId: $appState.selectedEdgeId,
                         initialMode: .tracks
                     )
+                case .ferrovie:
+                    NetworkListView(
+                        network: network,
+                        selectedNode: Binding(get: { appState.selectedNode }, set: { appState.selectedNodeId = $0?.id }),
+                        selectedEdgeId: $appState.selectedEdgeId,
+                        initialMode: .ferrovie
+                    )
                 case .lines:
                     LinesListView(
                         network: network,

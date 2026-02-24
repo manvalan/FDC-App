@@ -73,16 +73,54 @@ struct RailwayItineraryView: View {
         let onTimeTap: () -> Void
 
         var body: some View {
+            let isOrigin = index == 0
             let isLast = index == train.stops.count - 1
             
             HStack(alignment: .center, spacing: 12) {
+                // SKIP/STOP TOGGLE
+                Button(action: {
+                    if !isReadOnly {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            train.stops[index].isSkipped.toggle()
+                            // Se è saltata, resettiamo il dwell time custom
+                            if train.stops[index].isSkipped {
+                                train.stops[index].customDwellSeconds = nil
+                            }
+                            appState.railroad.lines.validateSchedules()
+                        }
+                    }
+                }) {
+                    ZStack {
+                        Circle()
+                            .fill(stop.isSkipped ? Color.orange.opacity(0.15) : Color.blue.opacity(0.15))
+                            .frame(width: 32, height: 32)
+                        
+                        Image(systemName: stop.isSkipped ? "forward.circle.fill" : "mappin.circle.fill")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(stop.isSkipped ? .orange : .blue)
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(isReadOnly)
+
                 // STATION NAME (Left)
                 if let node = network.nodes.first(where: { $0.id == stop.stationId }) {
-                    Text(node.name)
-                        .font(.system(size: 16, weight: .semibold, design: .default))
-                        .foregroundColor(appState.theme.dark)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(node.name)
+                            .font(.system(size: 16, weight: .semibold, design: .default))
+                            .foregroundColor(stop.isSkipped ? .secondary : appState.theme.dark)
+                        
+                        if stop.isSkipped {
+                            Text("TRANSITO")
+                                .font(.system(size: 9, weight: .black))
+                                .foregroundColor(.orange)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(Color.orange.opacity(0.1))
+                                .cornerRadius(4)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     Text(stop.stationId)
                         .font(.system(size: 16, weight: .semibold))
@@ -90,10 +128,8 @@ struct RailwayItineraryView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 
-                // TIMES & TRACK (Right)
-                HStack(alignment: .center, spacing: 20) {
-                    
-                    // Times
+                // Times & Dwell
+                VStack(alignment: .trailing, spacing: 4) {
                     StationTimesView(
                         train: $train,
                         index: index,
@@ -103,14 +139,24 @@ struct RailwayItineraryView: View {
                         onTap: onTimeTap
                     )
                     
-                    // Track
-                    TrackBadgeView(
-                        stop: stop,
-                        hasConflict: hasConflict,
-                        isReadOnly: isReadOnly,
-                        onTap: onTrackTap
-                    )
+                    if !isOrigin && !isLast && !stop.isSkipped {
+                        DwellBadgeView(
+                            dwell: Binding(
+                                get: { stop.minDwellTime },
+                                set: { train.stops[index].minDwellTime = $0; appState.railroad.lines.validateSchedules() }
+                            ),
+                            isReadOnly: isReadOnly
+                        )
+                    }
                 }
+                
+                // Track
+                TrackBadgeView(
+                    stop: stop,
+                    hasConflict: hasConflict,
+                    isReadOnly: isReadOnly,
+                    onTap: onTrackTap
+                )
             }
             .padding(.vertical, 12)
             .background(
@@ -139,6 +185,8 @@ struct RailwayItineraryView: View {
                     timeDisplay(label: "Partenza", date: train.stops[index].plannedDeparture ?? stop.departure, isInteractive: !isReadOnly)
                 } else if isTerminus {
                     timeDisplay(label: "Arrivo", date: stop.plannedArrival ?? stop.arrival, isInteractive: false)
+                } else if stop.isSkipped {
+                    timeDisplay(label: "Transito", date: stop.arrival, isInteractive: false)
                 } else {
                     timeDisplay(label: "Arr:", date: stop.plannedArrival ?? stop.arrival, isInteractive: false)
                     timeDisplay(label: "Part:", date: train.stops[index].plannedDeparture ?? stop.departure, isInteractive: !isReadOnly)
@@ -204,7 +252,37 @@ struct RailwayItineraryView: View {
                     .font(.system(size: 16, design: .monospaced)) // Larger placeholder
                     .foregroundColor(appState.theme.medium.opacity(0.6))
             }
+        }
     }
+
+    struct DwellBadgeView: View {
+        @EnvironmentObject var appState: AppState
+        @Binding var dwell: Int
+        let isReadOnly: Bool
+        
+        var body: some View {
+            HStack(spacing: 4) {
+                Image(systemName: "hourglass")
+                    .font(.system(size: 10))
+                
+                if !isReadOnly {
+                    Stepper(value: $dwell, in: 1...60) {
+                        Text("\(dwell)m")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                    }
+                    .fixedSize()
+                    .labelsHidden()
+                } else {
+                    Text("\(dwell)m")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(appState.theme.accent.opacity(0.1))
+            .foregroundColor(appState.theme.accent)
+            .cornerRadius(6)
+        }
     }
 
     struct TrackBadgeView: View {
@@ -224,7 +302,7 @@ struct RailwayItineraryView: View {
                         .padding(.vertical, 4)
                         .background(hasConflict ? Color.red : appState.theme.light.opacity(0.4))
                         .cornerRadius(6)
-                    
+                        
                     if !isReadOnly {
                         Image(systemName: "pencil")
                             .font(.system(size: 10))
@@ -369,5 +447,3 @@ struct TrackSelectionSheet: View {
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isSelected)
     }
 }
-
-

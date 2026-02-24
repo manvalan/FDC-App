@@ -6,6 +6,7 @@ extension ContentView {
         ZStack {
             if appState.currentMode == .design || appState.currentMode == .editor {
                 EditorModeView()
+                    .ignoresSafeArea()
             } else {
                 switch appState.sidebarSelection {
                 case .stations, .tracks, .lines, .trains, .vehicles, .none:

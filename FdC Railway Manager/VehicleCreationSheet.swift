@@ -192,6 +192,9 @@ struct VehicleCreationSheet: View {
             maxSpeed: selectedTemplate.maxSpeed,
             acceleration: selectedTemplate.acceleration,
             deceleration: selectedTemplate.deceleration,
+            mass: selectedTemplate.mass,
+            power: selectedTemplate.power,
+            isElectric: selectedTemplate.isElectric, // Pass electric status
             imageName: selectedTemplate.imageName
         )
         

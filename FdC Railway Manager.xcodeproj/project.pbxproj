@@ -21,6 +21,10 @@
 		313F356D2F3F4EB100250B1A /* LayoutConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 313F356C2F3F4EB100250B1A /* LayoutConstants.swift */; };
 		313F356F2F3F4EE700250B1A /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 313F356E2F3F4EE700250B1A /* AppSettings.swift */; };
 		313F35712F3F4F9600250B1A /* ContentViewOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = 313F35702F3F4F9600250B1A /* ContentViewOverlays.swift */; };
+		31B3104F2F498F31004F4A8F /* IO_MENU_FIX.md in Resources */ = {isa = PBXBuildFile; fileRef = 31B3104E2F498F31004F4A8F /* IO_MENU_FIX.md */; };
+		31B310512F499062004F4A8F /* IO_DEBUG_GUIDE.md in Resources */ = {isa = PBXBuildFile; fileRef = 31B310502F499062004F4A8F /* IO_DEBUG_GUIDE.md */; };
+		31B310532F4990F3004F4A8F /* IO_IMPORT_STATE_FIX.md in Resources */ = {isa = PBXBuildFile; fileRef = 31B310522F4990F3004F4A8F /* IO_IMPORT_STATE_FIX.md */; };
+		31B310592F4A553F004F4A8F /* FerroviaInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31B310582F4A553E004F4A8F /* FerroviaInspectorView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -39,6 +43,10 @@
 		313F356C2F3F4EB100250B1A /* LayoutConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutConstants.swift; sourceTree = "<group>"; };
 		313F356E2F3F4EE700250B1A /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		313F35702F3F4F9600250B1A /* ContentViewOverlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewOverlays.swift; sourceTree = "<group>"; };
+		31B3104E2F498F31004F4A8F /* IO_MENU_FIX.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = IO_MENU_FIX.md; sourceTree = "<group>"; };
+		31B310502F499062004F4A8F /* IO_DEBUG_GUIDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = IO_DEBUG_GUIDE.md; sourceTree = "<group>"; };
+		31B310522F4990F3004F4A8F /* IO_IMPORT_STATE_FIX.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = IO_IMPORT_STATE_FIX.md; sourceTree = "<group>"; };
+		31B310582F4A553E004F4A8F /* FerroviaInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FerroviaInspectorView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -79,6 +87,10 @@
 				31294B632F42F52500E80C34 /* TrainPhysicsEngine.md */,
 				31294B652F42F81E00E80C34 /* SchedulePreviewInspectorView.swift */,
 				31294B672F432F6000E80C34 /* OptimizedTimesPreviewInspectorView.swift */,
+				31B3104E2F498F31004F4A8F /* IO_MENU_FIX.md */,
+				31B310502F499062004F4A8F /* IO_DEBUG_GUIDE.md */,
+				31B310522F4990F3004F4A8F /* IO_IMPORT_STATE_FIX.md */,
+				31B310582F4A553E004F4A8F /* FerroviaInspectorView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -155,6 +167,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				31294B642F42F52500E80C34 /* TrainPhysicsEngine.md in Resources */,
+				31B310532F4990F3004F4A8F /* IO_IMPORT_STATE_FIX.md in Resources */,
+				31B310512F499062004F4A8F /* IO_DEBUG_GUIDE.md in Resources */,
+				31B3104F2F498F31004F4A8F /* IO_MENU_FIX.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -175,6 +190,7 @@
 				31294B682F432F6000E80C34 /* OptimizedTimesPreviewInspectorView.swift in Sources */,
 				31294B5E2F42EBFA00E80C34 /* SchedulePreviewView.swift in Sources */,
 				31294B542F4259D900E80C34 /* LineColorAssigner.swift in Sources */,
+				31B310592F4A553F004F4A8F /* FerroviaInspectorView.swift in Sources */,
 				31294B5C2F426FEB00E80C34 /* VehicleRotationOptimizer.swift in Sources */,
 				313F35712F3F4F9600250B1A /* ContentViewOverlays.swift in Sources */,
 				313F356D2F3F4EB100250B1A /* LayoutConstants.swift in Sources */,

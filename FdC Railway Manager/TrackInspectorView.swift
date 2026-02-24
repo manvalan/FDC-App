@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Track Inspector
 struct TrackInspectorView: View {
-    @Binding var edge: Edge
+    @Binding var edge: RailwayEdge
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var network: RailwayNetwork
     @EnvironmentObject var loader: AppLoaderService
@@ -12,11 +12,11 @@ struct TrackInspectorView: View {
     
     @State private var isEditingEnabled = false
     
-    private var fromStation: Node? {
+    private var fromStation: RailwayNode? {
         network.nodes.first { $0.id == edge.from }
     }
     
-    private var toStation: Node? {
+    private var toStation: RailwayNode? {
         network.nodes.first { $0.id == edge.to }
     }
     
@@ -86,7 +86,7 @@ struct TrackInspectorView: View {
         }
     }
     
-    private func stationRow(station: Node?, label: String, icon: String, color: Color) -> some View {
+    private func stationRow(station: RailwayNode?, label: String, icon: String, color: Color) -> some View {
         HStack {
             Image(systemName: icon)
                 .foregroundColor(color)
@@ -107,10 +107,10 @@ struct TrackInspectorView: View {
     private var trackTypeSection: some View {
         InspectorSection(title: "track_type".localized, icon: "signpost.right.fill", iconColor: .purple) {
             Picker("type".localized, selection: $edge.trackType) {
-                Label("single_track".localized, systemImage: "1.circle").tag(Edge.TrackType.single)
-                Label("double_track".localized, systemImage: "2.circle").tag(Edge.TrackType.double)
-                Label("high_speed_track".localized, systemImage: "bolt.fill").tag(Edge.TrackType.highSpeed)
-                Label("regional_track".localized, systemImage: "tram").tag(Edge.TrackType.regional)
+                Label("single_track".localized, systemImage: "1.circle").tag(RailwayEdge.TrackType.single)
+                Label("double_track".localized, systemImage: "2.circle").tag(RailwayEdge.TrackType.double)
+                Label("high_speed_track".localized, systemImage: "bolt.fill").tag(RailwayEdge.TrackType.highSpeed)
+                Label("regional_track".localized, systemImage: "tram").tag(RailwayEdge.TrackType.regional)
             }
             .pickerStyle(.menu)
             .onChange(of: edge.trackType) { oldValue, newValue in
@@ -211,7 +211,7 @@ struct TrackInspectorView: View {
         }
     }
     
-    private func updateParametersForTrackType(_ type: Edge.TrackType) {
+    private func updateParametersForTrackType(_ type: RailwayEdge.TrackType) {
         switch type {
         case .single:
             edge.capacity = 6

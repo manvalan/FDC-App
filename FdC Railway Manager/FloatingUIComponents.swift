@@ -194,12 +194,13 @@ struct ContextualInspector: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var linesManager: LinesManager
     @State private var editingLine: RailwayLine? = nil
-    @State private var editingVehicle: Vehicle? = nil
+    @State private var editingVehicle: RailwayVehicle? = nil
     @State private var isCreatingVehicle: Bool = false
     
     @State private var itemToDelete: AnyIdentifiable? = nil
     @State private var showingDeleteAlert = false
     @State private var isListEditMode: EditMode = .inactive
+    @State private var ioTab: Int = 0 
 
     struct AnyIdentifiable: Identifiable {
         let id: String
@@ -822,28 +823,132 @@ struct ContextualInspector: View {
 //  Added per requirement:
     private var ioPanel: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Import/Export").font(.headline).foregroundColor(appState.theme.dark)
-                Spacer()
+            // Tab Selector
+            HStack(spacing: 0) {
+                Button(action: { ioTab = 0 }) {
+                    Text("Esportazione")
+                        .font(.subheadline.bold())
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(ioTab == 0 ? appState.theme.accent.opacity(0.1) : Color.clear)
+                        .foregroundColor(ioTab == 0 ? appState.theme.accent : appState.theme.medium)
+                }
+                .cornerRadius(8, corners: [.topLeft, .bottomLeft])
+                
+                Button(action: { ioTab = 1 }) {
+                    Text("Importazione")
+                        .font(.subheadline.bold())
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(ioTab == 1 ? appState.theme.accent.opacity(0.1) : Color.clear)
+                        .foregroundColor(ioTab == 1 ? appState.theme.accent : appState.theme.medium)
+                }
+                .cornerRadius(8, corners: [.topRight, .bottomRight])
             }
+            .background(appState.theme.light.opacity(0.3))
+            .cornerRadius(8)
             .padding(.horizontal, 16)
             .padding(.top, 16)
 
-            VStack(spacing: 12) {
-                Button(action: exportNodesAndEdges) {
-                    Label("Esporta Stazioni+Binari (JSON)", systemImage: "square.and.arrow.up")
-                        .font(.subheadline.bold())
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(appState.theme.accent)
-                .foregroundColor(.white)
-                .cornerRadius(12)
+            if ioTab == 0 {
+                exportSection
+            } else {
+                automationsSection
             }
-            .padding(.horizontal, 16)
 
             Spacer()
+        }
+    }
+
+    private var exportSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Esporta Dati").font(.headline).foregroundColor(appState.theme.dark)
+            
+            Button(action: exportNodesAndEdges) {
+                Label("Rete (Stazioni+Binari) JSON", systemImage: "square.and.arrow.up")
+                    .font(.subheadline.bold())
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .background(appState.theme.accent)
+            .foregroundColor(.white)
+            .cornerRadius(12)
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var automationsSection: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                // 1. SOSTE STANDARD
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Soste Standard").font(.headline).foregroundColor(appState.theme.dark)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        RuleRow(icon: "🚉", label: "Interscambio", value: "5 min")
+                        RuleRow(icon: "■", label: "Quadrato Pieno / Stella", value: "3 min")
+                        RuleRow(icon: "□", label: "Quadrato Vuoto", value: "2 min")
+                        RuleRow(icon: "●", label: "Cerchio (Tutti)", value: "1 min")
+                    }
+                    .padding(12)
+                    .background(appState.theme.light.opacity(0.2))
+                    .cornerRadius(12)
+                    
+                    Button(action: {
+                        linesManager.applyStandardDwellsToAllTrains()
+                    }) {
+                        Label("Applica Soste Standard", systemImage: "timer")
+                            .bold()
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(appState.theme.accent)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                Divider()
+                
+                // 2. PRIORITA' BINARI
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Priorità Binari").font(.headline).foregroundColor(appState.theme.dark)
+                    Text("Assegna i binari in base alla direzione e alle preferenze di linea impostate nelle stazioni.")
+                        .font(.caption)
+                        .foregroundColor(appState.theme.medium)
+                    
+                    Button(action: {
+                        linesManager.autoAssignTracksToAllTrains()
+                    }) {
+                        Label("Ottimizza Binari", systemImage: "arrow.triangle.swap")
+                            .bold()
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(appState.theme.dark)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+        }
+    }
+
+    private struct RuleRow: View {
+        let icon: String
+        let label: String
+        let value: String
+        var body: some View {
+            HStack {
+                Text(icon).frame(width: 20)
+                Text(label).font(.caption)
+                Spacer()
+                Text(value).font(.caption.bold())
+            }
         }
     }
 
@@ -1293,33 +1398,57 @@ struct LineScheduleSummaryView: View {
     
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Prossime Corse").font(.headline).foregroundColor(appState.theme.dark)
-                let trains = linesManager.trains.filter { $0.lineId == line.id }.sorted(by: { $0.departureTime ?? Date() < $1.departureTime ?? Date() })
-                if trains.isEmpty {
-                    Text("Non ci sono corse programmate.")
-                        .font(.caption).foregroundColor(appState.theme.medium)
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(appState.theme.light.opacity(0.1))
-                        .cornerRadius(8)
-                } else {
-                     LazyVStack(spacing: 8) {
-                         ForEach(trains) { train in
-                             HStack {
-                                 Text(train.departureTime ?? Date(), style: .time)
-                                     .font(.system(.subheadline, design: .monospaced))
-                                     .foregroundColor(appState.theme.medium)
-                                 Text(train.name)
-                                     .font(.subheadline.bold())
-                                     .foregroundColor(appState.theme.dark)
-                                 Spacer()
+            VStack(alignment: .leading, spacing: 20) {
+                // AGGIUNTO: Tasto per entrare in modalità generazione/modifica orario
+                Button(action: {
+                    withAnimation {
+                        appState.creationLineId = line.id
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: "sparkles")
+                        Text("GESTISCI ORARIO")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(appState.theme.accent)
+                    .cornerRadius(12)
+                    .shadow(color: appState.theme.accent.opacity(0.3), radius: 5, y: 3)
+                }
+                .buttonStyle(.plain)
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Prossime Corse").font(.headline).foregroundColor(appState.theme.dark)
+                    let trains = linesManager.trains.filter { $0.lineId == line.id }.sorted(by: { $0.departureTime ?? Date() < $1.departureTime ?? Date() })
+                    if trains.isEmpty {
+                        Text("Non ci sono corse programmate.")
+                            .font(.caption).foregroundColor(appState.theme.medium)
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(appState.theme.light.opacity(0.1))
+                            .cornerRadius(8)
+                    } else {
+                         LazyVStack(spacing: 8) {
+                             ForEach(trains) { train in
+                                 HStack {
+                                     Text(train.departureTime ?? Date(), style: .time)
+                                         .font(.system(.subheadline, design: .monospaced))
+                                         .foregroundColor(appState.theme.medium)
+                                     Text(train.name)
+                                         .font(.subheadline.bold())
+                                         .foregroundColor(appState.theme.dark)
+                                     Spacer()
+                                 }
+                                 .padding(10)
+                                 .background(appState.theme.light.opacity(0.3))
+                                 .cornerRadius(8)
                              }
-                             .padding(10)
-                             .background(appState.theme.light.opacity(0.3))
-                             .cornerRadius(8)
                          }
-                     }
+                    }
                 }
             }
         }
@@ -1563,7 +1692,7 @@ struct StationInlineEditor: View {
     @State private var longitudeText: String = ""
     @State private var isEditingCoordinates: Bool = false
     
-    private var availableHubs: [Node] {
+    private var availableHubs: [RailwayNode] {
         appState.railroad.network.nodes.filter { $0.id != node.id }.sorted { $0.name < $1.name }
     }
     
@@ -1639,10 +1768,10 @@ struct StationInlineEditor: View {
                         .font(.system(size: 11, weight: .bold))
                         .foregroundColor(appState.theme.medium)
                     Picker("Tipo", selection: $node.type) {
-                        Text("Stazione").tag(Node.NodeType.station)
-                        Text("Interscambio").tag(Node.NodeType.interchange)
-                        Text("Deposito").tag(Node.NodeType.depot)
-                        Text("Bivio").tag(Node.NodeType.junction)
+                        Text("Stazione").tag(RailwayNode.NodeType.station)
+                        Text("Interscambio").tag(RailwayNode.NodeType.interchange)
+                        Text("Deposito").tag(RailwayNode.NodeType.depot)
+                        Text("Bivio").tag(RailwayNode.NodeType.junction)
                     }
                     .pickerStyle(.segmented)
                 }
@@ -1653,9 +1782,9 @@ struct StationInlineEditor: View {
                         .font(.system(size: 11, weight: .bold))
                         .foregroundColor(appState.theme.medium)
                     Picker("Simbolo", selection: $node.visualType) {
-                        Text("Default").tag(Node.StationVisualType?.none)
-                        ForEach(Node.StationVisualType.allCases) { type in
-                            Text(type.rawValue).tag(Node.StationVisualType?.some(type))
+                        Text("Default").tag(RailwayNode.StationVisualType?.none)
+                        ForEach(RailwayNode.StationVisualType.allCases) { type in
+                            Text(type.rawValue).tag(RailwayNode.StationVisualType?.some(type))
                         }
                     }
                     .pickerStyle(.menu)
@@ -1751,6 +1880,29 @@ struct StationInlineEditor: View {
                     }
                 }
                 
+                // Taktfahrplan Section
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("ORARIO TIPO (TAKTMORE)")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(appState.theme.medium)
+                    
+                    Text("Convergenza oraria - garantisce corrispondenze tra linee")
+                        .font(.caption2)
+                        .foregroundColor(appState.theme.medium)
+                    
+                    Picker("Minuto Takt", selection: $node.taktMinutes) {
+                        Text("Off").tag(Int?.none)
+                        Text(":00").tag(Int?.some(0))
+                        Text(":15").tag(Int?.some(15))
+                        Text(":30").tag(Int?.some(30))
+                        Text(":45").tag(Int?.some(45))
+                    }
+                    .pickerStyle(.segmented)
+                }
+                .padding(10)
+                .background(appState.theme.accent.opacity(0.05))
+                .cornerRadius(10)
+                
                 // Hub
                 VStack(alignment: .leading, spacing: 6) {
                     Text("HUB")
@@ -1771,9 +1923,9 @@ struct StationInlineEditor: View {
                             .font(.system(size: 11, weight: .bold))
                             .foregroundColor(appState.theme.medium)
                         Picker("Posizione", selection: $node.hubOffsetDirection) {
-                            Text("Standard").tag(Node.HubOffsetDirection?.none)
-                            ForEach(Node.HubOffsetDirection.allCases) { dir in
-                                Text(dir.rawValue).tag(Node.HubOffsetDirection?.some(dir))
+                            Text("Standard").tag(RailwayNode.HubOffsetDirection?.none)
+                            ForEach(RailwayNode.HubOffsetDirection.allCases) { dir in
+                                Text(dir.rawValue).tag(RailwayNode.HubOffsetDirection?.some(dir))
                             }
                         }
                         .pickerStyle(.menu)
@@ -1843,15 +1995,15 @@ struct StationInlineEditor: View {
 }
 
 struct TrackInlineEditor: View {
-    @Binding var edge: Edge
+    @Binding var edge: RailwayEdge
     @EnvironmentObject var appState: AppState
     @State private var showDeleteConfirmation = false
     
-    private var fromStation: Node? {
+    private var fromStation: RailwayNode? {
         appState.railroad.network.nodes.first(where: { $0.id == edge.from })
     }
     
-    private var toStation: Node? {
+    private var toStation: RailwayNode? {
         appState.railroad.network.nodes.first(where: { $0.id == edge.to })
     }
     
@@ -2099,12 +2251,12 @@ struct TrackInlineEditor: View {
         }
     }
     
-    private func updateTrackType(_ type: Edge.TrackType) {
+    private func updateTrackType(_ type: RailwayEdge.TrackType) {
         edge.trackType = type
         updateCapacity(for: type)
     }
     
-    private func updateCapacity(for type: Edge.TrackType) {
+    private func updateCapacity(for type: RailwayEdge.TrackType) {
         switch type {
         case .single: edge.capacity = 6
         case .double: edge.capacity = 24
@@ -2120,7 +2272,7 @@ struct TrackInlineEditor: View {
         }
     }
     
-    private func trackLabel(for type: Edge.TrackType) -> String {
+    private func trackLabel(for type: RailwayEdge.TrackType) -> String {
         switch type {
         case .single: return "Binario Singolo"
         case .double: return "Doppio Binario"
@@ -2129,7 +2281,7 @@ struct TrackInlineEditor: View {
         }
     }
     
-    private func trackIcon(for type: Edge.TrackType) -> Image {
+    private func trackIcon(for type: RailwayEdge.TrackType) -> Image {
         switch type {
         case .single: return Image(systemName: "1.circle")
         case .double: return Image(systemName: "2.circle")
@@ -2180,6 +2332,46 @@ struct StationRowContent: View {
         }
     }
     
+    @ViewBuilder
+    private func stationSymbol(size: CGFloat = 28) -> some View {
+        // Interchange stations use double red circle
+        if node.type == .interchange {
+            ZStack {
+                Circle()
+                    .stroke(Color.red, lineWidth: 3)
+                    .frame(width: size, height: size)
+                Circle()
+                    .stroke(Color.red, lineWidth: 3)
+                    .frame(width: size * 0.6, height: size * 0.6)
+            }
+        } else {
+            let color = nodeColor
+            
+            switch node.visualType ?? .filledCircle {
+            case .filledCircle:
+                Circle()
+                    .fill(color)
+                    .frame(width: size, height: size)
+            case .emptyCircle:
+                Circle()
+                    .stroke(color, lineWidth: 3)
+                    .frame(width: size, height: size)
+            case .filledSquare:
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(color)
+                    .frame(width: size, height: size)
+            case .emptySquare:
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(color, lineWidth: 3)
+                    .frame(width: size, height: size)
+            case .filledStar:
+                Image(systemName: "star.fill")
+                    .foregroundColor(color)
+                    .font(.system(size: size))
+            }
+        }
+    }
+    
     var body: some View {
         HStack(spacing: 12) {
             // Badge icon
@@ -2187,9 +2379,7 @@ struct StationRowContent: View {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(nodeColor.opacity(0.15))
                     .frame(width: 50, height: 50)
-                Text(String(node.id.prefix(3)).uppercased())
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(nodeColor)
+                stationSymbol(size: 28)
             }
             
             VStack(alignment: .leading, spacing: 4) {
@@ -2281,18 +2471,12 @@ struct TrackRowContent: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            // Badge icon
+            // Badge icon with track symbol
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(trackColor.opacity(0.15))
                     .frame(width: 50, height: 50)
-                let fromName = network.nodes.first(where: { $0.id == edge.from })?.name ?? edge.from
-                let toName = network.nodes.first(where: { $0.id == edge.to })?.name ?? edge.to
-                let fromInitial = String(fromName.prefix(1)).uppercased()
-                let toInitial = String(toName.prefix(1)).uppercased()
-                Text("\(fromInitial)→\(toInitial)")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(trackColor)
+                NetworkSymbols.trackSymbol(for: edge.trackType, width: 30, height: 20)
             }
             
             VStack(alignment: .leading, spacing: 4) {
@@ -2317,6 +2501,43 @@ struct TrackRowContent: View {
         .overlay(
             RoundedRectangle(cornerRadius: 10)
                 .stroke(appState.selectedEdgeId == edge.id.uuidString ? appState.theme.accent : appState.theme.line.opacity(0.2), lineWidth: 1)
+        )
+    }
+}
+
+struct FerroviaRowContent: View {
+    let ferrovia: Ferrovia
+    @EnvironmentObject var appState: AppState
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Badge icon with ferrovia color
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(ferrovia.uiColor.opacity(0.15))
+                    .frame(width: 50, height: 50)
+                NetworkSymbols.ferroviaSymbol(color: ferrovia.color, size: 24)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(ferrovia.name)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(appState.theme.dark)
+                
+                Text("\(ferrovia.stationIds.count) stazioni")
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .background(appState.selectedFerroviaId == ferrovia.id ? appState.theme.accent.opacity(0.15) : appState.theme.backgroundSecondary)
+        .cornerRadius(10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(appState.selectedFerroviaId == ferrovia.id ? appState.theme.accent : appState.theme.line.opacity(0.2), lineWidth: 1)
         )
     }
 }

@@ -55,25 +55,25 @@ class TrainPhysicsEngine {
         }
         
         /// Crea parametri fisici da un Vehicle esistente
-        init(from vehicle: Vehicle) {
+        init(from vehicle: RailwayVehicle) {
             self.maxSpeed = vehicle.maxSpeed
             self.acceleration = vehicle.acceleration
             self.serviceBraking = vehicle.deceleration
             self.emergencyBraking = vehicle.deceleration * 1.3
             self.adhesionCoefficient = 0.22
-            self.mass = 200.0
-            self.power = 2500.0
+            self.mass = vehicle.mass
+            self.power = vehicle.power
         }
         
-        /// Crea parametri fisici da un Train (usa valori di default se mancanti)
-        init(from train: Train) {
+        /// Crea parametri fisici da un Train (usa i nuovi campi mass e power)
+        init(from train: RailwayTrain) {
             self.maxSpeed = train.maxSpeed
             self.acceleration = train.acceleration
             self.serviceBraking = train.deceleration
             self.emergencyBraking = train.deceleration * 1.3
             self.adhesionCoefficient = 0.22
-            self.mass = 200.0
-            self.power = 2500.0
+            self.mass = train.mass
+            self.power = train.power
         }
     }
     

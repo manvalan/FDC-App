@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Train Inspector
 struct TrainInspectorView: View {
-    let train: Train
+    let train: RailwayTrain
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var manager: LinesManager
     @StateObject private var wikiImageService = WikiImageService()
@@ -12,7 +12,7 @@ struct TrainInspectorView: View {
     
     private var network: NetworkModel { appState.railroad.network }
     
-    private var trainBinding: Binding<Train>? {
+    private var trainBinding: Binding<RailwayTrain>? {
         manager.binding(for: train)
     }
     
@@ -44,7 +44,7 @@ struct TrainInspectorView: View {
         }
     }
     
-    private func content(train: Binding<Train>) -> some View {
+    private func content(train: Binding<RailwayTrain>) -> some View {
         InspectorView(
             title: train.wrappedValue.name,
             icon: "train.side.front.car",
@@ -99,7 +99,7 @@ struct TrainInspectorView: View {
     
     // MARK: - Sections
     
-    private func identificationSection(train: Binding<Train>) -> some View {
+    private func identificationSection(train: Binding<RailwayTrain>) -> some View {
         InspectorSection(title: "identification".localized, icon: "tag.fill", iconColor: .blue) {
             HStack(alignment: .top, spacing: 16) {
                 vehicleImage(train: train.wrappedValue)
@@ -124,7 +124,7 @@ struct TrainInspectorView: View {
         }
     }
     
-    private func vehicleImage(train: Train) -> some View {
+    private func vehicleImage(train: RailwayTrain) -> some View {
         Group {
             if let vId = train.vehicleId,
                let vehicle = manager.vehicles.first(where: { $0.id == vId }) {
@@ -165,7 +165,7 @@ struct TrainInspectorView: View {
         }
     }
     
-    private func vehicleAssignmentSection(train: Binding<Train>) -> some View {
+    private func vehicleAssignmentSection(train: Binding<RailwayTrain>) -> some View {
         InspectorSection(title: "materiale_rotabile".localized, icon: "bus.doubledecker.fill", iconColor: .purple) {
             if train.wrappedValue.vehicleId == nil {
                 InspectorInfoBanner(
@@ -187,7 +187,7 @@ struct TrainInspectorView: View {
         }
     }
     
-    private func vehicleMenu(train: Binding<Train>) -> some View {
+    private func vehicleMenu(train: Binding<RailwayTrain>) -> some View {
         Menu {
             Button("no_vehicle".localized) {
                 train.wrappedValue.vehicleId = nil
@@ -258,7 +258,7 @@ struct TrainInspectorView: View {
         }
     }
     
-    private func vehicleMetrics(vehicle: Vehicle) -> some View {
+    private func vehicleMetrics(vehicle: RailwayVehicle) -> some View {
         HStack(spacing: 16) {
             MetricView(label: "length".localized, value: "\(Int(vehicle.length))m")
             MetricView(label: "max_speed".localized, value: "\(Int(vehicle.maxSpeed))km/h")
@@ -268,7 +268,7 @@ struct TrainInspectorView: View {
         .padding(.top, 4)
     }
     
-    private func vehicleConflicts(train: Binding<Train>, vehicleId: UUID) -> some View {
+    private func vehicleConflicts(train: Binding<RailwayTrain>, vehicleId: UUID) -> some View {
         Group {
             let conflicts = manager.getVehicleConflicts(for: vehicleId).filter {
                 $0.trainA.id == train.wrappedValue.id || $0.trainB.id == train.wrappedValue.id
@@ -284,7 +284,7 @@ struct TrainInspectorView: View {
         }
     }
     
-    private func timetableSection(train: Binding<Train>) -> some View {
+    private func timetableSection(train: Binding<RailwayTrain>) -> some View {
         InspectorSection(title: "assigned_service".localized, icon: "clock.fill", iconColor: .orange) {
             if let lineId = train.wrappedValue.lineId,
                let line = manager.lines.first(where: { $0.id == lineId }) {
@@ -312,7 +312,7 @@ struct TrainInspectorView: View {
         }
     }
     
-    private func priorityStepper(train: Binding<Train>) -> some View {
+    private func priorityStepper(train: Binding<RailwayTrain>) -> some View {
         HStack(spacing: 4) {
             Text("priority".localized + ":")
                 .font(.caption)
@@ -328,7 +328,7 @@ struct TrainInspectorView: View {
         }
     }
     
-    private func itineraryView(train: Binding<Train>, line: RailwayLine) -> some View {
+    private func itineraryView(train: Binding<RailwayTrain>, line: RailwayLine) -> some View {
         RailwayItineraryView(
             train: train,
             network: appState.railroad.network,

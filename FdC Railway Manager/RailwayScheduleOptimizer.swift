@@ -40,178 +40,306 @@ final class RailwayScheduleOptimizer {
     ///   - geneticOptimizer: Opzionale. Se passato, viene usato questo oggetto (utile per aggiornare la UI progress).
     /// - Returns: La lista di treni ottimizzati pronti per l'inserimento
     func executePipeline(
-        newTrains: [Train],
-        existingTrains: [Train],
-        nodes: [Node],
+        newTrains: [RailwayTrain],
+        existingTrains: [RailwayTrain],
+        nodes: [RailwayNode],
         edges: [Edge],
         useAI: Bool = true,
         useGA: Bool = true,
-        geneticOptimizer: GeneticOptimizer? = nil
-    ) async -> [Train] {
+        geneticOptimizer: GeneticOptimizer? = nil,
+        preferredTaktNodeId: String? = nil
+    ) async -> [RailwayTrain] {
         if Task.isCancelled { 
             print("⚠️ [PIPELINE] Task cancellata all'avvio!")
             return newTrains 
         }
         var localPathCache: [String: [Edge]] = [:] 
+        let hasTaktRequired = nodes.contains(where: { (node: RailwayNode) in node.taktMinutes != nil })
         
+        logPipelineInit(newTrains: newTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, useAI: useAI, useGA: useGA)
+
+        // --- STEP 1: Time Optimization ---
+        var workingTrains = await runStep1_TimeOptimization(
+            newTrains: newTrains, 
+            existingTrains: existingTrains, 
+            nodes: nodes, 
+            edges: edges, 
+            useGA: useGA, 
+            hasTaktRequired: hasTaktRequired, 
+            pathCache: &localPathCache
+        )
+        
+        // --- STEP 2: Physical Refresh ---
+        workingTrains = await runStep2_PhysicalRefresh(
+            workingTrains: workingTrains, 
+            existingTrains: existingTrains, 
+            nodes: nodes, 
+            edges: edges, 
+            pathCache: &localPathCache
+        )
+        
+        // --- STEP 3-5: Optimization & Takt Alignment ---
+        workingTrains = await runStep3_5_Alignment(
+            workingTrains: workingTrains, 
+            existingTrains: existingTrains, 
+            nodes: nodes, 
+            edges: edges, 
+            hasTaktRequired: hasTaktRequired, 
+            preferredTaktNodeId: preferredTaktNodeId, 
+            pathCache: &localPathCache
+        )
+        
+        // --- STEP 6: AI Cloud Optimization ---
+        workingTrains = await runStep6_AIOptimization(
+            workingTrains: workingTrains, 
+            existingTrains: existingTrains, 
+            nodes: nodes, 
+            edges: edges, 
+            useAI: useAI, 
+            hasTaktRequired: hasTaktRequired, 
+            pathCache: &localPathCache
+        )
+        
+        // --- STEP 7: Genetic Refinement ---
+        var finalTrains = await runStep7_GeneticRefinement(
+            workingTrains: workingTrains, 
+            existingTrains: existingTrains, 
+            nodes: nodes, 
+            edges: edges, 
+            useGA: useGA, 
+            hasTaktRequired: hasTaktRequired, 
+            pathCache: &localPathCache,
+            geneticOptimizer: geneticOptimizer
+        )
+        
+        // --- STEP 8: Final Verification & Reporting ---
+        return await runStep8_FinalVerification(
+            finalTrains: finalTrains, 
+            existingTrains: existingTrains, 
+            nodes: nodes, 
+            edges: edges, 
+            hasTaktRequired: hasTaktRequired, 
+            pathCache: &localPathCache
+        )
+    }
+
+    // MARK: - Pipeline Steps
+
+    private func logPipelineInit(newTrains: [RailwayTrain], existingTrains: [RailwayTrain], nodes: [RailwayNode], edges: [Edge], useAI: Bool, useGA: Bool) {
         print("\n🚀 [PIPELINE] AVVIO PIPELINE DI OTTIMIZZAZIONE (7 STEP) per \(newTrains.count) treni")
         print("   Input: \(newTrains.count) nuovi treni, \(existingTrains.count) esistenti")
         print("   Rete: \(nodes.count) nodi, \(edges.count) edges")
         print("   Flags: useAI=\(useAI), useGA=\(useGA)")
-        
-        // --- STEP 1: Time Optimization (Orari di Partenza) ---
-        // Cerchiamo di evitare i conflitti più banali spostando la partenza di +/- 15 minuti.
-        var workingTrains = newTrains
-        if useGA {
+    }
+
+    private func runStep1_TimeOptimization(
+        newTrains: [RailwayTrain], 
+        existingTrains: [RailwayTrain], 
+        nodes: [RailwayNode], 
+        edges: [Edge], 
+        useGA: Bool, 
+        hasTaktRequired: Bool, 
+        pathCache: inout [String: [Edge]]
+    ) async -> [RailwayTrain] {
+        if useGA && !hasTaktRequired {
             print("🕒 [STEP 1] Ottimizzazione Orari di Partenza...")
             try? await Task.yield()
             if Task.isCancelled { return newTrains }
-            workingTrains = optimizeDepartureTimes(newTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache)
+            return optimizeDepartureTimes(newTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &pathCache)
+        } else if hasTaktRequired {
+            print("🕒 [STEP 1] SKIP: Takt rilevato, manteniamo orari deterministici per precisione hub.")
         } else {
             print("🕒 [STEP 1] SKIP: Ottimizzazione Orari di Partenza disabilitata.")
         }
-        
-        // --- STEP 2: Generazione Orario (Refresh) ---
-        // Assicuriamoci che i dati fisici (arrivi/partenze fermate) siano coerenti.
+        return newTrains
+    }
+
+    private func runStep2_PhysicalRefresh(
+        workingTrains: [RailwayTrain], 
+        existingTrains: [RailwayTrain], 
+        nodes: [RailwayNode], 
+        edges: [Edge], 
+        pathCache: inout [String: [Edge]]
+    ) async -> [RailwayTrain] {
         print("⚙️ [STEP 2] Calcolo Fisico Orari...")
         if Task.isCancelled { return workingTrains }
-        workingTrains = refreshPhysicalSchedules(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache)
+        return refreshPhysicalSchedules(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &pathCache)
+    }
+
+    private func runStep3_5_Alignment(
+        workingTrains: [RailwayTrain], 
+        existingTrains: [RailwayTrain], 
+        nodes: [RailwayNode], 
+        edges: [Edge], 
+        hasTaktRequired: Bool, 
+        preferredTaktNodeId: String?, 
+        pathCache: inout [String: [Edge]]
+    ) async -> [RailwayTrain] {
+        let conflicts = detectConflicts(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &pathCache)
         
-        // --- STEP 3: Analisi Criticità ---
-        // Analizziamo dove avvengono i conflitti residui per capire quali sono i colli di bottiglia.
-        print("🔍 [STEP 3] Analisi Conflitti Residui...")
-        if Task.isCancelled { return workingTrains }
-        let conflicts = detectConflicts(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache)
-        
-        if !conflicts.isEmpty {
-            print("   ⚠️ Rilevati \(conflicts.count) conflitti residui. Avvio Analisi Hotspot.")
+        if !conflicts.isEmpty || hasTaktRequired {
+            if !conflicts.isEmpty {
+                print("   ⚠️ Rilevati \(conflicts.count) conflitti residui. Avvio Analisi Hotspot.")
+                let hotspots = analyzeHotspots(conflicts: conflicts, nodes: nodes)
+                let hotspotNames = hotspots.keys.sorted { hotspots[$0]! > hotspots[$1]! }.prefix(5)
+                print("   📍 Hotspots identificati: \(hotspotNames.joined(separator: ", "))")
+            } else {
+                print("   ℹ️ Nessun conflitto rilevato, ma rilevati obiettivi Takt. Avvio ri-allineamento deterministico.")
+            }
             
-            // Identifica le stazioni dove avvengono più conflitti o le tratte sature
-            let hotspots = analyzeHotspots(conflicts: conflicts, nodes: nodes)
-            let hotspotNames = hotspots.keys.sorted { hotspots[$0]! > hotspots[$1]! }.prefix(5)
-            print("   📍 Hotspots identificati: \(hotspotNames.joined(separator: ", "))")
-            
-            // --- STEP 5: CTC Single Track Resolution (DETERMINISTIC) ---
-            // Invece di indovinare "soste tattiche", calcoliamo gli incroci esatti.
-            if useGA {
-                print("🚦 [STEP 5] Risoluzione Conflitti CTC (Binario Unico)...")
+            if hasTaktRequired {
+                print("🚦 [STEP 5] Generazione Orario Cadenzato (Parallel Pulse Scheduler)...")
                 if Task.isCancelled { return workingTrains }
-                workingTrains = await resolveSingleTrackConflicts(
-                    trains: workingTrains,
+                
+                let results = await generaOrarioCadenzato(
+                    newTrains: workingTrains,
                     existingTrains: existingTrains,
                     nodes: nodes,
                     edges: edges,
-                    conflicts: conflicts,
-                    pathCache: &localPathCache
+                    preferredTaktNodeId: preferredTaktNodeId
                 )
+                print("   ✅ Orari cadenzati generati, preservati per evitare sovrascritture")
+                return results
             } else {
-                print("🚦 [STEP 5] SKIP: Risoluzione CTC disabilitata.")
+                print("🚦 [STEP 5] SKIP: Nessun nodo Takt configurato.")
             }
-            
-            // Refresh post-CTC
-            workingTrains = refreshPhysicalSchedules(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache)
         } else {
-            print("   ✅ Nessun conflitto rilevato dopo Step 1. Skipping Step 3-5.")
+            print("   ✅ Nessun conflitto rilevato e nessun obiettivo Takt impostato. Skipping Step 3-5.")
         }
-        
-        // --- STEP 6: AI Cloud Optimization ---
-        // Se rimangono conflitti complessi, chiediamo all'AI.
-        if useAI {
-            print("🧠 [STEP 6] AI Cloud Optimization...")
-            if Task.isCancelled { return workingTrains }
-            let conflictsBeforeAI = detectConflicts(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache).count
-            print("   🔍 Conflitti pre-AI: \(conflictsBeforeAI)")
-            
-            let preAITrains = workingTrains // BACKUP for rollback
-            let aiResponse = await performCloudOptimization(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache)
-            
-            if let response = aiResponse, let resolutions = response.resolutions, !resolutions.isEmpty {
-                // PIGNOLO PROTOCOL: Calculate average confidence across all resolutions
-                let avgConfidence = resolutions.compactMap { $0.confidence }.reduce(0.0, +) / Double(resolutions.count)
-                let confidence = response.ml_confidence ?? (resolutions.isEmpty ? 0.0 : avgConfidence)
-                
-                print("   📥 Ricevute \(resolutions.count) risoluzioni dall'AI (Confidenza Media: \(Int(confidence * 100))%).")
-                
-                // PIGNOLO PROTOCOL: Confidence Filter (Regression Handling)
-                if confidence < 0.15 {
-                    print("   ⚠️ [WARNING] Confidenza AI troppo bassa (\(Int(confidence * 100))%). Soluzione scartata.")
-                } else {
-                    workingTrains = applyAIResolutions(workingTrains, resolutions: resolutions)
-                    // Refresh post-AI
-                    workingTrains = refreshPhysicalSchedules(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache)
-                    
-                    let conflictsAfterAI = detectConflicts(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache).count
-                    
-                    // Solo se migliora davvero i conflitti o mantiene lo status quo senza creare caos
-                    if conflictsAfterAI > conflictsBeforeAI + 2 {
-                        print("   ❌ [ROLLBACK] L'AI ha peggiorato lo scenario (\(conflictsBeforeAI) -> \(conflictsAfterAI)). Ripristino stato pre-AI.")
-                        workingTrains = preAITrains
-                    } else {
-                        print("   ✅ Conflitti post-AI: \(conflictsAfterAI) (Variazione: \(conflictsAfterAI - conflictsBeforeAI))")
-                    }
-                }
-            } else {
-                print("   ℹ️ L'AI non ha proposto risoluzioni o la chiamata è fallita.")
-            }
-        } else {
+        return workingTrains
+    }
+
+    private func runStep6_AIOptimization(
+        workingTrains: [RailwayTrain], 
+        existingTrains: [RailwayTrain], 
+        nodes: [RailwayNode], 
+        edges: [Edge], 
+        useAI: Bool, 
+        hasTaktRequired: Bool, 
+        pathCache: inout [String: [Edge]]
+    ) async -> [RailwayTrain] {
+        if !useAI {
             print("   ⏭️ AI Cloud disabilitata o non richiesta.")
+            return workingTrains
+        }
+
+        print("🧠 [STEP 6] AI Cloud Optimization...")
+        if Task.isCancelled { return workingTrains }
+        
+        let conflictsBeforeAI = detectConflicts(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &pathCache).count
+        print("   🔍 Conflitti pre-AI: \(conflictsBeforeAI)")
+        
+        let preAITrains = workingTrains
+        let aiResponse = await performCloudOptimization(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &pathCache)
+        
+        guard let response = aiResponse, let resolutions = response.resolutions, !resolutions.isEmpty else {
+            print("   ℹ️ L'AI non ha proposto risoluzioni o la chiamata è fallita.")
+            return workingTrains
+        }
+
+        let avgConfidence = resolutions.compactMap { $0.confidence }.reduce(0.0, +) / Double(resolutions.count)
+        let confidence = response.ml_confidence ?? (resolutions.isEmpty ? 0.0 : avgConfidence)
+        print("   📥 Ricevute \(resolutions.count) risoluzioni dall'AI (Confidenza Media: \(Int(confidence * 100))%).")
+        
+        if confidence < 0.15 {
+            print("   ⚠️ [WARNING] Confidenza AI troppo bassa (\(Int(confidence * 100))%). Soluzione scartata.")
+            return workingTrains
+        }
+
+        var results = applyAIResolutions(workingTrains, resolutions: resolutions)
+        if !hasTaktRequired {
+            results = refreshPhysicalSchedules(results, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &pathCache)
         }
         
-        // --- STEP 7: Genetic Refinement ---
-        // Pulizia finale per limare i dettagli o risolvere conflitti minori ignorati dall'AI.
-        var finalTrains = workingTrains
-        if useGA {
+        let conflictsAfterAI = detectConflicts(results, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &pathCache).count
+        
+        if conflictsAfterAI > conflictsBeforeAI + 2 {
+            print("   ❌ [ROLLBACK] L'AI ha peggiorato lo scenario (\(conflictsBeforeAI) -> \(conflictsAfterAI)). Ripristino stato pre-AI.")
+            return preAITrains
+        } else {
+            print("   ✅ Conflitti post-AI: \(conflictsAfterAI) (Variazione: \(conflictsAfterAI - conflictsBeforeAI))")
+            return results
+        }
+    }
+
+    private func runStep7_GeneticRefinement(
+        workingTrains: [RailwayTrain], 
+        existingTrains: [RailwayTrain], 
+        nodes: [RailwayNode], 
+        edges: [Edge], 
+        useGA: Bool, 
+        hasTaktRequired: Bool, 
+        pathCache: inout [String: [Edge]],
+        geneticOptimizer: GeneticOptimizer?
+    ) async -> [RailwayTrain] {
+        if useGA && !hasTaktRequired {
             print("🧬 [STEP 7] Genetic Algorithm Refinement...")
             if Task.isCancelled { return workingTrains }
-            // Usiamo l'optimizer passato (per la UI) o quello interno
             let ga = geneticOptimizer ?? self.geneticOptimizer
             
-            finalTrains = await ga.optimize(
+            return await ga.optimize(
                 newTrains: workingTrains,
                 existingTrains: existingTrains,
                 nodes: nodes,
                 edges: edges,
-                iterations: 250 // PIGNOLO BOOST: Raised from 100 to 250 for final conflict clearance
+                iterations: 250
             )
+        } else if hasTaktRequired {
+            print("🧬 [STEP 7] SKIP: Genetic Refinement disabilitata per proteggere il cadenzamento Takt.")
         } else {
             print("🧬 [STEP 7] SKIP: Genetic Refinement disabilitata.")
         }
-        
-        
-        // --- STEP 8: Final Verification & Reporting ---
+        return workingTrains
+    }
+
+    private func runStep8_FinalVerification(
+        finalTrains: [RailwayTrain], 
+        existingTrains: [RailwayTrain], 
+        nodes: [RailwayNode], 
+        edges: [Edge], 
+        hasTaktRequired: Bool, 
+        pathCache: inout [String: [Edge]]
+    ) async -> [RailwayTrain] {
         print("📊 [STEP 8] Verifica Finale...")
-        // Refresh finale per sicurezza
-        let verifiedTrains = refreshPhysicalSchedules(finalTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache)
-        let finalConflicts = detectConflicts(verifiedTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &localPathCache)
+        let verifiedTrains: [RailwayTrain]
+        if hasTaktRequired {
+            print("   ℹ️ Takt attivo: salto refresh fisico per preservare orari cadenzati")
+            verifiedTrains = finalTrains
+        } else {
+            verifiedTrains = refreshPhysicalSchedules(finalTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &pathCache)
+        }
         
-        if finalConflicts.isEmpty {
+        let finalConflicts = detectConflicts(verifiedTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &pathCache)
+        logFinalReport(conflicts: finalConflicts, totalTrains: verifiedTrains.count, nodes: nodes)
+        
+        print("🏁 [PIPELINE] Completata. Output: \(verifiedTrains.count) treni.\n")
+        return verifiedTrains
+    }
+
+    private func logFinalReport(conflicts: [ScheduleConflict], totalTrains: Int, nodes: [RailwayNode]) {
+        if conflicts.isEmpty {
             print("\n✨ 🏆 OTTIMIZZAZIONE PERFETTA! 0 Conflitti residui. 🏆 ✨")
         } else {
-            print("\n⚠️ [RESULT] Ottimizzazione terminata con \(finalConflicts.count) conflitti residui.")
-            let uniqueConflictingTrains = Set(finalConflicts.flatMap { [$0.trainAId, $0.trainBId] })
-            print("   🚂 Treni coinvolti: \(uniqueConflictingTrains.count) (su \(verifiedTrains.count) totali)")
+            print("\n⚠️ [RESULT] Ottimizzazione terminata con \(conflicts.count) conflitti residui.")
+            let uniqueConflictingTrains = Set(conflicts.flatMap { [$0.trainAId, $0.trainBId] })
+            print("   🚂 Treni coinvolti: \(uniqueConflictingTrains.count) (su \(totalTrains) totali)")
             
-            // Log per Stazione
-            let perStation = analyzeHotspots(conflicts: finalConflicts, nodes: nodes)
+            let perStation = analyzeHotspots(conflicts: conflicts, nodes: nodes)
             let sortedStations = perStation.sorted { $0.value > $1.value }
             for (station, count) in sortedStations.prefix(5) {
                 print("      • \(station): \(count)")
             }
             
-            // Loggare i primi 3 conflitti per capire il problema
-            for (i, c) in finalConflicts.prefix(3).enumerated() {
+            for (i, c) in conflicts.prefix(3).enumerated() {
                 print("   ❌ Conflitto \(i+1): \(c.description) [\(c.timeStart.formatted(date: .omitted, time: .shortened)) - \(c.timeEnd.formatted(date: .omitted, time: .shortened))]")
             }
         }
-        
-        print("🏁 [PIPELINE] Completata. Output: \(verifiedTrains.count) treni.\n")
-        return verifiedTrains
     }
     
     // MARK: - Step 1: Time Optimization
     
-    private func optimizeDepartureTimes(_ newTrains: [Train], existingTrains: [Train], nodes: [Node], edges: [Edge], pathCache: inout [String: [Edge]]) -> [Train] {
-        var optimized: [Train] = []
+    private func optimizeDepartureTimes(_ newTrains: [RailwayTrain], existingTrains: [RailwayTrain], nodes: [RailwayNode], edges: [Edge], pathCache: inout [String: [Edge]]) -> [RailwayTrain] {
+        var optimized: [RailwayTrain] = []
         
         // PIGNOLO BOOST: 2-Phase Optimization (Coarse -> Fine)
         // Drastically reduces simulations from ~32 per train to ~10 per train
@@ -296,7 +424,7 @@ final class RailwayScheduleOptimizer {
         return optimized
     }
     
-    private func analyzeHotspots(conflicts: [ScheduleConflict], nodes: [Node]) -> [String: Int] {
+    private func analyzeHotspots(conflicts: [ScheduleConflict], nodes: [RailwayNode]) -> [String: Int] {
         var heatmap: [String: Int] = [:]
         
         for conflict in conflicts {
@@ -323,151 +451,486 @@ final class RailwayScheduleOptimizer {
     
     // MARK: - Step 5: CTC Logic (Deterministic Crossing)
     
-    private func resolveSingleTrackConflicts(
-        trains: [Train],
-        existingTrains: [Train],
-        nodes: [Node],
+    // MARK: - Step 5: Swiss-AStar Logic (A* Space-Time Search)
+    
+    private func generaOrarioCadenzato(
+        newTrains: [RailwayTrain],
+        existingTrains: [RailwayTrain],
+        nodes: [RailwayNode],
         edges: [Edge],
-        conflicts: [ScheduleConflict],
-        pathCache: inout [String: [Edge]]
-    ) async -> [Train] {
-        var processedTrains = trains
-        let maxPasses = 8
+        preferredTaktNodeId: String? = nil
+    ) async -> [RailwayTrain] {
+        print("\n🌊🌊🌊 [TaktEngine] AVVIO GENERAZIONE ORARIO CADENZATO 🌊🌊🌊")
+        let networkContext = NetworkModel(nodes: nodes, edges: edges)
+        let initialOccupancy = RailSchedulerCore.extractOccupancies(from: existingTrains, network: networkContext)
+        let core = RailSchedulerCore(network: networkContext, occupancies: initialOccupancy)
+        let calendar = Calendar.current
         
-        for pass in 1...maxPasses {
-            if Task.isCancelled { break }
-            await Task.yield()
-            
-            var all = existingTrains + processedTrains
-            refreshMultipleSchedules(&all, nodes: nodes, edges: edges, pathCache: &pathCache)
-            processedTrains = Array(all.suffix(processedTrains.count))
-            
-            var cacheWrapper: [String: [Edge]]? = pathCache
-            let (lineConflictsFull, capacities) = conflictManager.calculateConflictsWithCapacities(nodes: nodes, edges: edges, trains: all, pathCache: &cacheWrapper)
-            if let updatedCache = cacheWrapper { pathCache = updatedCache }
-            
-            // Filtra solo conflitti su BINARIO UNICO (Track Capacity = 1)
-            let lineConflicts = lineConflictsFull.filter { c in
-                let cap = capacities[c.locationId] ?? 1
-                return cap == 1 && (c.locationId.contains("--") || c.locationId.contains("SEGMENT"))
-            }.sorted { $0.timeStart < $1.timeStart } // Risolviamo il primo che accade
-            
-            if lineConflicts.isEmpty {
-                print("      ✅ Nessun conflitto di linea residuo al pass \(pass).")
-                break
+        // Trova nodo Takt - usa quello preferito dall'utente se specificato
+        let taktNode: Node?
+        if let preferredId = preferredTaktNodeId, !preferredId.isEmpty {
+            taktNode = nodes.first(where: { $0.id == preferredId && $0.taktMinutes != nil })
+            if taktNode == nil {
+                print("⚠️ Nodo Takt specificato '\(preferredId)' non trovato o non ha taktMinutes configurato")
             }
-            
-            // 3. Risolvi il PRIMO conflitto (quello che blocca tutto)
-            let conflict = lineConflicts[0]
-            
-            // Identifica i treni (dobbiamo lavorare sugli indici di processedTrains)
-            guard let idxA = processedTrains.firstIndex(where: { $0.id == conflict.trainAId }),
-                  let idxB = processedTrains.firstIndex(where: { $0.id == conflict.trainBId }) else {
-                // Uno dei treni è "existing" (immutabile). Dobbiamo spostare l'altro.
-                if let idxMutable = processedTrains.firstIndex(where: { $0.id == conflict.trainAId } ) {
-                    solveConflict(mutableIdx: idxMutable, immutableId: conflict.trainBId, conflict: conflict, trains: &processedTrains, nodes: nodes)
-                } else if let idxMutable = processedTrains.firstIndex(where: { $0.id == conflict.trainBId }) {
-                solveConflict(mutableIdx: idxMutable, immutableId: conflict.trainAId, conflict: conflict, trains: &processedTrains, nodes: nodes)
-                }
-                continue
+        } else {
+            taktNode = nodes.first(where: { $0.taktMinutes != nil })
+        }
+        
+        guard let taktNode = taktNode else {
+            print("⚠️ Nessun nodo Takt trovato, ritorno treni originali")
+            return newTrains
+        }
+        
+        let taktMinute = taktNode.taktMinutes!
+        print("📍 Nodo Takt: \(taktNode.name ?? taktNode.id) al minuto :\(taktMinute)")
+        
+        // Reset extra dwell times
+        var workingTrains = newTrains
+        for i in workingTrains.indices {
+            for j in workingTrains[i].stops.indices {
+                workingTrains[i].stops[j].extraDwellTime = 0
             }
+        }
+        
+        // Raggruppa treni per direzione
+        var trainsGrouped: [[Train]] = []
+        for train in workingTrains {
+            let sequence = train.stops.map { $0.stationId }
+            guard sequence.contains(taktNode.id) else { continue }
             
-            // Entrambi mutabili. Chi vince?
-            // Vince chi arriva PRIMA alla risorsa (segmento o stazione)
-            let trainA = processedTrains[idxA]
-            let trainB = processedTrains[idxB]
-            
-            // Troviamo i tempi di arrivo alla risorsa per entrambi
-            let stopA = trainA.stops.first(where: { s in
-                if let dep = s.departure { return dep >= conflict.timeStart }
-                return false
-            })
-            let arrivalA = stopA?.arrival ?? trainA.departureTime ?? Date.distantPast
-            
-            let stopB = trainB.stops.first(where: { s in
-                if let dep = s.departure { return dep >= conflict.timeStart }
-                return false
-            })
-            let arrivalB = stopB?.arrival ?? trainB.departureTime ?? Date.distantPast
-            
-            if arrivalA <= arrivalB {
-                solveCrossing(winnerIdx: idxA, loserIdx: idxB, conflict: conflict, trains: &processedTrains, nodes: nodes)
+            // Trova gruppo con stessa sequenza
+            if let existingGroupIdx = trainsGrouped.firstIndex(where: { group in
+                group.first?.stops.map { $0.stationId } == sequence
+            }) {
+                trainsGrouped[existingGroupIdx].append(train)
             } else {
-                solveCrossing(winnerIdx: idxB, loserIdx: idxA, conflict: conflict, trains: &processedTrains, nodes: nodes)
+                trainsGrouped.append([train])
             }
         }
         
-        return processedTrains
-    }
-    
-    private func solveConflict(mutableIdx: Int, immutableId: UUID, conflict: ScheduleConflict, trains: inout [Train], nodes: [Node]) {
-         delayTrainBeforeConflict(trainIdx: mutableIdx, conflict: conflict, trains: &trains, nodes: nodes)
-    }
-    
-    private func solveCrossing(winnerIdx: Int, loserIdx: Int, conflict: ScheduleConflict, trains: inout [Train], nodes: [Node]) {
-        delayTrainBeforeConflict(trainIdx: loserIdx, conflict: conflict, trains: &trains, nodes: nodes)
-    }
-    
-    private func delayTrainBeforeConflict(trainIdx: Int, conflict: ScheduleConflict, trains: inout [Train], nodes: [Node]) {
-        let train = trains[trainIdx]
+        print("   📋 Trovati \(trainsGrouped.count) gruppi di treni (direzioni)")
         
-        // Cerchiamo la stazione di incrocio ideale (quella con > 1 binario)
-        var bestStopIndex: Int? = train.stops.lastIndex(where: { stop in
-            guard let dep = stop.departure else { return false }
-            // Troviamo l'ultima fermata PRIMA del conflitto
-            return dep <= conflict.timeStart.addingTimeInterval(30)
-        })
+        var allResults: [Train] = []
         
-        // Se la stazione trovata ha solo 1 binario, cerchiamo una stazione con più binari precedente.
-        if let currentIdx = bestStopIndex {
-            for i in (0...currentIdx).reversed() {
-                let sid = train.stops[i].stationId
-                if let node = nodes.first(where: { $0.id == sid }), (node.platforms ?? 2) > 1 {
-                    bestStopIndex = i
-                    break
-                }
-            }
-        }
-        
-        guard let stopIndex = bestStopIndex else { return }
-        
-        // PIGNOLO: Cap cumulative delay per stop to 45 mins to avoid "messed up" schedules
-        if trains[trainIdx].stops[stopIndex].minDwellTime > 45 { return }
-
-        // Calcoliamo quanto ritardo serve (Deterministic Crossing)
-        // Usiamo un buffer di 5 minuti per essere più decisi negli incroci su binario unico
-        let neededDeparture = conflict.timeEnd.addingTimeInterval(300) 
-        let currentDeparture = train.stops[stopIndex].departure ?? Date()
-        
-        if neededDeparture > currentDeparture.addingTimeInterval(5) { // 5s tolerance
-            let addedMinutes = Int(ceil(neededDeparture.timeIntervalSince(currentDeparture) / 60))
-            if addedMinutes > 0 {
-                let oldMinDwell = trains[trainIdx].stops[stopIndex].minDwellTime
-                let newMinDwell = oldMinDwell + addedMinutes
+        // Processa ogni gruppo (direzione)
+        for groupIdx in 0..<trainsGrouped.count {
+            if Task.isCancelled { break }
+            var group = trainsGrouped[groupIdx]
+            let sequence = group[0].stops.map { $0.stationId }
+            guard let taktIdx = sequence.firstIndex(of: taktNode.id) else { continue }
+            
+            print("\n🚂 Gruppo \(groupIdx + 1): \(group.count) treni, percorso: \(sequence.first ?? "?") → \(sequence.last ?? "?")")
+            
+            // === PASSO 1: FISSA TUTTI GLI INCROCI AL NODO TAKT ===
+            print("\n📍 [PASSO 1] Fissaggio incroci al nodo Takt per tutti i treni...")
+            
+            // Per cadenza 120 min, raggruppa treni a coppie (T1+T2) che devono incontrarsi allo stesso Takt window
+            // Per cadenza 60 min, ogni treno ha il suo window
+            var i = 0
+            while i < group.count {
+                let trainNumber = group[i].number ?? 0
+                let isT1 = trainNumber % 2 == 1
                 
-                if newMinDwell < 60 && newMinDwell > oldMinDwell {
-                    let stationName = nodes.first(where: { $0.id == trains[trainIdx].stops[stopIndex].stationId })?.name ?? trains[trainIdx].stops[stopIndex].stationId
-                    print("      🛑 CTC Incrocio: \(trains[trainIdx].name) aspetta a \(stationName) (+ \(addedMinutes)m)")
-                    trains[trainIdx].stops[stopIndex].minDwellTime = newMinDwell
+                // Calcola taktBaseTime dal primo treno della coppia (o dal treno singolo se 60 min)
+                let userDep = group[i].departureTime ?? Date()
+                let ttEstimate = Double(taktIdx) * 180.0
+                let estimatedArrivalAtTakt = userDep.addingTimeInterval(ttEstimate)
+                
+                var taktBaseTime = calendar.date(bySetting: .minute, value: taktMinute, of: estimatedArrivalAtTakt) ?? estimatedArrivalAtTakt
+                
+                if taktBaseTime < estimatedArrivalAtTakt.addingTimeInterval(-1800) {
+                    taktBaseTime = calendar.date(byAdding: .hour, value: 1, to: taktBaseTime) ?? taktBaseTime
+                } else if taktBaseTime > estimatedArrivalAtTakt.addingTimeInterval(1800) {
+                    taktBaseTime = calendar.date(byAdding: .hour, value: -1, to: taktBaseTime) ?? taktBaseTime
+                }
+                
+                // Applica taktBaseTime al primo treno
+                let taktArrival1: Date
+                let taktDeparture1: Date
+                
+                if isT1 {
+                    taktArrival1 = calendar.date(byAdding: .minute, value: -1, to: taktBaseTime) ?? taktBaseTime
+                    taktDeparture1 = calendar.date(byAdding: .minute, value: 2, to: taktBaseTime) ?? taktBaseTime
+                } else {
+                    taktArrival1 = calendar.date(byAdding: .minute, value: -2, to: taktBaseTime) ?? taktBaseTime
+                    taktDeparture1 = calendar.date(byAdding: .minute, value: 3, to: taktBaseTime) ?? taktBaseTime
+                }
+                
+                group[i].stops[taktIdx].arrival = taktArrival1
+                group[i].stops[taktIdx].departure = (taktIdx < group[i].stops.count - 1) ? taktDeparture1 : nil
+                
+                print("   🚆 \(group[i].name) (\(isT1 ? "T1" : "T2")): Takt @ :\(taktMinute) | Arr: \(formatTime(taktArrival1)), Dep: \(formatTime(taktDeparture1))")
+                
+                // Se c'è un secondo treno nella coppia (120 min cadence), usa lo STESSO taktBaseTime
+                if i + 1 < group.count {
+                    let nextTrainNumber = group[i + 1].number ?? 0
+                    let nextIsT1 = nextTrainNumber % 2 == 1
                     
-                    // PIGNOLO PROTOCOL: Resolve the plannedDeparture bottleneck.
-                    // Se la sosta minima supera l'orario pianificato, dobbiamo invalidare l'orario pianificato
-                    // per permettere alla sosta di spingere effettivamente il treno nel futuro.
-                    if let planned = trains[trainIdx].stops[stopIndex].plannedDeparture {
-                         if neededDeparture > planned {
-                             trains[trainIdx].stops[stopIndex].plannedDeparture = nil
-                             // print("         (Note: Invalidate planned departure to allow dwell shift)")
-                         }
+                    // Controlla se è una coppia (T1 seguito da T2 o viceversa)
+                    if isT1 != nextIsT1 {
+                        // È una coppia: usa lo stesso taktBaseTime per il secondo treno
+                        let taktArrival2: Date
+                        let taktDeparture2: Date
+                        
+                        if nextIsT1 {
+                            taktArrival2 = calendar.date(byAdding: .minute, value: -1, to: taktBaseTime) ?? taktBaseTime
+                            taktDeparture2 = calendar.date(byAdding: .minute, value: 2, to: taktBaseTime) ?? taktBaseTime
+                        } else {
+                            taktArrival2 = calendar.date(byAdding: .minute, value: -2, to: taktBaseTime) ?? taktBaseTime
+                            taktDeparture2 = calendar.date(byAdding: .minute, value: 3, to: taktBaseTime) ?? taktBaseTime
+                        }
+                        
+                        group[i + 1].stops[taktIdx].arrival = taktArrival2
+                        group[i + 1].stops[taktIdx].departure = (taktIdx < group[i + 1].stops.count - 1) ? taktDeparture2 : nil
+                        
+                        print("   🚆 \(group[i + 1].name) (\(nextIsT1 ? "T1" : "T2")): Takt @ :\(taktMinute) | Arr: \(formatTime(taktArrival2)), Dep: \(formatTime(taktDeparture2)) [same window]")
+                        
+                        // Salta il prossimo treno perché già processato come coppia
+                        i += 2
+                        continue
+                    }
+                }
+                
+                // Non è una coppia (60 min o treno singolo), vai al prossimo
+                i += 1
+            }
+            
+            // === PASSO 2: PROPAGA INDIETRO TUTTI I TRENI STAZIONE PER STAZIONE ===
+            if taktIdx > 0 {
+                print("\n⬅️ [PASSO 2] Propagazione INDIETRO da Takt verso origine...")
+                for stationDistance in 1...taktIdx {
+                    let currentStationIdx = taktIdx - stationDistance
+                    let nextStationIdx = currentStationIdx + 1
+                    
+                    let stationCurrent = sequence[currentStationIdx]
+                    let stationNext = sequence[nextStationIdx]
+                    
+                    print("   📍 Stazione \(currentStationIdx): \(stationCurrent)")
+                    
+                    // Calcola orari per TUTTI i treni a questa stazione
+                    for i in group.indices {
+                        let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(
+                            from: stationCurrent,
+                            to: stationNext,
+                            train: group[i],
+                            nodes: nodes,
+                            edges: edges,
+                            isStarting: !group[i].stops[currentStationIdx].isSkipped,
+                            isStopping: !group[i].stops[nextStationIdx].isSkipped
+                        )
+                        
+                        let nextStationDeparture = group[i].stops[nextStationIdx].departure ?? group[i].stops[nextStationIdx].arrival!
+                        let proposedDeparture = nextStationDeparture.addingTimeInterval(-tt)
+                        let dwellTime = (group[i].stops[currentStationIdx].isSkipped ? 0 : group[i].stops[currentStationIdx].minDwellTime) * 60
+                        var proposedArrival = proposedDeparture.addingTimeInterval(-Double(dwellTime))
+                        
+                        // Controllo conflitti
+                        guard let edge = edges.first(where: {
+                            ($0.from == stationCurrent && $0.to == stationNext) ||
+                            ($0.from == stationNext && $0.to == stationCurrent)
+                        }) else { continue }
+                        
+                        var extraDwell = 0.0
+                        var attempts = 0
+                        while attempts < 10 {
+                            let trackFree = core.isTrattaLibera(edge: edge, tInizio: proposedDeparture, tFine: nextStationDeparture, verso: stationNext)
+                            let stationFree = core.isStazioneLibera(stazioneId: stationCurrent, at: proposedArrival)
+                            
+                            if trackFree && stationFree { break }
+                            
+                            extraDwell += 2.0
+                            proposedArrival = proposedArrival.addingTimeInterval(-120)
+                            attempts += 1
+                        }
+                        
+                        group[i].stops[currentStationIdx].arrival = (currentStationIdx > 0) ? proposedArrival : nil
+                        group[i].stops[currentStationIdx].departure = proposedDeparture
+                        group[i].stops[currentStationIdx].extraDwellTime = extraDwell
+                        
+                        if extraDwell > 0 {
+                            print("      ⏳ \(group[i].name): +\(Int(extraDwell))m")
+                        }
+                        
+                        // Registra occupazioni
+                        let s1 = stationCurrent < stationNext ? stationCurrent : stationNext
+                        let s2 = stationCurrent < stationNext ? stationNext : stationCurrent
+                        core.addOccupancies([OccupazioneTratta(resId: "SEGMENT::\(s1)--\(s2)", intervallo: proposedDeparture...nextStationDeparture, direzione: stationNext)])
+                        if dwellTime > 0 || extraDwell > 0 {
+                            core.addOccupancies([OccupazioneTratta(resId: "STATION_GLOBAL::\(stationCurrent)", intervallo: proposedArrival...proposedDeparture, direzione: "STAY")])
+                        }
                     }
                 }
             }
+            
+            // === PASSO 3: PROPAGA AVANTI TUTTI I TRENI STAZIONE PER STAZIONE ===
+            if taktIdx < sequence.count - 1 {
+                print("\n➡️ [PASSO 3] Propagazione AVANTI da Takt verso destinazione...")
+                for stationDistance in 1..<(sequence.count - taktIdx) {
+                    let currentStationIdx = taktIdx + stationDistance
+                    let prevStationIdx = currentStationIdx - 1
+                    
+                    let stationPrev = sequence[prevStationIdx]
+                    let stationCurrent = sequence[currentStationIdx]
+                    
+                    print("   📍 Stazione \(currentStationIdx): \(stationCurrent)")
+                    
+                    // Calcola orari per TUTTI i treni a questa stazione
+                    for i in group.indices {
+                        let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(
+                            from: stationPrev,
+                            to: stationCurrent,
+                            train: group[i],
+                            nodes: nodes,
+                            edges: edges,
+                            isStarting: !group[i].stops[prevStationIdx].isSkipped,
+                            isStopping: !group[i].stops[currentStationIdx].isSkipped
+                        )
+                        
+                        let prevStationDeparture = group[i].stops[prevStationIdx].departure ?? group[i].stops[prevStationIdx].arrival!
+                        let proposedArrival = prevStationDeparture.addingTimeInterval(tt)
+                        let dwellTime = (group[i].stops[currentStationIdx].isSkipped ? 0 : group[i].stops[currentStationIdx].minDwellTime) * 60
+                        var proposedDeparture = proposedArrival.addingTimeInterval(Double(dwellTime))
+                        
+                        // Controllo conflitti
+                        guard let edge = edges.first(where: {
+                            ($0.from == stationPrev && $0.to == stationCurrent) ||
+                            ($0.from == stationCurrent && $0.to == stationPrev)
+                        }) else { continue }
+                        
+                        var extraDwellAtPrev = 0.0
+                        var attempts = 0
+                        while attempts < 10 {
+                            let trackFree = core.isTrattaLibera(edge: edge, tInizio: prevStationDeparture.addingTimeInterval(extraDwellAtPrev * 60), tFine: proposedArrival.addingTimeInterval(extraDwellAtPrev * 60), verso: stationCurrent)
+                            let stationFree = core.isStazioneLibera(stazioneId: stationCurrent, at: proposedArrival.addingTimeInterval(extraDwellAtPrev * 60))
+                            
+                            if trackFree && stationFree { break }
+                            
+                            extraDwellAtPrev += 2.0
+                            attempts += 1
+                        }
+                        
+                        // Applica shift se necessario
+                        if extraDwellAtPrev > 0 {
+                            group[i].stops[prevStationIdx].extraDwellTime = (group[i].stops[prevStationIdx].extraDwellTime ?? 0) + extraDwellAtPrev
+                            group[i].stops[prevStationIdx].departure = group[i].stops[prevStationIdx].departure?.addingTimeInterval(extraDwellAtPrev * 60)
+                            print("      ⏳ \(group[i].name): +\(Int(extraDwellAtPrev))m @ \(stationPrev)")
+                        }
+                        
+                        let adjustedPrevDep = prevStationDeparture.addingTimeInterval(extraDwellAtPrev * 60)
+                        let adjustedArr = proposedArrival.addingTimeInterval(extraDwellAtPrev * 60)
+                        let adjustedDep = proposedDeparture.addingTimeInterval(extraDwellAtPrev * 60)
+                        
+                        group[i].stops[currentStationIdx].arrival = adjustedArr
+                        group[i].stops[currentStationIdx].departure = (currentStationIdx < sequence.count - 1) ? adjustedDep : nil
+                        
+                        // Registra occupazioni
+                        let s1 = stationPrev < stationCurrent ? stationPrev : stationCurrent
+                        let s2 = stationPrev < stationCurrent ? stationCurrent : stationPrev
+                        core.addOccupancies([OccupazioneTratta(resId: "SEGMENT::\(s1)--\(s2)", intervallo: adjustedPrevDep...adjustedArr, direzione: stationCurrent)])
+                        if dwellTime > 0 {
+                            core.addOccupancies([OccupazioneTratta(resId: "STATION_GLOBAL::\(stationCurrent)", intervallo: adjustedArr...adjustedDep, direzione: "STAY")])
+                        }
+                    }
+                }
+            }
+            
+            // Aggiorna departure times
+            for i in group.indices {
+                group[i].departureTime = group[i].stops.first?.departure ?? group[i].stops.first?.arrival
+            }
+            
+            allResults.append(contentsOf: group)
+        }
+        
+        print("\n🏁 [TaktEngine] Completata generazione per \(allResults.count) treni")
+        return allResults
+    }
+    
+    private enum ExpansionDirection { case forward, backward }
+    
+    private struct PlanningCursor {
+        var train: Train
+        var sequence: [String]
+        var hubIndex: Int
+        var forwardTime: Date
+        var backwardTime: Date
+        var forwardStops: [RelationStop] = []
+        var backwardStops: [RelationStop] = []
+        var anchorStop: RelationStop?
+        
+        var forwardFinished: Bool { (hubIndex + forwardStops.count) >= sequence.count - 1 }
+        var backwardFinished: Bool { (hubIndex - backwardStops.count) <= 0 }
+    }
+    
+    private func expandCursorOneStep(_ cursor: inout PlanningCursor, direction: ExpansionDirection, core: RailSchedulerCore, network: NetworkModel) {
+        let isForward = direction == .forward
+        let idxCur = isForward ? (cursor.hubIndex + cursor.forwardStops.count) : (cursor.hubIndex - cursor.backwardStops.count)
+        let idxNext = isForward ? idxCur + 1 : idxCur - 1
+        
+        guard idxNext >= 0 && idxNext < cursor.sequence.count else { return }
+        
+        let idCur = cursor.sequence[idxCur]
+        let idNext = cursor.sequence[idxNext]
+        let curTime = isForward ? cursor.forwardTime : cursor.backwardTime
+        
+        let templateNext = cursor.train.stops.first(where: { $0.stationId == idNext })
+        let templateCur = cursor.train.stops.first(where: { $0.stationId == idCur })
+        let isSkipped = templateNext?.isSkipped ?? false
+        let prevSkipped = templateCur?.isSkipped ?? false
+        
+        let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(from: isForward ? idCur : idNext, to: isForward ? idNext : idCur, train: cursor.train, nodes: network.nodes, edges: network.edges, isStarting: isForward ? !prevSkipped : !isSkipped, isStopping: isForward ? !isSkipped : !prevSkipped)
+        
+        guard let edge = network.edges.first(where: { ($0.from == idCur && $0.to == idNext) || ($0.from == idNext && $0.to == idCur) }) else { return }
+        
+        let potArr = isForward ? curTime.addingTimeInterval(tt) : curTime.addingTimeInterval(-tt)
+        let tStart = isForward ? curTime : potArr
+        let tEnd = isForward ? potArr : curTime
+        
+        let trackOk = core.isTrattaLibera(edge: edge, tInizio: tStart, tFine: tEnd, verso: isForward ? idNext : idCur)
+        let stationOk = core.isStazioneLibera(stazioneId: idNext, at: isForward ? potArr : tStart)
+        
+        if trackOk && stationOk {
+            let nodeType = network.nodes.first(where: { $0.id == idNext })?.type ?? .station
+        let actuallySkipped = isSkipped || nodeType == .junction
+        let dwellMin = actuallySkipped ? 0 : (templateNext?.minDwellTime ?? 2)
+        let dwellSec = Double(dwellMin) * 60.0
+            
+            var newStop = RelationStop(stationId: idNext, minDwellTime: dwellMin, isSkipped: actuallySkipped, arrival: isForward ? potArr : nil, departure: isForward ? nil : potArr)
+            
+            if isForward {
+                newStop.arrival = potArr
+                newStop.departure = potArr.addingTimeInterval(dwellSec)
+                cursor.forwardStops.append(newStop)
+                cursor.forwardTime = newStop.departure!
+                print("   ✅ [FWD] \(cursor.train.name): \(idCur) -> \(idNext) (TT: \(Int(tt))s) | Arr: \(formatTimeWithSeconds(potArr)), Dep: \(formatTimeWithSeconds(newStop.departure!))")
+            } else {
+                newStop.departure = curTime
+                newStop.arrival = potArr.addingTimeInterval(-dwellSec)
+                cursor.backwardStops.append(newStop)
+                cursor.backwardTime = newStop.arrival!
+                print("   ✅ [BKW] \(cursor.train.name): \(idCur) <- \(idNext) (TT: \(Int(tt))s) | Dep: \(formatTimeWithSeconds(curTime)), Arr: \(formatTimeWithSeconds(newStop.arrival!))")
+            }
+            
+            // Occupazioni
+            let s1 = idCur < idNext ? idCur : idNext
+            let s2 = idCur < idNext ? idNext : idCur
+            core.addOccupancies([OccupazioneTratta(resId: "SEGMENT::\(s1)--\(s2)", intervallo: tStart...tEnd, direzione: isForward ? idNext : idCur)])
+            let tA = isForward ? potArr : newStop.arrival!
+            let tD = isForward ? newStop.departure! : curTime
+            core.addOccupancies([OccupazioneTratta(resId: "STATION_GLOBAL::\(idNext)", intervallo: tA...tD, direzione: "STAY")])
+        } else {
+            let reason = !trackOk ? "Tratta Occupata" : "Stazione Piena"
+            print("   ❌ [WAIT] \(cursor.train.name): Conflitto verso \(idNext) (\(reason)).")
+            if isForward {
+                shiftForward(&cursor, delta: 120) // PASSO 3: +2 min
+            } else {
+                shiftBackward(&cursor, delta: 120) // PASSO 2: +2 min
+            }
         }
     }
+    
+    private func shiftForward(_ cursor: inout PlanningCursor, delta: TimeInterval) {
+        var target: Int? = nil 
+        if cursor.forwardStops.isEmpty { target = -1 }
+        else {
+            for i in (0..<cursor.forwardStops.count).reversed() {
+                let sId = cursor.forwardStops[i].stationId
+                let isJunction = cursor.train.stops.first(where: { $0.stationId == sId })?.isSkipped ?? false
+                // Note: using isSkipped as a proxy for junctions here, but we could check nodes array if passed
+                if !cursor.forwardStops[i].isSkipped && !isIdJunction(sId, nodes: []) { 
+                    target = i; break 
+                } 
+            }
+            if target == nil { target = -1 }
+        }
+        
+        var stationName = ""
+        if target == -1 {
+            if var a = cursor.anchorStop {
+                a.extraDwellTime = (a.extraDwellTime ?? 0) + (delta/60.0)
+                a.departure = a.departure?.addingTimeInterval(delta)
+                cursor.anchorStop = a
+                stationName = a.stationId
+            }
+        } else if let idx = target {
+            cursor.forwardStops[idx].extraDwellTime = (cursor.forwardStops[idx].extraDwellTime ?? 0) + (delta/60.0)
+            cursor.forwardStops[idx].departure = cursor.forwardStops[idx].departure?.addingTimeInterval(delta)
+            stationName = cursor.forwardStops[idx].stationId
+        }
+        
+        print("      🕒 [SHIFT FWD] \(cursor.train.name): +\(Int(delta/60))m attesa a \(stationName)")
+        
+        let start = (target == -1) ? 0 : (target! + 1)
+        for i in start..<cursor.forwardStops.count {
+            cursor.forwardStops[i].arrival = cursor.forwardStops[i].arrival?.addingTimeInterval(delta)
+            cursor.forwardStops[i].departure = cursor.forwardStops[i].departure?.addingTimeInterval(delta)
+        }
+        cursor.forwardTime = (cursor.forwardStops.last?.departure ?? cursor.anchorStop?.departure)!
+    }
+
+    private func shiftBackward(_ cursor: inout PlanningCursor, delta: TimeInterval) {
+        var target: Int? = nil // -1 per hub, >=0 per backwardStops
+        if cursor.backwardStops.isEmpty { target = -1 }
+        else {
+            for i in (0..<cursor.backwardStops.count).reversed() {
+                let sId = cursor.backwardStops[i].stationId
+                if !cursor.backwardStops[i].isSkipped && !isIdJunction(sId, nodes: []) { 
+                    target = i; break 
+                }
+            }
+            if target == nil { target = -1 }
+        }
+        
+        var stationName = ""
+        if target == -1 {
+            if var a = cursor.anchorStop {
+                a.extraDwellTime = (a.extraDwellTime ?? 0) + (delta/60.0)
+                a.arrival = a.arrival?.addingTimeInterval(-delta)
+                cursor.anchorStop = a
+                stationName = a.stationId
+            }
+        } else if let idx = target {
+            cursor.backwardStops[idx].extraDwellTime = (cursor.backwardStops[idx].extraDwellTime ?? 0) + (delta/60.0)
+            cursor.backwardStops[idx].arrival = cursor.backwardStops[idx].arrival?.addingTimeInterval(-delta)
+            stationName = cursor.backwardStops[idx].stationId
+        }
+        
+        print("      🕒 [SHIFT BKW] \(cursor.train.name): +\(Int(delta/60))m attesa a \(stationName) (anticipo arrivo)")
+        
+        let start = (target == -1) ? 0 : (target! + 1)
+        for i in start..<cursor.backwardStops.count {
+            cursor.backwardStops[i].arrival = cursor.backwardStops[i].arrival?.addingTimeInterval(-delta)
+            cursor.backwardStops[i].departure = cursor.backwardStops[i].departure?.addingTimeInterval(-delta)
+        }
+        cursor.backwardTime = (cursor.backwardStops.last?.arrival ?? cursor.anchorStop?.arrival)!
+    }
+
+    private func formatTimeWithSeconds(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter.string(from: date)
+    }
+    
+    private func isIdJunction(_ id: String, nodes: [RailwayNode]) -> Bool {
+        // Fallback check on ID prefix if nodes list isn't handy
+        if id.hasPrefix("N-") || id.hasPrefix("NODE_") { return true }
+        if let n = nodes.first(where: { $0.id == id }), n.type == .junction { return true }
+        return false
+    }
+    
+    /// Arrotonda una data ai 30 secondi più vicini per rendere l'orario più "pulito"
+    private func roundToBusinessSeconds(_ date: Date) -> Date {
+        let seconds = date.timeIntervalSince1970
+        let rounded = (seconds / 30.0).rounded() * 30.0
+        return Date(timeIntervalSince1970: rounded)
+    }
+    
     
     
     // MARK: - Helpers & Step 6 Integation
     
-    private func performCloudOptimization(_ trains: [Train], existingTrains: [Train], nodes: [Node], edges: [Edge], pathCache: inout [String: [Edge]]) async -> RailwayAIResponse? {
+    private func performCloudOptimization(_ trains: [RailwayTrain], existingTrains: [RailwayTrain], nodes: [RailwayNode], edges: [Edge], pathCache: inout [String: [Edge]]) async -> RailwayAIResponse? {
         var all = existingTrains + trains
         refreshMultipleSchedules(&all, nodes: nodes, edges: edges, pathCache: &pathCache)
         var dc: [String: [Edge]]? = pathCache
@@ -524,7 +987,7 @@ final class RailwayScheduleOptimizer {
         return updated
     }
     
-    private func refreshPhysicalSchedules(_ trains: [Train], existingTrains: [Train], nodes: [Node], edges: [Edge], pathCache: inout [String: [Edge]]) -> [Train] {
+    private func refreshPhysicalSchedules(_ trains: [RailwayTrain], existingTrains: [RailwayTrain], nodes: [RailwayNode], edges: [Edge], pathCache: inout [String: [Edge]]) -> [RailwayTrain] {
         var all = existingTrains + trains
         refreshMultipleSchedules(&all, nodes: nodes, edges: edges, pathCache: &pathCache)
         
@@ -532,7 +995,7 @@ final class RailwayScheduleOptimizer {
         return all.filter { updatedIds.contains($0.id) }
     }
     
-    private func detectConflicts(_ trainSubset: [Train], existingTrains: [Train], nodes: [Node], edges: [Edge], pathCache: inout [String: [Edge]]) -> [ScheduleConflict] {
+    private func detectConflicts(_ trainSubset: [RailwayTrain], existingTrains: [RailwayTrain], nodes: [RailwayNode], edges: [Edge], pathCache: inout [String: [Edge]]) -> [ScheduleConflict] {
         let allTrains = existingTrains + trainSubset
         var dc: [String: [Edge]]? = pathCache
         let res = conflictManager.calculateConflictsWithCapacities(nodes: nodes, edges: edges, trains: allTrains, pathCache: &dc).0
@@ -542,107 +1005,131 @@ final class RailwayScheduleOptimizer {
     
     // MARK: - Local Schedule Helpers (Replacing TrainManager)
     
-    private func refreshMultipleSchedules(_ trains: inout [Train], nodes: [Node], edges: [Edge], pathCache: inout [String: [Edge]]) {
+    private func refreshMultipleSchedules(_ trains: inout [RailwayTrain], nodes: [RailwayNode], edges: [Edge], pathCache: inout [String: [Edge]]) {
         for i in trains.indices {
             refreshSingleTrainSchedule(&trains[i], nodes: nodes, edges: edges, pathCache: &pathCache)
         }
     }
     
-    private func refreshSingleTrainSchedule(_ train: inout [Train].Element, nodes: [Node], edges: [Edge], pathCache: inout [String: [Edge]]) {
-        guard let depTime = train.departureTime else {
-            #if DEBUG
-            print("⚠️ [Optimizer] Train '\(train.name)' has no departureTime")
-            #endif
-            return
+    private func refreshSingleTrainSchedule(_ train: inout [RailwayTrain].Element, nodes: [RailwayNode], edges: [Edge], pathCache: inout [String: [Edge]]) {
+        if let (hIdx, hNode) = findHubNode(in: train, nodes: nodes) {
+            refreshTaktSchedule(train: &train, hIdx: hIdx, hNode: hNode, nodes: nodes, edges: edges)
+        } else {
+            refreshStandardSchedule(train: &train, nodes: nodes, edges: edges)
         }
-        var currentTime = depTime.normalized()
+    }
+
+    private func findHubNode(in train: [RailwayTrain].Element, nodes: [RailwayNode]) -> (Int, RailwayNode)? {
+        for i in train.stops.indices {
+            if let node = nodes.first(where: { $0.id == train.stops[i].stationId && $0.taktMinutes != nil }) {
+                return (i, node)
+            }
+        }
+        return nil
+    }
+    private func refreshTaktSchedule(train: inout [RailwayTrain].Element, hIdx: Int, hNode: RailwayNode, nodes: [RailwayNode], edges: [Edge]) {
+        let (hArr, hDep) = calculateHubTimes(for: train, hIdx: hIdx, hNode: hNode)
+        
+        train.stops[hIdx].arrival = hArr
+        train.stops[hIdx].departure = (hIdx < train.stops.count - 1) ? hDep : nil
+        
+        propagateBackward(from: hIdx, arrival: hArr, train: &train, nodes: nodes, edges: edges)
+        propagateForward(from: hIdx, departure: hDep, train: &train, nodes: nodes, edges: edges)
+        
+        train.departureTime = train.stops.first?.departure ?? train.stops.first?.arrival
+    }
+
+    private func calculateHubTimes(for train: [RailwayTrain].Element, hIdx: Int, hNode: RailwayNode) -> (Date, Date) {
+        let calendar = Calendar.current
+        let takt = hNode.taktMinutes ?? 0
+        let isT1 = (train.number ?? 0) % 2 == 0
+
+        let referenceTime = train.stops[hIdx].arrival ?? train.departureTime ?? Date()
+        let ttToHub = (train.stops[hIdx].arrival == nil) ? Double(hIdx) * 180.0 : 0
+        let estArrAtHub = referenceTime.addingTimeInterval(ttToHub)
+        
+        var anchorBase = calendar.date(bySetting: .minute, value: takt, of: estArrAtHub) ?? estArrAtHub
+        if anchorBase < estArrAtHub.addingTimeInterval(-1800) { anchorBase = calendar.date(byAdding: .hour, value: 1, to: anchorBase) ?? anchorBase }
+        if anchorBase > estArrAtHub.addingTimeInterval(1800) { anchorBase = calendar.date(byAdding: .hour, value: -1, to: anchorBase) ?? anchorBase }
+
+        var hArr: Date
+        if isT1 {
+            hArr = calendar.date(bySetting: .minute, value: (takt - 1 + 60) % 60, of: anchorBase) ?? anchorBase
+        } else {
+            hArr = calendar.date(bySetting: .minute, value: (takt - 2 + 60) % 60, of: anchorBase) ?? anchorBase
+        }
+        hArr = calendar.date(bySetting: .second, value: 0, of: hArr) ?? hArr
+        let hDep = hArr.addingTimeInterval((isT1 ? 3 : 5) * 60)
         
         #if DEBUG
-        print("🔄 [Optimizer] Refreshing schedule for train '\(train.name)' (\(train.stops.count) stops)")
+        print("🔄 [Refresh Takt] \(train.name) Hub: \(hNode.id) (#\(hIdx)) -> EstArrAtHub: \(formatTime(estArrAtHub)), Final Hub Dep: \(formatTime(hDep))")
         #endif
+
+        return (hArr, hDep)
+    }
+
+    private func propagateBackward(from hIdx: Int, arrival: Date, train: inout [RailwayTrain].Element, nodes: [RailwayNode], edges: [Edge]) {
+        guard hIdx > 0 else { return }
+        var nextArrivalAtTarget = arrival
+        for j in (0..<hIdx).reversed() {
+            let idNext = train.stops[j+1].stationId
+            let idCur = train.stops[j].stationId
+            let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(from: idCur, to: idNext, train: train, nodes: nodes, edges: edges, isStarting: j==0, isStopping: true)
+            
+            let depTime = nextArrivalAtTarget.addingTimeInterval(-tt)
+            train.stops[j].departure = roundToBusinessSeconds(depTime)
+            
+            let dwell = max(120.0, (Double(train.stops[j].minDwellTime) + (train.stops[j].extraDwellTime ?? 0)) * 60.0)
+            let arrTime = (train.stops[j].departure ?? depTime).addingTimeInterval(-dwell)
+            train.stops[j].arrival = (j > 0) ? roundToBusinessSeconds(arrTime) : nil
+            
+            nextArrivalAtTarget = train.stops[j].arrival ?? (train.stops[j].departure!.addingTimeInterval(-60))
+        }
+    }
+
+    private func propagateForward(from hIdx: Int, departure: Date, train: inout [RailwayTrain].Element, nodes: [RailwayNode], edges: [Edge]) {
+        guard hIdx < train.stops.count - 1 else { return }
+        var currentDeparture = departure
+        for j in (hIdx + 1)..<train.stops.count {
+            let idPrev = train.stops[j-1].stationId
+            let idCur = train.stops[j].stationId
+            let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(from: idPrev, to: idCur, train: train, nodes: nodes, edges: edges, isStarting: false, isStopping: true)
+            
+            let arrTime = currentDeparture.addingTimeInterval(tt)
+            train.stops[j].arrival = roundToBusinessSeconds(arrTime)
+            
+            let dwell = max(120.0, (Double(train.stops[j].minDwellTime) + (train.stops[j].extraDwellTime ?? 0)) * 60.0)
+            let depTime = (train.stops[j].arrival ?? arrTime).addingTimeInterval(dwell)
+            train.stops[j].departure = (j < train.stops.count - 1) ? roundToBusinessSeconds(depTime) : nil
+            
+            if let d = train.stops[j].departure { currentDeparture = d } 
+            else { currentDeparture = (train.stops[j].arrival ?? arrTime).addingTimeInterval(60) }
+        }
+    }
+
+    private func refreshStandardSchedule(train: inout [RailwayTrain].Element, nodes: [RailwayNode], edges: [Edge]) {
+        guard let depTime = train.departureTime else { return }
+        var currentTime = depTime.normalized()
         
         for j in train.stops.indices {
-            let stop = train.stops[j]
             if j == 0 {
                 train.stops[j].arrival = nil
                 train.stops[j].departure = currentTime
-                #if DEBUG
-                print("   Stop 0: \(stop.stationId) → Departure: \(formatTime(currentTime))")
-                #endif
             } else {
                 let prevId = train.stops[j-1].stationId
-                let pathKey = "\(prevId)--\(stop.stationId)"
+                let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(from: prevId, to: train.stops[j].stationId, train: train, nodes: nodes, edges: edges, isStarting: j==1, isStopping: true)
                 
-                // Try bidirectional path finding
-                var pathEdges = pathCache[pathKey]
-                if pathEdges == nil {
-                    pathEdges = NetworkModel.findPathEdges(from: prevId, to: stop.stationId, nodes: nodes, edges: edges, ignoreDirection: false)
-                    
-                    // If no directed path found, try ignoring direction
-                    if pathEdges == nil {
-                        pathEdges = NetworkModel.findPathEdges(from: prevId, to: stop.stationId, nodes: nodes, edges: edges, ignoreDirection: true)
-                    }
-                }
+                currentTime = currentTime.addingTimeInterval(tt)
+                let roundedArr = roundToBusinessSeconds(currentTime)
+                train.stops[j].arrival = roundedArr
                 
-                if let actualPath = pathEdges {
-                    pathCache[pathKey] = actualPath
-                    let dist = actualPath.reduce(0.0) { $0 + $1.distance }
-                    let speed = actualPath.map { Double($0.maxSpeed) }.min() ?? 100.0
-                    
-                    let hours = FDCSchedulerEngine.calculateTravelTime(
-                        distanceKm: dist,
-                        maxSpeedKmh: speed,
-                        train: train,
-                        initialSpeedKmh: 0,
-                        finalSpeedKmh: 0
-                    )
-                    
-                    currentTime = currentTime.addingTimeInterval(hours * 3600)
-                    
-                    train.stops[j].arrival = currentTime
-                    // PIGNOLO FIX: Include extraDwellTime (CTC/AI/GA offsets)
-                    let baseDwell = Double(stop.minDwellTime)
-                    let extraDwell = stop.extraDwellTime
-                    let dwellDuration = (baseDwell + extraDwell) * 60
-                    
-                    currentTime = currentTime.addingTimeInterval(dwellDuration)
-                    train.stops[j].departure = (j < train.stops.count - 1) ? currentTime : nil
-                    
-                    #if DEBUG
-                    let arr = train.stops[j].arrival.map { formatTime($0) } ?? "nil"
-                    let dep = train.stops[j].departure.map { formatTime($0) } ?? "nil"
-                    print("   Stop \(j): \(stop.stationId) → Arrival: \(arr), Departure: \(dep)")
-                    #endif
-                } else {
-                    // FALLBACK: Use estimated time based on distance if no path found
-                    #if DEBUG
-                    print("   ⚠️ Stop \(j): No path found from \(prevId) to \(stop.stationId) - using fallback")
-                    #endif
-                    
-                    // Use 5km fallback distance and 60 km/h speed
-                    let fallbackDist = 5.0
-                    let fallbackSpeed = 60.0
-                    let hours = FDCSchedulerEngine.calculateTravelTime(
-                        distanceKm: fallbackDist,
-                        maxSpeedKmh: fallbackSpeed,
-                        train: train,
-                        initialSpeedKmh: 0,
-                        finalSpeedKmh: 0
-                    )
-                    
-                    currentTime = currentTime.addingTimeInterval(hours * 3600)
-                    train.stops[j].arrival = currentTime
-                    
-                    let baseDwell = Double(stop.minDwellTime)
-                    let extraDwell = stop.extraDwellTime
-                    let dwellDuration = (baseDwell + extraDwell) * 60
-                    
-                    currentTime = currentTime.addingTimeInterval(dwellDuration)
-                    train.stops[j].departure = (j < train.stops.count - 1) ? currentTime : nil
-                    
-                    // Mark train as having a scheduling error
-                    train.schedulingError = "Missing path: \(prevId) → \(stop.stationId)"
-                }
+                let extraDwell = train.stops[j].extraDwellTime ?? 0
+                let dwellDuration = (Double(train.stops[j].minDwellTime) + extraDwell) * 60
+                
+                currentTime = roundedArr.addingTimeInterval(dwellDuration)
+                let roundedDep = roundToBusinessSeconds(currentTime)
+                train.stops[j].departure = (j < train.stops.count - 1) ? roundedDep : nil
+                if let d = train.stops[j].departure { currentTime = d }
             }
         }
     }
@@ -652,6 +1139,35 @@ final class RailwayScheduleOptimizer {
         formatter.dateFormat = "HH:mm:ss"
         return formatter.string(from: date)
     }
+    
+    /// Intervalla i treni per l'elaborazione A* (Andata 1, Ritorno 1, Andata 2, Ritorno 2...)
+    private func interleaveTrainsForAStar(_ trains: [Train]) -> [Train] {
+        guard trains.count > 1 else { return trains }
+        
+        let lineId = trains.first?.lineId
+        let lineTrains = trains.filter { $0.lineId == lineId }
+        
+        // PIGNOLO BOOST: Determine direction by destination if numbers are missing/same
+        let firstDest = lineTrains.first?.stops.last?.stationId
+        let outward = lineTrains.filter { $0.stops.last?.stationId == firstDest }
+        let returns = lineTrains.filter { $0.stops.last?.stationId != firstDest }
+        
+        var interleaved: [Train] = []
+        let maxCount = max(outward.count, returns.count)
+        
+        for i in 0..<maxCount {
+            if i < outward.count { interleaved.append(outward[i]) }
+            if i < returns.count { interleaved.append(returns[i]) }
+        }
+        
+        let others = trains.filter { $0.lineId != lineId }
+        interleaved.append(contentsOf: others)
+        
+        print("   🔄 [A*] Treni intervallati (Andata: \(outward.count), Ritorno: \(returns.count)): \(interleaved.map { $0.name }.joined(separator: ", "))")
+        return interleaved
+    }
+    
+    private let returnStartNumber = 1 // Convenzione di default se non rilevabile
     
     private func minutesDiff(_ t1: Train, _ t2: Train) -> Int {
         guard let d1 = t1.departureTime, let d2 = t2.departureTime else { return 0 }

@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Station Inspector
 struct StationInspectorView: View {
-    @Binding var station: Node
+    @Binding var station: RailwayNode
     @Binding var isMoveModeEnabled: Bool
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var loader: AppLoaderService
@@ -32,6 +32,10 @@ struct StationInspectorView: View {
             EditingModeBanner(isEditingEnabled: $isEditingEnabled)
             
             basicInfoSection
+            
+            // Taktfahrplan section for all stations - crucial for network sync
+            taktfahrplanSection
+            
             hubsSection
             visualStyleSection
             coordinatesSection
@@ -65,9 +69,9 @@ struct StationInspectorView: View {
             InspectorTextField(label: "station_name".localized, text: $station.name)
             
             InspectorPicker(label: "functional_type".localized, selection: $station.type) {
-                Text("standard_station".localized).tag(Node.NodeType.station)
-                Text("interchange".localized).tag(Node.NodeType.interchange)
-                Text("depot".localized).tag(Node.NodeType.depot)
+                Text("standard_station".localized).tag(RailwayNode.NodeType.station)
+                Text("interchange".localized).tag(RailwayNode.NodeType.interchange)
+                Text("depot".localized).tag(RailwayNode.NodeType.depot)
             }
             .pickerStyle(.segmented)
             
@@ -98,6 +102,25 @@ struct StationInspectorView: View {
         }
     }
     
+    private var taktfahrplanSection: some View {
+        InspectorSection(title: "Orario Tipo (Taktfahrplan)", icon: "clock.fill", iconColor: .blue) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Convergenza oraria - arrivi 15' prima, partenze 15' dopo")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Picker("Minuto di convergenza", selection: $station.taktMinutes) {
+                    Text("Nessuno").tag(Int?.none)
+                    Text(":00").tag(Int?.some(0))
+                    Text(":15").tag(Int?.some(15))
+                    Text(":30").tag(Int?.some(30))
+                    Text(":45").tag(Int?.some(45))
+                }
+                .pickerStyle(.segmented)
+            }
+        }
+    }
+    
     private var hubsSection: some View {
         InspectorSection(title: "hubs_interchanges".localized, icon: "arrow.triangle.branch", iconColor: .purple) {
             Picker("belongs_to_hub".localized, selection: $station.parentHubId) {
@@ -121,24 +144,24 @@ struct StationInspectorView: View {
                 .foregroundColor(.secondary)
             
             Picker("hub_position".localized, selection: $station.hubOffsetDirection) {
-                Text("hub_standard_pos".localized).tag(Node.HubOffsetDirection?.none)
-                ForEach(Node.HubOffsetDirection.allCases) { dir in
-                    Text(dir.localizedName).tag(Node.HubOffsetDirection?.some(dir))
+                Text("hub_standard_pos".localized).tag(RailwayNode.HubOffsetDirection?.none)
+                ForEach(RailwayNode.HubOffsetDirection.allCases) { dir in
+                    Text(dir.localizedName).tag(RailwayNode.HubOffsetDirection?.some(dir))
                 }
             }
             .pickerStyle(.segmented)
         }
     }
     
-    private var availableHubs: [Node] {
+    private var availableHubs: [RailwayNode] {
         network.nodes.filter { $0.id != station.id }.sorted { $0.name < $1.name }
     }
     
     private var visualStyleSection: some View {
         InspectorSection(title: "visual_style".localized, icon: "paintbrush.fill", iconColor: .orange) {
             Picker("type".localized, selection: $station.visualType) {
-                ForEach(Node.StationVisualType.allCases) { type in
-                    symbolImage(for: type).tag(Node.StationVisualType?.some(type))
+                ForEach(RailwayNode.StationVisualType.allCases) { type in
+                    symbolImage(for: type).tag(RailwayNode.StationVisualType?.some(type))
                 }
             }
             .pickerStyle(.segmented)
@@ -223,7 +246,7 @@ struct StationInspectorView: View {
     
     // MARK: - Helpers
     
-    private func symbolImage(for type: Node.StationVisualType) -> some View {
+    private func symbolImage(for type: RailwayNode.StationVisualType) -> some View {
         switch type {
         case .filledStar: return Image(systemName: "star.fill")
         case .filledSquare: return Image(systemName: "square.fill")
@@ -264,7 +287,15 @@ struct StationInspectorView: View {
                                     line: line,
                                     allowedTracks: Binding(
                                         get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == dirId }?.allowedTracks ?? [] },
-                                        set: { updateTracks(lineId: line.id, directionId: dirId, tracks: $0) }
+                                        set: { updateTracks(lineId: line.id, directionId: dirId, tracks: $0, type: .allowed) }
+                                    ),
+                                    transitTracks: Binding(
+                                        get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == dirId }?.transitTracks ?? [] },
+                                        set: { updateTracks(lineId: line.id, directionId: dirId, tracks: $0, type: .transit) }
+                                    ),
+                                    stopTracks: Binding(
+                                        get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == dirId }?.stopTracks ?? [] },
+                                        set: { updateTracks(lineId: line.id, directionId: dirId, tracks: $0, type: .stop) }
                                     ),
                                     totalPlatforms: station.platforms ?? 2
                                 )
@@ -329,15 +360,30 @@ struct StationInspectorView: View {
         }.sorted { $0.name < $1.name }
     }
     
-    private func updateTracks(lineId: String, directionId: String?, tracks: [String]) {
+    private enum TrackConfigType {
+        case allowed, transit, stop
+    }
+    
+    private func updateTracks(lineId: String, directionId: String?, tracks: [String], type: TrackConfigType) {
         if let idx = localConstraints.firstIndex(where: { $0.lineId == lineId && $0.directionStationId == directionId }) {
-            if tracks.isEmpty {
+            switch type {
+            case .allowed: localConstraints[idx].allowedTracks = tracks
+            case .transit: localConstraints[idx].transitTracks = tracks
+            case .stop: localConstraints[idx].stopTracks = tracks
+            }
+            
+            // Cleanup
+            if localConstraints[idx].allowedTracks.isEmpty && (localConstraints[idx].transitTracks?.isEmpty ?? true) && (localConstraints[idx].stopTracks?.isEmpty ?? true) {
                 localConstraints.remove(at: idx)
-            } else {
-                localConstraints[idx].allowedTracks = tracks
             }
         } else if !tracks.isEmpty {
-            localConstraints.append(RoutingConstraint(lineId: lineId, directionStationId: directionId, allowedTracks: tracks))
+            var newC = RoutingConstraint(lineId: lineId, directionStationId: directionId, allowedTracks: [])
+            switch type {
+            case .allowed: newC.allowedTracks = tracks
+            case .transit: newC.transitTracks = tracks
+            case .stop: newC.stopTracks = tracks
+            }
+            localConstraints.append(newC)
         }
         station.routingConstraints = localConstraints
     }

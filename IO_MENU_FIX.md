@@ -32,9 +32,13 @@ The editor mode (`EditorModeView`) has its own floating inspector panel (`FdCIns
 
 ## Solution Implemented
 
+Two modifications were needed to fix the Import/Export functionality in editor mode:
+
+### Fix 1: Allow Main Inspector in Editor Mode
+
 Modified the condition in `ContentView.swift` to **allow the inspector panel to show when Import/Export is selected**, even in editor mode:
 
-### ContentView.swift (lines 39-45)
+#### ContentView.swift (lines 39-45)
 
 **Before**:
 ```swift
@@ -63,6 +67,39 @@ if appState.activePanel == .inspector && (appState.currentMode != .editor || app
 - **OR** show inspector panel if `.io` is selected (new behavior) ✅
 
 This allows Import/Export to work in all modes while maintaining the separation between editor-specific inspector and general inspector.
+
+### Fix 2: Hide Editor Inspector When .io Selected
+
+Modified the condition in `EditorModeView.swift` to **hide the editor's FdCInspectorPanel when Import/Export is selected**, preventing conflicts:
+
+#### EditorModeView.swift (FdCInspectorPanel condition)
+
+**Before**:
+```swift
+if ((appState.selectedNodeId != nil && !appState.isMultiSelectMode) || appState.selectedEdgeId != nil) 
+    && appState.selectedLineId == nil 
+    && appState.selectedFerroviaId == nil {
+    FdCInspectorPanel(...)
+}
+```
+
+**After**:
+```swift
+if ((appState.selectedNodeId != nil && !appState.isMultiSelectMode) || appState.selectedEdgeId != nil) 
+    && appState.selectedLineId == nil 
+    && appState.selectedFerroviaId == nil
+    && appState.sidebarSelection != .io {  // ← NEW: Hide when .io selected
+    FdCInspectorPanel(...)
+}
+```
+
+**Why This Is Needed**:
+- The editor's `FdCInspectorPanel` could appear simultaneously with main `InspectorOverlay`
+- Both panels at the same z-index could cause presentation conflicts
+- File pickers (`.fileExporter`, `.fileImporter`) need clear access to the window
+- Hiding editor inspector ensures main inspector has full control for Import/Export
+
+This ensures that when `.io` is selected, only the main `InspectorOverlay` (with `IOManagementView`) is shown, preventing any conflicts with the editor's inspector panel.
 
 ## How It Works Now
 
@@ -94,10 +131,16 @@ This allows Import/Export to work in all modes while maintaining the separation 
 
 ## Files Modified
 
-- **ContentView.swift** (lines 39-45)
-  - Modified inspector panel visibility conditions
-  - Added exception for `.io` sidebar selection
-  - Total change: 2 lines modified (both `if` conditions)
+### 1. ContentView.swift (lines 39-45)
+- Modified inspector panel visibility conditions
+- Added exception for `.io` sidebar selection to allow inspector in editor mode
+- Total change: 2 lines modified (both `if` conditions)
+
+### 2. EditorModeView.swift (FdCInspectorPanel condition)
+- Added condition to hide editor's `FdCInspectorPanel` when `.io` is selected
+- Prevents conflict between editor inspector and main inspector
+- Ensures Import/Export has full access to present file pickers
+- Total change: 1 line added to condition
 
 ## Testing Checklist
 
@@ -114,16 +157,28 @@ To verify this fix works correctly:
 
 ```bash
 git add "FdC Railway Manager/ContentView.swift"
-git commit -m "fix: enable Import/Export inspector panel in editor mode
+git add "FdC Railway Manager/EditorModeView.swift"
+git commit -m "fix: enable Import/Export functionality in editor mode
 
-- Modified inspector panel visibility condition to allow showing when .io is selected
-- Previously, inspector was completely hidden in editor mode, breaking Import/Export
-- Now inspector shows in editor mode ONLY when Import/Export is selected
-- Maintains separation: EditorModeView inspector for nodes/edges, main inspector for I/O
+Two-part fix to allow Import/Export to work in editor mode:
+
+1. ContentView: Allow main inspector to show when .io is selected, even in editor mode
+   - Previously, InspectorOverlay was completely hidden in editor mode
+   - Added condition: (currentMode != .editor || sidebarSelection == .io)
+
+2. EditorModeView: Hide editor's FdCInspectorPanel when .io is selected
+   - Prevents conflict between editor inspector and main inspector
+   - Added condition: && appState.sidebarSelection != .io
+   - Ensures file pickers have clear access to window for presentation
+
+Result:
+- Import/Export now works in all modes (map, editor, live)
+- File exporters/importers can present correctly
 - No conflicts between editor-specific and general inspector panels
+- Maintains proper separation of concerns
 
 Resolves user report: 'dal menu a sinistra la voce import/export non funziona - 
-non si apre nulla'"
+non si apre nulla' + 'ora in inspector IO non funzionano le voci'"
 ```
 
 ## Architecture Notes

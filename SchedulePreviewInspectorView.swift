@@ -77,61 +77,66 @@ struct SchedulePreviewInspectorView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            headerSection
+        ZStack {
+            appState.theme.backgroundSecondary.ignoresSafeArea()
             
-            Divider()
-            
-            // Stats Summary
-            statsSection
-                .padding()
-                .background(Color.blue.opacity(0.05))
-            
-            Divider()
-            
-            // Conflicts Warning (if any)
-            if !conflicts.isEmpty && showConflicts {
-                conflictsSection
-                    .padding()
-                    .background(Color.red.opacity(0.05))
+            VStack(spacing: 0) {
+                // Header
+                headerSection
+                
                 Divider()
-            }
-            
-            // Train List
-            ScrollView {
-                VStack(spacing: 0) {
-                    if !outboundTrains.isEmpty {
-                        directionSection(
-                            title: "🚂 Treni in Partenza",
-                            trains: outboundTrains,
-                            color: .blue
-                        )
-                    }
-                    
-                    if !returnTrains.isEmpty {
-                        Divider()
-                            .padding(.vertical, 12)
-                        
-                        directionSection(
-                            title: "🔄 Treni di Ritorno",
-                            trains: returnTrains,
-                            color: .orange
-                        )
-                    }
+                
+                // Stats Summary
+                statsSection
+                    .padding()
+                    .background(Color.blue.opacity(0.05))
+                
+                Divider()
+                
+                // Conflicts Warning
+                if !conflicts.isEmpty && showConflicts {
+                    conflictsSection
+                        .padding()
+                        .background(Color.red.opacity(0.05))
+                    Divider()
                 }
-                .padding()
+                
+                // Train List
+                ScrollView {
+                    VStack(spacing: 0) {
+                        let outbound = outboundTrains
+                        let returning = returnTrains
+                        
+                        if !outbound.isEmpty {
+                            directionSection(
+                                title: "PARTENZE (ANDATA)",
+                                trains: outbound,
+                                color: .blue
+                            )
+                        }
+                        
+                        if !returning.isEmpty {
+                            Divider()
+                                .padding(.vertical, 16)
+                            
+                            directionSection(
+                                title: "RITORNI",
+                                trains: returning,
+                                color: .orange
+                            )
+                        }
+                    }
+                    .padding()
+                }
+                
+                Divider()
+                
+                // Accept Toggle & Actions
+                actionsSection
+                    .padding()
+                    .background(.ultraThinMaterial)
             }
-            
-            Divider()
-            
-            // Accept Toggle & Actions
-            actionsSection
-                .padding()
-                .background(Color.primary.opacity(0.03))
         }
-        .navigationTitle("Anteprima Orario")
-        .navigationBarTitleDisplayMode(.inline)
     }
     
     private var headerSection: some View {
@@ -246,10 +251,23 @@ struct SchedulePreviewInspectorView: View {
     }
     
     private func directionSection(title: String, trains: [Train], color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.subheadline.bold())
-                .foregroundColor(color)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text(title)
+                    .font(.system(.caption, design: .rounded).bold())
+                    .foregroundColor(color)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(color.opacity(0.1))
+                    .cornerRadius(6)
+                
+                Spacer()
+                
+                Text("\(trains.count) corse")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 4)
             
             ForEach(trains) { train in
                 trainCard(train, color: color)
@@ -258,54 +276,119 @@ struct SchedulePreviewInspectorView: View {
     }
     
     private func trainCard(_ train: Train, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let hasConflict = conflicts.contains { $0.trainAId == train.id || $0.trainBId == train.id }
+        
+        return VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Circle()
-                    .fill(color)
-                    .frame(width: 8, height: 8)
-                
-                Text(train.name)
-                    .font(.subheadline.bold())
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(train.name)
+                            .font(.system(.subheadline, design: .rounded).bold())
+                        
+                        if hasConflict {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.caption2)
+                                .foregroundColor(.red)
+                        }
+                    }
+                    
+                    Text(selectedTrainTypeName(train))
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundColor(.secondary)
+                }
                 
                 Spacer()
                 
-                if let dept = train.departureTime {
-                    Text(formatTime(dept))
-                        .font(.caption.monospacedDigit())
+                // Timeline
+                HStack(spacing: 8) {
+                    if let dept = train.departureTime {
+                        Text(formatTime(dept))
+                            .font(.system(.caption, design: .monospaced).bold())
+                    }
+                    
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 8, weight: .bold))
                         .foregroundColor(.secondary)
+                    
+                    if let arr = train.estimatedArrival {
+                        Text(formatTime(arr))
+                            .font(.system(.caption, design: .monospaced).bold())
+                            .foregroundColor(color)
+                    }
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(0.1))
+                .cornerRadius(20)
                 
-                Image(systemName: "arrow.right")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                
-                if let arr = train.estimatedArrival {
-                    Text(formatTime(arr))
-                        .font(.caption.monospacedDigit())
-                        .foregroundColor(.secondary)
+                // Delete button
+                Button(action: {
+                    withAnimation {
+                        deleteTrain(train.id)
+                    }
+                }) {
+                    Image(systemName: "trash.circle.fill")
+                        .font(.title3)
+                        .foregroundColor(.red.opacity(0.7))
                 }
+                .buttonStyle(.plain)
+                .padding(.leading, 4)
             }
             
-            HStack(spacing: 12) {
-                Label("\(train.stops.count) fermate", systemImage: "mappin.and.ellipse")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+            HStack(spacing: 16) {
+                HStack(spacing: 4) {
+                    Image(systemName: "map.fill")
+                        .font(.system(size: 10))
+                    Text("\(train.stops.count) fermate")
+                }
                 
                 if let duration = train.estimatedArrival, let dept = train.departureTime {
                     let mins = Int(duration.timeIntervalSince(dept) / 60)
-                    Label("\(mins)min", systemImage: "clock")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.fill")
+                            .font(.system(size: 10))
+                        Text("\(mins)min")
+                    }
+                }
+                
+                Spacer()
+                
+                if let vId = train.vehicleId, let vehicle = manager.vehicles.first(where: { $0.id == vId }) {
+                    Text(vehicle.name)
+                        .font(.system(size: 10, weight: .medium))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.1))
+                        .cornerRadius(4)
                 }
             }
+            .font(.system(size: 10))
+            .foregroundColor(.secondary)
         }
-        .padding(12)
-        .background(color.opacity(0.05))
-        .cornerRadius(10)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            // Select the train to show details
-            appState.selectedTrainIds = [train.id]
+        .padding(14)
+        .background(
+            ZStack {
+                if hasConflict {
+                    Color.red.opacity(0.08)
+                } else {
+                    color.opacity(0.06)
+                }
+                
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(hasConflict ? Color.red.opacity(0.2) : color.opacity(0.15), lineWidth: 1)
+            }
+        )
+        .cornerRadius(14)
+    }
+    
+    private func selectedTrainTypeName(_ train: Train) -> String {
+        return TrainCategory(rawValue: train.type)?.localizedName ?? train.type
+    }
+    
+    private func deleteTrain(_ id: UUID) {
+        if var previewTrains = appState.schedulePreviewTrains {
+            previewTrains.removeAll(where: { $0.id == id })
+            appState.schedulePreviewTrains = previewTrains
         }
     }
     

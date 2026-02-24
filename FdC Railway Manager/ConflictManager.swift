@@ -81,23 +81,34 @@ class ConflictManager: ObservableObject {
             
             let capFwd = fwdEdges.reduce(0) { sum, edge in
                 let slots: Int
-                switch edge.trackType {
-                case .single, .regional: slots = 1
-                case .double, .highSpeed: slots = 2
+                if let c = edge.capacity, c > 0 {
+                    slots = c
+                } else {
+                    switch edge.trackType {
+                    case .single, .regional: slots = 1
+                    case .double, .highSpeed: slots = 2
+                    }
                 }
                 return sum + slots
             }
             
             let capBwd = bwdEdges.reduce(0) { sum, edge in
                 let slots: Int
-                switch edge.trackType {
-                case .single, .regional: slots = 1
-                case .double, .highSpeed: slots = 2
+                if let c = edge.capacity, c > 0 {
+                    slots = c
+                } else {
+                    switch edge.trackType {
+                    case .single, .regional: slots = 1
+                    case .double, .highSpeed: slots = 2
+                    }
                 }
                 return sum + slots
             }
             
-            var totalCap = capFwd + capBwd
+            // PIGNOLO FIX: For shared segments, capacity is the maximum number of tracks 
+            // available across both directions, not the sum. 
+            // This ensures "binario unico" (single track) correctly limits to 1 train.
+            var totalCap = max(capFwd, capBwd)
             if totalCap == 0 { totalCap = 1 }
             
             capacities["SEGMENT::\(key)"] = totalCap
@@ -165,7 +176,7 @@ class ConflictManager: ObservableObject {
     }
 
     /// Synchronous version for optimization loops (GA, Cadence, etc.)
-    func calculateConflictsWithCapacities(nodes: [Node], edges: [Edge], trains: [Train], pathCache: inout [String: [Edge]]?) -> ([ScheduleConflict], [String: Int]) {
+    func calculateConflictsWithCapacities(nodes: [RailwayNode], edges: [RailwayEdge], trains: [RailwayTrain], pathCache: inout [String: [RailwayEdge]]?) -> ([ScheduleConflict], [String: Int]) {
         let trackConflicts = calculateTrackConflicts(nodes: nodes, trains: trains)
         let (otherConflicts, capacities) = calculateScheduleConflicts(nodes: nodes, edges: edges, trains: trains, pathCache: &pathCache)
         
@@ -177,7 +188,7 @@ class ConflictManager: ObservableObject {
     // MARK: - Core Logic (Separated)
     
     /// Rileva occupazioni doppie sullo stesso binario specifico
-    private func calculateTrackConflicts(nodes: [Node], trains: [Train]) -> [ScheduleConflict] {
+    private func calculateTrackConflicts(nodes: [RailwayNode], trains: [RailwayTrain]) -> [ScheduleConflict] {
         var conflicts: [ScheduleConflict] = []
         var trackOccupations: [String: [ResourceOccupation]] = [:]
         
@@ -212,7 +223,7 @@ class ConflictManager: ObservableObject {
     }
     
     /// Rileva saturazione tratte o mancanza di binari totali in stazione
-    private func calculateScheduleConflicts(nodes: [Node], edges: [Edge], trains: [Train], pathCache: inout [String: [Edge]]?) -> ([ScheduleConflict], [String: Int]) {
+    private func calculateScheduleConflicts(nodes: [RailwayNode], edges: [RailwayEdge], trains: [RailwayTrain], pathCache: inout [String: [RailwayEdge]]?) -> ([ScheduleConflict], [String: Int]) {
         var conflicts: [ScheduleConflict] = []
         var resourceOccupations: [String: [ResourceOccupation]] = [:]
         let resourceCapacities = getResourceCapacities(nodes: nodes, edges: edges)
@@ -234,7 +245,7 @@ class ConflictManager: ObservableObject {
                     entry: occEntry.normalized(),
                     exit: occExit.normalized(),
                     resId: resId,
-                    bufferMinutes: 1.0
+                    bufferMinutes: 2.0 // PIGNOLO: Aligned with bufferSicurezza
                 )
                 resourceOccupations[resId, default: []].append(occ)
                 
@@ -264,7 +275,7 @@ class ConflictManager: ObservableObject {
                                 entry: currentTime.normalized(), 
                                 exit: exitTime.normalized(), 
                                 resId: segId, 
-                                bufferMinutes: 1.0
+                                bufferMinutes: 2.0 // PIGNOLO: Aligned with bufferSicurezza
                             )
                             resourceOccupations[segId, default: []].append(segOcc)
                             currentTime = exitTime
@@ -309,7 +320,7 @@ class ConflictManager: ObservableObject {
         }
     }
     
-    private func prepareVehicleMissions(trains: [Train]) -> [UUID: [(trainId: UUID, stationId: String, arrival: Date?, departure: Date?)]] {
+    private func prepareVehicleMissions(trains: [RailwayTrain]) -> [UUID: [(trainId: UUID, stationId: String, arrival: Date?, departure: Date?)]] {
         let vehicleGroups = Dictionary(grouping: trains.filter { $0.vehicleId != nil }, by: { $0.vehicleId! })
         var missions: [UUID: [(trainId: UUID, stationId: String, arrival: Date?, departure: Date?)]] = [:]
         
@@ -323,7 +334,7 @@ class ConflictManager: ObservableObject {
         return missions
     }
     
-    private func calculateEffectiveOccupationTimes(train: Train, stop: RelationStop, vehicleMissions: [UUID: [(trainId: UUID, stationId: String, arrival: Date?, departure: Date?)]]) -> (entry: Date, exit: Date) {
+    private func calculateEffectiveOccupationTimes(train: RailwayTrain, stop: RelationStop, vehicleMissions: [UUID: [(trainId: UUID, stationId: String, arrival: Date?, departure: Date?)]]) -> (entry: Date, exit: Date) {
         let defaultBuffer: TimeInterval = 10 * 60 // 10 min default sosta se manca dato
         
         // Safety: Use train's departure time as fallback if stop times are completely missing
@@ -373,7 +384,8 @@ class ConflictManager: ObservableObject {
             
             static func < (lhs: Event, rhs: Event) -> Bool {
                 if lhs.time != rhs.time { return lhs.time < rhs.time }
-                return lhs.isEntry && !rhs.isEntry
+                // PIGNOLO FIX: Process EXITS before ENTRIES to avoid point conflicts at transitions
+                return !lhs.isEntry && rhs.isEntry
             }
         }
         

@@ -13,12 +13,14 @@ struct ScheduleCreationView: View {
     enum ScheduleMode: String, CaseIterable, Identifiable {
         case single = "single_trip"
         case cadenced = "cadenced_trip"
+        case taktfahrplan = "taktfahrplan"
         var id: String { rawValue }
         
         var localizedName: String {
             switch self {
             case .single: return "single_trip".localized
             case .cadenced: return "cadenced_trip".localized
+            case .taktfahrplan: return "Taktfahrplan"
             }
         }
     }
@@ -53,23 +55,35 @@ struct ScheduleCreationView: View {
     
     // Path selection within the line
     @State private var startStationId: String = ""
-    @State private var viaStationIds: [String] = []
     @State private var endStationId: String = ""
     @State private var stationSequence: [String] = []
-    @State private var manualAddition: Bool = false
-    @State private var activePicker: PickerType?
-    @State private var manualStationId: String = ""
-    @State private var isInitializing: Bool = true
+    @State private var isInitializing: Bool = true {
+        didSet {
+            // Fix parity on init
+            if isInitializing {
+                startNumber = (preferredParity == .odd) ? 1 : 2
+                returnStartNumber = (preferredParity == .odd) ? 2 : 1
+            }
+        }
+    }
     
     // Stop Pattern - Track which stops should be skipped
     @State private var skippedStopIds: Set<String> = []
     
+    // Taktfahrplan
+    @State private var taktStationId: String = ""
+    
+    // Computed: useTaktAlignment is true ONLY for Taktfahrplan mode
+    private var useTaktAlignment: Bool {
+        mode == .taktfahrplan
+    }
+    
     // Paired Return
     @State private var scheduleReturn: Bool = true // Enabled by default in this layout
-    @State private var returnStartTime: Date = Date()
-    @State private var returnEndTime: Date = Date().addingTimeInterval(3600 * 4)
-    @State private var returnIntervalMinutes: Int = 60
     @State private var returnStartNumber: Int = 1
+    
+    // Takt / Main Train Flag
+    @State private var isMainLine: Bool = true
     
     // Config
     init(line: RailwayLine, initialMode: ScheduleMode = .single) {
@@ -135,34 +149,42 @@ struct ScheduleCreationView: View {
             handleOnAppear()
         }
         .onChange(of: appState.optimizedTimesConfirmed) { _, confirmed in
-            print("🔔 [onChange] optimizedTimesConfirmed changed to: \(confirmed)")
-            print("   previewData exists: \(appState.optimizedTimesPreviewData != nil)")
-            
             if confirmed, let previewData = appState.optimizedTimesPreviewData {
-                print("✅ [onChange] Applying optimized times and generating schedule")
-                // User confirmed optimized times, apply them and generate trains
                 startTime = previewData.proposedOutboundTime
-                if let returnTime = previewData.proposedReturnTime {
-                    returnStartTime = returnTime
-                }
-                if let interval = previewData.proposedInterval {
-                    intervalMinutes = interval
-                }
-                if let returnInterval = previewData.proposedReturnInterval {
-                    returnIntervalMinutes = returnInterval
-                }
+                endTime = previewData.proposedReturnTime ?? endTime // Use return end as a proxy if it exists
+                intervalMinutes = previewData.proposedInterval ?? intervalMinutes
                 
-                print("   Applied times - Start: \(formatTime(startTime)), Interval: \(intervalMinutes)min")
-                
-                // Clear preview state
                 appState.optimizedTimesPreviewData = nil
                 appState.optimizedTimesConfirmed = false
-                
-                // Now generate the schedule with the confirmed times
-                print("   Launching generateSchedule task...")
                 aiTask = Task { await generateSchedule() }
-            } else {
-                print("⚠️ [onChange] Conditions not met - confirmed: \(confirmed), previewData: \(appState.optimizedTimesPreviewData != nil)")
+            }
+        }
+        .onChange(of: mode) { _, newMode in
+            // Quando si passa a Taktfahrplan, assicura che l'intervallo sia 60 o 120
+            if newMode == .taktfahrplan && intervalMinutes != 60 && intervalMinutes != 120 {
+                intervalMinutes = 120  // Default a 120 minuti
+            }
+        }
+        .onChange(of: startStationId) { _, _ in
+            if !isInitializing {
+                withAnimation {
+                    updateStationSequenceFromSelection()
+                    updatePathCalculations()
+                    updatePreview()
+                    // Reset skipped stops when path changes significantly
+                    skippedStopIds.removeAll()
+                }
+            }
+        }
+        .onChange(of: endStationId) { _, _ in
+            if !isInitializing {
+                withAnimation {
+                    updateStationSequenceFromSelection()
+                    updatePathCalculations()
+                    updatePreview()
+                    // Reset skipped stops when path changes significantly
+                    skippedStopIds.removeAll()
+                }
             }
         }
     }
@@ -226,7 +248,7 @@ struct ScheduleCreationView: View {
             
             VStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 12) {
-                    stationPill(title: "Partenza", id: startStationId, type: .start)
+                    stationPickerRow(title: "Partenza", selection: $startStationId)
                     
                     HStack {
                         Image(systemName: "arrow.down")
@@ -236,29 +258,7 @@ struct ScheduleCreationView: View {
                         Spacer()
                     }
                     
-                    stationPill(title: "Arrivo", id: endStationId, type: .end)
-                }
-                
-                if !viaStationIds.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("VIA").font(.caption2.bold()).foregroundColor(.secondary)
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack {
-                                ForEach(viaStationIds.indices, id: \.self) { idx in
-                                    stationPill(title: nil, id: viaStationIds[idx], type: .via(idx))
-                                }
-                                Button(action: { viaStationIds.append("") }) {
-                                    Image(systemName: "plus.circle.fill")
-                                        .foregroundColor(.blue)
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    Button(action: { viaStationIds.append("") }) {
-                        Label("Aggiungi tappa intermedia", systemImage: "plus.circle")
-                            .font(.caption)
-                    }
+                    stationPickerRow(title: "Arrivo", selection: $endStationId)
                 }
             }
             .padding()
@@ -268,24 +268,79 @@ struct ScheduleCreationView: View {
         }
         .padding(.horizontal)
     }
-
-    private func stationPill(title: String?, id: String, type: PickerType) -> some View {
-        Button(action: { activePicker = type }) {
-            VStack(alignment: .leading, spacing: 2) {
-                if let t = title {
-                    Text(t).font(.caption2).bold().foregroundColor(.secondary)
+    
+    @ViewBuilder
+    private func stationSymbol(for stationId: String, size: CGFloat = 16) -> some View {
+        if let station = network.nodes.first(where: { $0.id == stationId }) {
+            // Interchange stations use double red circle
+            if station.type == .interchange {
+                ZStack {
+                    Circle()
+                        .stroke(Color.red, lineWidth: 2)
+                        .frame(width: size, height: size)
+                    Circle()
+                        .stroke(Color.red, lineWidth: 2)
+                        .frame(width: size * 0.6, height: size * 0.6)
                 }
-                Text(stationName(id))
-                    .font(.headline)
-                    .foregroundColor(id.isEmpty ? .secondary : .primary)
+            } else {
+                let color = station.customColor.flatMap { Color(hex: $0) } ?? .blue
+                
+                switch station.visualType ?? .filledCircle {
+                case .filledCircle:
+                    Circle()
+                        .fill(color)
+                        .frame(width: size, height: size)
+                case .emptyCircle:
+                    Circle()
+                        .stroke(color, lineWidth: 2)
+                        .frame(width: size, height: size)
+                case .filledSquare:
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(color)
+                        .frame(width: size, height: size)
+                case .emptySquare:
+                    RoundedRectangle(cornerRadius: 3)
+                        .stroke(color, lineWidth: 2)
+                        .frame(width: size, height: size)
+                case .filledStar:
+                    Image(systemName: "star.fill")
+                        .foregroundColor(color)
+                        .font(.system(size: size))
+                }
             }
+        } else {
+            Circle()
+                .fill(Color.gray)
+                .frame(width: size, height: size)
+        }
+    }
+    
+    private func stationPickerRow(title: String, selection: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption2.bold())
+                .foregroundColor(.secondary)
+            
+            Picker(title, selection: selection) {
+                ForEach(line.stations, id: \.self) { stationId in
+                    HStack(spacing: 8) {
+                        stationSymbol(for: stationId, size: 14)
+                        Text(stationName(stationId))
+                    }
+                    .tag(stationId)
+                }
+            }
+            .pickerStyle(.menu)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(Color.blue.opacity(0.1))
+            .background(Color.blue.opacity(0.15))
             .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+            )
         }
-        .buttonStyle(.plain)
     }
 
     private var pathInfoRow: some View {
@@ -488,6 +543,109 @@ struct ScheduleCreationView: View {
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
         .padding(.horizontal)
     }
+    
+    private var taktfahrplanSection: some View {
+        let suggestions = calculateTaktSuggestions()
+        let sequenceWithTakt = stationSequence.filter { sid in 
+            network.nodes.first(where: { $0.id == sid })?.taktMinutes != nil 
+        }
+        
+        return Group {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: "clock.badge.checkmark")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Text("TAKTFAHRPLAN (CADENZAMENTO SVIZZERO)")
+                        .font(.system(.caption, design: .rounded).bold())
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                }
+                
+                if !sequenceWithTakt.isEmpty {
+                    // Takt Station Picker
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Hub di Convergenza (Nodi Takt)")
+                            .font(.caption2.bold())
+                            .foregroundColor(.secondary)
+                        
+                        Picker("Stazione Takt", selection: $taktStationId) {
+                            Text("Nessun Hub specifico").tag("")
+                            ForEach(sequenceWithTakt, id: \.self) { sid in
+                                Text(stationName(sid)).tag(sid)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                    
+                    if !taktStationId.isEmpty, let suggestion = suggestions.first(where: { $0.stationId == taktStationId }) {
+                        VStack(spacing: 8) {
+                            HStack {
+                                Text(suggestion.stationName)
+                                    .font(.subheadline.bold())
+                                Spacer()
+                                Text("Minuto :\(String(format: "%02d", suggestion.taktMinute))")
+                                    .font(.caption.bold())
+                                    .foregroundColor(.orange)
+                            }
+                            
+                            HStack(spacing: 12) {
+                                // Arrivals window
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Finestra Arrivi")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                    Text(suggestion.suggestedArrival)
+                                        .font(.caption.bold())
+                                        .foregroundColor(.green)
+                                }
+                                .padding(8)
+                                .background(Color.green.opacity(0.08))
+                                .cornerRadius(8)
+                                
+                                // Departures window
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Finestra Partenze")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                    Text(suggestion.suggestedDeparture)
+                                        .font(.caption.bold())
+                                        .foregroundColor(.blue)
+                                }
+                                .padding(8)
+                                .background(Color.blue.opacity(0.08))
+                                .cornerRadius(8)
+                            }
+                        }
+                        .padding(10)
+                        .background(Color.orange.opacity(0.05))
+                        .cornerRadius(10)
+                    }
+                } else {
+                    Text("Nessuna stazione nel percorso ha un minuto Takt configurato.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .italic()
+                }
+                
+                Text("ℹ️ L'algoritmo cercherà di far convergere i treni tra -15/-5 minuti e ripartire tra +5/+15 minuti rispetto al minuto Takt.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .italic()
+            }
+            .padding()
+            .background(.ultraThinMaterial)
+            .cornerRadius(16)
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.orange.opacity(0.2), lineWidth: 1))
+            .padding(.horizontal)
+            .padding(.top, 8)
+        }
+    }
 
     private var vehicleSelectionMenu: some View {
         Button(action: { showModelSelector = true }) {
@@ -548,51 +706,124 @@ struct ScheduleCreationView: View {
     }
 
     private var cadenceSelectionSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("PROGRAMMAZIONE ORARIA")
+        VStack(alignment: .leading, spacing: 12) {
+            Text("PROGRAMMAZIONE E FINESTRA DI SERVIZIO")
                 .font(.system(.caption, design: .rounded).bold())
                 .foregroundColor(.secondary)
             
             VStack(spacing: 16) {
-                // Genetic Optimizer Toggle
-                Toggle(isOn: $useDepartureOptimizer) {
+                // Genetic Optimizer Toggle - NASCOSTO per Taktfahrplan
+                if mode != .taktfahrplan {
+                    Toggle(isOn: $useDepartureOptimizer) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "brain.head.profile")
+                                .foregroundColor(.purple)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Ottimizzatore Genetico")
+                                    .font(.subheadline.bold())
+                                Text(mode == .single ? 
+                                     "Trova automaticamente gli orari di partenza ottimali" : 
+                                     "Ottimizza orari iniziali e intervalli tra i treni")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .toggleStyle(.switch)
+                    
+                    Divider()
+                }
+                
+                // Main Train Toggle
+                Toggle(isOn: $isMainLine) {
                     HStack(spacing: 8) {
-                        Image(systemName: "brain.head.profile")
-                            .foregroundColor(.purple)
+                        Image(systemName: "star.fill")
+                            .foregroundColor(.yellow)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Ottimizzatore Genetico")
+                            Text("Linea Principale (Takt)")
                                 .font(.subheadline.bold())
-                            Text(mode == .single ? 
-                                 "Trova automaticamente gli orari di partenza ottimali" : 
-                                 "Ottimizza orari iniziali e intervalli tra i treni")
+                            Text("I treni di questa linea hanno la priorità negli hub")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
                     }
                 }
-                .toggleStyle(SwitchToggleStyle(tint: .purple))
-                .padding(.vertical, 8)
+                .toggleStyle(.switch)
                 
-                Divider().background(Color.white.opacity(0.2))
+                Divider()
                 
-                // Outward
-                cadenceBlock(title: directionTitle(isReturn: false), 
-                           isReturn: false,
-                           sTime: $startTime, 
-                           eTime: $endTime, 
-                           interv: $intervalMinutes,
-                           sNum: $startNumber)
-                
-                if scheduleReturn {
-                    Divider().background(Color.white.opacity(0.2))
+                VStack(spacing: 12) {
+                    HStack {
+                        Image(systemName: "clock")
+                            .foregroundColor(.blue)
+                        Text("Inizio Servizio").font(.subheadline)
+                        Spacer()
+                        DatePicker("", selection: $startTime, displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                    }
                     
-                    // Return
-                    cadenceBlock(title: directionTitle(isReturn: true), 
-                               isReturn: true,
-                               sTime: $returnStartTime, 
-                               eTime: $returnEndTime, 
-                               interv: $returnIntervalMinutes,
-                               sNum: $returnStartNumber)
+                    if mode == .cadenced || mode == .taktfahrplan {
+                        HStack {
+                            Image(systemName: "clock.fill")
+                                .foregroundColor(.red)
+                            Text("Fine Servizio").font(.subheadline)
+                            Spacer()
+                            DatePicker("", selection: $endTime, displayedComponents: .hourAndMinute)
+                                .labelsHidden()
+                        }
+                        
+                        HStack {
+                            Image(systemName: "repeat")
+                                .foregroundColor(.green)
+                            Text("Frequenza").font(.subheadline)
+                            Spacer()
+                            if mode == .taktfahrplan {
+                                Picker("", selection: $intervalMinutes) {
+                                    Text("60 min").tag(60)
+                                    Text("120 min").tag(120)
+                                }
+                                .pickerStyle(.segmented)
+                                .frame(width: 180)
+                            } else {
+                                Stepper("\(intervalMinutes)m", value: $intervalMinutes, in: 5...360, step: 5)
+                                    .font(.subheadline.bold())
+                            }
+                        }
+                    }
+                    
+                    Divider().padding(.vertical, 4)
+                    
+                    Toggle(isOn: $scheduleReturn) {
+                        HStack {
+                            Image(systemName: "arrow.left.arrow.right")
+                            Text("Pianifica anche il ritorno").font(.subheadline.bold())
+                        }
+                    }
+                    
+                    HStack {
+                        Text("Parità Numerazione").font(.caption).foregroundColor(.secondary)
+                        Spacer()
+                        Picker("", selection: $preferredParity) {
+                            ForEach(NumberParity.allCases) { parity in
+                                Text(parity.localizedName).tag(parity)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 120)
+                    }
+                    
+                    HStack {
+                        Text("N. Partenza").font(.caption).foregroundColor(.secondary)
+                        Spacer()
+                        TextField("", value: $startNumber, format: .number)
+                            .textFieldStyle(.plain)
+                            .multilineTextAlignment(.trailing)
+                            .font(.subheadline.bold())
+                            .frame(width: 80)
+                            .padding(4)
+                            .background(Color.secondary.opacity(0.1))
+                            .cornerRadius(6)
+                    }
                 }
             }
             .padding()
@@ -603,75 +834,6 @@ struct ScheduleCreationView: View {
         .padding(.horizontal)
     }
     
-    private func cadenceBlock(title: String, isReturn: Bool, sTime: Binding<Date>, eTime: Binding<Date>, interv: Binding<Int>, sNum: Binding<Int>) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: isReturn ? "arrow.left" : "arrow.right")
-                    .font(.caption.bold())
-                    .foregroundColor(.blue)
-                Text(title).font(.subheadline.bold())
-            }
-            
-            HStack {
-                Text("Inizio").font(.caption).foregroundColor(.secondary)
-                Spacer()
-                DatePicker("", selection: sTime, displayedComponents: .hourAndMinute)
-                    .labelsHidden()
-            }
-            
-            if mode == .cadenced {
-                HStack {
-                    Text("Fine").font(.caption).foregroundColor(.secondary)
-                    Spacer()
-                    DatePicker("", selection: eTime, displayedComponents: .hourAndMinute)
-                        .labelsHidden()
-                }
-                
-                HStack {
-                    Text("Frequenza").font(.caption).foregroundColor(.secondary)
-                    Spacer()
-                    Stepper("\(interv.wrappedValue)m", value: interv, in: 5...360, step: 5)
-                        .font(.caption.bold())
-                }
-            }
-            
-            HStack {
-                Text("Parità").font(.caption).foregroundColor(.secondary)
-                Spacer()
-                Picker("", selection: $preferredParity) {
-                    ForEach(NumberParity.allCases) { parity in
-                        Text(parity.localizedName).tag(parity)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 120)
-            }
-            
-            HStack {
-                Text("N. Partenza").font(.caption).foregroundColor(.secondary)
-                Spacer()
-                TextField("", value: sNum, format: .number)
-                    .textFieldStyle(.plain)
-                    .multilineTextAlignment(.trailing)
-                    .font(.subheadline.bold())
-                    .frame(width: 80)
-                    .padding(4)
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(6)
-            }
-            
-            Button(action: { findIdealBaseTime(isReturn: isReturn) }) {
-                HStack {
-                    Image(systemName: "wand.and.stars")
-                    Text(cadenceOptimizer.isRunning ? "Calcolo in corso..." : "Trova slot ideale")
-                }
-                .font(.caption.bold())
-                .foregroundColor(.blue)
-            }
-            .padding(.top, 4)
-            .disabled(cadenceOptimizer.isRunning || stationSequence.count < 2)
-        }
-    }
     
     private func findIdealBaseTime(isReturn: Bool) {
         optimizationStartTime = Date()
@@ -685,26 +847,18 @@ struct ScheduleCreationView: View {
             
             let offset = await cadenceOptimizer.proposeIdealWindow(
                 for: tempLine, 
-                frequency: Double(isReturn ? returnIntervalMinutes : intervalMinutes), 
+                frequency: Double(intervalMinutes), 
                 existingTrains: manager.trains, 
                 network: network
             )
             
             await MainActor.run {
-                if isReturn {
-                    // Apply offset to returnStartTime
-                    let base = normalizeDate(returnStartTime)
-                    let cal = Calendar.current
-                    let baseStartOfDay = cal.startOfDay(for: base)
-                    returnStartTime = baseStartOfDay.addingTimeInterval(offset * 60)
-                } else {
-                    // Apply offset to startTime
-                    let base = normalizeDate(startTime)
-                    let cal = Calendar.current
-                    let baseStartOfDay = cal.startOfDay(for: base)
-                    startTime = baseStartOfDay.addingTimeInterval(offset * 60)
-                    self.localProposedOffset = offset
-                }
+                // Apply offset to unified startTime
+                let base = normalizeDate(startTime)
+                let cal = Calendar.current
+                let baseStartOfDay = cal.startOfDay(for: base)
+                startTime = baseStartOfDay.addingTimeInterval(offset * 60)
+                self.localProposedOffset = offset
                 updatePreview()
             }
         }
@@ -745,6 +899,121 @@ struct ScheduleCreationView: View {
         return calendar.date(from: comps) ?? date
     }
     
+    /// Calculates Taktfahrplan suggestions for stations with configured takt times
+    private func calculateTaktSuggestions() -> [(stationId: String, stationName: String, taktMinute: Int, suggestedArrival: String, suggestedDeparture: String)] {
+        var suggestions: [(String, String, Int, String, String)] = []
+        
+        // Check all stations in the sequence for Taktfahrplan configuration
+        for stationId in stationSequence {
+            guard let station = network.nodes.first(where: { $0.id == stationId }),
+                  let taktMinute = station.taktMinutes else {
+                continue
+            }
+            
+            // Calculate suggested time windows according to Swiss standard:
+            // Takt center +/- 15, leaving 10 minutes gap around the center (+/- 5 from Takt)
+            // Arrivals: [T - 15, T - 5]
+            // Departures: [T + 5, T + 15]
+            
+            let arrS = (taktMinute - 15 + 60) % 60
+            let arrE = (taktMinute - 5 + 60) % 60
+            
+            let depS = (taktMinute + 5) % 60
+            let depE = (taktMinute + 15) % 60
+            
+            let arrivalWindow = String(format: ":%02d-:%02d", arrS, arrE)
+            let departureWindow = String(format: ":%02d-:%02d", depS, depE)
+            
+            suggestions.append((stationId, station.name, taktMinute, arrivalWindow, departureWindow))
+        }
+        
+        return suggestions
+    }
+    
+    private func alignToTakt(isReturn: Bool) {
+        let sequence = isReturn ? Array(stationSequence.reversed()) : stationSequence
+        guard sequence.count >= 2 else { return }
+        
+        // Get stations with Takt info
+        let taktStations = sequence.compactMap { sid -> (String, Int)? in
+            if let node = network.nodes.first(where: { $0.id == sid }), let takt = node.taktMinutes {
+                return (sid, takt)
+            }
+            return nil
+        }
+        
+        guard let firstTakt = taktStations.first else { return }
+        
+        // Calculate estimated travel time from start to this Takt station
+        var totalMinutes: Double = 0
+        var prevId = sequence[0]
+        
+        // Dummy train for timing calculations
+        let dummyTrain = Train(
+            id: UUID(),
+            number: 0,
+            name: "Probe",
+            type: selectedTrainType.rawValue,
+            lineId: nil,
+            departureTime: Date(),
+            stops: [],
+            vehicleId: nil,
+            maxSpeed: Double(selectedTrainType.defaultMaxSpeed),
+            acceleration: 0.5,
+            deceleration: 0.5,
+            mass: 200,
+            power: 2500,
+            priority: 5
+        )
+        
+        for i in 0..<sequence.count {
+            let sid = sequence[i]
+            if sid == firstTakt.0 { break }
+            
+            if i > 0 {
+                var legDist: Double = 0
+                var legSpeed: Double = Double.infinity
+                if let path = network.findPathEdges(from: prevId, to: sid) {
+                    for edge in path {
+                        legDist += edge.distance
+                        legSpeed = min(legSpeed, Double(edge.maxSpeed))
+                    }
+                }
+                
+                if legDist > 0 {
+                    let hours = FDCSchedulerEngine.calculateTravelTime(
+                        distanceKm: legDist,
+                        maxSpeedKmh: legSpeed == .infinity ? 100 : legSpeed,
+                        train: dummyTrain,
+                        initialSpeedKmh: 0,
+                        finalSpeedKmh: 0
+                    )
+                    totalMinutes += (hours * 60) + (35.0 / 60.0) // Leg + Buffer
+                }
+                
+                // Add dwell at previous station
+                let prevNode = network.nodes.first(where: { $0.id == prevId })
+                let dwell = (prevNode?.type == .interchange) ? 5 : 3
+                totalMinutes += Double(dwell)
+            }
+            prevId = sid
+        }
+        
+        // Target: (DepartureMinute + TravelTime) = TaktMinute
+        // DepartureMinute = TaktMinute - TravelTime
+        let targetMinute = (Double(firstTakt.1) - totalMinutes + 3600.0) // Ensure positive
+        let alignedMinute = Int(targetMinute.rounded()) % 60
+        
+        let cal = Calendar.current
+        var comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: startTime)
+        comps.minute = alignedMinute
+        
+        if let newDate = cal.date(from: comps) {
+            startTime = newDate
+            updatePreview()
+        }
+    }
+    
     private func updatePreview() {
         let calendar = Calendar.current
         let start = normalizeDate(startTime)
@@ -763,9 +1032,7 @@ struct ScheduleCreationView: View {
         
         // Return calculations
         if scheduleReturn {
-            let rStart = normalizeDate(returnStartTime)
-            let rEnd = normalizeDate(returnEndTime)
-            total += calculateCount(s: rStart, e: rEnd, interval: returnIntervalMinutes)
+            total += calculateCount(s: start, e: end, interval: intervalMinutes)
         }
         
         previewCount = max(0, total)
@@ -785,7 +1052,6 @@ struct ScheduleCreationView: View {
         print("   mode: \(mode.rawValue)")
         print("   stationSequence.count: \(stationSequence.count)")
         print("   intervalMinutes: \(intervalMinutes) (MUST BE PRESERVED)")
-        print("   returnIntervalMinutes: \(returnIntervalMinutes) (MUST BE PRESERVED)")
         
         // Verifica che ci siano almeno 2 stazioni
         guard stationSequence.count >= 2 else {
@@ -799,6 +1065,12 @@ struct ScheduleCreationView: View {
         // Genera direttamente usando gli orari e frequenze impostati dall'utente
         // L'unica ottimizzazione è trovare lo slot migliore (offset) per ridurre conflitti
         print("   ✅ Generating schedule with USER-SET frequency (no genetic optimization)")
+        
+        // AUTO-TAKTACTIVATION
+        if useTaktAlignment {
+            alignToTakt(isReturn: false)
+        }
+        
         aiTask = Task { await generateSchedule() }
     }
     
@@ -838,26 +1110,53 @@ struct ScheduleCreationView: View {
         if preferredParity == .odd && isEven { currentStart += 1 }
 
         let normalizedStart = normalizeDate(startTime)
-        let normalizedRStartDraft = normalizeDate(returnStartTime)
+        let normalizedRStartDraft = normalizedStart // Symmtrical start for draft
 
         // 1a. Probe Simulation
-        // Use selected vehicle physics if available, otherwise use default
-        let physics: (acceleration: Double, deceleration: Double, maxSpeed: Double)
-        if let vehicle = selectedVehicle {
+        // Use selected model (preferred) or vehicle physics if available, otherwise use default
+        let physics: (acceleration: Double, deceleration: Double, mass: Double, power: Double, maxSpeed: Double)
+        let effectiveVehicle: Vehicle?
+        
+        if let model = selectedModel {
+            // Convert TrainModel to Vehicle
+            let vehicleFromModel = model.toVehicle()
+            effectiveVehicle = vehicleFromModel
+            physics = (
+                acceleration: vehicleFromModel.acceleration,
+                deceleration: vehicleFromModel.deceleration,
+                mass: vehicleFromModel.mass,
+                power: vehicleFromModel.power,
+                maxSpeed: vehicleFromModel.maxSpeed
+            )
+            print("   🚂 Usando modello: \(model.nome) (\(model.costruttore))")
+            print("      Accelerazione: \(vehicleFromModel.acceleration) m/s²")
+            print("      Decelerazione: \(vehicleFromModel.deceleration) m/s²")
+            print("      Massa: \(vehicleFromModel.mass) t")
+            print("      Potenza: \(vehicleFromModel.power) kW")
+            print("      Velocità max: \(vehicleFromModel.maxSpeed) km/h")
+        } else if let vehicle = selectedVehicle {
+            effectiveVehicle = vehicle
             physics = (
                 acceleration: vehicle.acceleration,
                 deceleration: vehicle.deceleration,
+                mass: vehicle.mass,
+                power: vehicle.power,
                 maxSpeed: vehicle.maxSpeed
             )
             print("   🚂 Usando mezzo: \(vehicle.name) (\(vehicle.model))")
             print("      Accelerazione: \(vehicle.acceleration) m/s²")
             print("      Decelerazione: \(vehicle.deceleration) m/s²")
+            print("      Massa: \(vehicle.mass) t")
+            print("      Potenza: \(vehicle.power) kW")
             print("      Velocità max: \(vehicle.maxSpeed) km/h")
         } else {
+            effectiveVehicle = nil
             let defaultPhysics = appState.getPhysics(for: selectedTrainType)
             physics = (
                 acceleration: defaultPhysics.acceleration,
                 deceleration: defaultPhysics.deceleration,
+                mass: 200, // Default mass
+                power: 2500, // Default power
                 maxSpeed: Double(selectedTrainType.defaultMaxSpeed)
             )
             print("   ⚙️ Usando valori di default per tipo: \(selectedTrainType.rawValue)")
@@ -868,7 +1167,7 @@ struct ScheduleCreationView: View {
              $0.originId == line.destinationId && $0.destinationId == line.originId 
         }) ?? line
         
-        let pOutNum = (line.numberPrefix ?? 0) * 1000 + currentStart
+        let pOutNum = (line.numberPrefix ?? 0) * 100 + currentStart
         let probeOut = manager.instantiateTrain(
             number: pOutNum,
             name: "Probe Out",
@@ -878,11 +1177,13 @@ struct ScheduleCreationView: View {
             stationSequence: stationSequence,
             acceleration: physics.acceleration,
             deceleration: physics.deceleration,
+            mass: physics.mass,
+            power: physics.power,
             preferredTrack: "1",
             skippedStopIds: skippedStopIds
         )
         
-            let pRetNum = (rLineObj.numberPrefix ?? 0) * 1000 + (currentStart + 1)
+            let pRetNum = (rLineObj.numberPrefix ?? line.numberPrefix ?? 0) * 100 + returnStartNumber
         let probeReturn = manager.instantiateTrain(
             number: pRetNum,
             name: "Probe Return",
@@ -892,6 +1193,8 @@ struct ScheduleCreationView: View {
             stationSequence: Array(stationSequence.reversed()),
             acceleration: physics.acceleration,
             deceleration: physics.deceleration,
+            mass: physics.mass,
+            power: physics.power,
             preferredTrack: "2",
             skippedStopIds: skippedStopIds
         )
@@ -915,7 +1218,7 @@ struct ScheduleCreationView: View {
         for i in 0..<outwardIterations {
             let departureTime = calendar.date(byAdding: .minute, value: i * intervalMinutes, to: normalizedStart) ?? normalizedStart
             let outwardNumber = currentStart + (i * 2)
-            let finalNumber = (line.numberPrefix ?? 0) * 1000 + outwardNumber
+            let finalNumber = (line.numberPrefix ?? 0) * 100 + outwardNumber
             
             let outwardTrain = manager.instantiateTrain(
                 number: finalNumber,
@@ -925,9 +1228,12 @@ struct ScheduleCreationView: View {
                 stationSequence: stationSequence,
                 acceleration: physics.acceleration,
                 deceleration: physics.deceleration,
+                mass: physics.mass,
+                power: physics.power,
                 preferredTrack: "1",
-                vehicleId: selectedVehicle?.id,
-                skippedStopIds: skippedStopIds
+                vehicleId: effectiveVehicle?.id,
+                skippedStopIds: skippedStopIds,
+                isMainTrain: isMainLine
             )
             #if DEBUG
             print("🚂 [GEN] Created outward train \(outwardTrain.name) with \(outwardTrain.stops.count) stops, departure: \(departureTime)")
@@ -937,8 +1243,8 @@ struct ScheduleCreationView: View {
         
         // 3. GENERATE RETURN
         if scheduleReturn {
-            let normalizedRStart = normalizeDate(returnStartTime)
-            let normalizedREnd = normalizeDate(returnEndTime)
+            let normalizedRStart = normalizeDate(startTime)
+            let normalizedREnd = normalizeDate(endTime)
             
             let returnIterations: Int
             if mode == .single { returnIterations = 1 }
@@ -946,13 +1252,13 @@ struct ScheduleCreationView: View {
                 let sMin = calendar.component(.hour, from: normalizedRStart) * 60 + calendar.component(.minute, from: normalizedRStart)
                 var eMin = calendar.component(.hour, from: normalizedREnd) * 60 + calendar.component(.minute, from: normalizedREnd)
                 if eMin < sMin { eMin += 24 * 60 }
-                returnIterations = (eMin - sMin) / returnIntervalMinutes + 1
+                returnIterations = (eMin - sMin) / intervalMinutes + 1
             }
             
             for i in 0..<returnIterations {
-                let departureTime = calendar.date(byAdding: .minute, value: i * returnIntervalMinutes, to: normalizedRStart) ?? normalizedRStart
+                let departureTime = calendar.date(byAdding: .minute, value: i * intervalMinutes, to: normalizedRStart) ?? normalizedRStart
                 let returnNumber = returnStartNumber + (i * 2)
-                let finalNumber = (rLineObj.numberPrefix ?? 0) * 1000 + returnNumber
+                let finalNumber = (rLineObj.numberPrefix ?? line.numberPrefix ?? 0) * 100 + returnNumber
                 
                 let returnTrain = manager.instantiateTrain(
                     number: finalNumber,
@@ -962,13 +1268,13 @@ struct ScheduleCreationView: View {
                     stationSequence: Array(stationSequence.reversed()),
                     acceleration: physics.acceleration,
                     deceleration: physics.deceleration,
+                    mass: physics.mass,
+                    power: physics.power,
                     preferredTrack: "2",
-                    vehicleId: selectedVehicle?.id,
-                    skippedStopIds: skippedStopIds
+                    vehicleId: effectiveVehicle?.id,
+                    skippedStopIds: skippedStopIds,
+                    isMainTrain: isMainLine
                 )
-                #if DEBUG
-                print("🚂 [GEN] Created return train \(returnTrain.name) with \(returnTrain.stops.count) stops, departure: \(departureTime)")
-                #endif
                 generatedTrains.append(returnTrain)
             }
         }
@@ -1012,6 +1318,12 @@ struct ScheduleCreationView: View {
         aiStatus = "starting_pipeline".localized
         optimizationStartTime = Date()
         
+        // PIGNOLO UI FIX: Chiudi la tastiera e attendi un ciclo di runloop per evitare glitch RTIInputSystemClient
+        #if canImport(UIKit)
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        #endif
+        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s di pausa per stabilità UI
+        
         // PIGNOLO PROTOCOL: Integration of new unified pipeline
         // PIGNOLO PROTOCOL: Capture thread-safe copies of nodes/edges while on MainActor
         let nodesCopy = network.nodes
@@ -1019,15 +1331,16 @@ struct ScheduleCreationView: View {
         
         print("🔧 [GEN] Avvio pipeline con \(generatedTrains.count) treni, \(nodesCopy.count) nodi, \(edgesCopy.count) edges")
         
-        // Usa la pipeline semplificata senza ottimizzazione genetica
+        // Usa il pipeline unificato con le opzioni selezionate
         let optimizedTrains = await RailwayScheduleOptimizer.shared.executePipeline(
             newTrains: generatedTrains,
-            existingTrains: manager.trains,
+            existingTrains: manager.trains.filter { $0.lineId != line.id },
             nodes: nodesCopy,
             edges: edgesCopy,
-            useAI: false,  // Disabilitato AI
-            useGA: false,  // Disabilitato GA
-            geneticOptimizer: nil
+            useAI: false,  // AI Cloud opzionale, per ora off per velocità
+            useGA: useDepartureOptimizer, // Usa il toggle dell'utente
+            geneticOptimizer: nil,
+            preferredTaktNodeId: mode == .taktfahrplan && !taktStationId.isEmpty ? taktStationId : nil
         )
         
         print("✅ [GEN] Pipeline completed, returned \(optimizedTrains.count) trains")
@@ -1229,9 +1542,9 @@ struct ScheduleCreationView: View {
             name: "Tempo Stimato",
             type: selectedTrainType.rawValue,
             lineId: nil,
+            departureTime: nil,
             stops: [],
             vehicleId: nil,
-            departureTime: nil,
             maxSpeed: Double(selectedTrainType.defaultMaxSpeed),
             acceleration: 0.5,
             deceleration: 0.5,
@@ -1315,29 +1628,6 @@ struct ScheduleCreationView: View {
         .onAppear {
             handleOnAppear()
         }
-        .sheet(item: $activePicker) { item in
-            Group {
-                switch item {
-                case .start:
-                    StationPickerView(selectedStationId: $startStationId, whitelistIds: line.stations)
-                case .via(let idx):
-                    StationPickerView(selectedStationId: $viaStationIds[idx], whitelistIds: line.stations)
-                case .end:
-                    StationPickerView(selectedStationId: $endStationId, whitelistIds: line.stations)
-                case .manual:
-                    StationPickerView(selectedStationId: $manualStationId, linkedToStationId: stationSequence.last, whitelistIds: line.stations)
-                }
-            }
-            .environmentObject(network)
-            .environmentObject(appState)
-            .environmentObject(manager)
-        }
-        .onChange(of: manualStationId) { old, new in
-            if !new.isEmpty {
-                stationSequence.append(new)
-                manualStationId = ""
-            }
-        }
         .onChange(of: startStationId) { old, new in
             // Don't override station sequence during initialization
             guard !isInitializing else { return }
@@ -1345,10 +1635,6 @@ struct ScheduleCreationView: View {
             if !new.isEmpty && !endStationId.isEmpty {
                 // Build station sequence from line.stations between start and end
                 updateStationSequenceFromSelection()
-            } else if !new.isEmpty {
-                if stationSequence.isEmpty || !manualAddition {
-                    stationSequence = [new]
-                }
             }
         }
         .onChange(of: endStationId) { old, new in
@@ -1364,9 +1650,6 @@ struct ScheduleCreationView: View {
         .onChange(of: startTime) { _ in updatePreview() }
         .onChange(of: endTime) { _ in updatePreview() }
         .onChange(of: intervalMinutes) { _ in updatePreview() }
-        .onChange(of: returnStartTime) { _ in updatePreview() }
-        .onChange(of: returnEndTime) { _ in updatePreview() }
-        .onChange(of: returnIntervalMinutes) { _ in updatePreview() }
         .onChange(of: scheduleReturn) { _ in updatePreview() }
         .onChange(of: stationSequence) { _, newSeq in
             if appState.useCloudAI && newSeq.count >= 2 {
@@ -1378,6 +1661,14 @@ struct ScheduleCreationView: View {
             
             updatePathCalculations()
             updatePreview()
+        }
+        .onChange(of: preferredParity) { _, newValue in
+            startNumber = (newValue == .odd) ? 1 : 2
+            returnStartNumber = (newValue == .odd) ? 2 : 1
+        }
+        .onChange(of: startNumber) { _, newValue in
+            // Keep return start logic
+            returnStartNumber = (newValue % 2 == 0) ? 1 : 2
         }
     }
     
@@ -1399,8 +1690,14 @@ struct ScheduleCreationView: View {
             .padding(.top, 8)
 
             stationSelectSection
-            pathInfoRow
+            
             stopPatternSection
+            
+            pathInfoRow
+            
+            if mode == .taktfahrplan {
+                taktfahrplanSection
+            }
             
             generateReturnToggle
             
@@ -1508,6 +1805,10 @@ struct ScheduleCreationView: View {
         // Mark initialization as complete to allow onChange handlers to work
         isInitializing = false
         
+        // Initial calculations for the default full-line path
+        updatePathCalculations()
+        updatePreview()
+        
         // Debug: Check optimized times state
         print("🔍 [handleOnAppear] Checking optimized times state:")
         print("   optimizedTimesConfirmed: \(appState.optimizedTimesConfirmed)")
@@ -1518,14 +1819,8 @@ struct ScheduleCreationView: View {
             print("✅ [handleOnAppear] Found confirmed optimized times, applying and generating...")
             // Apply optimized times
             startTime = previewData.proposedOutboundTime
-            if let returnTime = previewData.proposedReturnTime {
-                returnStartTime = returnTime
-            }
             if let interval = previewData.proposedInterval {
                 intervalMinutes = interval
-            }
-            if let returnInterval = previewData.proposedReturnInterval {
-                returnIntervalMinutes = returnInterval
             }
             
             // Clear preview state
@@ -1542,10 +1837,7 @@ struct ScheduleCreationView: View {
             print("ℹ️ [handleOnAppear] No optimized times to apply, proceeding with normal init")
         }
         
-        // Sync return times
-        returnStartTime = startTime
-        returnEndTime = endTime
-        returnIntervalMinutes = intervalMinutes
+        // Initial setup complete
         
         presetTrainType()
         updateSuggestedVehicles()
@@ -1946,7 +2238,13 @@ struct ScheduleCreationView: View {
         let numberOfStops = stationSequence.count
         let averageStopDistance = totalDistance / Double(max(numberOfStops - 1, 1))
         let maxLineSpeed = Double(selectedTrainType.defaultMaxSpeed)
-        let frequency = mode == .cadenced ? intervalMinutes : nil
+        let frequency: Int?
+        switch mode {
+        case .single:
+            frequency = nil
+        case .cadenced, .taktfahrplan:
+            frequency = intervalMinutes  // Taktfahrplan: 60 o 120 minuti
+        }
         
         return LineCharacteristics(
             totalDistance: totalDistance,
@@ -2117,9 +2415,9 @@ struct ScheduleCreationView: View {
             name: "",
             type: selectedTrainType.rawValue,
             lineId: nil,
+            departureTime: nil,
             stops: [],
             vehicleId: nil,
-            departureTime: nil,
             maxSpeed: Double(selectedTrainType.defaultMaxSpeed),
             acceleration: 0.5,
             deceleration: 0.5,

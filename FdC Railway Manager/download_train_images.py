@@ -10,6 +10,11 @@ from PIL import Image
 from io import BytesIO
 import time
 
+# Wikimedia richiede un User-Agent descrittivo
+HEADERS = {
+    "User-Agent": "FdCRailwayManager/1.0 (https://github.com/michelebigi/FdC-Railway-Manager)"
+}
+
 # Mapping dei modelli di treno alle ricerche su Wikimedia
 TRAIN_MODELS = {
     # Alstom Pop
@@ -55,6 +60,13 @@ TRAIN_MODELS = {
     # Locomotive
     "Locomotiva_E464": "E.464 locomotiva elettrica",
 
+    # InterCity Europei
+    "DB_BR101_IC": "DB Class 101 InterCity train",
+    "OBB_Railjet": "ÖBB Railjet Siemens Taurus",
+    "SBB_IC2000": "SBB Re 460 IC2000 train",
+    "SBB_RABe503": "SBB RABe 503 Eurocity",
+    "PKP_Husarz": "PKP Intercity EU44 Husarz",
+
     # TSR
     "Treno_Servizio_Regionale_TSR": "TSR Hitachi treno regionale",
 }
@@ -73,7 +85,7 @@ def search_wikimedia_commons(search_term):
     }
 
     try:
-        response = requests.get(api_url, params=params, timeout=10)
+        response = requests.get(api_url, params=params, headers=HEADERS, timeout=10)
         data = response.json()
 
         if "query" in data and "search" in data["query"]:
@@ -99,7 +111,7 @@ def get_image_url(file_title):
     }
 
     try:
-        response = requests.get(api_url, params=params, timeout=10)
+        response = requests.get(api_url, params=params, headers=HEADERS, timeout=10)
         data = response.json()
 
         pages = data.get("query", {}).get("pages", {})
@@ -114,7 +126,7 @@ def get_image_url(file_title):
 def download_and_resize_image(url, output_path, target_width=800):
     """Scarica e ridimensiona l'immagine"""
     try:
-        response = requests.get(url, timeout=15)
+        response = requests.get(url, headers=HEADERS, timeout=15)
         img = Image.open(BytesIO(response.content))
 
         # Converti in RGB se necessario
@@ -171,7 +183,9 @@ def main():
     temp_dir = Path("/tmp/train_images")
     temp_dir.mkdir(exist_ok=True)
 
-    assets_dir = Path("FdC Railway Manager/Assets.xcassets")
+    assets_dir = Path("Assets.xcassets")
+    if not assets_dir.exists():
+        assets_dir = Path("FdC Railway Manager/Assets.xcassets")
 
     success_count = 0
     failed_count = 0

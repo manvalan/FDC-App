@@ -24,14 +24,50 @@ final class InfrastructureService {
     // MARK: - Ferrovia Management
     
     /// Crea una nuova ferrovia dalla selezione di stazioni
-    func createFerrovia(name: String, stationIds: [String], color: String?) -> Result<Ferrovia, InfrastructureError> {
+    func createFerrovia(name: String, stationIds: [String], color: String?, electrification: ElectrificationType = .dc3kv) -> Result<Ferrovia, InfrastructureError> {
         // Valida il percorso
         switch validateFerroviaPath(stationIds) {
         case .success:
-            let ferrovia = Ferrovia(name: name, color: color, stationIds: stationIds)
+            let ferrovia = Ferrovia(name: name, color: color, stationIds: stationIds, electrification: electrification)
+            // Propagate electrification to nodes and edges immediately
+            propagateElectrification(to: ferrovia)
             return .success(ferrovia)
         case .failure(let error):
             return .failure(error)
+        }
+    }
+    
+    /// Propaga il tipo di elettrificazione della ferrovia a tutti i nodi e binari che ne fanno parte
+    func propagateElectrification(to ferrovia: Ferrovia) {
+        // 1. Update nodes
+        for stationId in ferrovia.stationIds {
+            if let nodeIdx = network.nodes.firstIndex(where: { $0.id == stationId }) {
+                network.nodes[nodeIdx].electrification = ferrovia.electrification
+            }
+        }
+        
+        // 2. Update edges (including junctions between stations)
+        for i in 0..<ferrovia.stationIds.count - 1 {
+            let fromId = ferrovia.stationIds[i]
+            let toId = ferrovia.stationIds[i + 1]
+            
+            if let pathResult = findPath(from: fromId, to: toId) {
+                // All nodes in the path (including junctions)
+                for node in pathResult.nodes {
+                    if let nodeIdx = network.nodes.firstIndex(where: { $0.id == node.id }) {
+                        network.nodes[nodeIdx].electrification = ferrovia.electrification
+                    }
+                }
+                
+                // All edges in the path
+                for segment in pathResult.segments {
+                    if let edgeIdx = network.edges.firstIndex(where: { $0.from == segment.from && $0.to == segment.to }) {
+                        network.edges[edgeIdx].electrification = ferrovia.electrification
+                    } else if let edgeIdx = network.edges.firstIndex(where: { $0.from == segment.to && $0.to == segment.from }) {
+                        network.edges[edgeIdx].electrification = ferrovia.electrification
+                    }
+                }
+            }
         }
     }
     
@@ -157,10 +193,22 @@ final class InfrastructureService {
                 return PathResult(nodes: nodes, totalDistance: distSoFar, segments: segments)
             }
             
-            // Explore neighbors
+            // Explore neighbors (bidirectional - consider edges in both directions)
             let outEdges = network.edges.filter { $0.from == currentId }
+            let inEdges = network.edges.filter { $0.to == currentId }
+            
+            // Outgoing edges (normal direction)
             for edge in outEdges {
                 let targetId = edge.to
+                let newDist = distSoFar + edge.distance
+                var newPath = path
+                newPath.append(targetId)
+                queue.append((targetId, newDist, newPath))
+            }
+            
+            // Incoming edges (reverse direction - treat as bidirectional)
+            for edge in inEdges {
+                let targetId = edge.from
                 let newDist = distSoFar + edge.distance
                 var newPath = path
                 newPath.append(targetId)
@@ -203,10 +251,32 @@ final class InfrastructureService {
         return allPaths
     }
     
+    // MARK: - Electrification Queries
+    
+    /// Verifica se un percorso (sequenza di stazioni) è interamente elettrificato
+    func checkPathElectrification(stationIds: [String]) -> Bool {
+        guard stationIds.count >= 2 else { return true }
+        
+        for i in 0..<(stationIds.count - 1) {
+            let from = stationIds[i]
+            let to = stationIds[i+1]
+            guard let path = findPath(from: from, to: to) else { continue }
+            
+                for segment in path.segments {
+                    if let edge = network.edges.first(where: { ($0.from == segment.from && $0.to == segment.to) || ($0.from == segment.to && $0.to == segment.from) }) {
+                        if !edge.electrification.isElectrified {
+                            return false
+                        }
+                    }
+                }
+        }
+        return true
+    }
+    
     // MARK: - Topology Queries
     
     /// Ottiene tutti i nodi connessi a un dato nodo
-    func getConnectedNodes(nodeId: String, includingJunctions: Bool = true) -> [Node] {
+    func getConnectedNodes(nodeId: String, includingJunctions: Bool = true) -> [RailwayNode] {
         let connectedIds = network.getConnectedNodeIds(for: nodeId)
         let nodes = connectedIds.compactMap { id in
             network.nodes.first(where: { $0.id == id })
@@ -236,7 +306,7 @@ final class InfrastructureService {
     }
     
     /// Genera segmenti per un singolo edge
-    func generateSegments(for edge: Edge) -> [TrackSegment] {
+    func generateSegments(for edge: RailwayEdge) -> [TrackSegment] {
         let blockLength: Double = {
             switch edge.trackType {
             case .highSpeed: return 2.7

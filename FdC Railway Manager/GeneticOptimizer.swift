@@ -18,14 +18,14 @@ class GeneticOptimizer: ObservableObject {
     private let config = Config()
     
     @MainActor
-    func optimize(newTrains: [Train], existingTrains: [Train], nodes: [Node], edges: [Edge], iterations: Int? = nil) async -> [Train] {
+    func optimize(newTrains: [RailwayTrain], existingTrains: [RailwayTrain], nodes: [RailwayNode], edges: [Edge], iterations: Int? = nil) async -> [RailwayTrain] {
         prepareForOptimization()
         
         // 1. Pre-processing & Filtering
         let relevantFixedTrains = spatialFilter(newTrains: newTrains, existing: existingTrains, edges: edges)
         let allowedTracks = precalculateAllowedTracks(allTrains: newTrains + relevantFixedTrains, nodes: nodes)
         let paths = precalculatePaths(allTrains: newTrains + relevantFixedTrains, edges: edges)
-        let transitTimes = precalculateTransitTimes(allTrains: newTrains + relevantFixedTrains, edges: edges, paths: paths)
+        let transitTimes = precalculateTransitTimes(allTrains: newTrains + relevantFixedTrains, nodes: nodes, edges: edges, paths: paths)
         
         let liteFixed = relevantFixedTrains.map { ScheduleTransformer.convertToLite(train: $0) }
         let liteNew = newTrains.map { ScheduleTransformer.convertToLite(train: $0) }
@@ -110,12 +110,12 @@ class GeneticOptimizer: ObservableObject {
         self.currentGeneration = gen
     }
     
-    private func spatialFilter(newTrains: [Train], existing: [Train], edges: [Edge]) -> [Train] {
+    private func spatialFilter(newTrains: [RailwayTrain], existing: [RailwayTrain], edges: [Edge]) -> [RailwayTrain] {
         let focusResources = Set(newTrains.flatMap { $0.getResourceKeys(edges: edges) })
         return existing.filter { !Set($0.getResourceKeys(edges: edges)).isDisjoint(with: focusResources) }
     }
     
-    private func precalculateAllowedTracks(allTrains: [Train], nodes: [Node]) -> [UUID: [Set<String>]] {
+    private func precalculateAllowedTracks(allTrains: [RailwayTrain], nodes: [RailwayNode]) -> [UUID: [Set<String>]] {
         var results: [UUID: [Set<String>]] = [:]
         for train in allTrains {
             var stopConstraints: [Set<String>] = []
@@ -135,7 +135,7 @@ class GeneticOptimizer: ObservableObject {
         return results
     }
     
-    private func precalculatePaths(allTrains: [Train], edges: [Edge]) -> [UUID: [[Edge]?]] {
+    private func precalculatePaths(allTrains: [RailwayTrain], edges: [Edge]) -> [UUID: [[Edge]?]] {
         var results: [UUID: [[Edge]?]] = [:]
         for train in allTrains {
             var trainPaths: [[Edge]? ] = []
@@ -153,30 +153,32 @@ class GeneticOptimizer: ObservableObject {
         return results
     }
     
-    private func precalculateTransitTimes(allTrains: [Train], edges: [Edge], paths: [UUID: [[Edge]?]]) -> [UUID: [Double]] {
+    private func precalculateTransitTimes(allTrains: [RailwayTrain], nodes: [RailwayNode], edges: [Edge], paths: [UUID: [[Edge]?]]) -> [UUID: [Double]] {
         var results: [UUID: [Double]] = [:]
         for train in allTrains {
             var times: [Double] = []
+            var prevId = train.stops.first?.stationId ?? ""
             for j in train.stops.indices {
-                if j == 0 { times.append(0) }
-                else {
-                    let path = paths[train.id]?[j]
-                    let dist = path?.reduce(0.0) { $0 + $1.distance } ?? 0.0
-                    let minSpeedLimit = path?.reduce(Double.infinity) { min($0, Double($1.maxSpeed)) } ?? 100.0
-                    
-                    if dist > 0 {
-                        let vMax = min(Double(train.maxSpeed), minSpeedLimit) / 3.6
-                        let distM = dist * 1000.0
-                        let (a, d) = (train.acceleration, train.deceleration)
-                        let t: Double
-                        if (vMax * vMax / (2*a)) + (vMax * vMax / (2*d)) <= distM {
-                            t = (vMax/a) + (distM - (vMax*vMax/(2*a)) - (vMax*vMax/(2*d))) / vMax + (vMax/d)
-                        } else {
-                            let vPeak = sqrt((2.0 * a * d * distM) / (a + d))
-                            t = (vPeak / a) + (vPeak / d)
-                        }
-                        times.append(t)
-                    } else { times.append(0) }
+                if j == 0 { 
+                    times.append(0) 
+                    prevId = train.stops[j].stationId
+                } else {
+                    let currentId = train.stops[j].stationId
+                    if let path = paths[train.id]?[j], !path.isEmpty {
+                        let hours = FDCSchedulerEngine.calculatePathTravelTime(
+                            edges: path, 
+                            train: train, 
+                            nodes: nodes, 
+                            isStarting: true, 
+                            isStopping: true, 
+                            startNodeId: prevId, 
+                            endNodeId: currentId
+                        ) / 3600.0
+                        times.append(hours * 3600)
+                    } else { 
+                        times.append(0) 
+                    }
+                    prevId = currentId
                 }
             }
             results[train.id] = times
@@ -270,7 +272,7 @@ class GeneticOptimizer: ObservableObject {
 }
 
 // Estensione per ottenere le chiavi delle risorse
-extension Train {
+extension RailwayTrain {
     func getResourceKeys(edges: [Edge]) -> [String] {
         var resources: [String] = []
         var prevId: String? = nil

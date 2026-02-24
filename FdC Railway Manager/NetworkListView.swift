@@ -11,6 +11,19 @@ struct NetworkListView: View {
     @State private var mode: NetworkListMode = .stations
     @State private var showDeleteAllConfirmation = false
     
+    // ViewModels
+    private var stationVM: StationListViewModel {
+        StationListViewModel(network: network, appState: appState, selectedNode: $selectedNode)
+    }
+    
+    private var trackVM: TrackListViewModel {
+        TrackListViewModel(network: network, appState: appState, selectedEdgeId: $selectedEdgeId)
+    }
+    
+    private var ferroviaVM: FerroviaListViewModel {
+        FerroviaListViewModel(network: network, appState: appState)
+    }
+    
     init(network: NetworkModel, selectedNode: Binding<Node?>, selectedEdgeId: Binding<String?>, initialMode: NetworkListMode? = nil) {
         self.network = network
         self._selectedNode = selectedNode
@@ -22,10 +35,15 @@ struct NetworkListView: View {
     enum NetworkListMode: String, CaseIterable, Identifiable {
         case stations = "stations"
         case tracks = "tracks"
+        case ferrovie = "ferrovie"
         var id: String { rawValue }
         
         var localizedName: String {
-            self.rawValue.localized
+            switch self {
+            case .stations: return "Stazioni"
+            case .tracks: return "Binari"
+            case .ferrovie: return "Ferrovie"
+            }
         }
     }
     
@@ -39,27 +57,28 @@ struct NetworkListView: View {
             .pickerStyle(.segmented)
             .padding()
             
-            if mode == .stations {
+            switch mode {
+            case .stations:
                 stationsListView
-            } else {
+            case .tracks:
                 tracksListView
+            case .ferrovie:
+                ferrovieListView
             }
         }
     }
     
     private var stationsListView: some View {
         FdCEntityList(
-            title: String(format: "stations_count".localized, network.nodes.count),
-            items: network.sortedNodes,
+            title: String(format: "stations_count".localized, stationVM.items.count),
+            items: stationVM.items,
             selectedItemId: Binding(
                 get: { selectedNode?.id },
                 set: { _ in }
             ),
             rowContent: { node in
                 HStack {
-                    Circle()
-                        .fill(node.type == .station ? Color.blue : Color.orange)
-                        .frame(width: 8, height: 8)
+                    NetworkSymbols.stationSymbol(for: node, size: 12)
                     Text(node.name ?? node.id)
                         .font(.subheadline)
                     Spacer()
@@ -70,51 +89,25 @@ struct NetworkListView: View {
                     }
                 }
             },
-            searchText: { $0.name ?? $0.id },
-            onSelect: { station in
-                selectedNode = station
-                appState.showPanel(.inspector)
-            },
-            onAdd: {
-                let newStation = Node(
-                    id: UUID().uuidString,
-                    name: String(format: "station_default_name".localized, network.nodes.count + 1),
-                    type: .station,
-                    latitude: 42.0,
-                    longitude: 12.5,
-                    platforms: 2
-                )
-                network.nodes.append(newStation)
-                selectedNode = newStation
-                network.createCheckpoint()
-                appState.showPanel(.inspector)
-            },
-            onDelete: { station in
-                network.removeNode(station.id)
-                if selectedNode?.id == station.id {
-                    selectedNode = nil
-                }
-                network.createCheckpoint()
-            },
-            onDeleteAll: {
-                network.nodes.removeAll()
-                network.edges.removeAll()
-                selectedNode = nil
-                network.createCheckpoint()
-            }
+            searchText: stationVM.searchText,
+            onSelect: stationVM.onSelect,
+            onAdd: stationVM.onAdd,
+            onDelete: stationVM.onDelete,
+            onDeleteAll: stationVM.onDeleteAll
         )
     }
     
     private var tracksListView: some View {
         FdCEntityList(
-            title: String(format: "tracks_count".localized, network.edges.count),
-            items: network.sortedEdges,
+            title: String(format: "tracks_count".localized, trackVM.items.count),
+            items: trackVM.items,
             selectedItemId: Binding(
                 get: { selectedEdgeId },
                 set: { selectedEdgeId = $0 }
             ),
             rowContent: { edge in
-                HStack {
+                HStack(spacing: 8) {
+                    NetworkSymbols.trackSymbol(for: edge.trackType, width: 24, height: 12)
                     let fromName = network.nodes.first(where: { $0.id == edge.from })?.name ?? edge.from
                     let toName = network.nodes.first(where: { $0.id == edge.to })?.name ?? edge.to
                     Text("\(fromName) → \(toName)")
@@ -125,31 +118,38 @@ struct NetworkListView: View {
                         .foregroundColor(.secondary)
                 }
             },
-            searchText: { edge in
-                let fromName = network.nodes.first(where: { $0.id == edge.from })?.name ?? edge.from
-                let toName = network.nodes.first(where: { $0.id == edge.to })?.name ?? edge.to
-                return "\(fromName) \(toName)"
-            },
-            onSelect: { track in
-                selectedEdgeId = track.id.uuidString
-                appState.showPanel(.inspector)
-            },
-            onAdd: { 
-                appState.isCreatingTrack = true
-                appState.showPanel(.inspector)
-            },
-            onDelete: { track in
-                network.removeEdge(from: track.from, to: track.to)
-                if selectedEdgeId == track.id.uuidString {
-                    selectedEdgeId = nil
+            searchText: trackVM.searchText,
+            onSelect: trackVM.onSelect,
+            onAdd: trackVM.onAdd,
+            onDelete: trackVM.onDelete,
+            onDeleteAll: trackVM.onDeleteAll
+        )
+    }
+    
+    private var ferrovieListView: some View {
+        FdCEntityList(
+            title: String(format: "Ferrovie: %d", ferroviaVM.items.count),
+            items: ferroviaVM.items,
+            selectedItemId: Binding(
+                get: { appState.selectedFerroviaId },
+                set: { appState.selectedFerroviaId = $0 }
+            ),
+            rowContent: { ferrovia in
+                HStack {
+                    NetworkSymbols.ferroviaSymbol(color: ferrovia.color, size: 12)
+                    Text(ferrovia.name)
+                        .font(.subheadline)
+                    Spacer()
+                    Text("\(ferrovia.stationIds.count) stazioni")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
                 }
-                network.createCheckpoint()
             },
-            onDeleteAll: {
-                network.edges.removeAll()
-                selectedEdgeId = nil
-                network.createCheckpoint()
-            }
+            searchText: ferroviaVM.searchText,
+            onSelect: ferroviaVM.onSelect,
+            onAdd: ferroviaVM.onAdd,
+            onDelete: ferroviaVM.onDelete,
+            onDeleteAll: ferroviaVM.onDeleteAll
         )
     }
 }

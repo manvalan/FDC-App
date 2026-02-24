@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct StationEditView: View {
-    @Binding var station: Node
+    @Binding var station: RailwayNode
     @Binding var isMoveModeEnabled: Bool
     @EnvironmentObject var appState: AppState
     private var railroad: RailroadNetwork { appState.railroad }
@@ -12,7 +12,7 @@ struct StationEditView: View {
     
     var onDelete: (() -> Void)? = nil
     @State private var showDeleteConfirmation = false
-    @State private var initialStation: Node? 
+    @State private var initialStation: RailwayNode? 
     @State private var isRoutingSheetPresented = false
     
     // Local copy to avoid crashes with List animations and parent bindings
@@ -27,7 +27,7 @@ struct StationEditView: View {
         lines.lines.first(where: { $0.id == lineId })?.stops.contains(where: { $0.stationId == station.id }) ?? false
     }
     
-    private func possibleNextStations(for lineId: String) -> [Node] {
+    private func possibleNextStations(for lineId: String) -> [RailwayNode] {
         guard !lineId.isEmpty, let line = lines.lines.first(where: { $0.id == lineId }) else { return [] }
         let stopIndices = line.stops.enumerated().filter { $0.element.stationId == station.id }.map { $0.offset }
         
@@ -40,7 +40,7 @@ struct StationEditView: View {
         return network.nodes.filter { nextIds.contains($0.id) }.sorted { $0.name < $1.name }
     }
     
-    private var availableHubs: [Node] {
+    private var availableHubs: [RailwayNode] {
         network.nodes.filter { $0.id != station.id }.sorted { $0.name < $1.name }
     }
     
@@ -191,9 +191,9 @@ struct StationEditView: View {
             TextField("station_name".localized, text: $station.name).textFieldStyle(.roundedBorder)
             
             Picker("functional_type".localized, selection: $station.type) {
-                Text("standard_station".localized).tag(Node.NodeType.station)
-                Text("interchange".localized).tag(Node.NodeType.interchange)
-                Text("depot".localized).tag(Node.NodeType.depot)
+                Text("standard_station".localized).tag(RailwayNode.NodeType.station)
+                Text("interchange".localized).tag(RailwayNode.NodeType.interchange)
+                Text("depot".localized).tag(RailwayNode.NodeType.depot)
             }
             .pickerStyle(.segmented)
             
@@ -238,9 +238,9 @@ struct StationEditView: View {
                         .foregroundColor(appState.theme.medium)
                     
                     Picker("hub_position".localized, selection: $station.hubOffsetDirection) {
-                        Text("hub_standard_pos".localized).tag(Node.HubOffsetDirection?.none)
-                        ForEach(Node.HubOffsetDirection.allCases) { dir in 
-                            Text(dir.localizedName).tag(Node.HubOffsetDirection?.some(dir)) 
+                        Text("hub_standard_pos".localized).tag(RailwayNode.HubOffsetDirection?.none)
+                        ForEach(RailwayNode.HubOffsetDirection.allCases) { dir in 
+                            Text(dir.localizedName).tag(RailwayNode.HubOffsetDirection?.some(dir)) 
                         }
                     }
                     .pickerStyle(.segmented)
@@ -267,7 +267,7 @@ struct StationEditView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("visual_style".localized.uppercased()).font(.caption.bold()).foregroundColor(appState.theme.medium)
             Picker("type".localized, selection: $station.visualType) {
-                ForEach(Node.StationVisualType.allCases) { type in symbolImage(for: type).tag(Node.StationVisualType?.some(type)) }
+                ForEach(RailwayNode.StationVisualType.allCases) { type in symbolImage(for: type).tag(RailwayNode.StationVisualType?.some(type)) }
             }
             .pickerStyle(.segmented)
             HStack {
@@ -347,7 +347,7 @@ struct StationEditView: View {
     }
     
     @ViewBuilder
-    private func symbolImage(for type: Node.StationVisualType) -> some View {
+    private func symbolImage(for type: RailwayNode.StationVisualType) -> some View {
         switch type {
         case .filledStar: Image(systemName: "star.fill")
         case .filledSquare: Image(systemName: "square.fill")
@@ -384,9 +384,15 @@ struct StationEditView: View {
                                     line: line,
                                     allowedTracks: Binding(
                                         get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == dirId }?.allowedTracks ?? [] },
-                                        set: { newTracks in
-                                            updateTracks(lineId: line.id, directionId: dirId, tracks: newTracks)
-                                        }
+                                        set: { updateTracks(lineId: line.id, directionId: dirId, tracks: $0, type: .allowed) }
+                                    ),
+                                    transitTracks: Binding(
+                                        get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == dirId }?.transitTracks ?? [] },
+                                        set: { updateTracks(lineId: line.id, directionId: dirId, tracks: $0, type: .transit) }
+                                    ),
+                                    stopTracks: Binding(
+                                        get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == dirId }?.stopTracks ?? [] },
+                                        set: { updateTracks(lineId: line.id, directionId: dirId, tracks: $0, type: .stop) }
                                     ),
                                     totalPlatforms: station.platforms ?? 2
                                 )
@@ -406,7 +412,15 @@ struct StationEditView: View {
                                     line: line,
                                     allowedTracks: Binding(
                                         get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == nil }?.allowedTracks ?? [] },
-                                        set: { updateTracks(lineId: line.id, directionId: nil, tracks: $0) }
+                                        set: { updateTracks(lineId: line.id, directionId: nil, tracks: $0, type: .allowed) }
+                                    ),
+                                    transitTracks: Binding(
+                                        get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == nil }?.transitTracks ?? [] },
+                                        set: { updateTracks(lineId: line.id, directionId: nil, tracks: $0, type: .transit) }
+                                    ),
+                                    stopTracks: Binding(
+                                        get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == nil }?.stopTracks ?? [] },
+                                        set: { updateTracks(lineId: line.id, directionId: nil, tracks: $0, type: .stop) }
                                     ),
                                     totalPlatforms: station.platforms ?? 2
                                 )
@@ -431,15 +445,30 @@ struct StationEditView: View {
         return line.stops.last?.stationId == station.id
     }
     
-    private func updateTracks(lineId: String, directionId: String?, tracks: [String]) {
+    private enum TrackConfigType {
+        case allowed, transit, stop
+    }
+    
+    private func updateTracks(lineId: String, directionId: String?, tracks: [String], type: TrackConfigType) {
         if let idx = localConstraints.firstIndex(where: { $0.lineId == lineId && $0.directionStationId == directionId }) {
-            if tracks.isEmpty {
+            switch type {
+            case .allowed: localConstraints[idx].allowedTracks = tracks
+            case .transit: localConstraints[idx].transitTracks = tracks
+            case .stop: localConstraints[idx].stopTracks = tracks
+            }
+            
+            // Cleanup: se tutto è vuoto rimuovi
+            if localConstraints[idx].allowedTracks.isEmpty && (localConstraints[idx].transitTracks?.isEmpty ?? true) && (localConstraints[idx].stopTracks?.isEmpty ?? true) {
                 localConstraints.remove(at: idx)
-            } else {
-                localConstraints[idx].allowedTracks = tracks
             }
         } else if !tracks.isEmpty {
-            localConstraints.append(RoutingConstraint(lineId: lineId, directionStationId: directionId, allowedTracks: tracks))
+            var newC = RoutingConstraint(lineId: lineId, directionStationId: directionId, allowedTracks: [])
+            switch type {
+            case .allowed: newC.allowedTracks = tracks
+            case .transit: newC.transitTracks = tracks
+            case .stop: newC.stopTracks = tracks
+            }
+            localConstraints.append(newC)
         }
         station.routingConstraints = localConstraints
     }
@@ -450,48 +479,66 @@ struct RoutingLineRow: View {
     @EnvironmentObject var appState: AppState
     let line: RailwayLine
     @Binding var allowedTracks: [String]
+    @Binding var transitTracks: [String]
+    @Binding var stopTracks: [String]
     let totalPlatforms: Int
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 HStack(spacing: 6) {
                     Circle().fill(Color(hex: line.color ?? "#666666") ?? .gray).frame(width: 8, height: 8)
                     Text(line.name).font(.subheadline.bold())
                 }
                 Spacer()
-                if !allowedTracks.isEmpty {
-                    Text(allowedTracks.joined(separator: ", "))
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundColor(appState.theme.accent)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(appState.theme.accent.opacity(0.1)).cornerRadius(4)
-                }
             }
             
-            HStack(spacing: 8) {
-                ForEach(1...totalPlatforms, id: \.self) { num in
-                    let track = "\(num)"
-                    let isSelected = allowedTracks.contains(track)
-                    
-                    Button(action: {
-                        if isSelected {
-                            allowedTracks.removeAll { $0 == track }
-                        } else {
-                            allowedTracks.append(track)
-                        }
-                    }) {
-                        Text(track)
-                            .font(.caption.bold())
-                            .frame(width: 28, height: 28)
-                            .background(isSelected ? appState.theme.accent : appState.theme.backgroundSecondary)
-                            .foregroundColor(isSelected ? .white : appState.theme.dark)
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                }
+            // 1. Binari per Transito
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Transito (Prioritario)", systemImage: "bolt.horizontal.fill")
+                    .font(.system(size: 9, weight: .bold)).foregroundColor(.orange)
+                trackSelector(for: $transitTracks, color: .orange)
+            }
+            
+            // 2. Binari per Sosta / Origine
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Sosta / Origine (Prioritario)", systemImage: "parkingsign.circle.fill")
+                    .font(.system(size: 9, weight: .bold)).foregroundColor(.blue)
+                trackSelector(for: $stopTracks, color: .blue)
+            }
+            
+            // 3. Altri binari ammessi
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Ammessi (Generico)", systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 9, weight: .bold)).foregroundColor(.secondary)
+                trackSelector(for: $allowedTracks, color: appState.theme.accent)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
+    }
+    
+    private func trackSelector(for tracks: Binding<[String]>, color: Color) -> some View {
+        HStack(spacing: 6) {
+            ForEach(1...totalPlatforms, id: \.self) { num in
+                let track = "\(num)"
+                let isSelected = tracks.wrappedValue.contains(track)
+                
+                Button(action: {
+                    if isSelected {
+                        tracks.wrappedValue.removeAll { $0 == track }
+                    } else {
+                        tracks.wrappedValue.append(track)
+                    }
+                }) {
+                    Text(track)
+                        .font(.system(size: 10, weight: .bold))
+                        .frame(width: 24, height: 24)
+                        .background(isSelected ? color : appState.theme.backgroundSecondary)
+                        .foregroundColor(isSelected ? .white : appState.theme.dark)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 }

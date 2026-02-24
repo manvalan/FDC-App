@@ -25,6 +25,7 @@ struct ContentView: View {
         ZStack {
             // 1. BACKGROUND: THE MAP / CONTENT (Full Screen)
             detailContent
+                .background(appState.theme.background)
             
             // 2. OVERLAYS: MODES & NAVIGATION
             if appState.activePanel == .modeBar {
@@ -35,11 +36,11 @@ struct ContentView: View {
                 SidebarOverlay()
             }
             
-            if appState.isWidePanelVisible && appState.activePanel == .inspector && appState.currentMode != .editor {
+            if appState.isWidePanelVisible && appState.activePanel == .inspector && (appState.currentMode != .editor || appState.sidebarSelection == .io) {
                 WidePanelOverlay()
             }
             
-            if appState.activePanel == .inspector && appState.currentMode != .editor {
+            if appState.activePanel == .inspector && (appState.currentMode != .editor || appState.sidebarSelection == .io) {
                 InspectorOverlay()
             }
             

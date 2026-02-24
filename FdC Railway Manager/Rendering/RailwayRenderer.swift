@@ -27,6 +27,8 @@ final class RailwayRenderer {
             renderJunction(node, context: context, style: JunctionStyle(base: style, showInProfile: true))
         case .interchange:
             renderHub(node, context: context, style: HubStyle(base: style, showConnectionLines: false))
+        case .depot:
+            renderStation(node, context: context, style: StationStyle(base: style, shape: .square, showTracks: true))
         }
     }
     
@@ -37,14 +39,26 @@ final class RailwayRenderer {
         
         VStack(spacing: 2) {
             // Station shape
-            shapeForStation(style.shape)
-                .fill(style.base.fillColor)
-                .frame(width: style.base.size, height: style.base.size)
-                .overlay(
-                    shapeForStation(style.shape)
-                        .stroke(style.base.strokeColor, lineWidth: style.base.strokeWidth)
-                )
-                .shadow(color: style.base.isHighlighted ? .orange.opacity(0.5) : .black.opacity(0.2), radius: style.base.isHighlighted ? 4 : 2)
+            Group {
+                switch style.shape {
+                case .circle:
+                    Circle()
+                        .fill(style.base.fillColor)
+                        .frame(width: style.base.size, height: style.base.size)
+                        .overlay(Circle().stroke(style.base.strokeColor, lineWidth: style.base.strokeWidth))
+                case .square:
+                    Rectangle()
+                        .fill(style.base.fillColor)
+                        .frame(width: style.base.size, height: style.base.size)
+                        .overlay(Rectangle().stroke(style.base.strokeColor, lineWidth: style.base.strokeWidth))
+                case .diamond:
+                    DiamondShape()
+                        .fill(style.base.fillColor)
+                        .frame(width: style.base.size, height: style.base.size)
+                        .overlay(DiamondShape().stroke(style.base.strokeColor, lineWidth: style.base.strokeWidth))
+                }
+            }
+            .shadow(color: style.base.isHighlighted ? Color.orange.opacity(0.5) : Color.black.opacity(0.2), radius: style.base.isHighlighted ? 4 : 2)
             
             // Label
             if style.base.showLabel && !node.name.isEmpty {
@@ -79,11 +93,11 @@ final class RailwayRenderer {
         
         VStack(spacing: 2) {
             // Hub shape (diamond)
-            diamondShape()
+            DiamondShape()
                 .fill(style.base.fillColor)
                 .frame(width: style.base.size, height: style.base.size)
                 .overlay(
-                    diamondShape()
+                    DiamondShape()
                         .stroke(style.base.strokeColor, lineWidth: style.base.strokeWidth)
                 )
                 .shadow(color: .black.opacity(0.3), radius: 3)
@@ -174,7 +188,7 @@ final class RailwayRenderer {
             
             // Station and junction markers
             ForEach(points) { point in
-                altitudePointMarker(
+                self.altitudePointMarker(
                     point: point,
                     in: geometry,
                     pixelsPerKm: pixelsPerKm,
@@ -213,22 +227,6 @@ final class RailwayRenderer {
     }
     
     // MARK: - Private Helpers
-    
-    @ViewBuilder
-    private func shapeForStation(_ shape: StationStyle.StationShape) -> some Shape {
-        switch shape {
-        case .circle:
-            Circle()
-        case .square:
-            Rectangle()
-        case .diamond:
-            diamondShape()
-        }
-    }
-    
-    private func diamondShape() -> some Shape {
-        DiamondShape()
-    }
     
     @ViewBuilder
     private func gridBackground(in geometry: GeometryProxy, style: AltitudeProfileStyle) -> some View {

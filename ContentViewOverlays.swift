@@ -244,17 +244,18 @@ struct ModernInspectorPanel: View {
                     } else if let lineId = appState.creationLineId, let line = appState.railroad.lines.lines.first(where: { $0.id == lineId }) {
                         ScheduleCreationView(line: line)
                             .id("create-schedule-\(lineId)")
-                    } else if let node = appState.selectedNode {
+                    } else if let node = appState.selectedNode, let index = appState.railroad.network.nodes.firstIndex(where: { $0.id == node.id }) {
                         ScrollView {
-                            StationInlineEditor(
-                                node: Binding(
-                                    get: { appState.selectedNode ?? node },
-                                    set: { newNode in
-                                        if let idx = appState.railroad.network.nodes.firstIndex(where: { $0.id == node.id }) {
-                                            appState.railroad.network.nodes[idx] = newNode
-                                        }
-                                    }
-                                )
+                            StationInspectorView(
+                                station: Binding(
+                                    get: { appState.railroad.network.nodes[index] },
+                                    set: { appState.railroad.network.nodes[index] = $0 }
+                                ),
+                                isMoveModeEnabled: .constant(false),
+                                onDelete: {
+                                    appState.railroad.network.removeNode(node.id)
+                                    appState.selectedNodeId = nil
+                                }
                             )
                             .padding(16)
                         }
@@ -292,17 +293,37 @@ struct ModernInspectorPanel: View {
                             }
                         }
                     } else if let edgeId = appState.selectedEdgeId,
-                              let edge = appState.railroad.network.edges.first(where: { $0.id.uuidString == edgeId }) {
+                              let index = appState.railroad.network.edges.firstIndex(where: { $0.id.uuidString == edgeId }) {
                         ScrollView {
-                            TrackInlineEditor(
+                            TrackInspectorView(
                                 edge: Binding(
-                                    get: { appState.railroad.network.edges.first(where: { $0.id == edge.id }) ?? edge },
-                                    set: { newEdge in
-                                        if let idx = appState.railroad.network.edges.firstIndex(where: { $0.id == edge.id }) {
-                                            appState.railroad.network.edges[idx] = newEdge
-                                        }
-                                    }
-                                )
+                                    get: { appState.railroad.network.edges[index] },
+                                    set: { appState.railroad.network.edges[index] = $0 }
+                                ),
+                                onDelete: {
+                                    let edge = appState.railroad.network.edges[index]
+                                    appState.railroad.network.removeEdge(from: edge.from, to: edge.to)
+                                    appState.selectedEdgeId = nil
+                                },
+                                onBack: nil
+                            )
+                            .padding(16)
+                        }
+                    } else if let ferroviaId = appState.selectedFerroviaId,
+                              let index = appState.railroad.network.ferrovie.firstIndex(where: { $0.id == ferroviaId }) {
+                        ScrollView {
+                            FerroviaInspectorView(
+                                ferrovia: Binding(
+                                    get: { appState.railroad.network.ferrovie[index] },
+                                    set: { appState.railroad.network.ferrovie[index] = $0 }
+                                ),
+                                onDelete: {
+                                    appState.railroad.network.ferrovie.remove(at: index)
+                                    appState.selectedFerroviaId = nil
+                                    appState.selectedNodeIds.removeAll()
+                                    appState.selectedNodeIdsOrder.removeAll()
+                                },
+                                onBack: nil
                             )
                             .padding(16)
                         }
@@ -376,19 +397,36 @@ struct ModernInspectorPanel: View {
                                 }
                             }
                         } else if let edgeId = appState.selectedEdgeId,
-                                  let edge = appState.railroad.network.edges.first(where: { $0.id.uuidString == edgeId }) {
-                            TrackInlineEditor(
+                                  let index = appState.railroad.network.edges.firstIndex(where: { $0.id.uuidString == edgeId }) {
+                            TrackInspectorView(
                                 edge: Binding(
-                                    get: { appState.railroad.network.edges.first(where: { $0.id == edge.id }) ?? edge },
-                                    set: { newEdge in
-                                        if let idx = appState.railroad.network.edges.firstIndex(where: { $0.id == edge.id }) {
-                                            appState.railroad.network.edges[idx] = newEdge
-                                        }
-                                    }
-                                )
+                                    get: { appState.railroad.network.edges[index] },
+                                    set: { appState.railroad.network.edges[index] = $0 }
+                                ),
+                                onDelete: {
+                                    let edge = appState.railroad.network.edges[index]
+                                    appState.railroad.network.removeEdge(from: edge.from, to: edge.to)
+                                    appState.selectedEdgeId = nil
+                                },
+                                onBack: nil
                             )
                         } else if !appState.selectedTrainIds.isEmpty, let trainId = appState.selectedTrainIds.first, let train = linesManager.trains.first(where: { $0.id == trainId }) {
                             TrainDetailView(train: train)
+                        } else if let ferroviaId = appState.selectedFerroviaId,
+                                  let index = appState.railroad.network.ferrovie.firstIndex(where: { $0.id == ferroviaId }) {
+                            FerroviaInspectorView(
+                                ferrovia: Binding(
+                                    get: { appState.railroad.network.ferrovie[index] },
+                                    set: { appState.railroad.network.ferrovie[index] = $0 }
+                                ),
+                                onDelete: {
+                                    appState.railroad.network.ferrovie.remove(at: index)
+                                    appState.selectedFerroviaId = nil
+                                    appState.selectedNodeIds.removeAll()
+                                    appState.selectedNodeIdsOrder.removeAll()
+                                },
+                                onBack: nil
+                            )
                         } else if let vehicle = appState.selectedVehicle {
                             VehicleInspectorView(vehicle: vehicle)
                         } else {
@@ -561,51 +599,64 @@ struct ModernInspectorPanel: View {
     
     private var ferrovieList: some View {
         let ferrovie = appState.railroad.network.sortedFerrovie
-        return FdCEntityList(
-                title: String(format: "Ferrovie: %d", ferrovie.count),
-                items: ferrovie,
-                selectedItemId: Binding(
-                    get: { appState.selectedFerroviaId },
-                    set: { appState.selectedFerroviaId = $0 }
-                ),
-                rowContent: { ferrovia in
-                    HStack {
-                        Circle()
-                            .fill(ferrovia.uiColor)
-                            .frame(width: 8, height: 8)
-                        Text(ferrovia.name)
-                            .font(.subheadline)
-                        Spacer()
-                        Text("\(ferrovia.stationIds.count) stazioni")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                },
-                searchText: { $0.name },
-                onSelect: { ferrovia in
-                    appState.selectedFerroviaId = ferrovia.id
-                    appState.selectedNodeIds = Set(ferrovia.stationIds)
-                    appState.selectedNodeIdsOrder = ferrovia.stationIds
-                    appState.selectedNodeId = nil
-                    appState.selectedEdgeId = nil
-                    appState.selectedLineId = nil
-                },
-                onAdd: {
+        
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Ferrovie").font(.headline).foregroundColor(appState.theme.dark)
+                Spacer()
+                Button(action: {
                     appState.isMultiSelectMode = true
-                },
-                onDelete: { ferrovia in
-                    if appState.selectedFerroviaId == ferrovia.id {
-                        appState.selectedFerroviaId = nil
-                    }
-                    appState.railroad.network.ferrovie.removeAll { $0.id == ferrovia.id }
-                    appState.railroad.network.createCheckpoint()
-                },
-                onDeleteAll: {
-                    appState.railroad.network.ferrovie.removeAll()
-                    appState.selectedFerroviaId = nil
-                    appState.railroad.network.createCheckpoint()
+                }) {
+                    Label("Nuova", systemImage: "plus.circle.fill").font(.subheadline.bold())
                 }
-            )
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(appState.theme.accent)
+                .foregroundColor(.white)
+                .cornerRadius(20)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
+            
+            List {
+                ForEach(ferrovie) { ferrovia in
+                    FerroviaRowContent(ferrovia: ferrovia)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            if isListEditMode == .inactive {
+                                appState.selectedFerroviaId = ferrovia.id
+                                appState.selectedNodeIds = Set(ferrovia.stationIds)
+                                appState.selectedNodeIdsOrder = ferrovia.stationIds
+                                appState.selectedNodeId = nil
+                                appState.selectedEdgeId = nil
+                                appState.selectedLineId = nil
+                            }
+                        }
+                        .onLongPressGesture(minimumDuration: 0.5) {
+                            withAnimation {
+                                isListEditMode = (isListEditMode == .active) ? .inactive : .active
+                            }
+                        }
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
+                .onDelete { indexSet in
+                    for index in indexSet {
+                        let ferrovia = ferrovie[index]
+                        if appState.selectedFerroviaId == ferrovia.id {
+                            appState.selectedFerroviaId = nil
+                        }
+                        appState.railroad.network.ferrovie.removeAll { $0.id == ferrovia.id }
+                        appState.railroad.network.createCheckpoint()
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .environment(\.editMode, $isListEditMode)
+        }
     }
     
     private var relazioniList: some View {

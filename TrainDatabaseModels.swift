@@ -91,8 +91,8 @@ class TrainDatabaseManager: ObservableObject {
     }
     
     /// Crea un Vehicle dall'entry del database
-    func createVehicle(from entry: TrainDatabaseEntry) -> Vehicle {
-        Vehicle(
+    func createVehicle(from entry: TrainDatabaseEntry) -> RailwayVehicle {
+        RailwayVehicle(
             name: entry.nome,
             model: entry.tipo,
             length: 200, // Default, può essere calcolato dalla massa

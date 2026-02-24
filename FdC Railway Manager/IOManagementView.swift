@@ -10,7 +10,6 @@ struct IOManagementView: View {
     
     @State private var showExporter = false
     @State private var showInfrastructureExporter = false
-    @State private var importMode: ImportMode? = nil
     @State private var importError: String? = nil
     @State private var stationJsonInput = ""
     @State private var stationImportMessage: String? = nil
@@ -50,57 +49,133 @@ struct IOManagementView: View {
         .fileImporter(isPresented: isImporting, allowedContentTypes: [.json, .fdc, .railml, .rail]) { result in
             do {
                 let url = try result.get()
-                
+                print("🔵 [IO DEBUG] File picker returned URL: \(url.absoluteString)")
                 UserDefaults.standard.set(url.absoluteString, forKey: "lastOpenedURL")
                 
                 guard url.startAccessingSecurityScopedResource() else {
+                    print("🔴 [IO DEBUG] Security scoped resource access FAILED")
                     importError = "security_scoped_error".localized
                     return
                 }
+                print("✅ [IO DEBUG] Security scoped resource access granted")
                 
                 defer {
                     url.stopAccessingSecurityScopedResource()
-                    Task {
+                    Task { @MainActor in
                         await loader.saveCurrentState()
                     }
                 }
                 
                 let data = try Data(contentsOf: url)
-                let decoder = JSONDecoder()
-                decoder.dateDecodingStrategy = .iso8601
+                let ext = url.pathExtension.lowercased()
+                print("🔵 [IO DEBUG] File loaded: \(data.count) bytes, extension: \(ext)")
                 
-                guard let mode = importMode else { return }
+                guard let mode = appState.ioImportMode else {
+                    print("🔴 [IO DEBUG] Import mode is nil!")
+                    return
+                }
+                print("🔵 [IO DEBUG] Import mode: \(mode)")
+                
                 switch mode {
                 case .infrastructure:
-                    if url.pathExtension.lowercased() != "json" {
-                        throw CocoaError(.fileReadCorruptFile)
+                    print("🔵 [IO DEBUG] Mode: INFRASTRUCTURE")
+                    // Try RailML first if extension matches
+                    if ext == "railml" {
+                        print("🔵 [IO DEBUG] Trying RailML parser...")
+                        let parser = RailMLParser()
+                        if let infra = parser.parse(data: data) {
+                            print("✅ [IO DEBUG] RailML parsed successfully: \(infra.nodes.count) nodes, \(infra.edges.count) edges")
+                            network.nodes = normalizedInfrastructureNodes(infra.nodes)
+                            network.edges = infra.edges
+                            appState.sidebarSelection = .stations
+                            return
+                        }
+                        print("⚠️ [IO DEBUG] RailML parsing failed")
                     }
+                    
+                    // Try JSON decodes
+                    let decoder = JSONDecoder()
+                    decoder.dateDecodingStrategy = .iso8601
+                    
+                    print("🔵 [IO DEBUG] Trying JSON decode (InfrastructurePayload)...")
                     if let payload = try? decoder.decode(InfrastructurePayload.self, from: data) {
+                        print("✅ [IO DEBUG] InfrastructurePayload decoded: \(payload.nodes.count) nodes, \(payload.edges.count) edges")
                         network.nodes = normalizedInfrastructureNodes(payload.nodes)
                         network.edges = payload.edges
-                    } else if let dto = try? decoder.decode(RailwayNetworkDTO.self, from: data) {
-                        network.nodes = normalizedInfrastructureNodes(dto.nodes)
-                        network.edges = dto.edges
-                    } else if let container = try? decoder.decode(RailFileContainer.self, from: data) {
-                        network.nodes = normalizedInfrastructureNodes(container.network.nodes)
-                        network.edges = container.network.edges
                     } else {
-                        throw CocoaError(.fileReadCorruptFile)
+                        print("🔵 [IO DEBUG] Trying JSON decode (RailwayNetworkDTO)...")
+                        if let dto = try? decoder.decode(RailwayNetworkDTO.self, from: data) {
+                            print("✅ [IO DEBUG] RailwayNetworkDTO decoded: \(dto.nodes.count) nodes, \(dto.edges.count) edges")
+                            network.nodes = normalizedInfrastructureNodes(dto.nodes)
+                            network.edges = dto.edges
+                        } else {
+                            print("🔵 [IO DEBUG] Trying JSON decode (RailFileContainer)...")
+                            if let container = try? decoder.decode(RailFileContainer.self, from: data) {
+                                print("✅ [IO DEBUG] RailFileContainer decoded: \(container.network.nodes.count) nodes, \(container.network.edges.count) edges")
+                                network.nodes = normalizedInfrastructureNodes(container.network.nodes)
+                                network.edges = container.network.edges
+                            } else {
+                                print("🔴 [IO DEBUG] All JSON decode attempts failed!")
+                                throw CocoaError(.fileReadCorruptFile)
+                            }
+                        }
                     }
+                    print("✅ [IO DEBUG] Infrastructure import completed, switching to stations view")
                     appState.sidebarSelection = .stations
+                    
                 case .project:
+                    print("🔵 [IO DEBUG] Mode: PROJECT")
+                    // 1. Try Qualified Native Format (.rail) or Container
+                    let decoder = JSONDecoder()
+                    decoder.dateDecodingStrategy = .iso8601
+                    
+                    print("🔵 [IO DEBUG] Trying JSON decode (RailFileContainer)...")
                     if let container = try? decoder.decode(RailFileContainer.self, from: data) {
+                        print("✅ [IO DEBUG] RailFileContainer decoded successfully")
                         importDTO(container.network)
-                    } else if let dto = try? decoder.decode(RailwayNetworkDTO.self, from: data) {
+                        return
+                    }
+                    
+                    // 2. Try Standard DTO
+                    print("🔵 [IO DEBUG] Trying JSON decode (RailwayNetworkDTO)...")
+                    if let dto = try? decoder.decode(RailwayNetworkDTO.self, from: data) {
+                        print("✅ [IO DEBUG] RailwayNetworkDTO decoded successfully")
                         importDTO(dto)
-                    } else {
-                        importError = "decode_error".localized
+                        return
+                    }
+                    
+                    // 3. Try RailML Parser if extension matches
+                    if ext == "railml" {
+                        print("🔵 [IO DEBUG] Trying RailML parser...")
+                        let parser = RailMLParser()
+                        if let infra = parser.parse(data: data) {
+                            print("✅ [IO DEBUG] RailML parsed successfully, converting to DTO")
+                            importDTO(RailwayNetworkDTO(name: "RailML Import", nodes: infra.nodes, edges: infra.edges, lines: [], trains: []))
+                            return
+                        }
+                        print("⚠️ [IO DEBUG] RailML parsing failed")
+                    }
+                    
+                    // 4. Try the heavy-duty FDC Parser (handles FDC, Topology, Legacy, Text)
+                    print("🔵 [IO DEBUG] Trying FDC parser (last resort)...")
+                    do {
+                        appState.railroad.createCheckpoint()
+                        try appState.railroad.io.importFromFDC(data: data)
+                        print("✅ [IO DEBUG] FDC import successful")
+                        // Selection and UI refresh happens via RailroadNetwork propagation
+                        appState.sidebarSelection = .stations
+                        importError = nil
+                    } catch {
+                        print("🔴 [IO DEBUG] FDC import failed: \(error.localizedDescription)")
+                        importError = "decode_error".localized + ": " + error.localizedDescription
                     }
                 }
             } catch {
+                print("🔴 [IO DEBUG] Import failed with error: \(error.localizedDescription)")
                 importError = String(format: "import_error_fmt".localized, error.localizedDescription)
             }
-            importMode = nil
+            print("🔵 [IO DEBUG] Resetting import mode")
+            appState.ioImportMode = nil
         }
     }
 
@@ -130,7 +205,9 @@ struct IOManagementView: View {
                 icon: "tray.and.arrow.down",
                 iconColor: .accentColor
             ) {
-                importMode = .infrastructure
+                print("🔵 [IO DEBUG] 'Import Infrastructure' button clicked")
+                appState.ioImportMode = .infrastructure
+                print("🔵 [IO DEBUG] appState.ioImportMode set to .infrastructure, isImporting binding should now be true")
             }
             
             actionRow(
@@ -139,7 +216,9 @@ struct IOManagementView: View {
                 icon: "folder",
                 iconColor: .accentColor
             ) {
-                importMode = .project
+                print("🔵 [IO DEBUG] 'Open Project' button clicked")
+                appState.ioImportMode = .project
+                print("🔵 [IO DEBUG] appState.ioImportMode set to .project, isImporting binding should now be true")
             }
             
             actionRow(
@@ -161,7 +240,7 @@ struct IOManagementView: View {
                 icon: "arrow.triangle.2.circlepath",
                 iconColor: .orange
             ) {
-                importMode = .project
+                appState.ioImportMode = .project
             }
             
             actionRow(
@@ -300,37 +379,66 @@ struct IOManagementView: View {
     }
     
     private func importDTO(_ dto: RailwayNetworkDTO) {
-        network.nodes = dto.nodes
-        network.edges = dto.edges
+        let currentNetwork = self.network
+        appState.railroad.createCheckpoint()
+        
+        currentNetwork.nodes = normalizedInfrastructureNodes(dto.nodes)
+        currentNetwork.edges = dto.edges
+        currentNetwork.ferrovie = dto.ferrovie ?? []
+        
         if let l = dto.lines { trainManager.lines = l }
         if let t = dto.trains { trainManager.trains = t }
+        if let v = dto.vehicles { trainManager.vehicles = v }
         
         trainManager.validateSchedules()
         appState.simulator.schedules = trainManager.generateSchedulesPreview()
         
-        
-        // Clear selection to avoid crashes with old IDs
         appState.sidebarSelection = .stations
+        importError = nil
     }
     
     private var isImporting: Binding<Bool> {
         Binding(
-            get: { importMode != nil },
+            get: {
+                let isPresenting = appState.ioImportMode != nil
+                print("🔵 [IO DEBUG] isImporting getter called, returning: \(isPresenting)")
+                return isPresenting
+            },
             set: { isPresented in
+                print("🔵 [IO DEBUG] isImporting setter called with: \(isPresented)")
+                // IMPORTANT: Don't reset ioImportMode here!
+                // SwiftUI calls this setter multiple times during presentation/dismissal
+                // We only reset ioImportMode after file selection completes (in fileImporter callback)
                 if !isPresented {
-                    importMode = nil
+                    print("⚠️ [IO DEBUG] isImporting setter wants to dismiss, but NOT resetting ioImportMode (would lose state!)")
                 }
             }
         )
     }
     
-    private func normalizedInfrastructureNodes(_ nodes: [Node]) -> [Node] {
+    private func normalizedInfrastructureNodes(_ nodes: [RailwayNode]) -> [RailwayNode] {
         nodes.map { node in
             var updated = node
             let trimmedName = updated.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmedName.isEmpty {
-                updated.name = updated.id
+            
+            // Check if name is empty or has pattern "N-\d+" (e.g. "N-123")
+            let hasInvalidPattern = trimmedName.isEmpty || trimmedName.range(of: "^N-\\d+$", options: .regularExpression) != nil
+            
+            if hasInvalidPattern {
+                // Generate a descriptive name based on node type
+                switch updated.type {
+                case .station:
+                    updated.name = "Stazione \(updated.id.prefix(6))"
+                case .interchange:
+                    updated.name = "Scambio \(updated.id.prefix(6))"
+                case .junction:
+                    updated.name = "Junction \(updated.id.prefix(6))"
+                case .depot:
+                    updated.name = "Deposito \(updated.id.prefix(6))"
+                }
+                print("⚠️ [IO DEBUG] Fixed invalid node name from '\(trimmedName)' to '\(updated.name)'")
             }
+            
             if updated.platforms == nil || (updated.platforms ?? 0) <= 0 {
                 updated.platforms = 2
             }
@@ -400,7 +508,7 @@ struct IOManagementView: View {
                 fallback: fallbackCoordinate,
                 offsetIndex: added
             )
-            let node = Node(
+            let node = RailwayNode(
                 id: id,
                 name: (name?.isEmpty == false ? name! : id),
                 type: mapNodeType(snippet.type),
@@ -480,7 +588,7 @@ struct IOManagementView: View {
             let speed = snippet.maxSpeed > 0 ? snippet.maxSpeed : Int(appState.regionalTrackMaxSpeed)
             let type = mapTrackType(snippet.type)
             
-            let edge = Edge(
+            let edge = RailwayEdge(
                 from: fromId,
                 to: toId,
                 distance: dist,
@@ -601,7 +709,7 @@ struct RailwayNetworkDocument: @preconcurrency FileDocument {
     var dto: RailwayNetworkDTO
     
     @MainActor
-    init(network: NetworkModel, lines: [RailwayLine], trains: [Train]) { 
+    init(network: NetworkModel, lines: [RailwayLine], trains: [RailwayTrain]) { 
         self.dto = RailwayNetworkDTO(name: network.name, nodes: network.nodes, edges: network.edges, lines: lines, trains: trains)
     }
     
@@ -652,10 +760,10 @@ struct RailwayNetworkDocument: @preconcurrency FileDocument {
 
 struct InfrastructureDocument: @preconcurrency FileDocument {
     static var readableContentTypes: [UTType] { [UTType.json] }
-    private var nodes: [Node]
-    private var edges: [Edge]
+    private var nodes: [RailwayNode]
+    private var edges: [RailwayEdge]
 
-    init(nodes: [Node], edges: [Edge]) {
+    init(nodes: [RailwayNode], edges: [RailwayEdge]) {
         self.nodes = nodes
         self.edges = edges
     }
@@ -680,13 +788,8 @@ struct InfrastructureDocument: @preconcurrency FileDocument {
 }
 
 private struct InfrastructurePayload: Codable {
-    let nodes: [Node]
-    let edges: [Edge]
-}
-
-private enum ImportMode {
-    case project
-    case infrastructure
+    let nodes: [RailwayNode]
+    let edges: [RailwayEdge]
 }
 
 private struct StationSnippet: Decodable {

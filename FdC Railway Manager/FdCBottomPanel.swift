@@ -24,7 +24,7 @@ struct FdCBottomPanel<Content: View>: View {
     var body: some View {
         if isPresented {
             GeometryReader { geo in
-                let maxHeight = geo.size.height / 3
+                let maxHeight = geo.size.height / 2
                 let panelHeight = min(preferredHeight, maxHeight)
                 
                 VStack(spacing: 0) {
@@ -39,7 +39,8 @@ struct FdCBottomPanel<Content: View>: View {
                             .frame(maxWidth: .infinity)
                     }
                     .frame(height: panelHeight)
-                    .background(Color(UIColor.secondarySystemBackground))
+                    .background(Color.white)
+                    .contentShape(Rectangle())
                     .cornerRadius(14, corners: [.topLeft, .topRight])
                     .shadow(color: .black.opacity(0.15), radius: 10, y: -5)
                 }

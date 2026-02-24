@@ -29,7 +29,13 @@ extension ContentView {
                                  appState.lineDraftStations.removeAll()
                                  appState.stationPickingCallback = nil
                              } else {
-                                 appState.clearSelection()
+                                 // Just clear the selection, don't close the inspector
+                                 appState.selectedNodeId = nil
+                                 appState.selectedEdgeId = nil
+                                 appState.selectedFerroviaId = nil
+                                 appState.selectedLineId = nil
+                                 appState.selectedTrainIds.removeAll()
+                                 appState.selectedVehicleId = nil
                              }
                          }
                      }) {

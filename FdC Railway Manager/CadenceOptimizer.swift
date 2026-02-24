@@ -104,7 +104,7 @@ class CadenceOptimizer: ObservableObject {
         return best
     }
     
-    private func evaluateCadence(offset: Double, line: RailwayLine, frequency: Double, existingTrains: [Train], nodes: [Node], edges: [Edge]) async -> Double {
+    private func evaluateCadence(offset: Double, line: RailwayLine, frequency: Double, existingTrains: [Train], nodes: [RailwayNode], edges: [Edge]) async -> Double {
         // Simuliamo una serie di treni durante la giornata (es. 10 treni campioni)
         var testTrains: [Train] = []
         let baseDate = Calendar.current.startOfDay(for: Date()).addingTimeInterval(6 * 3600) // Start at 06:00
@@ -180,7 +180,7 @@ class CadenceOptimizer: ObservableObject {
         return max(0, conflictPenalty + roundnessBonus)
     }
     
-    private func refreshSchedules(trains: inout [Train], nodes: [Node], edges: [Edge]) {
+    private func refreshSchedules(trains: inout [Train], nodes: [RailwayNode], edges: [Edge]) {
         // Logica semplificata di refresh schedule (simile a TrainManager)
         for i in trains.indices {
             guard let depTime = trains[i].departureTime else { continue }
@@ -200,13 +200,15 @@ class CadenceOptimizer: ObservableObject {
                         // Usa la velocità minima tra tracciato e treno
                         let effectiveSpeed = min(trackMaxSpeed, trains[i].maxSpeed)
                         
-                        let hours = FDCSchedulerEngine.calculateTravelTime(
-                            distanceKm: dist,
-                            maxSpeedKmh: effectiveSpeed,
-                            train: trains[i],
-                            initialSpeedKmh: 0,
-                            finalSpeedKmh: 0
-                        )
+                        let hours = FDCSchedulerEngine.calculatePathTravelTime(
+                            edges: pathEdges, 
+                            train: trains[i], 
+                            nodes: nodes, 
+                            isStarting: true, 
+                            isStopping: true, 
+                            startNodeId: prevId, 
+                            endNodeId: stop.stationId
+                        ) / 3600.0
                         currentTime = currentTime.addingTimeInterval(hours * 3600)
                         
                         trains[i].stops[j].arrival = currentTime

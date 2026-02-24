@@ -56,6 +56,29 @@ struct TrainDetailView: View {
                 
                 // 2. TIMETABLE & ITINERARY
                 timetableSection(trainBinding: train)
+                
+                // 3. CRITICAL ACTIONS (Only in Edit Mode)
+                if appState.isInspectorEditingMode {
+                    Button(role: .destructive) {
+                        manager.removeTrain(train.wrappedValue.id)
+                        appState.selectedTrainIds.removeAll()
+                    } label: {
+                        HStack {
+                            Image(systemName: "trash")
+                            Text("Elimina questa corsa")
+                                .bold()
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                        }
+                        .foregroundColor(.red)
+                        .padding()
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(12)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.red.opacity(0.3), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 10)
+                }
             }
             .padding()
             .background(appState.theme.background)

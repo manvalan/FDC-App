@@ -1,5 +1,6 @@
 import SwiftUI
-import Combine
+import Foundation
+@preconcurrency import Combine
 
 // MARK: - FdCInspectorPanel
 /// Inspector laterale riutilizzabile con navigazione a stack.
@@ -18,39 +19,6 @@ import Combine
 /// navigator.push(title: "Dettaglio") { StationDetail(...) }
 /// ```
 
-// MARK: - Navigator (stack di pagine)
-
-class InspectorNavigator: ObservableObject {
-    struct Page: Identifiable {
-        let id = UUID()
-        let title: String
-        let content: AnyView
-    }
-    
-    @Published var stack: [Page] = []
-    
-    var currentTitle: String? {
-        stack.last?.title
-    }
-    
-    var canGoBack: Bool {
-        !stack.isEmpty
-    }
-    
-    func push<V: View>(title: String, @ViewBuilder content: () -> V) {
-        stack.append(Page(title: title, content: AnyView(content())))
-    }
-    
-    func pop() {
-        if !stack.isEmpty {
-            stack.removeLast()
-        }
-    }
-    
-    func popToRoot() {
-        stack.removeAll()
-    }
-}
 
 // MARK: - Inspector Panel View
 
@@ -84,6 +52,7 @@ struct FdCInspectorPanel<Content: View>: View {
                 content()
             }
         }
+        .background(Color(UIColor.systemBackground))
         .environmentObject(navigator)
     }
     

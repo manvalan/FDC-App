@@ -27,13 +27,13 @@ struct RenderingContext {
 
 /// Base style for rendering nodes
 struct NodeStyle {
-    let fillColor: Color
-    let strokeColor: Color
-    let strokeWidth: CGFloat
-    let size: CGFloat
-    let showLabel: Bool
-    let isHighlighted: Bool
-    let isSelected: Bool
+    var fillColor: Color
+    var strokeColor: Color
+    var strokeWidth: CGFloat
+    var size: CGFloat
+    var showLabel: Bool
+    var isHighlighted: Bool
+    var isSelected: Bool
     
     static var `default`: NodeStyle {
         NodeStyle(

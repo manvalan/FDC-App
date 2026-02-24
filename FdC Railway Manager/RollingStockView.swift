@@ -80,7 +80,7 @@ struct RollingStockView: View {
             }
         }
         .sheet(isPresented: $showingAddSheet) {
-            VehicleEditSheet(manager: manager, vehicle: nil)
+            VehicleEditSheet(manager: manager, vehicle: nil as RailwayVehicle?)
                 .environmentObject(appState)
         }
     }
@@ -167,7 +167,7 @@ struct RollingStockView: View {
     
     private var vehicleListByLine: some View {
         // Group vehicles by which line's trains they're assigned to
-        var grouped: [String: [Vehicle]] = [:]
+        var grouped: [String: [RailwayVehicle]] = [:]
         var unassigned: [Vehicle] = []
         
         for vehicle in manager.vehicles {
@@ -453,6 +453,7 @@ struct VehicleEditSheet: View {
     @State private var acceleration: Double = 1.0
     @State private var deceleration: Double = 1.0
     @State private var imageName: String? = nil
+    @State private var isElectric: Bool = false
     
     init(manager: LinesManager, vehicle: Vehicle?) {
         self.manager = manager
@@ -464,6 +465,7 @@ struct VehicleEditSheet: View {
         _acceleration = State(initialValue: vehicle?.acceleration ?? 1.0)
         _deceleration = State(initialValue: vehicle?.deceleration ?? 1.0)
         _imageName = State(initialValue: vehicle?.imageName)
+        _isElectric = State(initialValue: vehicle?.isElectric ?? false)
     }
     
     var body: some View {
@@ -494,6 +496,7 @@ struct VehicleEditSheet: View {
                             self.model = template.model
                             self.length = template.length
                             self.maxSpeed = template.maxSpeed
+                            self.isElectric = template.isElectric
                             if self.name.isEmpty {
                                 self.name = template.name
                             }
@@ -572,6 +575,7 @@ struct VehicleEditSheet: View {
                             .multilineTextAlignment(.trailing)
                             .frame(width: 80)
                     }
+                    Toggle("Trazione Elettrica", isOn: $isElectric)
                 }
                 
             }
@@ -597,6 +601,9 @@ struct VehicleEditSheet: View {
                     self.acceleration = selectedTrain.fisica.accelerazioneMS2
                     self.deceleration = selectedTrain.fisica.frenaturaServizioMS2
                     self.imageName = selectedTrain.assetName
+                    // Infer electrification from model name or type
+                    let modelLower = selectedTrain.tipo.lowercased()
+                    self.isElectric = modelLower.hasPrefix("e.") || modelLower.contains("etr") || modelLower.contains("el.")
                     showTrainDatabase = false
                 }
                 .environmentObject(appState)
@@ -613,6 +620,7 @@ struct VehicleEditSheet: View {
             existing.maxSpeed = maxSpeed
             existing.acceleration = acceleration
             existing.deceleration = deceleration
+            existing.isElectric = isElectric
             existing.imageName = imageName
             if let idx = manager.vehicles.firstIndex(where: { $0.id == existing.id }) {
                 manager.vehicles[idx] = existing
@@ -625,6 +633,7 @@ struct VehicleEditSheet: View {
                 maxSpeed: maxSpeed,
                 acceleration: acceleration,
                 deceleration: deceleration,
+                isElectric: isElectric,
                 imageName: imageName
             )
             manager.vehicles.append(newV)

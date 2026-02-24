@@ -172,6 +172,13 @@ final class AppState: ObservableObject {
     @Published var isVehicleManagementVisible: Bool = false
     @Published var isCreatingTrack: Bool = false
     
+    // Import/Export State (persisted across view recreation)
+    enum IOImportMode {
+        case project
+        case infrastructure
+    }
+    @Published var ioImportMode: IOImportMode? = nil
+    
     // Last used vehicle for defaults
     @Published var lastVehicleName: String = ""
     @Published var lastVehicleModel: String = ""
@@ -193,7 +200,7 @@ final class AppState: ObservableObject {
     }
     
     // Schedule Preview State
-    @Published var schedulePreviewTrains: [Train]? = nil
+    @Published var schedulePreviewTrains: [RailwayTrain]? = nil
     @Published var schedulePreviewLine: RailwayLine? = nil
     @Published var schedulePreviewMode: ScheduleCreationView.ScheduleMode = .single
     var schedulePreviewSelectedModel: TrainModel? = nil
@@ -273,11 +280,11 @@ final class AppState: ObservableObject {
         railroad.lines.lines.first { $0.id == selectedLineId }
     }
     
-    var selectedNode: Node? {
+    var selectedNode: RailwayNode? {
         railroad.network.nodes.first { $0.id == selectedNodeId }
     }
     
-    var selectedVehicle: Vehicle? {
+    var selectedVehicle: RailwayVehicle? {
         railroad.lines.vehicles.first { $0.id == selectedVehicleId }
     }
     
@@ -538,6 +545,7 @@ final class AppState: ObservableObject {
 enum SidebarItem: String, CaseIterable, Identifiable {
     case stations = "stazioni"
     case tracks = "binari"
+    case ferrovie = "ferrovie"
     case lines = "lines"
     case vehicles = "materiale_rotabile"
     case trains = "trains"
@@ -558,6 +566,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         switch self {
         case .stations: return "building.2"
         case .tracks: return "tram"
+        case .ferrovie: return "map.fill"
         case .lines: return "point.topleft.down.to.point.bottomright.curvepath"
         case .vehicles: return "tram.fill"
         case .trains: return "train.side.front.car"

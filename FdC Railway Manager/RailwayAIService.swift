@@ -347,7 +347,7 @@ class RailwayAIService: ObservableObject {
     }
     
     // PIGNOLO PROTOCOL: Unified analysis for lines (created or in-progress)
-    func analyzeLine(name: String, stationIds: [String], nodes: [Node], edges: [Edge]) async throws -> LineAnalysis {
+    func analyzeLine(name: String, stationIds: [String], nodes: [RailwayNode], edges: [RailwayEdge]) async throws -> LineAnalysis {
         // 1. Resolve Station Names for the Prompt
         let stopNames = stationIds.compactMap { sid in
             nodes.first(where: { $0.id == sid })?.name
@@ -850,7 +850,7 @@ class RailwayAIService: ObservableObject {
     }
     
     /// Helper to convert current app state to RailwayAIRequest
-    func createRequest(nodes: [Node], edges: [Edge], trains: [Train], fixedTrainIds: Set<UUID> = [], activeAgentIds: Set<UUID>? = nil, temporalObstacles: [TemporalObstacle]? = nil, conflicts: [ScheduleConflict]) -> RailwayAIRequest {
+    func createRequest(nodes: [RailwayNode], edges: [RailwayEdge], trains: [RailwayTrain], fixedTrainIds: Set<UUID> = [], activeAgentIds: Set<UUID>? = nil, temporalObstacles: [TemporalObstacle]? = nil, conflicts: [ScheduleConflict]) -> RailwayAIRequest {
         // 1. Map STATIONS (ID string -> Int)
         let sortedNodes = nodes.sorted(by: { $0.id < $1.id })
         let aiStations = sortedNodes.enumerated().map { index, node in

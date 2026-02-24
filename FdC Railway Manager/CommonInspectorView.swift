@@ -30,6 +30,7 @@ struct InspectorView<Content: View>: View {
                 .padding()
             }
         }
+        .background(Color.white)
     }
 }
 

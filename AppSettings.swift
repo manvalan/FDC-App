@@ -91,6 +91,8 @@ struct TrainPhysicsParameters {
     let maxSpeed: Double
     let acceleration: Double
     let deceleration: Double
+    let mass: Double
+    let power: Double
     let priority: Double
 }
 
@@ -104,6 +106,12 @@ final class TrainPhysicsSettings: ObservableObject {
     }
     @Published var regionalDeceleration: Double {
         didSet { UserDefaults.standard.set(regionalDeceleration, forKey: "regional_deceleration") }
+    }
+    @Published var regionalMass: Double {
+        didSet { UserDefaults.standard.set(regionalMass, forKey: "regional_mass") }
+    }
+    @Published var regionalPower: Double {
+        didSet { UserDefaults.standard.set(regionalPower, forKey: "regional_power") }
     }
     @Published var regionalPriority: Double {
         didSet { UserDefaults.standard.set(regionalPriority, forKey: "regional_priority") }
@@ -119,6 +127,12 @@ final class TrainPhysicsSettings: ObservableObject {
     @Published var intercityDeceleration: Double {
         didSet { UserDefaults.standard.set(intercityDeceleration, forKey: "intercity_deceleration") }
     }
+    @Published var intercityMass: Double {
+        didSet { UserDefaults.standard.set(intercityMass, forKey: "intercity_mass") }
+    }
+    @Published var intercityPower: Double {
+        didSet { UserDefaults.standard.set(intercityPower, forKey: "intercity_power") }
+    }
     @Published var intercityPriority: Double {
         didSet { UserDefaults.standard.set(intercityPriority, forKey: "intercity_priority") }
     }
@@ -133,6 +147,12 @@ final class TrainPhysicsSettings: ObservableObject {
     @Published var highSpeedDeceleration: Double {
         didSet { UserDefaults.standard.set(highSpeedDeceleration, forKey: "highspeed_deceleration") }
     }
+    @Published var highSpeedMass: Double {
+        didSet { UserDefaults.standard.set(highSpeedMass, forKey: "highspeed_mass") }
+    }
+    @Published var highSpeedPower: Double {
+        didSet { UserDefaults.standard.set(highSpeedPower, forKey: "highspeed_power") }
+    }
     @Published var highSpeedPriority: Double {
         didSet { UserDefaults.standard.set(highSpeedPriority, forKey: "highspeed_priority") }
     }
@@ -145,6 +165,10 @@ final class TrainPhysicsSettings: ObservableObject {
         self.regionalAcceleration = (regAccel > 0) ? regAccel : 0.5
         let regDecel = UserDefaults.standard.double(forKey: "regional_deceleration")
         self.regionalDeceleration = (regDecel > 0) ? regDecel : 0.5
+        let regMass = UserDefaults.standard.double(forKey: "regional_mass")
+        self.regionalMass = (regMass > 0) ? regMass : 200
+        let regPower = UserDefaults.standard.double(forKey: "regional_power")
+        self.regionalPower = (regPower > 0) ? regPower : 2500
         let regPrio = UserDefaults.standard.double(forKey: "regional_priority")
         self.regionalPriority = (regPrio > 0) ? regPrio : 3
         
@@ -155,6 +179,10 @@ final class TrainPhysicsSettings: ObservableObject {
         self.intercityAcceleration = (icAccel > 0) ? icAccel : 0.7
         let icDecel = UserDefaults.standard.double(forKey: "intercity_deceleration")
         self.intercityDeceleration = (icDecel > 0) ? icDecel : 0.7
+        let icMass = UserDefaults.standard.double(forKey: "intercity_mass")
+        self.intercityMass = (icMass > 0) ? icMass : 450
+        let icPower = UserDefaults.standard.double(forKey: "intercity_power")
+        self.intercityPower = (icPower > 0) ? icPower : 6000
         let icPrio = UserDefaults.standard.double(forKey: "intercity_priority")
         self.intercityPriority = (icPrio > 0) ? icPrio : 6
         
@@ -165,6 +193,10 @@ final class TrainPhysicsSettings: ObservableObject {
         self.highSpeedAcceleration = (hsAccel > 0) ? hsAccel : 1.0
         let hsDecel = UserDefaults.standard.double(forKey: "highspeed_deceleration")
         self.highSpeedDeceleration = (hsDecel > 0) ? hsDecel : 1.0
+        let hsMass = UserDefaults.standard.double(forKey: "highspeed_mass")
+        self.highSpeedMass = (hsMass > 0) ? hsMass : 500
+        let hsPower = UserDefaults.standard.double(forKey: "highspeed_power")
+        self.highSpeedPower = (hsPower > 0) ? hsPower : 9800
         let hsPrio = UserDefaults.standard.double(forKey: "highspeed_priority")
         self.highSpeedPriority = (hsPrio > 0) ? hsPrio : 10
     }
@@ -176,6 +208,8 @@ final class TrainPhysicsSettings: ObservableObject {
                 maxSpeed: regionalMaxSpeed,
                 acceleration: regionalAcceleration,
                 deceleration: regionalDeceleration,
+                mass: regionalMass,
+                power: regionalPower,
                 priority: regionalPriority
             )
         case .direct:
@@ -183,6 +217,8 @@ final class TrainPhysicsSettings: ObservableObject {
                 maxSpeed: intercityMaxSpeed,
                 acceleration: intercityAcceleration,
                 deceleration: intercityDeceleration,
+                mass: intercityMass,
+                power: intercityPower,
                 priority: intercityPriority
             )
         case .highSpeed:
@@ -190,12 +226,14 @@ final class TrainPhysicsSettings: ObservableObject {
                 maxSpeed: highSpeedMaxSpeed,
                 acceleration: highSpeedAcceleration,
                 deceleration: highSpeedDeceleration,
+                mass: highSpeedMass,
+                power: highSpeedPower,
                 priority: highSpeedPriority
             )
         case .freight:
-            return TrainPhysicsParameters(maxSpeed: 100, acceleration: 0.3, deceleration: 0.3, priority: 2)
+            return TrainPhysicsParameters(maxSpeed: 100, acceleration: 0.3, deceleration: 0.3, mass: 1200, power: 4500, priority: 2)
         case .support:
-            return TrainPhysicsParameters(maxSpeed: 80, acceleration: 0.4, deceleration: 0.4, priority: 1)
+            return TrainPhysicsParameters(maxSpeed: 80, acceleration: 0.4, deceleration: 0.4, mass: 80, power: 1500, priority: 1)
         }
     }
 }

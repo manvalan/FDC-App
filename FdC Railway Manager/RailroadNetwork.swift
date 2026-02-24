@@ -53,11 +53,11 @@ final class RailroadNetwork: ObservableObject {
     // MARK: - Global Undo/Redo System
     
     struct RailroadSnapshot: Equatable {
-        let nodes: [Node]
+        let nodes: [RailwayNode]
         let edges: [Edge]
         let lines: [RailwayLine]
-        let trains: [Train]
-        let vehicles: [Vehicle]
+        let trains: [RailwayTrain]
+        let vehicles: [RailwayVehicle]
     }
     
     private var undoStack: [RailroadSnapshot] = []

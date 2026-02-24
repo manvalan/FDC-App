@@ -8,7 +8,7 @@ struct LineGraphView: View {
     let line: RailwayLine
     
     // Data passed from parent
-    let orderedStations: [Node]
+    let orderedStations: [RailwayNode]
     let stationDistances: [Double]
     let maxDistance: Double
     
@@ -176,7 +176,7 @@ struct LineGraphView: View {
             train.stops.contains { lineStationIds.contains($0.stationId) }
         }
         
-        var bestTrain: Train? = nil
+        var bestTrain: RailwayTrain? = nil
         var minDistance: CGFloat = 20.0
         
         for train in trains {
@@ -207,7 +207,7 @@ struct LineGraphView: View {
         return (CGFloat(h) + CGFloat(m)/60.0 + CGFloat(s)/3600.0) * timeScale
     }
 
-    private func checkSegments(_ points: [CGPoint], for train: Train, at location: CGPoint, minDist: inout CGFloat, best: inout Train?) {
+    private func checkSegments(_ points: [CGPoint], for train: RailwayTrain, at location: CGPoint, minDist: inout CGFloat, best: inout RailwayTrain?) {
         for i in 0..<(points.count - 1) {
             let p1 = points[i]
             let p2 = points[i+1]
@@ -236,7 +236,7 @@ struct GridLayer: View {
     let height: CGFloat
     let timeScale: CGFloat
     let pixelsPerKm: CGFloat
-    let orderedStations: [Node]
+    let orderedStations: [RailwayNode]
     let stationDistances: [Double]
     @EnvironmentObject var appState: AppState
     
@@ -292,7 +292,7 @@ struct TrainLayer: View {
     let height: CGFloat
     let timeScale: CGFloat
     let pixelsPerKm: CGFloat
-    let orderedStations: [Node]
+    let orderedStations: [RailwayNode]
     let stationDistances: [Double]
     let manager: TrainManager
     @ObservedObject var appState: AppState
@@ -332,7 +332,7 @@ struct TrainLayer: View {
         return (CGFloat(components.hour ?? 0) + CGFloat(components.minute ?? 0)/60.0 + CGFloat(components.second ?? 0)/3600.0) * timeScale
     }
     
-    private func drawTrainPath(_ points: [CGPoint], for train: Train, in context: GraphicsContext) {
+    private func drawTrainPath(_ points: [CGPoint], for train: RailwayTrain, in context: GraphicsContext) {
         let maxX = 24 * timeScale
         var currentPath = Path()
         var movedToStart = false
@@ -372,7 +372,7 @@ struct TrainLayer: View {
         }
     }
     
-    private func strokePath(_ path: Path, for train: Train, in context: GraphicsContext) {
+    private func strokePath(_ path: Path, for train: RailwayTrain, in context: GraphicsContext) {
         guard !path.isEmpty else { return }
         let isSelected = appState.selectedTrainIds.contains(train.id)
         let isEditing = isSelected && appState.isInspectorEditingMode
@@ -394,7 +394,7 @@ struct ConflictLayer: View {
     let height: CGFloat
     let timeScale: CGFloat
     let pixelsPerKm: CGFloat
-    let orderedStations: [Node]
+    let orderedStations: [RailwayNode]
     let stationDistances: [Double]
     @EnvironmentObject var appState: AppState
     @ObservedObject var manager: TrainManager
@@ -460,7 +460,7 @@ struct ConflictLayer: View {
 
 struct StationLabelsView: View {
     @EnvironmentObject var appState: AppState
-    let stations: [Node]
+    let stations: [RailwayNode]
     let distances: [Double]
     let pixelsPerKm: CGFloat
     @Binding var selectedStation: LineScheduleView.StationSelection? 

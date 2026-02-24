@@ -84,60 +84,79 @@ private func calculatePoints(...) -> [PointData] {
 }
 ```
 
-**Dopo** (50 linee usando InfrastructureService):
+**Dopo** (61 linee usando InfrastructureService - tratta junction come stazioni speciali):
 ```swift
 private func calculatePoints(...) -> [PointData] {
     var points: [PointData] = []
     guard stations.count >= 2 else { return [] }
 
-    // Use InfrastructureService for path finding
+    // Use InfrastructureService for unified path finding
     let service = InfrastructureService(network: appState.railroad.network)
 
-    var currentDist: Double = 0
-    var pointIndex = 0
+    // Build complete path including ALL nodes (stations AND junctions)
+    var completePath: [Node] = []
+    var cumulativeDistances: [Double] = []
+    var currentDistance: Double = 0.0
 
-    for (i, station) in stations.enumerated() {
-        // Add station point
-        let stationAlt = station.altitude ?? 0
-        let stationX = 50 + CGFloat(currentDist) * pixelsPerKm
-        // ...
-        points.append(PointData(...))
-        pointIndex += 1
+    for i in 0..<stations.count {
+        let station = stations[i]
 
-        // Add junction nodes between this station and the next
-        if i < stations.count - 1 {
-            let nextStation = stations[i + 1]
-
-            // ✅ UNA CHIAMATA PULITA al service
-            guard let pathResult = service.findPath(from: station.id, to: nextStation.id) else {
+        if i == 0 {
+            // First station
+            completePath.append(station)
+            cumulativeDistances.append(currentDistance)
+        } else {
+            // Find path from previous station to this one (includes junctions)
+            let prevStation = stations[i - 1]
+            guard let pathResult = service.findPath(from: prevStation.id, to: station.id) else {
                 continue
             }
 
-            // Extract junction nodes with their cumulative distances
-            var cumulativeDist = 0.0
-            for j in 1..<pathResult.nodes.count - 1 {
-                let node = pathResult.nodes[j]
-                if node.type == .junction {
-                    let segment = pathResult.segments[j-1]
-                    cumulativeDist += segment.distance
+            // Add all intermediate nodes (skip first node as it's already in completePath)
+            for (nodeIndex, node) in pathResult.nodes.enumerated() {
+                if nodeIndex == 0 { continue } // Skip first node (previous station)
 
-                    // ... rendering logic ...
-                    points.append(PointData(...))
-                    pointIndex += 1
+                // Calculate cumulative distance for this node
+                var distanceToThisNode = currentDistance
+                for segmentIndex in 0..<nodeIndex {
+                    if segmentIndex < pathResult.segments.count {
+                        distanceToThisNode += pathResult.segments[segmentIndex].distance
+                    }
                 }
+
+                completePath.append(node)
+                cumulativeDistances.append(distanceToThisNode)
             }
 
-            currentDist += pathResult.totalDistance
+            currentDistance += pathResult.totalDistance
         }
     }
+
+    // Now create PointData for ALL nodes (treating junctions as special stations)
+    for (index, node) in completePath.enumerated() {
+        let altitude = node.altitude ?? 0
+        let distance = cumulativeDistances[index]
+
+        let x = 50 + CGFloat(distance) * pixelsPerKm
+        let normalizedAlt = CGFloat(altitude - minAlt) / CGFloat(altRange)
+        let y = geoHeight - (normalizedAlt * geoHeight * 0.8) - (geoHeight * 0.1)
+
+        let isStation = node.type == .station || node.type == .interchange
+        points.append(PointData(index: index, point: CGPoint(x: x, y: y), nodeId: node.id, isStation: isStation))
+    }
+
     return points
 }
 ```
 
 **Benefici**:
-- **-35 linee** di codice BFS duplicato eliminato
-- Logica chiara: "trova percorso, estrai junction, renderizza"
-- Più facile debuggare (service method separato)
+- **-24 linee** di codice BFS duplicato eliminato (da 85 a 61 linee)
+- **Tratta junction come stazioni speciali** (insight chiave dell'utente)
+- Due passaggi chiari:
+  1. Costruisci percorso completo con tutte le distanze cumulative
+  2. Crea PointData per tutti i nodi uniformemente
+- Logica di calcolo distanze corretta (risolve bug "distanze zero")
+- Più facile debuggare: distanze pre-calcolate in array separato
 - PathResult fornisce sia nodi che segmenti con distanze
 
 ---
@@ -252,12 +271,13 @@ private func findDistanceBetweenStations(from fromId: String, to toId: String) -
 ### Linee di Codice
 - **EditorModeView.swift**:
   - Prima: ~102,000 caratteri
-  - Dopo: ~99,700 caratteri
-  - **Riduzione: ~2,300 caratteri (-2.3%)**
+  - Dopo: ~99,869 caratteri (build finale)
+  - **Riduzione: ~2,131 caratteri (-2.1%)**
+  - Da 85 linee a 61 linee per `calculatePoints` (-24 linee, -28%)
 
 ### Complessità Ciclomatica
-- `calculatePoints`: **ridotta significativamente** (eliminato loop BFS nested)
-- `totalDistance`: **ridotta** (da loop a single call)
+- `calculatePoints`: **ridotta drasticamente** (da logica nested con BFS inline a due loop sequenziali semplici)
+- `totalDistance`: **ridotta** (da loop manuale a single service call)
 
 ### Duplicazione
 - **Eliminata**: Logica BFS era duplicata in:
@@ -275,7 +295,21 @@ private func findDistanceBetweenStations(from fromId: String, to toId: String) -
 
 ✅ **Build Successful** - Nessun errore di compilazione
 ✅ **Nessun Breaking Change** - API pubbliche invariate
-✅ **Funzionalità Preservata** - Comportamento identico
+✅ **Bug Risolto** - Distanze zero nel profilo altimetrico ora corrette
+✅ **Funzionalità Migliorata** - Junction nodes trattati come stazioni speciali
+
+## Bug Fix Critico: Distanze Zero
+
+Durante il refactoring è emerso un bug critico: **le distanze nella ferrovia mostravano tutte zero**.
+
+**Causa**: La logica di calcolo delle distanze cumulative per i junction nodes era errata. Il codice tentava di calcolare manualmente le distanze cumulative all'interno del loop, ma l'indice dei segmenti era sfasato rispetto all'indice dei nodi.
+
+**Soluzione**: Seguendo il suggerimento dell'utente *"perchè non tratti i junction come se fossero stazioni?"*, la funzione `calculatePoints` è stata completamente riscritta per:
+
+1. **Primo passaggio**: Costruire un percorso completo (`completePath`) includendo TUTTI i nodi (stazioni E junction) con le relative distanze cumulative pre-calcolate
+2. **Secondo passaggio**: Creare `PointData` per tutti i nodi uniformemente, usando le distanze già calcolate
+
+Questo approccio è identico a quello di `InfrastructureService.buildAltitudeProfile()`, garantendo coerenza e correttezza.
 
 ---
 

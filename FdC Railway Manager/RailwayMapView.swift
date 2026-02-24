@@ -363,7 +363,7 @@ struct RailwayMapView: View {
             let path: Path
             let points: [CGPoint]
             let color: Color
-            let type: Edge.TrackType
+            let type: RailwayEdge.TrackType
             let baseColor: Color
         }
         
@@ -379,8 +379,10 @@ struct RailwayMapView: View {
             let pos: CGPoint
             let name: String
             let isHub: Bool
-            let visualType: Node.StationVisualType
+            let nodeType: RailwayNode.NodeType
+            let visualType: RailwayNode.StationVisualType
             let color: Color
+            let parentHubId: String?
         }
         
         let bounds: MapBounds
@@ -394,8 +396,8 @@ struct RailwayMapView: View {
         let globalLineWidth: Double
         
         static func prepare(
-            nodes: [Node], 
-            edges: [Edge], 
+            nodes: [RailwayNode], 
+            edges: [RailwayEdge], 
             lines: [RailwayLine], 
             schedules: [TrainSchedule],
             mode: MapVisualizationMode, 
@@ -405,7 +407,7 @@ struct RailwayMapView: View {
             let snapshotSize = CGSize(width: 2048, height: 1536)
             let bounds = calculateBounds(for: nodes)
             
-            func finalPosition(for node: Node) -> CGPoint {
+            func finalPosition(for node: RailwayNode) -> CGPoint {
                 let lon = node.longitude ?? 0
                 let lat = node.latitude ?? 0
                 let baseX = (lon - bounds.minLon) / bounds.xRange * (snapshotSize.width - 100) + 50
@@ -486,7 +488,7 @@ struct RailwayMapView: View {
             
             // 1. Edges with parallel track support
             // Group edges by station pairs
-            var edgesByPair: [String: [Edge]] = [:]
+            var edgesByPair: [String: [RailwayEdge]] = [:]
             for edge in edges {
                 let key = edge.canonicalKey
                 edgesByPair[key, default: []].append(edge)
@@ -585,7 +587,7 @@ struct RailwayMapView: View {
                 node.parentHubId != nil || nodes.contains(where: { $0.parentHubId == node.id })
             }
             
-            var hubGroupsLookup: [String: [Node]] = [:]
+            var hubGroupsLookup: [String: [RailwayNode]] = [:]
             for node in hubNodes {
                 let hubId = node.parentHubId ?? node.id
                 hubGroupsLookup[hubId, default: []].append(node)
@@ -627,7 +629,7 @@ struct RailwayMapView: View {
             let nodesDraw = nodes.map { node -> NodeDraw in
                 let visualType = node.visualType ?? node.defaultVisualType
                 let color = Color(hex: node.customColor ?? node.defaultColor) ?? .black
-                return NodeDraw(pos: finalPosition(for: node), name: node.name, isHub: node.type == .interchange, visualType: visualType, color: color)
+                return NodeDraw(pos: finalPosition(for: node), name: node.name, isHub: node.type == .interchange, nodeType: node.type, visualType: visualType, color: color, parentHubId: node.parentHubId)
             }
             
             let linesDraw = mode.isSchedulerMode ? generateLineDraws() : []
@@ -647,7 +649,7 @@ struct RailwayMapView: View {
         }
         
         // Static helpers (Sendable)
-        static func calculateTrainPosition(schedule: TrainSchedule, now: Date, nodes: [Node], bounds: MapBounds, snapshotSize: CGSize) -> CGPoint? {
+        static func calculateTrainPosition(schedule: TrainSchedule, now: Date, nodes: [RailwayNode], bounds: MapBounds, snapshotSize: CGSize) -> CGPoint? {
             guard schedule.stops.count >= 2 else { return nil }
             for i in 0..<(schedule.stops.count - 1) {
                 let s1 = schedule.stops[i]; let s2 = schedule.stops[i+1]
@@ -681,7 +683,7 @@ struct RailwayMapView: View {
             return nil
         }
 
-        static func finalPositionStatic(for node: Node, bounds: MapBounds, snapshotSize: CGSize) -> CGPoint {
+        static func finalPositionStatic(for node: RailwayNode, bounds: MapBounds, snapshotSize: CGSize) -> CGPoint {
             let lon = node.longitude ?? 0; let lat = node.latitude ?? 0
             return CGPoint(
                 x: (lon - bounds.minLon) / bounds.xRange * (snapshotSize.width - 100) + 50,
@@ -689,7 +691,7 @@ struct RailwayMapView: View {
             )
         }
 
-        static func calculateBounds(for nodes: [Node]) -> MapBounds {
+        static func calculateBounds(for nodes: [RailwayNode]) -> MapBounds {
             let lats = nodes.compactMap { $0.latitude }; let lons = nodes.compactMap { $0.longitude }
             let minLat = lats.min() ?? 38.0; let maxLat = lats.max() ?? 48.0
             let minLon = lons.min() ?? 7.0; let maxLon = lons.max() ?? 19.0
@@ -771,7 +773,7 @@ struct RailwayMapView: View {
             return result
         }
         
-        private func symbolSystemName(for type: Node.StationVisualType) -> String {
+        private func symbolSystemName(for type: RailwayNode.StationVisualType) -> String {
             switch type {
             case .filledSquare: return "square.fill"
             case .emptySquare: return "square"
@@ -878,10 +880,13 @@ struct RailwayMapView: View {
                             .foregroundColor(node.color)
                         context.draw(symbol, at: node.pos)
                         
-                        let label = Text(node.name)
-                            .font(.system(size: data.globalFontSize, weight: .black))
-                            .foregroundColor(.black)
-                        context.draw(label, at: CGPoint(x: node.pos.x, y: node.pos.y + 28))
+                        // Only draw label for: main stations (not secondary hub stations) and not junctions
+                        if node.nodeType != .junction && node.parentHubId == nil {
+                            let label = Text(node.name)
+                                .font(.system(size: data.globalFontSize, weight: .black))
+                                .foregroundColor(.black)
+                            context.draw(label, at: CGPoint(x: node.pos.x, y: node.pos.y + 28))
+                        }
                     }
                 }
                 
@@ -924,9 +929,9 @@ struct SchematicRailwayView: View {
 
     // Grid State: managed by parent binding now
     // Track Creation State
-    @State private var newTrackFrom: Node? = nil
-    @State private var newTrackTo: Node? = nil
-    @State private var newTrackType: Edge.TrackType = .regional
+    @State private var newTrackFrom: RailwayNode? = nil
+    @State private var newTrackTo: RailwayNode? = nil
+    @State private var newTrackType: RailwayEdge.TrackType = .regional
     @State private var newTrackDistance: Double = 10.0
     
     private let gridSize: CGFloat = 50.0
@@ -1012,6 +1017,7 @@ struct SchematicRailwayView: View {
             
             mainViewContainer(size: size, bounds: bounds, renderData: renderData)
         }
+        .background(Color.white)
         .simultaneousGesture(zoomGesture)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -1099,8 +1105,10 @@ struct SchematicRailwayView: View {
                     mapMainLayers(size: size, bounds: bounds, renderData: renderData)
                 }
                 .frame(width: size.width, height: size.height)
+                .background(Color.white)
                 .id("content")
             }
+            .background(Color.white)
             .onChange(of: appState.selectedNodeId) { _, newNodeId in
                 if let node = network.nodes.first(where: { $0.id == newNodeId }) {
                     centerOnNode(node, size: size, bounds: bounds, proxy: proxy)
@@ -1234,7 +1242,7 @@ struct SchematicRailwayView: View {
         }
     }
     
-    private func centerOnNode(_ node: Node?, size: CGSize, bounds: MapBounds, proxy: ScrollViewProxy) {
+    private func centerOnNode(_ node: RailwayNode?, size: CGSize, bounds: MapBounds, proxy: ScrollViewProxy) {
         guard let node = node else { return }
         let position = MapGeometryEngine.finalPosition(for: node, in: size, bounds: bounds, network: network)
         print("🎯 Centering on node: \(node.name) with ID: \(node.id)")
@@ -1369,7 +1377,7 @@ struct SchematicRailwayView: View {
                     }
                     
                     HStack(spacing: 8) {
-                        ForEach(Edge.TrackType.allCases) { type in
+                        ForEach(RailwayEdge.TrackType.allCases) { type in
                             Button(action: { newTrackType = type }) {
                                 trackTypeButtonContent(type: type)
                             }
@@ -1395,7 +1403,7 @@ struct SchematicRailwayView: View {
     }
     
     @ViewBuilder
-    private func trackTypeButtonContent(type: Edge.TrackType) -> some View {
+    private func trackTypeButtonContent(type: RailwayEdge.TrackType) -> some View {
         VStack(spacing: 4) {
             ZStack {
                 if type == .double || type == .highSpeed {
@@ -1514,7 +1522,7 @@ struct SchematicRailwayView: View {
     }
     
     // MARK: - Interaction Handlers
-    private func handleStationTap(_ node: Node) {
+    private func handleStationTap(_ node: RailwayNode) {
         if let pickingCallback = appState.stationPickingCallback {
             pickingCallback(node.id)
             return
@@ -1570,7 +1578,7 @@ struct SchematicRailwayView: View {
         }
         
         
-        let newEdge = Edge(from: n1.id, to: n2.id, distance: newTrackDistance, trackType: newTrackType, maxSpeed: speed, capacity: 10)
+        let newEdge = RailwayEdge(from: n1.id, to: n2.id, distance: newTrackDistance, trackType: newTrackType, maxSpeed: speed, capacity: 10)
         network.addEdge(newEdge)
         
         // Note: Pathfinding treats all edges as bidirectional, so no need to create return edge
@@ -1629,7 +1637,7 @@ struct SchematicRailwayView: View {
         var newSelectedEdgeId: String? = nil
         
         // Group edges by station pairs to apply parallel track offsets
-        var edgesByPair: [String: [Edge]] = [:]
+        var edgesByPair: [String: [RailwayEdge]] = [:]
         for edge in network.edges {
             let key = edge.canonicalKey
             edgesByPair[key, default: []].append(edge)
@@ -1782,7 +1790,7 @@ struct SchematicRailwayView: View {
     }
     
     @discardableResult
-    private func createStation(at location: CGPoint, in size: CGSize) -> Node {
+    private func createStation(at location: CGPoint, in size: CGSize) -> RailwayNode {
         let lats = network.nodes.compactMap { $0.latitude }
         let lons = network.nodes.compactMap { $0.longitude }
         let minLon = lons.min() ?? 0
@@ -1804,7 +1812,7 @@ struct SchematicRailwayView: View {
         
         let name = String(format: "station_default_name".localized, network.nodes.count + 1)
         
-        let newNode = Node(id: UUID().uuidString, name: name, type: .station, latitude: lat, longitude: lon, capacity: 10, platforms: 2)
+        let newNode = RailwayNode(id: UUID().uuidString, name: name, type: .station, latitude: lat, longitude: lon, capacity: 10, platforms: 2)
         network.addNode(newNode)
         print("📍 Nuova stazione creata: \(name) a [\(lat), \(lon)]")
         return newNode
@@ -1885,16 +1893,22 @@ struct StationNodeView: View {
 
     @ViewBuilder
     private var stationContent: some View {
-        if node.type == .interchange {
+        if node.name.isEmpty || node.type == .junction {
+            // Geometry Point or Junction (No station icon)
+            Circle()
+                .fill(Color.black)
+                .frame(width: node.type == .junction ? 10 : 8, height: node.type == .junction ? 10 : 8)
+                .shadow(color: .white.opacity(0.8), radius: 1)
+        } else if node.type == .interchange {
             ZStack {
-                Circle().fill(Color.white).frame(width: 14, height: 14)
-                Circle().stroke(Color.red, lineWidth: 5).frame(width: 19, height: 19)
+                Circle().fill(Color.white).frame(width: 22, height: 22)
+                Circle().stroke(Color.red, lineWidth: 6).frame(width: 22, height: 22)
             }
         } else {
             let color = Color(hex: node.customColor ?? node.defaultColor) ?? .black
             let visualType = node.visualType ?? node.defaultVisualType
             ZStack {
-                Circle().fill(Color.white).frame(width: 20, height: 20)
+                Circle().fill(Color.white).frame(width: 24, height: 24)
                 symbolView(type: visualType, color: color).frame(width: 24, height: 24)
             }
         }
@@ -1914,10 +1928,17 @@ struct StationNodeView: View {
 
     @ViewBuilder
     private var labelOverlay: some View {
-        let isPartOfMultiNodeHub = network.nodes.contains { 
-            ($0.parentHubId == node.id || (node.parentHubId != nil && $0.parentHubId == node.parentHubId && $0.id != node.id))
+        // Don't show labels for junctions
+        if node.type == .junction {
+            EmptyView()
         }
-        if !isPartOfMultiNodeHub {
+        // For hub stations: only show label for the main station (parentHubId == nil)
+        else if node.parentHubId != nil {
+            // This is a secondary hub station, don't show label
+            EmptyView()
+        }
+        // Show label for main stations, interchanges, and depots
+        else {
             Text(node.name)
                 .font(.system(size: appState.globalFontSize, weight: .black))
                 .fixedSize()
@@ -2304,12 +2325,12 @@ struct StationMarkersView: View {
     let showGrid: Bool
     let coordinateGridStep: Double
     @Binding var isMoveModeEnabled: Bool
-    let onTap: (Node) -> Void
+    let onTap: (RailwayNode) -> Void
     
     var body: some View {
         ForEach(network.nodes) { node in
             // Safe binding creation to avoid Index out of range
-            let nodeBinding = Binding<Node>(
+            let nodeBinding = Binding<RailwayNode>(
                 get: {
                     if let index = network.nodes.firstIndex(where: { $0.id == node.id }) {
                         return network.nodes[index]

@@ -25,6 +25,10 @@ final class NetworkModel: ObservableObject {
         }
     }
     
+    var sortedFerrovie: [Ferrovia] {
+        ferrovie.sorted { $0.name < $1.name }
+    }
+    
     init(nodes: [Node] = [], edges: [Edge] = []) {
         self.nodes = nodes
         self.edges = edges
