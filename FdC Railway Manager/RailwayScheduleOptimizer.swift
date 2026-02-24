@@ -453,6 +453,8 @@ final class RailwayScheduleOptimizer {
     
     // MARK: - Step 5: Swiss-AStar Logic (A* Space-Time Search)
     
+    // MARK: - Takt Engine: Entry Point
+
     private func generaOrarioCadenzato(
         newTrains: [RailwayTrain],
         existingTrains: [RailwayTrain],
@@ -461,291 +463,251 @@ final class RailwayScheduleOptimizer {
         preferredTaktNodeId: String? = nil
     ) async -> [RailwayTrain] {
         print("\n🌊🌊🌊 [TaktEngine] AVVIO GENERAZIONE ORARIO CADENZATO 🌊🌊🌊")
-        let networkContext = NetworkModel(nodes: nodes, edges: edges)
-        let initialOccupancy = RailSchedulerCore.extractOccupancies(from: existingTrains, network: networkContext)
-        let core = RailSchedulerCore(network: networkContext, occupancies: initialOccupancy)
-        let calendar = Calendar.current
-        
-        // Trova nodo Takt - usa quello preferito dall'utente se specificato
-        let taktNode: Node?
-        if let preferredId = preferredTaktNodeId, !preferredId.isEmpty {
-            taktNode = nodes.first(where: { $0.id == preferredId && $0.taktMinutes != nil })
-            if taktNode == nil {
-                print("⚠️ Nodo Takt specificato '\(preferredId)' non trovato o non ha taktMinutes configurato")
-            }
-        } else {
-            taktNode = nodes.first(where: { $0.taktMinutes != nil })
-        }
-        
-        guard let taktNode = taktNode else {
+        guard let taktNode = resolveTaktNode(from: nodes, preferredId: preferredTaktNodeId) else {
             print("⚠️ Nessun nodo Takt trovato, ritorno treni originali")
             return newTrains
         }
-        
         let taktMinute = taktNode.taktMinutes!
         print("📍 Nodo Takt: \(taktNode.name ?? taktNode.id) al minuto :\(taktMinute)")
-        
-        // Reset extra dwell times
-        var workingTrains = newTrains
-        for i in workingTrains.indices {
-            for j in workingTrains[i].stops.indices {
-                workingTrains[i].stops[j].extraDwellTime = 0
-            }
-        }
-        
-        // Raggruppa treni per direzione
-        var trainsGrouped: [[Train]] = []
-        for train in workingTrains {
-            let sequence = train.stops.map { $0.stationId }
-            guard sequence.contains(taktNode.id) else { continue }
-            
-            // Trova gruppo con stessa sequenza
-            if let existingGroupIdx = trainsGrouped.firstIndex(where: { group in
-                group.first?.stops.map { $0.stationId } == sequence
-            }) {
-                trainsGrouped[existingGroupIdx].append(train)
-            } else {
-                trainsGrouped.append([train])
-            }
-        }
-        
+
+        let networkContext = NetworkModel(nodes: nodes, edges: edges)
+        let core = RailSchedulerCore(network: networkContext,
+                                     occupancies: RailSchedulerCore.extractOccupancies(from: existingTrains, network: networkContext))
+        var workingTrains = resetDwellTimes(newTrains)
+        var trainsGrouped = groupTrainsByDirection(workingTrains, taktNodeId: taktNode.id)
         print("   📋 Trovati \(trainsGrouped.count) gruppi di treni (direzioni)")
-        
+
+        // Passo 1: calcola taktBaseTime condiviso per ciclo e blocca l'hub
+        let cycleBaseTimes = buildCycleBaseTimes(from: workingTrains, taktNode: taktNode)
+        lockHubTimesGlobally(groups: &trainsGrouped, taktNode: taktNode, cycleBaseTimes: cycleBaseTimes)
+
+        // Passi 2+3: propaga per ogni gruppo
         var allResults: [Train] = []
-        
-        // Processa ogni gruppo (direzione)
         for groupIdx in 0..<trainsGrouped.count {
             if Task.isCancelled { break }
             var group = trainsGrouped[groupIdx]
             let sequence = group[0].stops.map { $0.stationId }
             guard let taktIdx = sequence.firstIndex(of: taktNode.id) else { continue }
-            
-            print("\n🚂 Gruppo \(groupIdx + 1): \(group.count) treni, percorso: \(sequence.first ?? "?") → \(sequence.last ?? "?")")
-            
-            // === PASSO 1: FISSA TUTTI GLI INCROCI AL NODO TAKT ===
-            print("\n📍 [PASSO 1] Fissaggio incroci al nodo Takt per tutti i treni...")
-            
-            // Per cadenza 120 min, raggruppa treni a coppie (T1+T2) che devono incontrarsi allo stesso Takt window
-            // Per cadenza 60 min, ogni treno ha il suo window
-            var i = 0
-            while i < group.count {
-                let trainNumber = group[i].number ?? 0
-                let isT1 = trainNumber % 2 == 1
-                
-                // Calcola taktBaseTime dal primo treno della coppia (o dal treno singolo se 60 min)
-                let userDep = group[i].departureTime ?? Date()
-                let ttEstimate = Double(taktIdx) * 180.0
-                let estimatedArrivalAtTakt = userDep.addingTimeInterval(ttEstimate)
-                
-                var taktBaseTime = calendar.date(bySetting: .minute, value: taktMinute, of: estimatedArrivalAtTakt) ?? estimatedArrivalAtTakt
-                
-                if taktBaseTime < estimatedArrivalAtTakt.addingTimeInterval(-1800) {
-                    taktBaseTime = calendar.date(byAdding: .hour, value: 1, to: taktBaseTime) ?? taktBaseTime
-                } else if taktBaseTime > estimatedArrivalAtTakt.addingTimeInterval(1800) {
-                    taktBaseTime = calendar.date(byAdding: .hour, value: -1, to: taktBaseTime) ?? taktBaseTime
-                }
-                
-                // Applica taktBaseTime al primo treno
-                let taktArrival1: Date
-                let taktDeparture1: Date
-                
-                if isT1 {
-                    taktArrival1 = calendar.date(byAdding: .minute, value: -1, to: taktBaseTime) ?? taktBaseTime
-                    taktDeparture1 = calendar.date(byAdding: .minute, value: 2, to: taktBaseTime) ?? taktBaseTime
-                } else {
-                    taktArrival1 = calendar.date(byAdding: .minute, value: -2, to: taktBaseTime) ?? taktBaseTime
-                    taktDeparture1 = calendar.date(byAdding: .minute, value: 3, to: taktBaseTime) ?? taktBaseTime
-                }
-                
-                group[i].stops[taktIdx].arrival = taktArrival1
-                group[i].stops[taktIdx].departure = (taktIdx < group[i].stops.count - 1) ? taktDeparture1 : nil
-                
-                print("   🚆 \(group[i].name) (\(isT1 ? "T1" : "T2")): Takt @ :\(taktMinute) | Arr: \(formatTime(taktArrival1)), Dep: \(formatTime(taktDeparture1))")
-                
-                // Se c'è un secondo treno nella coppia (120 min cadence), usa lo STESSO taktBaseTime
-                if i + 1 < group.count {
-                    let nextTrainNumber = group[i + 1].number ?? 0
-                    let nextIsT1 = nextTrainNumber % 2 == 1
-                    
-                    // Controlla se è una coppia (T1 seguito da T2 o viceversa)
-                    if isT1 != nextIsT1 {
-                        // È una coppia: usa lo stesso taktBaseTime per il secondo treno
-                        let taktArrival2: Date
-                        let taktDeparture2: Date
-                        
-                        if nextIsT1 {
-                            taktArrival2 = calendar.date(byAdding: .minute, value: -1, to: taktBaseTime) ?? taktBaseTime
-                            taktDeparture2 = calendar.date(byAdding: .minute, value: 2, to: taktBaseTime) ?? taktBaseTime
-                        } else {
-                            taktArrival2 = calendar.date(byAdding: .minute, value: -2, to: taktBaseTime) ?? taktBaseTime
-                            taktDeparture2 = calendar.date(byAdding: .minute, value: 3, to: taktBaseTime) ?? taktBaseTime
-                        }
-                        
-                        group[i + 1].stops[taktIdx].arrival = taktArrival2
-                        group[i + 1].stops[taktIdx].departure = (taktIdx < group[i + 1].stops.count - 1) ? taktDeparture2 : nil
-                        
-                        print("   🚆 \(group[i + 1].name) (\(nextIsT1 ? "T1" : "T2")): Takt @ :\(taktMinute) | Arr: \(formatTime(taktArrival2)), Dep: \(formatTime(taktDeparture2)) [same window]")
-                        
-                        // Salta il prossimo treno perché già processato come coppia
-                        i += 2
-                        continue
-                    }
-                }
-                
-                // Non è una coppia (60 min o treno singolo), vai al prossimo
-                i += 1
-            }
-            
-            // === PASSO 2: PROPAGA INDIETRO TUTTI I TRENI STAZIONE PER STAZIONE ===
-            if taktIdx > 0 {
-                print("\n⬅️ [PASSO 2] Propagazione INDIETRO da Takt verso origine...")
-                for stationDistance in 1...taktIdx {
-                    let currentStationIdx = taktIdx - stationDistance
-                    let nextStationIdx = currentStationIdx + 1
-                    
-                    let stationCurrent = sequence[currentStationIdx]
-                    let stationNext = sequence[nextStationIdx]
-                    
-                    print("   📍 Stazione \(currentStationIdx): \(stationCurrent)")
-                    
-                    // Calcola orari per TUTTI i treni a questa stazione
-                    for i in group.indices {
-                        let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(
-                            from: stationCurrent,
-                            to: stationNext,
-                            train: group[i],
-                            nodes: nodes,
-                            edges: edges,
-                            isStarting: !group[i].stops[currentStationIdx].isSkipped,
-                            isStopping: !group[i].stops[nextStationIdx].isSkipped
-                        )
-                        
-                        let nextStationDeparture = group[i].stops[nextStationIdx].departure ?? group[i].stops[nextStationIdx].arrival!
-                        let proposedDeparture = nextStationDeparture.addingTimeInterval(-tt)
-                        let dwellTime = (group[i].stops[currentStationIdx].isSkipped ? 0 : group[i].stops[currentStationIdx].minDwellTime) * 60
-                        var proposedArrival = proposedDeparture.addingTimeInterval(-Double(dwellTime))
-                        
-                        // Controllo conflitti
-                        guard let edge = edges.first(where: {
-                            ($0.from == stationCurrent && $0.to == stationNext) ||
-                            ($0.from == stationNext && $0.to == stationCurrent)
-                        }) else { continue }
-                        
-                        var extraDwell = 0.0
-                        var attempts = 0
-                        while attempts < 10 {
-                            let trackFree = core.isTrattaLibera(edge: edge, tInizio: proposedDeparture, tFine: nextStationDeparture, verso: stationNext)
-                            let stationFree = core.isStazioneLibera(stazioneId: stationCurrent, at: proposedArrival)
-                            
-                            if trackFree && stationFree { break }
-                            
-                            extraDwell += 2.0
-                            proposedArrival = proposedArrival.addingTimeInterval(-120)
-                            attempts += 1
-                        }
-                        
-                        group[i].stops[currentStationIdx].arrival = (currentStationIdx > 0) ? proposedArrival : nil
-                        group[i].stops[currentStationIdx].departure = proposedDeparture
-                        group[i].stops[currentStationIdx].extraDwellTime = extraDwell
-                        
-                        if extraDwell > 0 {
-                            print("      ⏳ \(group[i].name): +\(Int(extraDwell))m")
-                        }
-                        
-                        // Registra occupazioni
-                        let s1 = stationCurrent < stationNext ? stationCurrent : stationNext
-                        let s2 = stationCurrent < stationNext ? stationNext : stationCurrent
-                        core.addOccupancies([OccupazioneTratta(resId: "SEGMENT::\(s1)--\(s2)", intervallo: proposedDeparture...nextStationDeparture, direzione: stationNext)])
-                        if dwellTime > 0 || extraDwell > 0 {
-                            core.addOccupancies([OccupazioneTratta(resId: "STATION_GLOBAL::\(stationCurrent)", intervallo: proposedArrival...proposedDeparture, direzione: "STAY")])
-                        }
-                    }
-                }
-            }
-            
-            // === PASSO 3: PROPAGA AVANTI TUTTI I TRENI STAZIONE PER STAZIONE ===
-            if taktIdx < sequence.count - 1 {
-                print("\n➡️ [PASSO 3] Propagazione AVANTI da Takt verso destinazione...")
-                for stationDistance in 1..<(sequence.count - taktIdx) {
-                    let currentStationIdx = taktIdx + stationDistance
-                    let prevStationIdx = currentStationIdx - 1
-                    
-                    let stationPrev = sequence[prevStationIdx]
-                    let stationCurrent = sequence[currentStationIdx]
-                    
-                    print("   📍 Stazione \(currentStationIdx): \(stationCurrent)")
-                    
-                    // Calcola orari per TUTTI i treni a questa stazione
-                    for i in group.indices {
-                        let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(
-                            from: stationPrev,
-                            to: stationCurrent,
-                            train: group[i],
-                            nodes: nodes,
-                            edges: edges,
-                            isStarting: !group[i].stops[prevStationIdx].isSkipped,
-                            isStopping: !group[i].stops[currentStationIdx].isSkipped
-                        )
-                        
-                        let prevStationDeparture = group[i].stops[prevStationIdx].departure ?? group[i].stops[prevStationIdx].arrival!
-                        let proposedArrival = prevStationDeparture.addingTimeInterval(tt)
-                        let dwellTime = (group[i].stops[currentStationIdx].isSkipped ? 0 : group[i].stops[currentStationIdx].minDwellTime) * 60
-                        var proposedDeparture = proposedArrival.addingTimeInterval(Double(dwellTime))
-                        
-                        // Controllo conflitti
-                        guard let edge = edges.first(where: {
-                            ($0.from == stationPrev && $0.to == stationCurrent) ||
-                            ($0.from == stationCurrent && $0.to == stationPrev)
-                        }) else { continue }
-                        
-                        var extraDwellAtPrev = 0.0
-                        var attempts = 0
-                        while attempts < 10 {
-                            let trackFree = core.isTrattaLibera(edge: edge, tInizio: prevStationDeparture.addingTimeInterval(extraDwellAtPrev * 60), tFine: proposedArrival.addingTimeInterval(extraDwellAtPrev * 60), verso: stationCurrent)
-                            let stationFree = core.isStazioneLibera(stazioneId: stationCurrent, at: proposedArrival.addingTimeInterval(extraDwellAtPrev * 60))
-                            
-                            if trackFree && stationFree { break }
-                            
-                            extraDwellAtPrev += 2.0
-                            attempts += 1
-                        }
-                        
-                        // Applica shift se necessario
-                        if extraDwellAtPrev > 0 {
-                            group[i].stops[prevStationIdx].extraDwellTime = (group[i].stops[prevStationIdx].extraDwellTime ?? 0) + extraDwellAtPrev
-                            group[i].stops[prevStationIdx].departure = group[i].stops[prevStationIdx].departure?.addingTimeInterval(extraDwellAtPrev * 60)
-                            print("      ⏳ \(group[i].name): +\(Int(extraDwellAtPrev))m @ \(stationPrev)")
-                        }
-                        
-                        let adjustedPrevDep = prevStationDeparture.addingTimeInterval(extraDwellAtPrev * 60)
-                        let adjustedArr = proposedArrival.addingTimeInterval(extraDwellAtPrev * 60)
-                        let adjustedDep = proposedDeparture.addingTimeInterval(extraDwellAtPrev * 60)
-                        
-                        group[i].stops[currentStationIdx].arrival = adjustedArr
-                        group[i].stops[currentStationIdx].departure = (currentStationIdx < sequence.count - 1) ? adjustedDep : nil
-                        
-                        // Registra occupazioni
-                        let s1 = stationPrev < stationCurrent ? stationPrev : stationCurrent
-                        let s2 = stationPrev < stationCurrent ? stationCurrent : stationPrev
-                        core.addOccupancies([OccupazioneTratta(resId: "SEGMENT::\(s1)--\(s2)", intervallo: adjustedPrevDep...adjustedArr, direzione: stationCurrent)])
-                        if dwellTime > 0 {
-                            core.addOccupancies([OccupazioneTratta(resId: "STATION_GLOBAL::\(stationCurrent)", intervallo: adjustedArr...adjustedDep, direzione: "STAY")])
-                        }
-                    }
-                }
-            }
-            
-            // Aggiorna departure times
+            print("\n🚂 Gruppo \(groupIdx + 1): \(group.count) treni – \(sequence.first ?? "?") → \(sequence.last ?? "?")")
+            propagateBackward(group: &group, taktIdx: taktIdx, sequence: sequence, nodes: nodes, edges: edges, core: core)
+            propagateForward(group: &group, taktIdx: taktIdx, sequence: sequence, nodes: nodes, edges: edges, core: core)
             for i in group.indices {
                 group[i].departureTime = group[i].stops.first?.departure ?? group[i].stops.first?.arrival
             }
-            
             allResults.append(contentsOf: group)
         }
-        
         print("\n🏁 [TaktEngine] Completata generazione per \(allResults.count) treni")
         return allResults
     }
+
+    // MARK: - Takt Engine: Helpers
+
+    private func resolveTaktNode(from nodes: [RailwayNode], preferredId: String?) -> Node? {
+        if let id = preferredId, !id.isEmpty {
+            let node = nodes.first(where: { $0.id == id && $0.taktMinutes != nil })
+            if node == nil { print("⚠️ Nodo Takt specificato '\(id)' non trovato o senza taktMinutes") }
+            return node
+        }
+        return nodes.first(where: { $0.taktMinutes != nil })
+    }
+
+    private func resetDwellTimes(_ trains: [Train]) -> [Train] {
+        var result = trains
+        for i in result.indices {
+            for j in result[i].stops.indices { result[i].stops[j].extraDwellTime = 0 }
+        }
+        return result
+    }
+
+    private func groupTrainsByDirection(_ trains: [Train], taktNodeId: String) -> [[Train]] {
+        var groups: [[Train]] = []
+        for train in trains {
+            let seq = train.stops.map { $0.stationId }
+            guard seq.contains(taktNodeId) else { continue }
+            if let idx = groups.firstIndex(where: { $0.first?.stops.map { $0.stationId } == seq }) {
+                groups[idx].append(train)
+            } else {
+                groups.append([train])
+            }
+        }
+        return groups
+    }
+
+    private func buildCycleBaseTimes(from trains: [Train], taktNode: Node) -> [Date: Date] {
+        let calendar = Calendar.current
+        let taktMinute = taktNode.taktMinutes!
+        
+        // Per Taktfahrplan: ignora gli orari di partenza dell'utente e usa solo il taktMinute
+        // Crea taktBaseTime basati SOLO sul minuto Takt, partendo dalla prima partenza
+        guard let firstDep = trains.compactMap({ $0.departureTime }).sorted().first else {
+            return [:]
+        }
+        
+        // Calcola il primo taktBaseTime al minuto Takt dell'ora più vicina
+        var base = calendar.date(bySetting: .minute, value: taktMinute, of: firstDep) ?? firstDep
+        if let secondComp = calendar.dateComponents([.second], from: base).second, secondComp != 0 {
+            base = calendar.date(bySetting: .second, value: 0, of: base) ?? base
+        }
+        // Se il base è prima della partenza, aggiungi un'ora
+        if base < firstDep { 
+            base = calendar.date(byAdding: .hour, value: 1, to: base) ?? base 
+        }
+        
+        // Raggruppa i treni per orario di partenza (con tolleranza di 2 minuti)
+        var departures: [Date] = []
+        for train in trains {
+            guard let dep = train.departureTime else { continue }
+            let rounded = calendar.date(bySetting: .second, value: 0, of: dep) ?? dep
+            if !departures.contains(where: { abs($0.timeIntervalSince(rounded)) < 120 }) { 
+                departures.append(rounded) 
+            }
+        }
+        departures.sort()
+        
+        // Assegna un taktBaseTime a ciascun gruppo di partenze
+        var result: [Date: Date] = [:]
+        var currentBase = base
+        for cycleDep in departures {
+            // Avanza currentBase fino a superare cycleDep
+            while currentBase < cycleDep {
+                currentBase = calendar.date(byAdding: .hour, value: 2, to: currentBase) ?? currentBase  // +120 min
+            }
+            result[cycleDep] = currentBase
+            print("   🕐 Ciclo \(formatTime(cycleDep)): taktBase = \(formatTime(currentBase))")
+        }
+        
+        return result
+    }
+
+    private func lockHubTimesGlobally(groups: inout [[Train]], taktNode: Node, cycleBaseTimes: [Date: Date]) {
+        let taktMinute = taktNode.taktMinutes!
+        let calendar = Calendar.current
+        for gIdx in 0..<groups.count {
+            let seq = groups[gIdx][0].stops.map { $0.stationId }
+            guard let tIdx = seq.firstIndex(of: taktNode.id) else { continue }
+            for i in groups[gIdx].indices {
+                let train = groups[gIdx][i]
+                guard let dep = train.departureTime,
+                      let base = cycleBaseTimes.first(where: { abs($0.key.timeIntervalSince(dep)) < 120 })?.value
+                else { continue }
+                let (arr, dep2) = taktHubTimes(train: train, base: base, calendar: calendar)
+                groups[gIdx][i].stops[tIdx].arrival = arr
+                groups[gIdx][i].stops[tIdx].departure = (tIdx < groups[gIdx][i].stops.count - 1) ? dep2 : nil
+                print("   🚆 [\(train.isMainTrain ? "MAIN" : "SEC ")] \(train.name): Hub :\(taktMinute) | Arr \(formatTime(arr)) Dep \(formatTime(dep2))")
+            }
+        }
+    }
+
+    /// Ritorna (arrivo, partenza) all'hub takt per un treno.
+    /// Per Taktfahrplan 120 min: i treni si incrociano con offset simmetrici
+    /// T1 arriva 2-3 min prima, T2 arriva 3 min prima ma parte dopo
+    private func taktHubTimes(train: Train, base: Date, calendar: Calendar) -> (Date, Date) {
+        if train.isMainTrain {
+            let isT1 = (train.number ?? 0) % 2 == 1
+            // T1 (dispari): arriva -2, parte +1 → crossing window di 3 minuti
+            // T2 (pari):   arriva -3, parte +2 → crossing window di 5 minuti
+            // Questo permette l'incrocio simmetrico
+            let arr = calendar.date(byAdding: .minute, value: isT1 ? -2 : -3, to: base) ?? base
+            let dep = calendar.date(byAdding: .minute, value: isT1 ?  1 :  2, to: base) ?? base
+            return (arr, dep)
+        } else {
+            // Treni non principali: ≥10 min di buffer prima/dopo il minuto takt
+            let arr = calendar.date(byAdding: .minute, value: -10, to: base) ?? base
+            let dep = calendar.date(byAdding: .minute, value:  10, to: base) ?? base
+            return (arr, dep)
+        }
+    }
+
+    private func propagateBackward(
+        group: inout [Train], taktIdx: Int, sequence: [String],
+        nodes: [RailwayNode], edges: [Edge], core: RailSchedulerCore
+    ) {
+        guard taktIdx > 0 else { return }
+        print("\n⬅️ [PASSO 2] Propagazione INDIETRO da Takt verso origine...")
+        for dist in 1...taktIdx {
+            let curIdx = taktIdx - dist
+            let nxtIdx = curIdx + 1
+            let staCur = sequence[curIdx]
+            let staNxt = sequence[nxtIdx]
+            guard let edge = edges.first(where: {
+                ($0.from == staCur && $0.to == staNxt) || ($0.from == staNxt && $0.to == staCur)
+            }) else { continue }
+            print("   📍 Stazione \(curIdx): \(staCur)")
+            for i in group.indices {
+                let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(
+                    from: staCur, to: staNxt, train: group[i], nodes: nodes, edges: edges,
+                    isStarting: !group[i].stops[curIdx].isSkipped, isStopping: !group[i].stops[nxtIdx].isSkipped)
+                let nxtDep = group[i].stops[nxtIdx].departure ?? group[i].stops[nxtIdx].arrival!
+                let propDep = nxtDep.addingTimeInterval(-tt)
+                let dwell = Double((group[i].stops[curIdx].isSkipped ? 0 : group[i].stops[curIdx].minDwellTime) * 60)
+                var propArr = propDep.addingTimeInterval(-dwell)
+                var extra = 0.0
+                for _ in 0..<10 {
+                    if core.isTrattaLibera(edge: edge, tInizio: propDep, tFine: nxtDep, verso: staNxt)
+                        && core.isStazioneLibera(stazioneId: staCur, at: propArr) { break }
+                    extra += 2; propArr = propArr.addingTimeInterval(-120)
+                }
+                group[i].stops[curIdx].arrival = (curIdx > 0) ? propArr : nil
+                group[i].stops[curIdx].departure = propDep
+                group[i].stops[curIdx].extraDwellTime = extra
+                if extra > 0 { print("      ⏳ \(group[i].name): +\(Int(extra))m") }
+                let s1 = staCur < staNxt ? staCur : staNxt; let s2 = staCur < staNxt ? staNxt : staCur
+                core.addOccupancies([OccupazioneTratta(resId: "SEGMENT::\(s1)--\(s2)", intervallo: propDep...nxtDep, direzione: staNxt)])
+                if dwell > 0 || extra > 0 {
+                    core.addOccupancies([OccupazioneTratta(resId: "STATION_GLOBAL::\(staCur)", intervallo: propArr...propDep, direzione: "STAY")])
+                }
+            }
+        }
+    }
+
+    private func propagateForward(
+        group: inout [Train], taktIdx: Int, sequence: [String],
+        nodes: [RailwayNode], edges: [Edge], core: RailSchedulerCore
+    ) {
+        guard taktIdx < sequence.count - 1 else { return }
+        print("\n➡️ [PASSO 3] Propagazione AVANTI da Takt verso destinazione...")
+        for dist in 1..<(sequence.count - taktIdx) {
+            let curIdx = taktIdx + dist
+            let prvIdx = curIdx - 1
+            let staPrv = sequence[prvIdx]
+            let staCur = sequence[curIdx]
+            guard let edge = edges.first(where: {
+                ($0.from == staPrv && $0.to == staCur) || ($0.from == staCur && $0.to == staPrv)
+            }) else { continue }
+            print("   📍 Stazione \(curIdx): \(staCur)")
+            for i in group.indices {
+                let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(
+                    from: staPrv, to: staCur, train: group[i], nodes: nodes, edges: edges,
+                    isStarting: !group[i].stops[prvIdx].isSkipped, isStopping: !group[i].stops[curIdx].isSkipped)
+                let prvDep = group[i].stops[prvIdx].departure ?? group[i].stops[prvIdx].arrival!
+                let propArr = prvDep.addingTimeInterval(tt)
+                let dwell = Double((group[i].stops[curIdx].isSkipped ? 0 : group[i].stops[curIdx].minDwellTime) * 60)
+                let propDep = propArr.addingTimeInterval(dwell)
+                var extra = 0.0
+                for _ in 0..<10 {
+                    if core.isTrattaLibera(edge: edge, tInizio: prvDep.addingTimeInterval(extra * 60), tFine: propArr.addingTimeInterval(extra * 60), verso: staCur)
+                        && core.isStazioneLibera(stazioneId: staCur, at: propArr.addingTimeInterval(extra * 60)) { break }
+                    extra += 2
+                }
+                if extra > 0 {
+                    group[i].stops[prvIdx].extraDwellTime = (group[i].stops[prvIdx].extraDwellTime ?? 0) + extra
+                    group[i].stops[prvIdx].departure = group[i].stops[prvIdx].departure?.addingTimeInterval(extra * 60)
+                    print("      ⏳ \(group[i].name): +\(Int(extra))m @ \(staPrv)")
+                }
+                let adjPrvDep = prvDep.addingTimeInterval(extra * 60)
+                let adjArr    = propArr.addingTimeInterval(extra * 60)
+                let adjDep    = propDep.addingTimeInterval(extra * 60)
+                group[i].stops[curIdx].arrival   = adjArr
+                group[i].stops[curIdx].departure = (curIdx < sequence.count - 1) ? adjDep : nil
+                let s1 = staPrv < staCur ? staPrv : staCur; let s2 = staPrv < staCur ? staCur : staPrv
+                core.addOccupancies([OccupazioneTratta(resId: "SEGMENT::\(s1)--\(s2)", intervallo: adjPrvDep...adjArr, direzione: staCur)])
+                if dwell > 0 {
+                    core.addOccupancies([OccupazioneTratta(resId: "STATION_GLOBAL::\(staCur)", intervallo: adjArr...adjDep, direzione: "STAY")])
+                }
+            }
+        }
+    }
+
     
     private enum ExpansionDirection { case forward, backward }
     

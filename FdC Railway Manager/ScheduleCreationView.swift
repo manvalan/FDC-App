@@ -9,34 +9,7 @@ struct ScheduleCreationView: View {
     
     let line: RailwayLine
     
-    // Scheduling Mode
-    enum ScheduleMode: String, CaseIterable, Identifiable {
-        case single = "single_trip"
-        case cadenced = "cadenced_trip"
-        case taktfahrplan = "taktfahrplan"
-        var id: String { rawValue }
-        
-        var localizedName: String {
-            switch self {
-            case .single: return "single_trip".localized
-            case .cadenced: return "cadenced_trip".localized
-            case .taktfahrplan: return "Taktfahrplan"
-            }
-        }
-    }
-    
-    enum NumberParity: String, CaseIterable, Identifiable {
-        case even = "even"
-        case odd = "odd"
-        var id: String { rawValue }
-        
-        var localizedName: String {
-            switch self {
-            case .even: return "even".localized
-            case .odd: return "odd".localized
-            }
-        }
-    }
+    // Note: ScheduleMode and NumberParity are now defined in ScheduleCreationViewModel.swift
     
     @State private var mode: ScheduleMode = .single
     @State private var startTime: Date = Date()
@@ -1205,65 +1178,54 @@ struct ScheduleCreationView: View {
         
         var generatedTrains: [Train] = []
         
-        // 2. GENERATE OUTWARD
-        let outwardIterations: Int
-        if mode == .single { outwardIterations = 1 }
-        else {
-            let sMin = calendar.component(.hour, from: normalizedStart) * 60 + calendar.component(.minute, from: normalizedStart)
-            var eMin = calendar.component(.hour, from: normalizedEnd) * 60 + calendar.component(.minute, from: normalizedEnd)
-            if eMin < sMin { eMin += 24 * 60 }
-            outwardIterations = (eMin - sMin) / intervalMinutes + 1
-        }
-        
-        for i in 0..<outwardIterations {
-            let departureTime = calendar.date(byAdding: .minute, value: i * intervalMinutes, to: normalizedStart) ?? normalizedStart
-            let outwardNumber = currentStart + (i * 2)
-            let finalNumber = (line.numberPrefix ?? 0) * 100 + outwardNumber
+        // SPECIAL HANDLING FOR TAKTFAHRPLAN 120-MINUTE CADENCE
+        // Generate paired trains (T1 outward + T2 return) at the same departure time
+        // so they meet at the Takt station
+        if mode == .taktfahrplan && intervalMinutes == 120 && scheduleReturn {
+            print("🎯 [TAKT-120] Generating paired trains (T1+T2) for Taktfahrplan 120-minute cadence")
             
-            let outwardTrain = manager.instantiateTrain(
-                number: finalNumber,
-                category: selectedTrainType,
-                departureTime: departureTime,
-                line: line,
-                stationSequence: stationSequence,
-                acceleration: physics.acceleration,
-                deceleration: physics.deceleration,
-                mass: physics.mass,
-                power: physics.power,
-                preferredTrack: "1",
-                vehicleId: effectiveVehicle?.id,
-                skippedStopIds: skippedStopIds,
-                isMainTrain: isMainLine
-            )
-            #if DEBUG
-            print("🚂 [GEN] Created outward train \(outwardTrain.name) with \(outwardTrain.stops.count) stops, departure: \(departureTime)")
-            #endif
-            generatedTrains.append(outwardTrain)
-        }
-        
-        // 3. GENERATE RETURN
-        if scheduleReturn {
-            let normalizedRStart = normalizeDate(startTime)
-            let normalizedREnd = normalizeDate(endTime)
-            
-            let returnIterations: Int
-            if mode == .single { returnIterations = 1 }
+            let iterations: Int
+            if mode == .single { iterations = 1 }
             else {
-                let sMin = calendar.component(.hour, from: normalizedRStart) * 60 + calendar.component(.minute, from: normalizedRStart)
-                var eMin = calendar.component(.hour, from: normalizedREnd) * 60 + calendar.component(.minute, from: normalizedREnd)
+                let sMin = calendar.component(.hour, from: normalizedStart) * 60 + calendar.component(.minute, from: normalizedStart)
+                var eMin = calendar.component(.hour, from: normalizedEnd) * 60 + calendar.component(.minute, from: normalizedEnd)
                 if eMin < sMin { eMin += 24 * 60 }
-                returnIterations = (eMin - sMin) / intervalMinutes + 1
+                iterations = (eMin - sMin) / intervalMinutes + 1
             }
             
-            for i in 0..<returnIterations {
-                let departureTime = calendar.date(byAdding: .minute, value: i * intervalMinutes, to: normalizedRStart) ?? normalizedRStart
-                let returnNumber = returnStartNumber + (i * 2)
-                let finalNumber = (rLineObj.numberPrefix ?? line.numberPrefix ?? 0) * 100 + returnNumber
+            for i in 0..<iterations {
+                let departureTime = calendar.date(byAdding: .minute, value: i * intervalMinutes, to: normalizedStart) ?? normalizedStart
                 
-                let returnTrain = manager.instantiateTrain(
-                    number: finalNumber,
+                // T1: Outward train (odd number)
+                let t1Number = currentStart + (i * 2)
+                let t1FinalNumber = (line.numberPrefix ?? 0) * 100 + t1Number
+                
+                let t1Train = manager.instantiateTrain(
+                    number: t1FinalNumber,
                     category: selectedTrainType,
                     departureTime: departureTime,
+                    line: line,
+                    stationSequence: stationSequence,
+                    acceleration: physics.acceleration,
+                    deceleration: physics.deceleration,
+                    mass: physics.mass,
+                    power: physics.power,
+                    preferredTrack: "1",
+                    vehicleId: effectiveVehicle?.id,
+                    skippedStopIds: skippedStopIds,
+                    isMainTrain: isMainLine
+                )
+                generatedTrains.append(t1Train)
+                print("   🚆 T1 (Outward): \(t1Train.name) #\(t1FinalNumber) @ \(formatTime(departureTime))")
+                
+                // T2: Return train (even number) - SAME departure time
+                let t2Number = returnStartNumber + (i * 2)
+                let t2FinalNumber = (rLineObj.numberPrefix ?? line.numberPrefix ?? 0) * 100 + t2Number
+                
+                let t2Train = manager.instantiateTrain(
+                    number: t2FinalNumber,
+                    category: selectedTrainType,
+                    departureTime: departureTime, // ← SAME TIME AS T1
                     line: rLineObj,
                     stationSequence: Array(stationSequence.reversed()),
                     acceleration: physics.acceleration,
@@ -1275,7 +1237,86 @@ struct ScheduleCreationView: View {
                     skippedStopIds: skippedStopIds,
                     isMainTrain: isMainLine
                 )
-                generatedTrains.append(returnTrain)
+                generatedTrains.append(t2Train)
+                print("   🚆 T2 (Return):  \(t2Train.name) #\(t2FinalNumber) @ \(formatTime(departureTime)) [paired with T1]")
+            }
+            
+            print("✅ [TAKT-120] Generated \(generatedTrains.count) trains in \(iterations) pairs")
+        }
+        // STANDARD GENERATION FOR OTHER MODES
+        else {
+            // 2. GENERATE OUTWARD
+            let outwardIterations: Int
+            if mode == .single { outwardIterations = 1 }
+            else {
+                let sMin = calendar.component(.hour, from: normalizedStart) * 60 + calendar.component(.minute, from: normalizedStart)
+                var eMin = calendar.component(.hour, from: normalizedEnd) * 60 + calendar.component(.minute, from: normalizedEnd)
+                if eMin < sMin { eMin += 24 * 60 }
+                outwardIterations = (eMin - sMin) / intervalMinutes + 1
+            }
+            
+            for i in 0..<outwardIterations {
+                let departureTime = calendar.date(byAdding: .minute, value: i * intervalMinutes, to: normalizedStart) ?? normalizedStart
+                let outwardNumber = currentStart + (i * 2)
+                let finalNumber = (line.numberPrefix ?? 0) * 100 + outwardNumber
+                
+                let outwardTrain = manager.instantiateTrain(
+                    number: finalNumber,
+                    category: selectedTrainType,
+                    departureTime: departureTime,
+                    line: line,
+                    stationSequence: stationSequence,
+                    acceleration: physics.acceleration,
+                    deceleration: physics.deceleration,
+                    mass: physics.mass,
+                    power: physics.power,
+                    preferredTrack: "1",
+                    vehicleId: effectiveVehicle?.id,
+                    skippedStopIds: skippedStopIds,
+                    isMainTrain: isMainLine
+                )
+                #if DEBUG
+                print("🚂 [GEN] Created outward train \(outwardTrain.name) with \(outwardTrain.stops.count) stops, departure: \(departureTime)")
+                #endif
+                generatedTrains.append(outwardTrain)
+            }
+            
+            // 3. GENERATE RETURN
+            if scheduleReturn {
+                let normalizedRStart = normalizeDate(startTime)
+                let normalizedREnd = normalizeDate(endTime)
+                
+                let returnIterations: Int
+                if mode == .single { returnIterations = 1 }
+                else {
+                    let sMin = calendar.component(.hour, from: normalizedRStart) * 60 + calendar.component(.minute, from: normalizedRStart)
+                    var eMin = calendar.component(.hour, from: normalizedREnd) * 60 + calendar.component(.minute, from: normalizedREnd)
+                    if eMin < sMin { eMin += 24 * 60 }
+                    returnIterations = (eMin - sMin) / intervalMinutes + 1
+                }
+                
+                for i in 0..<returnIterations {
+                    let departureTime = calendar.date(byAdding: .minute, value: i * intervalMinutes, to: normalizedRStart) ?? normalizedRStart
+                    let returnNumber = returnStartNumber + (i * 2)
+                    let finalNumber = (rLineObj.numberPrefix ?? line.numberPrefix ?? 0) * 100 + returnNumber
+                    
+                    let returnTrain = manager.instantiateTrain(
+                        number: finalNumber,
+                        category: selectedTrainType,
+                        departureTime: departureTime,
+                        line: rLineObj,
+                        stationSequence: Array(stationSequence.reversed()),
+                        acceleration: physics.acceleration,
+                        deceleration: physics.deceleration,
+                        mass: physics.mass,
+                        power: physics.power,
+                        preferredTrack: "2",
+                        vehicleId: effectiveVehicle?.id,
+                        skippedStopIds: skippedStopIds,
+                        isMainTrain: isMainLine
+                    )
+                    generatedTrains.append(returnTrain)
+                }
             }
         }
         
@@ -1332,13 +1373,14 @@ struct ScheduleCreationView: View {
         print("🔧 [GEN] Avvio pipeline con \(generatedTrains.count) treni, \(nodesCopy.count) nodi, \(edgesCopy.count) edges")
         
         // Usa il pipeline unificato con le opzioni selezionate
+        // TAKTFAHRPLAN: disabilita tutti gli algoritmi di ottimizzazione per mantenere orari deterministici
         let optimizedTrains = await RailwayScheduleOptimizer.shared.executePipeline(
             newTrains: generatedTrains,
             existingTrains: manager.trains.filter { $0.lineId != line.id },
             nodes: nodesCopy,
             edges: edgesCopy,
-            useAI: false,  // AI Cloud opzionale, per ora off per velocità
-            useGA: useDepartureOptimizer, // Usa il toggle dell'utente
+            useAI: false,  // AI sempre disabilitata
+            useGA: mode == .taktfahrplan ? false : useDepartureOptimizer, // TAKT: no ottimizzazione, usa solo orari calcolati
             geneticOptimizer: nil,
             preferredTaktNodeId: mode == .taktfahrplan && !taktStationId.isEmpty ? taktStationId : nil
         )

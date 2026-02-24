@@ -35,6 +35,8 @@ struct TrainModel: Codable, Identifiable {
             maxSpeed: Double(specifiche.velocita_max_kmh),
             acceleration: fisica.accelerazione_m_s2,
             deceleration: fisica.frenatura_servizio_m_s2,
+            mass: specifiche.massa_tonnellate,
+            power: Double(specifiche.potenza_kw),
             imageName: asset_name
         )
     }
