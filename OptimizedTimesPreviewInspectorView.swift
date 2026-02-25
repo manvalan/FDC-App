@@ -5,7 +5,7 @@ struct OptimizedTimesPreviewInspectorView: View {
     @EnvironmentObject var appState: AppState
     
     let line: RailwayLine
-    let mode: ScheduleCreationView.ScheduleMode
+    let mode: ScheduleMode
     let currentOutboundTime: Date
     let currentReturnTime: Date?
     let proposedOutboundTime: Date

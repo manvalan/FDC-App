@@ -19,7 +19,7 @@ struct TrainsListView: View {
     struct ScheduleRequest: Identifiable {
         let id = UUID()
         let line: RailwayLine
-        let mode: ScheduleCreationView.ScheduleMode
+        let mode: ScheduleMode
     }
     @State private var activeScheduleRequest: ScheduleRequest? = nil
     

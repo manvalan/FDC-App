@@ -5,7 +5,7 @@ struct LineSectionView: View {
     @ObservedObject var manager: LinesManager
     @Binding var selectedTrains: Set<UUID>
     let onShowSchedule: (RailwayLine) -> Void
-    let onAddTrain: (RailwayLine, ScheduleCreationView.ScheduleMode) -> Void
+    let onAddTrain: (RailwayLine, ScheduleMode) -> Void
     
     @State private var isExpanded: Bool = false
     

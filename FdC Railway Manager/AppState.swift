@@ -202,7 +202,7 @@ final class AppState: ObservableObject {
     // Schedule Preview State
     @Published var schedulePreviewTrains: [RailwayTrain]? = nil
     @Published var schedulePreviewLine: RailwayLine? = nil
-    @Published var schedulePreviewMode: ScheduleCreationView.ScheduleMode = .single
+    @Published var schedulePreviewMode: ScheduleMode = .single
     var schedulePreviewSelectedModel: TrainModel? = nil
     var schedulePreviewOptimizeVehicles: Bool = false
     var schedulePreviewMinTurnaroundTime: Int = 15
@@ -210,7 +210,7 @@ final class AppState: ObservableObject {
     // Optimized Times Preview State (Step 1 of two-step preview)
     struct OptimizedTimesPreviewData {
         let line: RailwayLine
-        let mode: ScheduleCreationView.ScheduleMode
+        let mode: ScheduleMode
         let currentOutboundTime: Date
         let currentReturnTime: Date?
         let proposedOutboundTime: Date
@@ -293,7 +293,8 @@ final class AppState: ObservableObject {
         // selectedLineId = nil // Keep line context active!
         selectedNodeId = nil
         selectedEdgeId = nil
-        creationLineId = nil
+        // Don't close schedule creation when selecting a train
+        // creationLineId = nil  // COMMENTED OUT
     }
     
     func selectLine(_ line: RailwayLine) {
@@ -301,19 +302,23 @@ final class AppState: ObservableObject {
         selectedNodeId = nil
         selectedEdgeId = nil
         selectedTrainIds = []
-        creationLineId = nil
+        // Don't close schedule creation when selecting a line
+        // creationLineId = nil  // COMMENTED OUT
     }
     
     func clearSelection() {
         selectedLineId = nil
         selectedNodeId = nil
         selectedEdgeId = nil
-        selectedTrainIds = []
-        selectedVehicleId = nil
-        creationLineId = nil
+        // Don't clear selectedTrainIds - keep train inspector open
+        // selectedTrainIds = []  // COMMENTED OUT - this was causing the inspector to close when viewing trains
+        // Don't clear selectedVehicleId - keep vehicle inspector open
+        // selectedVehicleId = nil  // COMMENTED OUT - this was causing the inspector to close when viewing vehicles
+        // Don't clear creationLineId - keep schedule generation view open
+        // creationLineId = nil  // COMMENTED OUT - this was causing the inspector to close during schedule generation
         isShowingSettings = false
-        // Don't close inspector if we're creating a line
-        if activePanel == .inspector && !isCreatingLine {
+        // Don't close inspector if we're creating a line, generating schedules, viewing trains, or viewing vehicles
+        if activePanel == .inspector && !isCreatingLine && creationLineId == nil && selectedTrainIds.isEmpty && selectedVehicleId == nil {
             activePanel = .none
         }
     }

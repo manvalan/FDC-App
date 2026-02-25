@@ -7,7 +7,7 @@ struct SchedulePreviewInspectorView: View {
     
     let trains: [Train]
     let line: RailwayLine
-    let mode: ScheduleCreationView.ScheduleMode
+    let mode: ScheduleMode
     
     @State private var acceptSchedule: Bool = false
     @State private var showConflicts: Bool = true
@@ -566,14 +566,10 @@ extension Train {
 }
 
 #Preview {
-    let network = NetworkModel()
-    let manager = LinesManager(network: network)
-    return SchedulePreviewInspectorView(
+    SchedulePreviewInspectorView(
         trains: [],
         line: RailwayLine(id: "test", name: "Test Line", stops: []),
         mode: .single
     )
     .environmentObject(AppState.shared)
-    .environmentObject(manager)
-    .environmentObject(network)
 }

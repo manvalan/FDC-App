@@ -59,6 +59,15 @@ extension ContentView {
                             appState.isCreatingLine = false
                             appState.lineDraftStations.removeAll()
                             appState.stationPickingCallback = nil
+                        } else if appState.creationLineId != nil {
+                            // Close schedule creation view
+                            appState.creationLineId = nil
+                        } else if !appState.selectedTrainIds.isEmpty {
+                            // Close train inspector view
+                            appState.selectedTrainIds.removeAll()
+                        } else if appState.selectedVehicleId != nil {
+                            // Close vehicle inspector view
+                            appState.selectedVehicleId = nil
                         } else {
                             appState.clearSelection()
                         }
