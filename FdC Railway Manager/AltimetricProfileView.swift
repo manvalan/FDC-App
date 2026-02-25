@@ -912,8 +912,8 @@ struct DraggablePointView: View {
             // The draggable point
             Circle()
                 .fill(isEditing ? Color.yellow : (isLocked ? Color.red : (station.type == .junction ? Color.black : Color.white)))
-                .frame(width: station.type == .junction ? 10 : 16, height: station.type == .junction ? 10 : 16)
-                .overlay(Circle().stroke(isEditing ? Color.orange : Color.blue, lineWidth: station.type == .junction ? 1 : 2))
+                .frame(width: station.type == .junction ? 8 : 16, height: station.type == .junction ? 8 : 16)
+                .overlay(Circle().stroke(isEditing ? Color.orange : (station.type == .junction ? Color.gray : Color.blue), lineWidth: station.type == .junction ? 1 : 2))
                 .overlay(
                     ZStack {
                         if isLocked {

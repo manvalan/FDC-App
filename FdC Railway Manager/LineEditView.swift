@@ -2,41 +2,16 @@ import SwiftUI
 
 struct LineEditView: View {
     @EnvironmentObject var appState: AppState
-    private var railroad: RailroadNetwork { appState.railroad }
-    private var network: NetworkModel { railroad.network }
-    private var lines: LinesManager { railroad.lines }
-    
+    @StateObject private var vm = LineEditViewModel()
     @Environment(\.dismiss) var dismiss
     
     let lineId: String
     
-    @State private var lineName: String = ""
-    @State private var codePrefix: String = ""
-    @State private var numberPrefix: Int = 0
-    @State private var cadenceFrequency: Double = 60.0
-    @State private var lineColor: Color = .blue
-    @State private var terminalTracks: [String: String] = [:]
-    
-    // Path selection state
-    @State private var startStationId: String = ""
-    @State private var viaStationIds: [String] = []
-    @State private var endStationId: String = ""
-    @State private var stationSequence: [String] = []
-    @State private var manualAddition: Bool = true // Default to true for editing
-    
+    // UI-only navigation state
+    @State private var manualAddition: Bool = true
     @State private var manualStationId: String = ""
     @State private var activePicker: PickerType?
     @State private var mapPickingType: PickerType?
-    
-    @State private var errorMessage: String? = nil
-    
-    // AI Analysis
-    @State private var lineAnalysis: RailwayAIService.LineAnalysis? = nil
-    @State private var isAnalyzingLine: Bool = false
-    
-    // Local Cadence Optimization
-    @StateObject private var cadenceOptimizer = CadenceOptimizer()
-    @State private var proposedOffset: Double? = nil
     
     var body: some View {
         Form {
@@ -44,26 +19,26 @@ struct LineEditView: View {
                 
                 Section(header: Text("path_composition".localized)) {
                     PathPickerComponent(
-                        startStationId: $startStationId,
-                        viaStationIds: $viaStationIds,
-                        endStationId: $endStationId,
-                        stationSequence: $stationSequence,
+                        startStationId: $vm.startStationId,
+                        viaStationIds: $vm.viaStationIds,
+                        endStationId: $vm.endStationId,
+                        stationSequence: $vm.stationSequence,
                         manualAddition: $manualAddition,
                         activePicker: $activePicker,
                         manualStationId: $manualStationId,
-                        lineAnalysis: lineAnalysis,
-                        isAnalyzing: isAnalyzingLine
+                        lineAnalysis: vm.lineAnalysis,
+                        isAnalyzing: vm.isAnalyzingLine
                     )
                 }
                 
-                if !stationSequence.isEmpty || manualAddition {
+                if !vm.stationSequence.isEmpty || manualAddition {
                     StationSequenceSection(
-                        stationSequence: $stationSequence,
-                        lineColor: lineColor,
-                        network: network,
+                        stationSequence: $vm.stationSequence,
+                        lineColor: vm.lineColor,
+                        network: appState.railroad.network,
                         activePicker: $activePicker,
                         mapPickingType: $mapPickingType,
-                        suggestions: getSuggestions()
+                        suggestions: vm.getSuggestions()
                     )
                 }
                 
@@ -126,32 +101,20 @@ struct LineEditView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("save".localized) {
-                        saveChanges()
+                        if vm.saveChanges() {
+                            dismiss()
+                        }
                     }
-                    .disabled(lineName.isEmpty || stationSequence.count < 2)
+                    .disabled(vm.lineName.isEmpty || vm.stationSequence.count < 2)
                 }
             }
             .onAppear {
-                loadLineData()
-            }
-            .onChange(of: startStationId) { old, new in
-                if !new.isEmpty {
-                    if stationSequence.isEmpty {
-                        stationSequence = [new]
-                    } else if stationSequence[0] != new {
-                        stationSequence[0] = new
-                    }
-                }
+                vm.setup(lineId: lineId, appState: appState)
             }
             .onChange(of: manualStationId) { old, new in
                 if !new.isEmpty {
-                    stationSequence.append(new)
+                    vm.stationSequence.append(new)
                     manualStationId = "" 
-                }
-            }
-            .onChange(of: stationSequence) { _, newSeq in
-                if appState.useCloudAI && newSeq.count >= 2 {
-                    triggerLineAnalysis()
                 }
             }
             .onChange(of: activePicker) { old, new in
@@ -175,12 +138,12 @@ struct LineEditView: View {
                 Group {
                     switch item {
                     case .start:
-                        StationPickerView(selectedStationId: $startStationId)
+                        StationPickerView(selectedStationId: $vm.startStationId)
                     case .via(let idx):
-                        if idx >= 0 && idx < viaStationIds.count {
+                        if idx >= 0 && idx < vm.viaStationIds.count {
                             StationPickerView(selectedStationId: Binding(
-                                get: { viaStationIds[idx] },
-                                set: { viaStationIds[idx] = $0 }
+                                get: { vm.viaStationIds[idx] },
+                                set: { vm.viaStationIds[idx] = $0 }
                             ))
                         } else {
                             VStack {
@@ -190,42 +153,42 @@ struct LineEditView: View {
                             .padding()
                         }
                     case .end:
-                        StationPickerView(selectedStationId: $endStationId)
+                        StationPickerView(selectedStationId: $vm.endStationId)
                     case .manual:
-                        StationPickerView(selectedStationId: $manualStationId, linkedToStationId: stationSequence.last)
+                        StationPickerView(selectedStationId: $manualStationId, linkedToStationId: vm.stationSequence.last)
                     }
                 }
-                .environmentObject(network)
+                .environmentObject(appState.railroad.network)
             }
     }
     
     private var detailsSection: some View {
         Section(header: Text("line_details".localized)) {
-            TextField("line_name_placeholder".localized, text: $lineName)
+            TextField("line_name_placeholder".localized, text: $vm.lineName)
             
             if appState.currentMode != .design {
-                TextField("code_prefix_placeholder".localized, text: $codePrefix)
-                TextField("number_prefix_placeholder".localized, value: $numberPrefix, format: .number)
+                TextField("code_prefix_placeholder".localized, text: $vm.codePrefix)
+                TextField("number_prefix_placeholder".localized, value: $vm.numberPrefix, format: .number)
                     .keyboardType(.numberPad)
                 
                 VStack(alignment: .leading) {
                     HStack {
                         Text("cadence_frequency".localized)
                         Spacer()
-                        TextField("minutes", value: $cadenceFrequency, format: .number)
+                        TextField("minutes", value: $vm.cadenceFrequency, format: .number)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
                             .frame(width: 80)
                     }
                     
                     HStack {
-                        Button(action: { findIdealOffset() }) {
-                            Label(cadenceOptimizer.isRunning ? "finding_slot".localized : "propose_ideal_slot".localized, 
+                        Button(action: { vm.findIdealOffset() }) {
+                            Label(vm.isRunningOptimizer ? "finding_slot".localized : "propose_ideal_slot".localized, 
                                   systemImage: "wand.and.stars")
                         }
-                        .disabled(cadenceOptimizer.isRunning || stationSequence.count < 2)
+                        .disabled(vm.isRunningOptimizer || vm.stationSequence.count < 2)
                         
-                        if let offset = proposedOffset {
+                        if let offset = vm.proposedOffset {
                             Spacer()
                             Text(String(format: "suggested_offset_fmt".localized, Int(offset)))
                                 .foregroundColor(.green)
@@ -234,16 +197,16 @@ struct LineEditView: View {
                     }
                 }
             }
-            ColorPicker("Colore Linea", selection: $lineColor, supportsOpacity: false)
+            ColorPicker("Colore Linea", selection: $vm.lineColor, supportsOpacity: false)
                 
             Section(header: Text("capolinea_e_binari".localized)) {
-                if let startNode = network.nodes.first(where: { $0.id == stationSequence.first }) {
+                if let startNode = appState.railroad.network.nodes.first(where: { $0.id == vm.stationSequence.first }) {
                     HStack {
                         Text("Origine: \(startNode.name)")
                         Spacer()
                         Picker("", selection: Binding(
-                            get: { terminalTracks[startNode.id] ?? "" },
-                            set: { terminalTracks[startNode.id] = $0.isEmpty ? nil : $0 }
+                            get: { vm.terminalTracks[startNode.id] ?? "" },
+                            set: { vm.terminalTracks[startNode.id] = $0.isEmpty ? nil : $0 }
                         )) {
                             Text("-").tag("")
                             ForEach(1...(startNode.platforms ?? 2), id: \.self) { p in
@@ -253,13 +216,13 @@ struct LineEditView: View {
                     }
                 }
                 
-                if let endNode = network.nodes.first(where: { $0.id == stationSequence.last }), endNode.id != stationSequence.first {
+                if let endNode = appState.railroad.network.nodes.first(where: { $0.id == vm.stationSequence.last }), endNode.id != vm.stationSequence.first {
                     HStack {
                         Text("Destinazione: \(endNode.name)")
                         Spacer()
                         Picker("", selection: Binding(
-                            get: { terminalTracks[endNode.id] ?? "" },
-                            set: { terminalTracks[endNode.id] = $0.isEmpty ? nil : $0 }
+                            get: { vm.terminalTracks[endNode.id] ?? "" },
+                            set: { vm.terminalTracks[endNode.id] = $0.isEmpty ? nil : $0 }
                         )) {
                             Text("-").tag("")
                             ForEach(1...(endNode.platforms ?? 2), id: \.self) { p in
@@ -272,123 +235,8 @@ struct LineEditView: View {
         }
     }
     
-    private func findIdealOffset() {
-        Task {
-            let line = RailwayLine(
-                id: lineId,
-                name: lineName,
-                stops: stationSequence.map { RelationStop(stationId: $0) }
-            )
-            let offset = await cadenceOptimizer.proposeIdealWindow(
-                for: line, 
-                frequency: cadenceFrequency, 
-                existingTrains: lines.trains.filter { $0.lineId != lineId }, 
-                network: network
-            )
-            self.proposedOffset = offset
-        }
-    }
-    
-    
-    private func loadLineData() {
-        guard let line = lines.lines.first(where: { $0.id == lineId }) else {
-            dismiss()
-            return
-        }
-        
-        lineName = line.name
-        codePrefix = line.codePrefix ?? ""
-        numberPrefix = line.numberPrefix ?? 0
-        cadenceFrequency = line.cadenceFrequency ?? 60.0
-        lineColor = Color(hex: line.color ?? "") ?? .blue
-        terminalTracks = line.terminalTracks
-        
-        startStationId = line.originId
-        endStationId = line.destinationId
-        stationSequence = line.stops.map { $0.stationId }
-        // viaStationIds is trickier since it's used for pathfinding, 
-        // but for manual sequence editing we mainly care about stationSequence.
-        
-        if appState.useCloudAI && stationSequence.count >= 2 {
-            triggerLineAnalysis()
-        }
-    }
-    
-    private func saveChanges() {
-        guard let index = lines.lines.firstIndex(where: { $0.id == lineId }) else { return }
-        
-        let hexColor = lineColor.toHex()
-        let stops = stationSequence.map { sid -> RelationStop in
-            let node = network.nodes.first(where: { $0.id == sid })
-            let defaultDwell = (node?.type == .interchange) ? 5 : 3
-            return RelationStop(stationId: sid, minDwellTime: defaultDwell)
-        }
-        
-        // Update the existing line through a checkpoint
-        lines.lines[index].name = lineName
-        lines.lines[index].color = hexColor
-        lines.lines[index].originId = stationSequence.first ?? startStationId
-        lines.lines[index].destinationId = stationSequence.last ?? endStationId
-        lines.lines[index].stops = stops
-        lines.lines[index].codePrefix = codePrefix.isEmpty ? nil : codePrefix
-        lines.lines[index].numberPrefix = numberPrefix == 0 ? nil : numberPrefix
-        lines.lines[index].cadenceFrequency = cadenceFrequency
-        lines.lines[index].terminalTracks = terminalTracks
-        
-        // Update all trains of this line to use these tracks at terminal stations
-        for tIdx in lines.trains.indices {
-            if lines.trains[tIdx].lineId == lineId {
-                // Update start stop
-                if let firstId = stationSequence.first, let track = terminalTracks[firstId] {
-                    if let sIdx = lines.trains[tIdx].stops.firstIndex(where: { $0.stationId == firstId }) {
-                        lines.trains[tIdx].stops[sIdx].track = track
-                        lines.trains[tIdx].stops[sIdx].isManualTrack = true
-                    }
-                }
-                // Update end stop
-                if let lastId = stationSequence.last, let track = terminalTracks[lastId] {
-                    if let sIdx = lines.trains[tIdx].stops.firstIndex(where: { $0.stationId == lastId }) {
-                        lines.trains[tIdx].stops[sIdx].track = track
-                        lines.trains[tIdx].stops[sIdx].isManualTrack = true
-                    }
-                }
-            }
-        }
-        
-        lines.validateSchedules()
-        dismiss()
-    }
-    
-    private func getSuggestions() -> [Node] {
-        guard let lastId = stationSequence.last else { return [] }
-        let connectedIds = network.getNeighborStations(for: lastId)
-        return network.nodes.filter { node in
-            connectedIds.contains(node.id) &&
-            (node.type == .station || node.type == .interchange) &&
-            node.id != lastId
-        }
-        .sorted { $0.name < $1.name }
-    }
-    
-    private func triggerLineAnalysis() {
-        Task {
-            isAnalyzingLine = true
-            do {
-                lineAnalysis = try await RailwayAIService.shared.analyzeLine(
-                    name: lineName.isEmpty ? "Line" : lineName,
-                    stationIds: stationSequence,
-                    nodes: network.nodes,
-                    edges: network.edges
-                )
-            } catch {
-                print("❌ AI Line Analysis failed: \(error)")
-            }
-            isAnalyzingLine = false
-        }
-    }
-    
     private var suggestionsOverlay: some View {
-        let suggestions = getSuggestions()
+        let suggestions = vm.getSuggestions()
         return Group {
             if !suggestions.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
@@ -402,7 +250,7 @@ struct LineEditView: View {
                             ForEach(suggestions) { node in
                                 Button(action: {
                                     withAnimation(.spring()) {
-                                        stationSequence.append(node.id)
+                                        vm.stationSequence.append(node.id)
                                     }
                                 }) {
                                     HStack(spacing: 6) {
@@ -433,18 +281,7 @@ struct LineEditView: View {
     
     private func setupPickingCallback(for type: PickerType) {
         appState.stationPickingCallback = { stationId in
-            switch type {
-            case .start:
-                self.startStationId = stationId
-            case .via(let idx):
-                if idx < viaStationIds.count {
-                    viaStationIds[idx] = stationId
-                }
-            case .end:
-                self.endStationId = stationId
-            case .manual:
-                self.manualStationId = stationId
-            }
+            vm.handleStationSelection(type: type, stationId: stationId)
             
             // Auto-close terminals/via, keep manual sequence open
             if case .manual = type {
