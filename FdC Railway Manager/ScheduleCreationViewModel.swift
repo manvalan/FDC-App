@@ -226,40 +226,62 @@ final class ScheduleCreationViewModel: ObservableObject {
         let sequence = isReturn ? Array(stationSequence.reversed()) : stationSequence
         guard sequence.count >= 2 else { return }
 
-        let taktStations = sequence.compactMap { sid -> (String, Int)? in
-            guard let node = net.nodes.first(where: { $0.id == sid }),
-                  let takt = node.taktMinutes else { return nil }
-            return (sid, takt)
-        }
-        guard let firstTakt = taktStations.first else { return }
+        let firstTakt = findFirstTaktStation(in: sequence)
+        guard let firstTakt else { return }
 
+        let totalMinutes = travelMinutesToStation(firstTakt.0, in: sequence)
+        applyTaktAlignment(taktMinute: firstTakt.1, travelMinutes: totalMinutes)
+    }
+
+    private func findFirstTaktStation(in sequence: [String]) -> (String, Int)? {
+        for sid in sequence {
+            if let node = net.nodes.first(where: { $0.id == sid }),
+               let takt = node.taktMinutes {
+                return (sid, takt)
+            }
+        }
+        return nil
+    }
+
+    private func travelMinutesToStation(_ targetId: String, in sequence: [String]) -> Double {
         var totalMinutes: Double = 0
         var prevId = sequence[0]
         let dummyTrain = makeDummyTrain()
 
-        for i in 0..<sequence.count {
+        for i in 1..<sequence.count {
             let sid = sequence[i]
-            if sid == firstTakt.0 { break }
-            if i > 0 {
-                if let path = net.findPathEdges(from: prevId, to: sid) {
-                    var legDist: Double = 0
-                    var legSpeed: Double = .infinity
-                    for edge in path { legDist += edge.distance; legSpeed = min(legSpeed, Double(edge.maxSpeed)) }
-                    if legDist > 0 {
-                        let hours = FDCSchedulerEngine.calculateTravelTime(
-                            distanceKm: legDist,
-                            maxSpeedKmh: legSpeed == .infinity ? 100 : legSpeed,
-                            train: dummyTrain, initialSpeedKmh: 0, finalSpeedKmh: 0)
-                        totalMinutes += (hours * 60) + (35.0 / 60.0)
-                    }
-                }
-                let prevNode = net.nodes.first(where: { $0.id == prevId })
-                totalMinutes += Double((prevNode?.type == .interchange) ? 5 : 3)
-            }
+            if sid == targetId { break }
+            totalMinutes += legTravelMinutes(from: prevId, to: sid, train: dummyTrain)
+            totalMinutes += dwellMinutes(at: prevId)
             prevId = sid
         }
+        return totalMinutes
+    }
 
-        let targetMinute = (Double(firstTakt.1) - totalMinutes + 3600.0)
+    private func legTravelMinutes(from: String, to: String, train: Train) -> Double {
+        guard let path = net.findPathEdges(from: from, to: to) else { return 0 }
+        var legDist: Double = 0
+        var legSpeed: Double = .infinity
+        for edge in path {
+            legDist += edge.distance
+            legSpeed = min(legSpeed, Double(edge.maxSpeed))
+        }
+        guard legDist > 0 else { return 0 }
+        let effectiveSpeed = legSpeed == .infinity ? 100.0 : legSpeed
+        let hours = FDCSchedulerEngine.calculateTravelTime(
+            distanceKm: legDist, maxSpeedKmh: effectiveSpeed,
+            train: train, initialSpeedKmh: 0, finalSpeedKmh: 0)
+        return (hours * 60) + (35.0 / 60.0)
+    }
+
+    private func dwellMinutes(at stationId: String) -> Double {
+        let node = net.nodes.first(where: { $0.id == stationId })
+        let isInterchange = node?.type == .interchange
+        return isInterchange ? 5.0 : 3.0
+    }
+
+    private func applyTaktAlignment(taktMinute: Int, travelMinutes: Double) {
+        let targetMinute = (Double(taktMinute) - travelMinutes + 3600.0)
         let alignedMinute = Int(targetMinute.rounded()) % 60
         var comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: startTime)
         comps.minute = alignedMinute
@@ -334,87 +356,116 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     @MainActor
     func generateSchedule(forceLocal: Bool = false) async {
-        let calendar = Calendar.current
         print("\n🚀 [GEN] ===== INIZIO GENERAZIONE ORARIO =====")
         guard stationSequence.count >= 2 else {
             print("❌ [GEN] Sequenza stazioni insufficiente"); aiStatus = nil; return
         }
 
-        var currentStart = startNumber
-        if preferredParity == .even && currentStart % 2 != 0 { currentStart += 1 }
-        if preferredParity == .odd  && currentStart % 2 == 0 { currentStart += 1 }
+        let trains = prepareTrains()
+        guard !trains.isEmpty else {
+            print("❌ [GEN] Nessun treno valido generato"); aiStatus = nil; return
+        }
 
+        let optimized = await runOptimizationPipeline(trains: trains)
+        guard !optimized.isEmpty else { aiStatus = nil; return }
+
+        let finalTrains = await applyVehicleRotation(to: optimized)
+        publishResults(finalTrains)
+    }
+
+    /// Prepares all raw trains based on mode and settings.
+    private func prepareTrains() -> [Train] {
+        let calendar = Calendar.current
+        let currentStart = alignedStartNumber()
         let normalizedStart = normalizeDate(startTime)
         let normalizedEnd   = normalizeDate(endTime)
         let physics         = resolvePhysics()
         let effectiveVehicle = resolveVehicle()
+        let rLineObj = findReturnLine()
 
-        let rLineObj = mgr.lines.first(where: {
-            $0.originId == line.destinationId && $0.destinationId == line.originId
-        }) ?? line
+        let isTakt120 = mode == .taktfahrplan && intervalMinutes == 120 && scheduleReturn
+        let raw: [Train]
 
-        var trains: [Train] = []
-
-        if mode == .taktfahrplan && intervalMinutes == 120 && scheduleReturn {
-            trains = generateTakt120Pairs(calendar: calendar, normalizedStart: normalizedStart,
-                                          currentStart: currentStart, rLineObj: rLineObj,
-                                          physics: physics, effectiveVehicle: effectiveVehicle)
+        if isTakt120 {
+            raw = generateTakt120Pairs(calendar: calendar, normalizedStart: normalizedStart,
+                                       currentStart: currentStart, rLineObj: rLineObj,
+                                       physics: physics, effectiveVehicle: effectiveVehicle)
         } else {
-            trains = generateStandard(calendar: calendar, normalizedStart: normalizedStart,
-                                      normalizedEnd: normalizedEnd, currentStart: currentStart,
-                                      rLineObj: rLineObj, physics: physics, effectiveVehicle: effectiveVehicle)
+            raw = generateStandard(calendar: calendar, normalizedStart: normalizedStart,
+                                   normalizedEnd: normalizedEnd, currentStart: currentStart,
+                                   rLineObj: rLineObj, physics: physics, effectiveVehicle: effectiveVehicle)
         }
+        return raw.filter { !$0.stops.isEmpty }
+    }
 
-        trains = trains.filter { !$0.stops.isEmpty }
-        guard !trains.isEmpty else { print("❌ [GEN] Nessun treno valido generato"); aiStatus = nil; return }
-
+    /// Runs the optimization pipeline on raw trains.
+    private func runOptimizationPipeline(trains: [Train]) async -> [Train] {
         aiStatus = "starting_pipeline".localized
         optimizationStartTime = Date()
-
-        #if canImport(UIKit)
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        #endif
+        dismissKeyboard()
         try? await Task.sleep(nanoseconds: 100_000_000)
 
-        let nodesCopy = net.nodes
-        let edgesCopy = net.edges
+        let useGA = mode == .taktfahrplan ? false : useDepartureOptimizer
+        let taktNode = (mode == .taktfahrplan && !taktStationId.isEmpty) ? taktStationId : nil
 
-        // TAKTFAHRPLAN: disabilita tutti gli algoritmi di ottimizzazione per mantenere orari deterministici
-        let optimizedTrains = await RailwayScheduleOptimizer.shared.executePipeline(
+        return await RailwayScheduleOptimizer.shared.executePipeline(
             newTrains: trains,
             existingTrains: mgr.trains.filter { $0.lineId != line.id },
-            nodes: nodesCopy,
-            edges: edgesCopy,
-            useAI: false,
-            useGA: mode == .taktfahrplan ? false : useDepartureOptimizer, // TAKT: no ottimizzazione
+            nodes: net.nodes, edges: net.edges,
+            useAI: false, useGA: useGA,
             geneticOptimizer: nil,
-            preferredTaktNodeId: (mode == .taktfahrplan && !taktStationId.isEmpty) ? taktStationId : nil
-        )
+            preferredTaktNodeId: taktNode)
+    }
 
-        guard !optimizedTrains.isEmpty else { aiStatus = nil; return }
-
-        var finalTrains = optimizedTrains
-        if optimizeVehicleRotation {
-            aiStatus = "Ottimizzazione turni mezzi..."
-            let assignment = vehicleRotationOptimizer.optimizeVehicleAssignment(
-                trains: finalTrains, vehicles: mgr.vehicles, minimumTurnaroundTime: minimumTurnaroundTime)
-            for (vehicleId, trainIds) in assignment {
-                for trainId in trainIds {
-                    if let idx = finalTrains.firstIndex(where: { $0.id == trainId }) {
-                        finalTrains[idx].vehicleId = vehicleId
-                    }
+    /// Applies vehicle rotation optimization if enabled.
+    private func applyVehicleRotation(to trains: [Train]) async -> [Train] {
+        guard optimizeVehicleRotation else { return trains }
+        aiStatus = "Ottimizzazione turni mezzi..."
+        var result = trains
+        let assignment = vehicleRotationOptimizer.optimizeVehicleAssignment(
+            trains: result, vehicles: mgr.vehicles,
+            minimumTurnaroundTime: minimumTurnaroundTime)
+        for (vehicleId, trainIds) in assignment {
+            for trainId in trainIds {
+                if let idx = result.firstIndex(where: { $0.id == trainId }) {
+                    result[idx].vehicleId = vehicleId
                 }
             }
         }
+        return result
+    }
 
-        generatedTrains = finalTrains
-        state.schedulePreviewTrains   = finalTrains
-        state.schedulePreviewLine     = line
-        state.schedulePreviewMode     = mode
-        state.schedulePreviewSelectedModel  = selectedModel
-        state.schedulePreviewOptimizeVehicles  = optimizeVehicleRotation
-        state.schedulePreviewMinTurnaroundTime = minimumTurnaroundTime
+    /// Publishes final trains to the preview state.
+    private func publishResults(_ trains: [Train]) {
+        generatedTrains = trains
+        state.schedulePreviewTrains             = trains
+        state.schedulePreviewLine               = line
+        state.schedulePreviewMode               = mode
+        state.schedulePreviewSelectedModel       = selectedModel
+        state.schedulePreviewOptimizeVehicles     = optimizeVehicleRotation
+        state.schedulePreviewMinTurnaroundTime    = minimumTurnaroundTime
         aiStatus = nil
+    }
+
+    private func alignedStartNumber() -> Int {
+        var num = startNumber
+        if preferredParity == .even && num % 2 != 0 { num += 1 }
+        if preferredParity == .odd  && num % 2 == 0 { num += 1 }
+        return num
+    }
+
+    private func findReturnLine() -> RailwayLine {
+        mgr.lines.first(where: {
+            $0.originId == line.destinationId && $0.destinationId == line.originId
+        }) ?? line
+    }
+
+    private func dismissKeyboard() {
+        #if canImport(UIKit)
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil, from: nil, for: nil)
+        #endif
     }
 
     // MARK: - Accept / Reject
@@ -486,67 +537,135 @@ final class ScheduleCreationViewModel: ObservableObject {
     }
 
     func vehicleSuitabilityScore(_ vehicle: Vehicle, lineMaxSpeed: Double) -> Double {
-        var score = 0.0
-        score += max(0, 100 - abs(vehicle.maxSpeed - lineMaxSpeed)) * 0.35
+        let speedScore   = scoreForSpeedMatch(vehicle: vehicle, lineMaxSpeed: lineMaxSpeed)
+        let altitudeScore = scoreForAltitude(vehicle: vehicle)
+        let stopScore    = scoreForStopSpacing(vehicle: vehicle, lineMaxSpeed: lineMaxSpeed)
+        let elecScore    = scoreForElectrification(vehicle: vehicle)
+        return speedScore + altitudeScore + stopScore + elecScore
+    }
+
+    private func scoreForSpeedMatch(vehicle: Vehicle, lineMaxSpeed: Double) -> Double {
+        max(0, 100 - abs(vehicle.maxSpeed - lineMaxSpeed)) * 0.35
+    }
+
+    private func scoreForAltitude(vehicle: Vehicle) -> Double {
         let altInfo = calculateAltitudeCharacteristics()
-        if let maxGrad = altInfo.maxGradient {
-            let altScore: Double = maxGrad > 25 ? min(vehicle.acceleration * 40, 100)
-                                 : maxGrad > 15 ? min(vehicle.acceleration * 30, 100)
-                                 : maxGrad > 10 ? min(vehicle.acceleration * 20, 100) : 50
-            score += altScore * 0.15
+        guard let maxGrad = altInfo.maxGradient else { return 0 }
+        let multiplier: Double
+        if maxGrad > 25      { multiplier = 40 }
+        else if maxGrad > 15 { multiplier = 30 }
+        else if maxGrad > 10 { multiplier = 20 }
+        else                 { return 50 * 0.15 }
+        return min(vehicle.acceleration * multiplier, 100) * 0.15
+    }
+
+    private func scoreForStopSpacing(vehicle: Vehicle, lineMaxSpeed: Double) -> Double {
+        let stopCount = max(stationSequence.count - 1, 1)
+        let avgDist = estimatedDistance / Double(stopCount)
+        if avgDist < 10 {
+            return min(vehicle.acceleration * 30, 100) * 0.25
+        } else if avgDist < 20 {
+            let accelPart = min(vehicle.acceleration * 20, 100) * 0.15
+            let speedPart = min((vehicle.maxSpeed / lineMaxSpeed) * 50, 50) * 0.1
+            return accelPart + speedPart
+        } else {
+            return min((vehicle.maxSpeed / lineMaxSpeed) * 100, 100) * 0.25
         }
-        let avgStopDist = estimatedDistance / Double(max(stationSequence.count - 1, 1))
-        if avgStopDist < 10      { score += min(vehicle.acceleration * 30, 100) * 0.25 }
-        else if avgStopDist < 20 { score += min(vehicle.acceleration * 20, 100) * 0.15
-                                   score += min((vehicle.maxSpeed / lineMaxSpeed) * 50, 50) * 0.1 }
-        else                     { score += min((vehicle.maxSpeed / lineMaxSpeed) * 100, 100) * 0.25 }
+    }
+
+    private func scoreForElectrification(vehicle: Vehicle) -> Double {
         let isElec = checkLineElectrification()
-        score += (isElec == vehicle.isElectric ? 25 : (isElec ? 10 : -100)) * 0.10
-        return score
+        let rawScore: Double
+        if isElec == vehicle.isElectric { rawScore = 25 }
+        else if isElec                  { rawScore = 10 }
+        else                            { rawScore = -100 }
+        return rawScore * 0.10
     }
 
     func checkLineElectrification() -> Bool { true } // Conservative default
 
     func calculateAltitudeCharacteristics() -> (totalElevationGain: Double?, maxGradient: Double?, avgGradient: Double?) {
-        let stations = stationSequence.compactMap { id in net.nodes.first(where: { $0.id == id }) }
-        guard stations.count >= 2 else { return (nil, nil, nil) }
+        let nodes = stationSequence.compactMap { id in net.nodes.first(where: { $0.id == id }) }
+        guard nodes.count >= 2 else { return (nil, nil, nil) }
+
         let service = InfrastructureService(network: net)
-        var totalGain = 0.0; var maxGrad = 0.0; var totalDist = 0.0; var totalElevChange = 0.0
-        let seqStations = stationSequence.compactMap { id in net.nodes.first(where: { $0.id == id }) }
-        for i in 0..<(seqStations.count - 1) {
-            guard let path = service.findPath(from: seqStations[i].id, to: seqStations[i+1].id) else { continue }
-            for j in 0..<(path.nodes.count - 1) {
-                guard let alt1 = path.nodes[j].altitude, let alt2 = path.nodes[j+1].altitude,
-                      j < path.segments.count else { continue }
-                let segDist = path.segments[j].distance
-                let diff = alt2 - alt1
-                if diff > 0 { totalGain += diff } else { totalElevChange += abs(diff) }
-                if segDist > 0 { maxGrad = max(maxGrad, abs(diff / (segDist * 1000)) * 1000) }
-                totalDist += segDist
-            }
+        var totalGain = 0.0
+        var maxGrad = 0.0
+        var totalDist = 0.0
+        var totalDescent = 0.0
+
+        for i in 0..<(nodes.count - 1) {
+            let (gain, descent, grad, dist) = segmentElevation(
+                from: nodes[i].id, to: nodes[i + 1].id, service: service)
+            totalGain += gain
+            totalDescent += descent
+            maxGrad = max(maxGrad, grad)
+            totalDist += dist
         }
-        let avg = totalDist > 0 ? ((totalGain + totalElevChange) / (totalDist * 1000)) * 1000 : 0
+
+        let totalChange = totalGain + totalDescent
+        let avg = totalDist > 0 ? (totalChange / (totalDist * 1000)) * 1000 : 0
         return (totalGain, maxGrad, avg)
+    }
+
+    private func segmentElevation(from: String, to: String,
+                                   service: InfrastructureService) -> (gain: Double, descent: Double, maxGrad: Double, dist: Double) {
+        guard let path = service.findPath(from: from, to: to) else { return (0, 0, 0, 0) }
+        var gain = 0.0, descent = 0.0, maxGrad = 0.0, dist = 0.0
+
+        for j in 0..<(path.nodes.count - 1) {
+            guard let alt1 = path.nodes[j].altitude,
+                  let alt2 = path.nodes[j + 1].altitude,
+                  j < path.segments.count else { continue }
+            let segDist = path.segments[j].distance
+            let diff = alt2 - alt1
+            if diff > 0 { gain += diff } else { descent += abs(diff) }
+            if segDist > 0 {
+                let gradient = abs(diff / (segDist * 1000)) * 1000
+                maxGrad = max(maxGrad, gradient)
+            }
+            dist += segDist
+        }
+        return (gain, descent, maxGrad, dist)
     }
 
     // MARK: - Train type preset
 
     func presetTrainType() {
-        let lineTrains = mgr.trains.filter { $0.lineId == line.id }
-        if let mostCommon = lineTrains.map({ $0.type })
-            .reduce([String: Int](), { var d = $0; d[$1, default: 0] += 1; return d })
-            .max(by: { $0.value < $1.value })?.key,
-           let cat = TrainCategory(rawValue: mostCommon) {
-            selectedTrainType = cat; return
+        if let existing = mostCommonTrainType() {
+            selectedTrainType = existing
+            return
         }
-        guard line.stations.count >= 2 else { selectedTrainType = .regional; return }
-        let hasHS = line.stations.indices.dropLast().contains(where: { i in
-            let (f, t) = (line.stations[i], line.stations[i+1])
-            return net.edges.contains(where: {
-                (($0.from == f && $0.to == t) || ($0.from == t && $0.to == f)) && $0.trackType == .highSpeed
-            })
-        })
-        selectedTrainType = hasHS ? .highSpeed : .regional
+        selectedTrainType = lineHasHighSpeedTrack() ? .highSpeed : .regional
+    }
+
+    /// Finds the most common train category on this line, if any trains exist.
+    private func mostCommonTrainType() -> TrainCategory? {
+        let lineTrains = mgr.trains.filter { $0.lineId == line.id }
+        guard !lineTrains.isEmpty else { return nil }
+
+        var counts: [String: Int] = [:]
+        for train in lineTrains {
+            counts[train.type, default: 0] += 1
+        }
+        guard let topType = counts.max(by: { $0.value < $1.value })?.key else { return nil }
+        return TrainCategory(rawValue: topType)
+    }
+
+    /// Checks whether the line contains any high-speed track segments.
+    private func lineHasHighSpeedTrack() -> Bool {
+        guard line.stations.count >= 2 else { return false }
+        for i in 0..<(line.stations.count - 1) {
+            let from = line.stations[i]
+            let to = line.stations[i + 1]
+            let hasHS = net.edges.contains { edge in
+                let matchesDirection = (edge.from == from && edge.to == to)
+                    || (edge.from == to && edge.to == from)
+                return matchesDirection && edge.trackType == .highSpeed
+            }
+            if hasHS { return true }
+        }
+        return false
     }
 
     // MARK: - Utility
