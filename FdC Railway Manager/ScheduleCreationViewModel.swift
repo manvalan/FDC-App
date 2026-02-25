@@ -1,8 +1,9 @@
 import SwiftUI
 import Combine
 
-// MARK: - ScheduleMode & NumberParity (shared types)
+// MARK: - ScheduleMode & NumberParity (tipi condivisi tra View e ViewModel)
 
+/// Modalità di generazione dell'orario: corsa singola, cadenzata o Taktfahrplan.
 enum ScheduleMode: String, CaseIterable, Identifiable {
     case single = "single_trip"
     case cadenced = "cadenced_trip"
@@ -18,6 +19,7 @@ enum ScheduleMode: String, CaseIterable, Identifiable {
     }
 }
 
+/// Parità della numerazione treni: numeri pari o dispari.
 enum NumberParity: String, CaseIterable, Identifiable {
     case even = "even"
     case odd  = "odd"
@@ -33,6 +35,9 @@ enum NumberParity: String, CaseIterable, Identifiable {
 
 // MARK: - ViewModel
 
+/// ViewModel principale per la creazione degli orari ferroviari.
+/// Gestisce tutta la logica di business: generazione treni, ottimizzazione,
+/// allineamento Takt, calcolo percorsi e suggerimento veicoli.
 @MainActor
 final class ScheduleCreationViewModel: ObservableObject {
 
@@ -112,6 +117,7 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - Init
 
+    /// Inizializzatore completo con tutte le dipendenze reali.
     init(line: RailwayLine,
          initialMode: ScheduleMode = .single,
          network: RailwayNetwork,
@@ -126,8 +132,8 @@ final class ScheduleCreationViewModel: ObservableObject {
         self.endStationId = line.destinationId
     }
 
-    /// Convenience init used by the View before real EnvironmentObjects are available.
-    /// Call `injectDependencies` in `onAppear` to supply real objects.
+    /// Inizializzatore di comodo usato dalla View prima che gli EnvironmentObject siano disponibili.
+    /// Chiamare `injectDependencies` in `onAppear` per fornire gli oggetti reali.
     convenience init(line: RailwayLine, initialMode: ScheduleMode = .single) {
         let placeholderNetwork = NetworkModel()
         self.init(line: line, initialMode: initialMode,
@@ -136,7 +142,9 @@ final class ScheduleCreationViewModel: ObservableObject {
                   appState: AppState.shared)
     }
 
-    // MARK: - Inject real EnvironmentObject dependencies (called from onAppear)
+    // MARK: - Iniezione dipendenze reali (chiamato da onAppear)
+
+    /// Inietta le dipendenze reali (EnvironmentObject) dopo che la View è apparsa.
     func injectDependencies(network: RailwayNetwork, manager: TrainManager, appState: AppState) {
         self.network  = network
         self.manager  = manager
@@ -151,6 +159,8 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - Setup
 
+    /// Gestisce l'apparizione della View: inizializza stazioni, calcoli e preset.
+    /// Se ci sono orari ottimizzati confermati, li applica e genera l'orario.
     func handleOnAppear() {
         print("📍 [ScheduleCreationViewModel] handleOnAppear for line: \(line.name)")
         startStationId = line.originId
@@ -182,6 +192,8 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - Path helpers
 
+    /// Aggiorna la sequenza stazioni in base alla selezione di partenza/arrivo.
+    /// Gestisce anche il caso in cui l'ordine sia invertito.
     func updateStationSequenceFromSelection() {
         guard !startStationId.isEmpty, !endStationId.isEmpty else { return }
         let lineStations = line.stations
@@ -194,6 +206,7 @@ final class ScheduleCreationViewModel: ObservableObject {
         print("✅ Updated stationSequence: \(stationSequence.count) stations")
     }
 
+    /// Ricalcola distanza stimata e tempo di viaggio per il percorso attuale.
     func updatePathCalculations() {
         estimatedDistance    = net.calculatePathDistance(path: stationSequence)
         estimatedTravelTime  = calculateAccurateTravelTime()
@@ -201,6 +214,7 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - Preview count
 
+    /// Aggiorna il conteggio anteprima delle corse (andata + eventuale ritorno).
     func updatePreview() {
         let calendar = Calendar.current
         let start = normalizeDate(startTime)
@@ -222,6 +236,8 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - Takt alignment
 
+    /// Allinea l'orario di partenza al minuto Takt della prima stazione con nodo Takt.
+    /// - Parameter isReturn: se `true`, calcola per la direzione di ritorno.
     func alignToTakt(isReturn: Bool) {
         let sequence = isReturn ? Array(stationSequence.reversed()) : stationSequence
         guard sequence.count >= 2 else { return }
@@ -233,6 +249,8 @@ final class ScheduleCreationViewModel: ObservableObject {
         applyTaktAlignment(taktMinute: firstTakt.1, travelMinutes: totalMinutes)
     }
 
+    /// Trova la prima stazione nella sequenza che ha un minuto Takt configurato.
+    /// - Returns: tupla (id stazione, minuto Takt) oppure `nil` se nessuna stazione ha Takt.
     private func findFirstTaktStation(in sequence: [String]) -> (String, Int)? {
         for sid in sequence {
             if let node = net.nodes.first(where: { $0.id == sid }),
@@ -243,6 +261,7 @@ final class ScheduleCreationViewModel: ObservableObject {
         return nil
     }
 
+    /// Calcola il tempo di viaggio in minuti dalla prima stazione fino alla stazione target.
     private func travelMinutesToStation(_ targetId: String, in sequence: [String]) -> Double {
         var totalMinutes: Double = 0
         var prevId = sequence[0]
@@ -258,6 +277,7 @@ final class ScheduleCreationViewModel: ObservableObject {
         return totalMinutes
     }
 
+    /// Calcola i minuti di percorrenza per una singola tratta tra due stazioni consecutive.
     private func legTravelMinutes(from: String, to: String, train: Train) -> Double {
         guard let path = net.findPathEdges(from: from, to: to) else { return 0 }
         var legDist: Double = 0
@@ -274,12 +294,14 @@ final class ScheduleCreationViewModel: ObservableObject {
         return (hours * 60) + (35.0 / 60.0)
     }
 
+    /// Restituisce i minuti di sosta in stazione (5 min per nodi di scambio, 3 min per gli altri).
     private func dwellMinutes(at stationId: String) -> Double {
         let node = net.nodes.first(where: { $0.id == stationId })
         let isInterchange = node?.type == .interchange
         return isInterchange ? 5.0 : 3.0
     }
 
+    /// Applica l'allineamento Takt modificando l'orario di partenza.
     private func applyTaktAlignment(taktMinute: Int, travelMinutes: Double) {
         let targetMinute = (Double(taktMinute) - travelMinutes + 3600.0)
         let alignedMinute = Int(targetMinute.rounded()) % 60
@@ -291,6 +313,8 @@ final class ScheduleCreationViewModel: ObservableObject {
         }
     }
 
+    /// Calcola i suggerimenti Takt per ogni stazione con minuto Takt configurato.
+    /// Restituisce le finestre di arrivo (-15/-5 min) e partenza (+5/+15 min).
     func calculateTaktSuggestions() -> [(stationId: String, stationName: String, taktMinute: Int,
                                           suggestedArrival: String, suggestedDeparture: String)] {
         var suggestions: [(String, String, Int, String, String)] = []
@@ -308,6 +332,7 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - AI Analysis
 
+    /// Avvia l'analisi AI della linea (se il cloud AI è attivo).
     func triggerLineAnalysis() {
         Task {
             isAnalyzingLine = true
@@ -326,6 +351,8 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - Departure time optimisation
 
+    /// Cerca la finestra di partenza ideale usando l'ottimizzatore di cadenza.
+    /// Minimizza i conflitti con i treni esistenti nella rete.
     func findIdealBaseTime(isReturn: Bool) {
         optimizationStartTime = Date()
         Task {
@@ -346,6 +373,7 @@ final class ScheduleCreationViewModel: ObservableObject {
     }
 
     @MainActor
+    /// Propone orari ottimizzati avviando la pipeline completa di generazione.
     func proposeOptimizedTimes() async {
         aiStatus = "Analisi rete in corso..."
         optimizerProgress = 0.0
@@ -355,6 +383,8 @@ final class ScheduleCreationViewModel: ObservableObject {
     // MARK: - Schedule generation
 
     @MainActor
+    /// Genera l'intero orario: prepara i treni, esegue la pipeline di ottimizzazione
+    /// e pubblica i risultati nell'anteprima.
     func generateSchedule(forceLocal: Bool = false) async {
         print("\n🚀 [GEN] ===== INIZIO GENERAZIONE ORARIO =====")
         guard stationSequence.count >= 2 else {
@@ -373,7 +403,7 @@ final class ScheduleCreationViewModel: ObservableObject {
         publishResults(finalTrains)
     }
 
-    /// Prepares all raw trains based on mode and settings.
+    /// Prepara tutti i treni grezzi in base alla modalità e alle impostazioni correnti.
     private func prepareTrains() -> [Train] {
         let calendar = Calendar.current
         let currentStart = alignedStartNumber()
@@ -398,7 +428,7 @@ final class ScheduleCreationViewModel: ObservableObject {
         return raw.filter { !$0.stops.isEmpty }
     }
 
-    /// Runs the optimization pipeline on raw trains.
+    /// Esegue la pipeline di ottimizzazione sui treni grezzi (algoritmo genetico, ecc.).
     private func runOptimizationPipeline(trains: [Train]) async -> [Train] {
         aiStatus = "starting_pipeline".localized
         optimizationStartTime = Date()
@@ -417,7 +447,7 @@ final class ScheduleCreationViewModel: ObservableObject {
             preferredTaktNodeId: taktNode)
     }
 
-    /// Applies vehicle rotation optimization if enabled.
+    /// Applica l'ottimizzazione dei turni veicoli, se abilitata.
     private func applyVehicleRotation(to trains: [Train]) async -> [Train] {
         guard optimizeVehicleRotation else { return trains }
         aiStatus = "Ottimizzazione turni mezzi..."
@@ -435,7 +465,7 @@ final class ScheduleCreationViewModel: ObservableObject {
         return result
     }
 
-    /// Publishes final trains to the preview state.
+    /// Pubblica i treni finali nello stato di anteprima dell'AppState.
     private func publishResults(_ trains: [Train]) {
         generatedTrains = trains
         state.schedulePreviewTrains             = trains
@@ -447,6 +477,7 @@ final class ScheduleCreationViewModel: ObservableObject {
         aiStatus = nil
     }
 
+    /// Restituisce il numero iniziale del treno, allineato alla parità selezionata.
     private func alignedStartNumber() -> Int {
         var num = startNumber
         if preferredParity == .even && num % 2 != 0 { num += 1 }
@@ -454,12 +485,14 @@ final class ScheduleCreationViewModel: ObservableObject {
         return num
     }
 
+    /// Cerca la linea di ritorno (origine/destinazione invertite), o usa la linea corrente.
     private func findReturnLine() -> RailwayLine {
         mgr.lines.first(where: {
             $0.originId == line.destinationId && $0.destinationId == line.originId
         }) ?? line
     }
 
+    /// Nasconde la tastiera su iOS inviando resignFirstResponder.
     private func dismissKeyboard() {
         #if canImport(UIKit)
         UIApplication.shared.sendAction(
@@ -470,6 +503,8 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - Accept / Reject
 
+    /// Accetta l'orario generato: crea veicoli se necessario, assegna i turni
+    /// e aggiunge i treni al manager. Chiude la vista di creazione.
     func acceptSchedule() {
         guard var trains = generatedTrains else { return }
 
@@ -501,6 +536,7 @@ final class ScheduleCreationViewModel: ObservableObject {
         state.creationLineId = nil
     }
 
+    /// Rifiuta l'orario generato e pulisce lo stato di anteprima.
     func rejectSchedule() {
         state.schedulePreviewTrains = nil
         state.schedulePreviewLine   = nil
@@ -509,6 +545,8 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - Vehicle helpers
 
+    /// Filtra e ordina i veicoli disponibili per idoneità alla linea corrente.
+    /// Tiene conto di velocità, elettrificazione e tipo di treno selezionato.
     func updateSuggestedVehicles() {
         let all = mgr.vehicles
         guard !all.isEmpty else { return }
@@ -536,6 +574,8 @@ final class ScheduleCreationViewModel: ObservableObject {
         if selectedVehicle == nil { selectedVehicle = suggestedVehicles.first }
     }
 
+    /// Calcola un punteggio di idoneità per un veicolo rispetto alla linea.
+    /// Composto da: corrispondenza velocità, altimetria, spaziatura fermate, elettrificazione.
     func vehicleSuitabilityScore(_ vehicle: Vehicle, lineMaxSpeed: Double) -> Double {
         let speedScore   = scoreForSpeedMatch(vehicle: vehicle, lineMaxSpeed: lineMaxSpeed)
         let altitudeScore = scoreForAltitude(vehicle: vehicle)
@@ -544,10 +584,12 @@ final class ScheduleCreationViewModel: ObservableObject {
         return speedScore + altitudeScore + stopScore + elecScore
     }
 
+    /// Punteggio parziale: corrispondenza tra velocità max veicolo e velocità linea (peso 35%).
     private func scoreForSpeedMatch(vehicle: Vehicle, lineMaxSpeed: Double) -> Double {
         max(0, 100 - abs(vehicle.maxSpeed - lineMaxSpeed)) * 0.35
     }
 
+    /// Punteggio parziale: capacità del veicolo di affrontare le pendenze della linea (peso 15%).
     private func scoreForAltitude(vehicle: Vehicle) -> Double {
         let altInfo = calculateAltitudeCharacteristics()
         guard let maxGrad = altInfo.maxGradient else { return 0 }
@@ -559,6 +601,7 @@ final class ScheduleCreationViewModel: ObservableObject {
         return min(vehicle.acceleration * multiplier, 100) * 0.15
     }
 
+    /// Punteggio parziale: adeguatezza del veicolo alla spaziatura media delle fermate (peso 25%).
     private func scoreForStopSpacing(vehicle: Vehicle, lineMaxSpeed: Double) -> Double {
         let stopCount = max(stationSequence.count - 1, 1)
         let avgDist = estimatedDistance / Double(stopCount)
@@ -573,6 +616,7 @@ final class ScheduleCreationViewModel: ObservableObject {
         }
     }
 
+    /// Punteggio parziale: compatibilità elettrificazione veicolo/linea (peso 10%).
     private func scoreForElectrification(vehicle: Vehicle) -> Double {
         let isElec = checkLineElectrification()
         let rawScore: Double
@@ -582,8 +626,10 @@ final class ScheduleCreationViewModel: ObservableObject {
         return rawScore * 0.10
     }
 
-    func checkLineElectrification() -> Bool { true } // Conservative default
+    /// Verifica se la linea è elettrificata. Default conservativo: `true`.
+    func checkLineElectrification() -> Bool { true }
 
+    /// Calcola le caratteristiche altimetriche della linea: dislivello totale, pendenza massima e media.
     func calculateAltitudeCharacteristics() -> (totalElevationGain: Double?, maxGradient: Double?, avgGradient: Double?) {
         let nodes = stationSequence.compactMap { id in net.nodes.first(where: { $0.id == id }) }
         guard nodes.count >= 2 else { return (nil, nil, nil) }
@@ -608,6 +654,8 @@ final class ScheduleCreationViewModel: ObservableObject {
         return (totalGain, maxGrad, avg)
     }
 
+    /// Calcola i dati altimetrici per un singolo segmento tra due stazioni.
+    /// Restituisce: guadagno in salita, discesa, pendenza massima e distanza.
     private func segmentElevation(from: String, to: String,
                                    service: InfrastructureService) -> (gain: Double, descent: Double, maxGrad: Double, dist: Double) {
         guard let path = service.findPath(from: from, to: to) else { return (0, 0, 0, 0) }
@@ -631,6 +679,8 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - Train type preset
 
+    /// Imposta automaticamente il tipo di treno: usa il più comune sulla linea,
+    /// oppure determina in base alla presenza di tratte ad alta velocità.
     func presetTrainType() {
         if let existing = mostCommonTrainType() {
             selectedTrainType = existing
@@ -639,7 +689,7 @@ final class ScheduleCreationViewModel: ObservableObject {
         selectedTrainType = lineHasHighSpeedTrack() ? .highSpeed : .regional
     }
 
-    /// Finds the most common train category on this line, if any trains exist.
+    /// Trova la categoria di treno più frequente su questa linea, se esistono treni.
     private func mostCommonTrainType() -> TrainCategory? {
         let lineTrains = mgr.trains.filter { $0.lineId == line.id }
         guard !lineTrains.isEmpty else { return nil }
@@ -652,7 +702,7 @@ final class ScheduleCreationViewModel: ObservableObject {
         return TrainCategory(rawValue: topType)
     }
 
-    /// Checks whether the line contains any high-speed track segments.
+    /// Verifica se la linea contiene segmenti di binario ad alta velocità.
     private func lineHasHighSpeedTrack() -> Bool {
         guard line.stations.count >= 2 else { return false }
         for i in 0..<(line.stations.count - 1) {
@@ -670,21 +720,25 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - Utility
 
+    /// Normalizza una data rimuovendo i secondi e componenti inferiori.
     func normalizeDate(_ date: Date) -> Date {
         let cal = Calendar.current
         let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         return cal.date(from: comps) ?? date
     }
 
+    /// Formatta una data nel formato "HH:mm".
     func formatTime(_ date: Date) -> String {
         let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: date)
     }
 
+    /// Restituisce il nome leggibile di una stazione dato il suo ID.
     func stationName(_ id: String) -> String {
         if id.isEmpty { return "Seleziona..." }
         return net.nodes.first(where: { $0.id == id })?.name ?? "Sconosciuta"
     }
 
+    /// Genera il titolo della direzione (es. "Milano ➔ Roma (andata)").
     func directionTitle(isReturn: Bool) -> String {
         guard stationSequence.count >= 2 else {
             return isReturn ? "B ➔ A (\("return".localized))" : "A ➔ B (\("outward".localized))"
@@ -695,6 +749,7 @@ final class ScheduleCreationViewModel: ObservableObject {
                         : "\(start) ➔ \(end) (\("outward".localized))"
     }
 
+    /// Calcola le caratteristiche della linea per la selezione del modello di treno.
     func calculateLineCharacteristics() -> LineCharacteristics {
         LineCharacteristics(
             totalDistance:      estimatedDistance,
@@ -708,6 +763,8 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - Private helpers
 
+    /// Calcola il tempo di viaggio accurato in minuti, considerando velocità massime,
+    /// pendenze e tempi di sosta intermedi per ogni tratta.
     private func calculateAccurateTravelTime() -> Int {
         guard stationSequence.count >= 2 else { return 0 }
         let dummy = makeDummyTrain()
@@ -740,6 +797,7 @@ final class ScheduleCreationViewModel: ObservableObject {
         return Int(ceil(totalSeconds / 60))
     }
 
+    /// Crea un treno fittizio per i calcoli di tempo di percorrenza.
     private func makeDummyTrain() -> Train {
         Train(id: UUID(), number: 0, name: "Probe",
               type: selectedTrainType.rawValue, lineId: nil, departureTime: Date(),
@@ -749,6 +807,7 @@ final class ScheduleCreationViewModel: ObservableObject {
               priority: selectedTrainType.defaultPriority)
     }
 
+    /// Risolve i parametri fisici del treno: priorità modello > veicolo > default per categoria.
     private func resolvePhysics() -> (acceleration: Double, deceleration: Double, mass: Double, power: Double, maxSpeed: Double) {
         if let model = selectedModel {
             let v = model.toVehicle()
@@ -761,15 +820,19 @@ final class ScheduleCreationViewModel: ObservableObject {
         return (dp.acceleration, dp.deceleration, 200, 2500, Double(selectedTrainType.defaultMaxSpeed))
     }
 
+    /// Risolve il veicolo effettivo: priorità modello selezionato > veicolo selezionato.
     private func resolveVehicle() -> Vehicle? {
         selectedModel.map { $0.toVehicle() } ?? selectedVehicle
     }
 
+    /// Sincronizza i numeri di partenza/ritorno quando cambia la parità preferita.
     private func syncParityNumbers() {
         startNumber       = (preferredParity == .odd) ? 1 : 2
         returnStartNumber = (preferredParity == .odd) ? 2 : 1
     }
 
+    /// Sincronizza i numeri iniziali in base ai treni già esistenti sulla linea.
+    /// Trova il numero più alto usato e assegna il successivo rispettando la parità.
     private func syncStartNumbers() {
         let lineTrains = mgr.trains.filter { $0.lineId == line.id }
         let prefix = line.numberPrefix ?? 0
@@ -786,6 +849,7 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - Train generation helpers
 
+    /// Genera coppie di treni Takt con intervallo 120 minuti (andata + ritorno simultanei).
     private func generateTakt120Pairs(calendar: Calendar, normalizedStart: Date, currentStart: Int,
                                        rLineObj: RailwayLine, physics: (Double,Double,Double,Double,Double),
                                        effectiveVehicle: Vehicle?) -> [Train] {
@@ -812,6 +876,8 @@ final class ScheduleCreationViewModel: ObservableObject {
         return result
     }
 
+    /// Genera treni con modalità standard (singola o cadenzata).
+    /// Crea prima le corse di andata, poi eventualmente quelle di ritorno.
     private func generateStandard(calendar: Calendar, normalizedStart: Date, normalizedEnd: Date,
                                    currentStart: Int, rLineObj: RailwayLine,
                                    physics: (Double,Double,Double,Double,Double),

@@ -1,6 +1,8 @@
 import SwiftUI
 import Combine
 
+/// Vista principale per la creazione di un orario ferroviario.
+/// Delega tutta la logica di business al `ScheduleCreationViewModel`.
 struct ScheduleCreationView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var network: RailwayNetwork
@@ -15,6 +17,7 @@ struct ScheduleCreationView: View {
 
     let line: RailwayLine
 
+    /// Inizializza la vista con la linea ferroviaria e la modalità iniziale.
     init(line: RailwayLine, initialMode: ScheduleMode = .single) {
         self.line = line
         self._vm = StateObject(wrappedValue: ScheduleCreationViewModel(line: line, initialMode: initialMode))
@@ -34,6 +37,7 @@ struct ScheduleCreationView: View {
             .modifier(ScheduleChangeModifiersB(vm: vm, appState: appState))
     }
 
+    /// Contenuto principale della vista: scroll del form + overlay di ottimizzazione.
     private var bodyContent: some View {
         ZStack {
             ScrollView {
@@ -47,10 +51,11 @@ struct ScheduleCreationView: View {
     }
 }
 
-// MARK: - Event Handlers (≤10 lines each)
+// MARK: - Gestori Eventi (≤10 righe ciascuno)
 
 private extension ScheduleCreationView {
 
+    /// Gestisce la conferma degli orari ottimizzati dall'anteprima AI.
     func handleOptimizedTimesConfirmed(_ confirmed: Bool) {
         guard confirmed, let data = appState.optimizedTimesPreviewData else { return }
         vm.startTime = data.proposedOutboundTime
@@ -61,6 +66,7 @@ private extension ScheduleCreationView {
         vm.aiTask = Task { await vm.generateSchedule() }
     }
 
+    /// Gestisce il cambio di stazione di partenza o arrivo: aggiorna sequenza, calcoli e anteprima.
     func handleStationChange() {
         guard !vm.isInitializing else { return }
         withAnimation {
@@ -72,10 +78,11 @@ private extension ScheduleCreationView {
     }
 }
 
-// MARK: - Form Layout
+// MARK: - Layout del Form
 
 private extension ScheduleCreationView {
 
+    /// Contenuto scrollabile del form con tutte le sezioni.
     var formScrollContent: some View {
         VStack(spacing: 24) {
             headerSection
@@ -92,10 +99,11 @@ private extension ScheduleCreationView {
     }
 }
 
-// MARK: - Header
+// MARK: - Intestazione
 
 private extension ScheduleCreationView {
 
+    /// Intestazione con nome della linea e selettore modalità (singola/cadenzata/Takt).
     var headerSection: some View {
         HStack {
             Text(String(format: "schedule_gen_line_fmt".localized, line.name))
@@ -113,10 +121,11 @@ private extension ScheduleCreationView {
     }
 }
 
-// MARK: - Station Select
+// MARK: - Selezione Stazioni
 
 private extension ScheduleCreationView {
 
+    /// Sezione per la selezione delle stazioni di partenza e arrivo.
     var stationSelectSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("PERCORSO DI LINEA")
@@ -144,6 +153,7 @@ private extension ScheduleCreationView {
         .padding(.horizontal)
     }
 
+    /// Riga singola con picker di selezione stazione.
     func stationPickerRow(title: String, selection: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
@@ -168,6 +178,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Mostra il simbolo visivo di una stazione (nodo di scambio, cerchio, quadrato, stella).
     @ViewBuilder
     func stationSymbol(for stationId: String, size: CGFloat = 16) -> some View {
         if let station = network.nodes.first(where: { $0.id == stationId }) {
@@ -181,6 +192,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Simbolo per i nodi di scambio (doppio cerchio rosso).
     func interchangeSymbol(size: CGFloat) -> some View {
         ZStack {
             Circle().stroke(Color.red, lineWidth: 2).frame(width: size, height: size)
@@ -188,6 +200,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Simbolo per le stazioni normali, con forma e colore personalizzabili.
     @ViewBuilder
     func regularStationSymbol(station: RailwayNode, size: CGFloat) -> some View {
         let color = station.customColor.flatMap { Color(hex: $0) } ?? .blue
@@ -206,10 +219,11 @@ private extension ScheduleCreationView {
     }
 }
 
-// MARK: - Path Info
+// MARK: - Dettagli Percorso
 
 private extension ScheduleCreationView {
 
+    /// Sezione con metriche percorso, tipologia treno e selezione materiale rotabile.
     var pathInfoRow: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("DETTAGLI SERVIZIO")
@@ -229,6 +243,7 @@ private extension ScheduleCreationView {
         .padding(.horizontal)
     }
 
+    /// Riga con le metriche di servizio: stazioni, distanza e durata stimata.
     var metricsRow: some View {
         HStack(spacing: 12) {
             MetricView(label: "Stazioni", value: "\(vm.stationSequence.count)")
@@ -238,6 +253,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Picker per la selezione del tipo di treno (regionale, diretto, AV, ecc.).
     var trainTypePicker: some View {
         HStack {
             Image(systemName: "train.side.front.car").foregroundColor(.blue)
@@ -253,6 +269,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Sezione per la selezione del materiale rotabile (veicolo/modello).
     var vehicleSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -267,6 +284,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Pulsante che apre il selettore modello treno in un foglio modale.
     var vehicleSelectionMenu: some View {
         Button(action: { showModelSelector = true }) {
             vehicleMenuContent
@@ -279,6 +297,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Contenuto del pulsante di selezione veicolo (miniatura + info oppure placeholder).
     var vehicleMenuContent: some View {
         HStack {
             if let model = vm.selectedModel {
@@ -297,6 +316,7 @@ private extension ScheduleCreationView {
         .cornerRadius(10)
     }
 
+    /// Miniatura dell'immagine del modello di treno selezionato.
     @ViewBuilder
     func vehicleModelThumbnail(model: TrainModel) -> some View {
         Group {
@@ -313,6 +333,7 @@ private extension ScheduleCreationView {
         .cornerRadius(8).clipped()
     }
 
+    /// Informazioni testuale del modello: nome, costruttore, velocità e accelerazione.
     func vehicleModelInfo(model: TrainModel) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(model.nome).font(.subheadline.bold())
@@ -322,10 +343,11 @@ private extension ScheduleCreationView {
     }
 }
 
-// MARK: - Stop Pattern
+// MARK: - Schema Fermate
 
 private extension ScheduleCreationView {
 
+    /// Sezione con lo schema delle fermate: quali stazioni vengono servite o saltate.
     var stopPatternSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             stopPatternHeader
@@ -342,6 +364,7 @@ private extension ScheduleCreationView {
         .padding(.horizontal)
     }
 
+    /// Intestazione dello schema fermate con pulsanti rapidi (Locale, Intercity, Diretto).
     var stopPatternHeader: some View {
         HStack {
             Text("SCHEMA FERMATE")
@@ -354,6 +377,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Pulsante "Locale": rimuove tutti i salti (ferma ovunque).
     var localeButton: some View {
         Button(action: { vm.skippedStopIds.removeAll() }) {
             Text("Locale")
@@ -365,6 +389,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Pulsante "Intercity": salta le stazioni non principali (senza simbolo quadrato).
     var intercityButton: some View {
         Button(action: { applyIntercityPattern() }) {
             Text("Intercity")
@@ -376,6 +401,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Pulsante "Diretto": salta tutte le fermate intermedie.
     var direttoButton: some View {
         let allSkipped = vm.skippedStopIds.count == max(0, vm.stationSequence.count - 2)
         return Button(action: { applyExpressPattern() }) {
@@ -388,6 +414,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Applica lo schema Intercity: salta le stazioni non contrassegnate come nodi principali.
     func applyIntercityPattern() {
         vm.skippedStopIds.removeAll()
         guard vm.stationSequence.count > 2 else { return }
@@ -400,6 +427,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Applica lo schema Diretto: salta tutte le fermate intermedie.
     func applyExpressPattern() {
         vm.skippedStopIds.removeAll()
         guard vm.stationSequence.count > 2 else { return }
@@ -408,6 +436,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Lista delle fermate con indicatore visivo e toggle di attivazione.
     var stopPatternList: some View {
         VStack(spacing: 8) {
             ForEach(Array(vm.stationSequence.enumerated()), id: \.offset) { index, stationId in
@@ -416,6 +445,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Singola riga nello schema fermate con indicatore, nome e toggle salta/ferma.
     func stopPatternRow(index: Int, stationId: String) -> some View {
         let isFirst = index == 0
         let isLast = index == vm.stationSequence.count - 1
@@ -434,6 +464,7 @@ private extension ScheduleCreationView {
         .cornerRadius(10)
     }
 
+    /// Pallino indicatore: blu pieno se fermata, grigio se saltata.
     func stopIndicator(isSkipped: Bool) -> some View {
         ZStack {
             Circle().fill(isSkipped ? Color.gray.opacity(0.3) : Color.blue)
@@ -444,6 +475,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Etichetta con nome stazione e ruolo (partenza/arrivo/transito).
     func stopLabel(stationId: String, isFirst: Bool, isLast: Bool, isSkipped: Bool) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(vm.stationName(stationId))
@@ -459,6 +491,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Pulsante toggle per saltare o ripristinare una fermata intermedia.
     func skipToggleButton(stationId: String, isSkipped: Bool) -> some View {
         Button(action: {
             if isSkipped { vm.skippedStopIds.remove(stationId) }
@@ -471,16 +504,18 @@ private extension ScheduleCreationView {
         .buttonStyle(.plain)
     }
 
+    /// Messaggio mostrato quando non ci sono abbastanza stazioni per lo schema.
     var emptyStopPatternMessage: some View {
         Text("Aggiungi almeno 2 stazioni per configurare lo schema fermate")
             .font(.caption).foregroundColor(.secondary).italic().padding()
     }
 }
 
-// MARK: - Taktfahrplan Section
+// MARK: - Sezione Taktfahrplan
 
 private extension ScheduleCreationView {
 
+    /// Sezione Taktfahrplan: selezione hub di convergenza e suggerimenti finestre temporali.
     var taktfahrplanSection: some View {
         let suggestions = vm.calculateTaktSuggestions()
         let sequenceWithTakt = vm.stationSequence.filter { sid in
@@ -506,6 +541,7 @@ private extension ScheduleCreationView {
         .padding(.horizontal).padding(.top, 8)
     }
 
+    /// Intestazione sezione Taktfahrplan.
     var taktHeader: some View {
         HStack {
             Image(systemName: "clock.badge.checkmark").font(.caption).foregroundColor(.orange)
@@ -516,6 +552,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Picker per selezionare la stazione hub Takt di riferimento.
     func taktStationPicker(stations: [String]) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Hub di Convergenza (Nodi Takt)")
@@ -532,6 +569,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Card con i suggerimenti di finestra arrivo/partenza per la stazione Takt selezionata.
     func taktSuggestionCard(suggestion: (stationId: String, stationName: String,
                                           taktMinute: Int, suggestedArrival: String,
                                           suggestedDeparture: String)) -> some View {
@@ -553,6 +591,7 @@ private extension ScheduleCreationView {
         .background(Color.orange.opacity(0.05)).cornerRadius(10)
     }
 
+    /// Blocco con titolo e valore per una finestra temporale Takt.
     func taktTimeWindow(title: String, value: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title).font(.caption2).foregroundColor(.secondary)
@@ -562,21 +601,24 @@ private extension ScheduleCreationView {
         .background(color.opacity(0.08)).cornerRadius(8)
     }
 
+    /// Messaggio quando nessuna stazione ha un minuto Takt configurato.
     var taktEmptyMessage: some View {
         Text("Nessuna stazione nel percorso ha un minuto Takt configurato.")
             .font(.caption2).foregroundColor(.secondary).italic()
     }
 
+    /// Nota informativa sull'algoritmo di convergenza Takt.
     var taktInfoMessage: some View {
         Text("ℹ️ L'algoritmo cercherà di far convergere i treni tra -15/-5 minuti e ripartire tra +5/+15 minuti rispetto al minuto Takt.")
             .font(.caption2).foregroundColor(.secondary).italic()
     }
 }
 
-// MARK: - Cadence Selection
+// MARK: - Selezione Cadenza
 
 private extension ScheduleCreationView {
 
+    /// Sezione programmazione: ottimizzatore, orari servizio, frequenza e numerazione.
     var cadenceSelectionSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("PROGRAMMAZIONE E FINESTRA DI SERVIZIO")
@@ -597,6 +639,7 @@ private extension ScheduleCreationView {
         .padding(.horizontal)
     }
 
+    /// Toggle per abilitare l'ottimizzatore genetico degli orari.
     var geneticOptimizerToggle: some View {
         Toggle(isOn: $vm.useDepartureOptimizer) {
             HStack(spacing: 8) {
@@ -613,6 +656,7 @@ private extension ScheduleCreationView {
         .toggleStyle(.switch)
     }
 
+    /// Toggle per indicare se questa è la linea principale con priorità Takt.
     var mainLineToggle: some View {
         Toggle(isOn: $vm.isMainLine) {
             HStack(spacing: 8) {
@@ -627,6 +671,7 @@ private extension ScheduleCreationView {
         .toggleStyle(.switch)
     }
 
+    /// Controlli per gli orari di inizio/fine servizio e frequenza.
     var serviceTimeControls: some View {
         VStack(spacing: 12) {
             startTimeRow
@@ -639,6 +684,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Selezione orario di inizio servizio.
     var startTimeRow: some View {
         HStack {
             Image(systemName: "clock").foregroundColor(.blue)
@@ -649,6 +695,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Selezione orario di fine servizio (solo per modalità cadenzata/Takt).
     var endTimeRow: some View {
         HStack {
             Image(systemName: "clock.fill").foregroundColor(.red)
@@ -659,6 +706,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Selezione della frequenza/intervallo tra le corse.
     var frequencyRow: some View {
         HStack {
             Image(systemName: "repeat").foregroundColor(.green)
@@ -677,6 +725,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Toggle per pianificare anche le corse di ritorno.
     var returnToggle: some View {
         Toggle(isOn: $vm.scheduleReturn) {
             HStack {
@@ -686,6 +735,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Controlli per la parità della numerazione e il numero di partenza.
     var parityAndNumberControls: some View {
         VStack(spacing: 12) {
             HStack {
@@ -710,10 +760,11 @@ private extension ScheduleCreationView {
     }
 }
 
-// MARK: - Generate Return Toggle & Preview
+// MARK: - Toggle Ritorno e Anteprima
 
 private extension ScheduleCreationView {
 
+    /// Toggle aggiuntivo per la generazione delle corse di ritorno.
     var generateReturnToggle: some View {
         Toggle(isOn: $vm.scheduleReturn) {
             Label {
@@ -728,6 +779,7 @@ private extension ScheduleCreationView {
         .padding(.horizontal)
     }
 
+    /// Sezione anteprima con conteggio corse e toggle ottimizzazione turni.
     var previewSection: some View {
         VStack(alignment: .center, spacing: 12) {
             HStack(spacing: 20) {
@@ -753,10 +805,11 @@ private extension ScheduleCreationView {
     }
 }
 
-// MARK: - Action Buttons
+// MARK: - Pulsanti Azione
 
 private extension ScheduleCreationView {
 
+    /// Sezione con i pulsanti di azione: genera orario, annulla, stato ottimizzazione.
     var actionButtonsSection: some View {
         let isValid = vm.stationSequence.count >= 2
 
@@ -775,6 +828,7 @@ private extension ScheduleCreationView {
         .padding()
     }
 
+    /// Vista di progresso durante l'ottimizzazione con barra e pulsante di arresto.
     func optimizationProgressView(status: String) -> some View {
         VStack(spacing: 14) {
             optimizationHeader(status: status)
@@ -791,6 +845,7 @@ private extension ScheduleCreationView {
         .shadow(color: Color.blue.opacity(0.1), radius: 8, y: 4)
     }
 
+    /// Intestazione dell'area di ottimizzazione con icona animata e stato testuale.
     func optimizationHeader(status: String) -> some View {
         HStack(spacing: 10) {
             ZStack {
@@ -805,6 +860,7 @@ private extension ScheduleCreationView {
         }
     }
 
+    /// Barra di progresso animata dell'ottimizzazione.
     var optimizationProgressBar: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
@@ -819,6 +875,7 @@ private extension ScheduleCreationView {
         .frame(height: 8)
     }
 
+    /// Pulsante per interrompere l'ottimizzazione in corso.
     var stopOptimizationButton: some View {
         Button(action: {
             vm.aiTask?.cancel()
@@ -841,6 +898,7 @@ private extension ScheduleCreationView {
         .buttonStyle(.plain)
     }
 
+    /// Pulsante principale per generare l'orario (disabilitato se la configurazione non è valida).
     func generateButton(isValid: Bool) -> some View {
         Button(action: {
             vm.aiTask = Task { await vm.proposeOptimizedTimes() }
@@ -860,6 +918,7 @@ private extension ScheduleCreationView {
         .disabled(!isValid)
     }
 
+    /// Pulsante di annullamento per chiudere la vista senza generare.
     var cancelButton: some View {
         Button(action: { appState.creationLineId = nil }) {
             Text("cancel".localized.uppercased())
@@ -869,10 +928,11 @@ private extension ScheduleCreationView {
     }
 }
 
-// MARK: - Optimization Overlay
+// MARK: - Overlay Ottimizzazione
 
 private extension ScheduleCreationView {
 
+    /// Overlay a schermo intero mostrato durante l'ottimizzazione della cadenza.
     var optimizationOverlay: some View {
         ZStack {
             if vm.cadenceOptimizer.isRunning {
@@ -883,6 +943,7 @@ private extension ScheduleCreationView {
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: vm.cadenceOptimizer.isRunning)
     }
 
+    /// Card centrale dell'overlay con titolo, barra conflitti e progresso.
     var overlayCard: some View {
         VStack(spacing: 24) {
             overlayTitle
@@ -897,12 +958,14 @@ private extension ScheduleCreationView {
         .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.white.opacity(0.2), lineWidth: 1))
     }
 
+    /// Titolo dell'overlay ("Calcolo Slot Ideale" o "Ottimizzazione Orario").
     var overlayTitle: some View {
         Text(vm.cadenceOptimizer.isRunning ? "Calcolo Slot Ideale..." : "Ottimizzazione Orario...")
             .font(.title3.bold()).foregroundColor(.white)
             .shadow(radius: 5).padding(.top, 8)
     }
 
+    /// Barra che mostra il conteggio conflitti corrente durante l'ottimizzazione.
     var overlayConflictBar: some View {
         HStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle.fill")
@@ -920,6 +983,7 @@ private extension ScheduleCreationView {
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.3), lineWidth: 1))
     }
 
+    /// Barra di progresso percentuale dell'ottimizzazione della cadenza.
     var overlayProgress: some View {
         VStack(spacing: 8) {
             ProgressView(value: vm.cadenceOptimizer.progress)
@@ -934,10 +998,11 @@ private extension ScheduleCreationView {
     }
 }
 
-// MARK: - Helpers
+// MARK: - Componenti di Supporto
 
 private extension ScheduleCreationView {
 
+    /// Etichetta informativa generica con titolo e valore.
     func infoLabel(title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title).font(.caption2).foregroundColor(.secondary).bold()
@@ -946,8 +1011,10 @@ private extension ScheduleCreationView {
     }
 }
 
-// MARK: - ViewModifiers for onChange handlers (split to reduce type-checker pressure)
+// MARK: - ViewModifier per i gestori onChange (divisi per ridurre la pressione sul type-checker)
 
+/// Primo gruppo di ViewModifier onChange: gestisce conferma orari ottimizzati,
+/// cambio modalità, cambio stazioni e aggiornamento orari.
 struct ScheduleChangeModifiersA: ViewModifier {
     @ObservedObject var vm: ScheduleCreationViewModel
     @ObservedObject var appState: AppState
@@ -971,6 +1038,8 @@ struct ScheduleChangeModifiersA: ViewModifier {
     }
 }
 
+/// Secondo gruppo di ViewModifier onChange: gestisce intervallo, ritorno,
+/// sequenza stazioni, parità, numero iniziale e tipo treno.
 struct ScheduleChangeModifiersB: ViewModifier {
     @ObservedObject var vm: ScheduleCreationViewModel
     @ObservedObject var appState: AppState
