@@ -33,6 +33,10 @@ enum NumberParity: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Takt Diagnostic
+
+// TaktDiagnosticEntry moved to TaktEngine.swift
+
 // MARK: - ViewModel
 
 /// ViewModel principale per la creazione degli orari ferroviari.
@@ -45,7 +49,17 @@ final class ScheduleCreationViewModel: ObservableObject {
     private weak var network: RailwayNetwork?
     private weak var manager: TrainManager?
     private weak var appState: AppState?
+    /// Strong references ai placeholder creati dal convenience init.
+    /// Evitano la dealloc prematura finché `injectDependencies()` non li sostituisce.
+    private var placeholderRetain: [AnyObject] = []
     let line: RailwayLine
+
+    // MARK: - Specialized Services (Modularization)
+    private var kinematicCalculator: KinematicCalculator
+    private var taktEngine: TaktEngine
+    private var pathResolver: PathResolver
+    private var suitabilityEngine: VehicleSuitabilityEngine
+    private var generationEngine: ScheduleGenerationEngine
 
     // MARK: - Scheduling state
 
@@ -93,6 +107,8 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - Model / vehicle
     @Published var selectedModel: TrainModel? = nil
+    @Published var trains: [Train] = []
+    @Published var conflicts: [ScheduleConflict] = []
 
     // MARK: - Optimizers
     @Published var optimizeVehicleRotation: Bool = true
@@ -111,6 +127,8 @@ final class ScheduleCreationViewModel: ObservableObject {
     var aiTask: Task<Void, Never>? = nil
     var optimizationStartTime: Date? = nil
     var isInitializing: Bool = true
+    /// Cache per le caratteristiche altimetriche della linea (invalidata al cambio percorso).
+    private var cachedAltitudeCharacteristics: (totalElevationGain: Double?, maxGradient: Double?, avgGradient: Double?)?
     let cadenceOptimizer = CadenceOptimizer()
     private let vehicleRotationOptimizer = VehicleRotationOptimizer()
     let departureOptimizer = DepartureTimeOptimizer()
@@ -130,16 +148,26 @@ final class ScheduleCreationViewModel: ObservableObject {
         self.appState = appState
         self.startStationId = line.originId
         self.endStationId = line.destinationId
+        
+        self.kinematicCalculator = KinematicCalculator(network: network)
+        self.taktEngine = TaktEngine(network: network, kinematicCalculator: kinematicCalculator)
+        self.pathResolver = PathResolver(network: network)
+        self.suitabilityEngine = VehicleSuitabilityEngine(kinematicCalculator: kinematicCalculator)
+        self.generationEngine = ScheduleGenerationEngine(network: network, trainManager: manager)
     }
 
     /// Inizializzatore di comodo usato dalla View prima che gli EnvironmentObject siano disponibili.
     /// Chiamare `injectDependencies` in `onAppear` per fornire gli oggetti reali.
     convenience init(line: RailwayLine, initialMode: ScheduleMode = .single) {
-        let placeholderNetwork = NetworkModel()
+        let placeholderNetworkModel = NetworkModel()
+        let placeholderNetwork = RailwayNetwork()
+        let placeholderManager = TrainManager(network: placeholderNetworkModel)
         self.init(line: line, initialMode: initialMode,
-                  network: RailwayNetwork(),
-                  manager: TrainManager(network: placeholderNetwork),
+                  network: placeholderNetwork,
+                  manager: placeholderManager,
                   appState: AppState.shared)
+        // Mantieni strong refs ai placeholder per evitare dealloc delle weak var
+        self.placeholderRetain = [placeholderNetwork, placeholderManager]
     }
 
     // MARK: - Iniezione dipendenze reali (chiamato da onAppear)
@@ -149,13 +177,37 @@ final class ScheduleCreationViewModel: ObservableObject {
         self.network  = network
         self.manager  = manager
         self.appState = appState
+        // Rilascia i placeholder ora che le dipendenze reali sono iniettate
+        self.placeholderRetain = []
+        
+        // Re-initialize services with real network
+        self.kinematicCalculator = KinematicCalculator(network: network)
+        self.taktEngine = TaktEngine(network: network, kinematicCalculator: kinematicCalculator)
+        self.pathResolver = PathResolver(network: network)
+        self.suitabilityEngine = VehicleSuitabilityEngine(kinematicCalculator: kinematicCalculator)
+        self.generationEngine = ScheduleGenerationEngine(network: network, trainManager: manager)
     }
 
-    // MARK: - Dependency accessors (crash-safe force-unwrap with guard)
+    // MARK: - Dependency accessors (crash-safe with diagnostic message)
 
-    private var net: RailwayNetwork { network! }
-    private var mgr: TrainManager  { manager! }
-    private var state: AppState    { appState! }
+    private var net: RailwayNetwork {
+        guard let n = network else {
+            fatalError("⚠️ [ScheduleCreationViewModel] network è nil. Assicurarsi di chiamare injectDependencies() in onAppear prima di accedere alla rete.")
+        }
+        return n
+    }
+    private var mgr: TrainManager {
+        guard let m = manager else {
+            fatalError("⚠️ [ScheduleCreationViewModel] manager è nil. Assicurarsi di chiamare injectDependencies() in onAppear prima di accedere al manager.")
+        }
+        return m
+    }
+    private var state: AppState {
+        guard let a = appState else {
+            fatalError("⚠️ [ScheduleCreationViewModel] appState è nil. Assicurarsi di chiamare injectDependencies() in onAppear prima di accedere all'appState.")
+        }
+        return a
+    }
 
     // MARK: - Setup
 
@@ -195,21 +247,15 @@ final class ScheduleCreationViewModel: ObservableObject {
     /// Aggiorna la sequenza stazioni in base alla selezione di partenza/arrivo.
     /// Gestisce anche il caso in cui l'ordine sia invertito.
     func updateStationSequenceFromSelection() {
-        guard !startStationId.isEmpty, !endStationId.isEmpty else { return }
-        let lineStations = line.stations
-        guard let sIdx = lineStations.firstIndex(of: startStationId),
-              let eIdx = lineStations.firstIndex(of: endStationId) else { return }
-        let range = sIdx <= eIdx
-            ? Array(lineStations[sIdx...eIdx])
-            : Array(lineStations[eIdx...sIdx].reversed())
-        stationSequence = range
-        print("✅ Updated stationSequence: \(stationSequence.count) stations")
+        stationSequence = pathResolver.resolveStationSequence(line: line, startId: startStationId, endId: endStationId)
+        cachedAltitudeCharacteristics = nil
+        presetTaktHub()
     }
 
     /// Ricalcola distanza stimata e tempo di viaggio per il percorso attuale.
     func updatePathCalculations() {
-        estimatedDistance    = net.calculatePathDistance(path: stationSequence)
-        estimatedTravelTime  = calculateAccurateTravelTime()
+        estimatedDistance = pathResolver.calculatePathDistance(stationSequence: stationSequence)
+        estimatedTravelTime = kinematicCalculator.calculateAccurateTravelTime(stationSequence: stationSequence, train: makeDummyTrain())
     }
 
     // MARK: - Preview count
@@ -239,96 +285,61 @@ final class ScheduleCreationViewModel: ObservableObject {
     /// Allinea l'orario di partenza al minuto Takt della prima stazione con nodo Takt.
     /// - Parameter isReturn: se `true`, calcola per la direzione di ritorno.
     func alignToTakt(isReturn: Bool) {
-        let sequence = isReturn ? Array(stationSequence.reversed()) : stationSequence
-        guard sequence.count >= 2 else { return }
-
-        let firstTakt = findFirstTaktStation(in: sequence)
-        guard let firstTakt else { return }
-
-        let totalMinutes = travelMinutesToStation(firstTakt.0, in: sequence)
-        applyTaktAlignment(taktMinute: firstTakt.1, travelMinutes: totalMinutes)
-    }
-
-    /// Trova la prima stazione nella sequenza che ha un minuto Takt configurato.
-    /// - Returns: tupla (id stazione, minuto Takt) oppure `nil` se nessuna stazione ha Takt.
-    private func findFirstTaktStation(in sequence: [String]) -> (String, Int)? {
-        for sid in sequence {
-            if let node = net.nodes.first(where: { $0.id == sid }),
-               let takt = node.taktMinutes {
-                return (sid, takt)
-            }
-        }
-        return nil
-    }
-
-    /// Calcola il tempo di viaggio in minuti dalla prima stazione fino alla stazione target.
-    private func travelMinutesToStation(_ targetId: String, in sequence: [String]) -> Double {
-        var totalMinutes: Double = 0
-        var prevId = sequence[0]
-        let dummyTrain = makeDummyTrain()
-
-        for i in 1..<sequence.count {
-            let sid = sequence[i]
-            if sid == targetId { break }
-            totalMinutes += legTravelMinutes(from: prevId, to: sid, train: dummyTrain)
-            totalMinutes += dwellMinutes(at: prevId)
-            prevId = sid
-        }
-        return totalMinutes
-    }
-
-    /// Calcola i minuti di percorrenza per una singola tratta tra due stazioni consecutive.
-    private func legTravelMinutes(from: String, to: String, train: Train) -> Double {
-        guard let path = net.findPathEdges(from: from, to: to) else { return 0 }
-        var legDist: Double = 0
-        var legSpeed: Double = .infinity
-        for edge in path {
-            legDist += edge.distance
-            legSpeed = min(legSpeed, Double(edge.maxSpeed))
-        }
-        guard legDist > 0 else { return 0 }
-        let effectiveSpeed = legSpeed == .infinity ? 100.0 : legSpeed
-        let hours = FDCSchedulerEngine.calculateTravelTime(
-            distanceKm: legDist, maxSpeedKmh: effectiveSpeed,
-            train: train, initialSpeedKmh: 0, finalSpeedKmh: 0)
-        return (hours * 60) + (35.0 / 60.0)
-    }
-
-    /// Restituisce i minuti di sosta in stazione (5 min per nodi di scambio, 3 min per gli altri).
-    private func dwellMinutes(at stationId: String) -> Double {
-        let node = net.nodes.first(where: { $0.id == stationId })
-        let isInterchange = node?.type == .interchange
-        return isInterchange ? 5.0 : 3.0
-    }
-
-    /// Applica l'allineamento Takt modificando l'orario di partenza.
-    private func applyTaktAlignment(taktMinute: Int, travelMinutes: Double) {
-        let targetMinute = (Double(taktMinute) - travelMinutes + 3600.0)
-        let alignedMinute = Int(targetMinute.rounded()) % 60
-        var comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: startTime)
-        comps.minute = alignedMinute
-        if let newDate = Calendar.current.date(from: comps) {
+        if let newDate = taktEngine.calculateAlignedStartTime(
+            startTime: startTime,
+            stationSequence: stationSequence,
+            taktStationId: taktStationId,
+            train: makeDummyTrain(),
+            isReturn: isReturn) {
             startTime = newDate
             updatePreview()
         }
     }
 
+
+
+    func presetTaktHub() {
+        taktStationId = pathResolver.presetTaktHub(stationSequence: stationSequence, currentHubId: taktStationId)
+    }
+
+    private func travelMinutesToStation(_ targetId: String, in sequence: [String]) -> Double {
+        return kinematicCalculator.travelMinutesToStation(targetId, in: sequence, train: makeDummyTrain())
+    }
+
+    private func legTravelMinutes(from: String, to: String, train: Train) -> Double {
+        return kinematicCalculator.legTravelMinutes(from: from, to: to, train: train)
+    }
+
+    private func dwellMinutes(at stationId: String) -> Double {
+        return kinematicCalculator.dwellMinutes(at: stationId)
+    }
+
+
+
     /// Calcola i suggerimenti Takt per ogni stazione con minuto Takt configurato.
     /// Restituisce le finestre di arrivo (-15/-5 min) e partenza (+5/+15 min).
     func calculateTaktSuggestions() -> [(stationId: String, stationName: String, taktMinute: Int,
                                           suggestedArrival: String, suggestedDeparture: String)] {
-        var suggestions: [(String, String, Int, String, String)] = []
-        for stationId in stationSequence {
-            guard let station = net.nodes.first(where: { $0.id == stationId }),
-                  let taktMinute = station.taktMinutes else { continue }
-            let arrS = (taktMinute - 15 + 60) % 60; let arrE = (taktMinute - 5 + 60) % 60
-            let depS = (taktMinute + 5) % 60;         let depE = (taktMinute + 15) % 60
-            suggestions.append((stationId, station.name, taktMinute,
-                                 String(format: ":%02d-:%02d", arrS, arrE),
-                                 String(format: ":%02d-:%02d", depS, depE)))
-        }
-        return suggestions
+        return taktEngine.calculateTaktSuggestions(stationSequence: stationSequence)
     }
+
+    // MARK: - Takt Diagnostic per treni non principali
+
+    /// Verifica e diagnostica il posizionamento Takt per tutti i treni generati.
+    /// Controlla che i treni secondari (non principali) rispettino le finestre temporali
+    /// all'hub Takt senza interferire con i treni principali.
+    ///
+    /// La validazione verifica:
+    /// - Che ogni treno passi per l'hub Takt
+    /// - Che i treni secondari non si sovrappongano ai treni principali
+    /// - Che la distanza dal minuto Takt sia ragionevole
+    ///
+    /// - Returns: Array di `TaktDiagnosticEntry` con il report per ogni treno.
+    func validateNonMainTaktPlacement() -> [TaktDiagnosticEntry] {
+        return taktEngine.validateTaktPlacement(trains: generatedTrains ?? [], taktStationId: taktStationId)
+    }
+
+
 
     // MARK: - AI Analysis
 
@@ -382,99 +393,61 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - Schedule generation
 
-    @MainActor
-    /// Genera l'intero orario: prepara i treni, esegue la pipeline di ottimizzazione
-    /// e pubblica i risultati nell'anteprima.
     func generateSchedule(forceLocal: Bool = false) async {
         print("\n🚀 [GEN] ===== INIZIO GENERAZIONE ORARIO =====")
         guard stationSequence.count >= 2 else {
             print("❌ [GEN] Sequenza stazioni insufficiente"); aiStatus = nil; return
         }
 
-        let trains = prepareTrains()
-        guard !trains.isEmpty else {
-            print("❌ [GEN] Nessun treno valido generato"); aiStatus = nil; return
+        let trains = await generationEngine.generate(
+            line: line, mode: mode, startTime: startTime, endTime: endTime,
+            intervalMinutes: intervalMinutes, stationSequence: stationSequence,
+            selectedTrainType: selectedTrainType, selectedVehicle: selectedVehicle,
+            selectedModel: selectedModel, skippedStopIds: skippedStopIds,
+            isMainLine: isMainLine, scheduleReturn: scheduleReturn,
+            startNumber: startNumber, returnStartNumber: returnStartNumber,
+            preferredParity: preferredParity, useDepartureOptimizer: useDepartureOptimizer,
+            taktStationId: taktStationId, optimizeVehicleRotation: optimizeVehicleRotation,
+            minimumTurnaroundTime: minimumTurnaroundTime,
+            progressCallback: { [weak self] status in self?.aiStatus = status }
+        )
+
+        guard !trains.isEmpty else { aiStatus = nil; return }
+
+        publishResults(trains)
+
+        // Validazione automatica Takt per treni non principali
+        if mode == .taktfahrplan {
+            let _ = validateNonMainTaktPlacement()
         }
-
-        let optimized = await runOptimizationPipeline(trains: trains)
-        guard !optimized.isEmpty else { aiStatus = nil; return }
-
-        let finalTrains = await applyVehicleRotation(to: optimized)
-        publishResults(finalTrains)
     }
 
-    /// Prepara tutti i treni grezzi in base alla modalità e alle impostazioni correnti.
-    private func prepareTrains() -> [Train] {
-        let calendar = Calendar.current
-        let currentStart = alignedStartNumber()
-        let normalizedStart = normalizeDate(startTime)
-        let normalizedEnd   = normalizeDate(endTime)
-        let physics         = resolvePhysics()
-        let effectiveVehicle = resolveVehicle()
-        let rLineObj = findReturnLine()
-
-        let isTakt120 = mode == .taktfahrplan && intervalMinutes == 120 && scheduleReturn
-        let raw: [Train]
-
-        if isTakt120 {
-            raw = generateTakt120Pairs(calendar: calendar, normalizedStart: normalizedStart,
-                                       currentStart: currentStart, rLineObj: rLineObj,
-                                       physics: physics, effectiveVehicle: effectiveVehicle)
-        } else {
-            raw = generateStandard(calendar: calendar, normalizedStart: normalizedStart,
-                                   normalizedEnd: normalizedEnd, currentStart: currentStart,
-                                   rLineObj: rLineObj, physics: physics, effectiveVehicle: effectiveVehicle)
-        }
-        return raw.filter { !$0.stops.isEmpty }
-    }
-
-    /// Esegue la pipeline di ottimizzazione sui treni grezzi (algoritmo genetico, ecc.).
-    private func runOptimizationPipeline(trains: [Train]) async -> [Train] {
-        aiStatus = "starting_pipeline".localized
-        optimizationStartTime = Date()
-        dismissKeyboard()
-        try? await Task.sleep(nanoseconds: 100_000_000)
-
-        let useGA = mode == .taktfahrplan ? false : useDepartureOptimizer
-        let taktNode = (mode == .taktfahrplan && !taktStationId.isEmpty) ? taktStationId : nil
-
-        return await RailwayScheduleOptimizer.shared.executePipeline(
-            newTrains: trains,
-            existingTrains: mgr.trains.filter { $0.lineId != line.id },
-            nodes: net.nodes, edges: net.edges,
-            useAI: false, useGA: useGA,
-            geneticOptimizer: nil,
-            preferredTaktNodeId: taktNode)
-    }
-
-    /// Applica l'ottimizzazione dei turni veicoli, se abilitata.
-    private func applyVehicleRotation(to trains: [Train]) async -> [Train] {
-        guard optimizeVehicleRotation else { return trains }
-        aiStatus = "Ottimizzazione turni mezzi..."
-        var result = trains
-        let assignment = vehicleRotationOptimizer.optimizeVehicleAssignment(
-            trains: result, vehicles: mgr.vehicles,
-            minimumTurnaroundTime: minimumTurnaroundTime)
-        for (vehicleId, trainIds) in assignment {
-            for trainId in trainIds {
-                if let idx = result.firstIndex(where: { $0.id == trainId }) {
-                    result[idx].vehicleId = vehicleId
-                }
-            }
-        }
-        return result
-    }
 
     /// Pubblica i treni finali nello stato di anteprima dell'AppState.
+    /// Raggruppa gli aggiornamenti per minimizzare i cicli di rendering SwiftUI.
     private func publishResults(_ trains: [Train]) {
         generatedTrains = trains
-        state.schedulePreviewTrains             = trains
-        state.schedulePreviewLine               = line
-        state.schedulePreviewMode               = mode
-        state.schedulePreviewSelectedModel       = selectedModel
-        state.schedulePreviewOptimizeVehicles     = optimizeVehicleRotation
-        state.schedulePreviewMinTurnaroundTime    = minimumTurnaroundTime
+        // Batch update su AppState: setta tutte le proprietà in un colpo solo
+        // per evitare cicli di rendering multipli
+        let s = state
+        s.schedulePreviewTrains             = trains
+        s.schedulePreviewLine               = line
+        s.schedulePreviewMode               = mode
+        s.schedulePreviewSelectedModel       = selectedModel
+        s.schedulePreviewOptimizeVehicles     = optimizeVehicleRotation
+        s.schedulePreviewMinTurnaroundTime    = minimumTurnaroundTime
         aiStatus = nil
+    }
+
+    /// Inizializza i numeri treno in base alla parità selezionata.
+    private func initializeNumbers(for trains: [Train]) -> [Train] {
+        var result = trains
+        var currentNumber = alignedStartNumber()
+        for i in 0..<result.count {
+            result[i].number = currentNumber
+            currentNumber += 2 // Incrementa di 2 per mantenere la parità
+        }
+        return result
     }
 
     /// Restituisce il numero iniziale del treno, allineato alla parità selezionata.
@@ -568,114 +541,28 @@ final class ScheduleCreationViewModel: ObservableObject {
             case .highSpeed: return 300; case .direct: return 200
             case .regional:  return 160; case .freight: return 100; case .support: return 120
         }}()
-        filtered.sort { vehicleSuitabilityScore($0, lineMaxSpeed: lineMaxSpeed) >
-                        vehicleSuitabilityScore($1, lineMaxSpeed: lineMaxSpeed) }
+        // Pre-calcola gli score una volta sola per evitare ricalcoli O(n log n) nel sort
+        let scores: [UUID: Double] = Dictionary(uniqueKeysWithValues: filtered.map {
+            ($0.id, vehicleSuitabilityScore($0, lineMaxSpeed: lineMaxSpeed))
+        })
+        filtered.sort { (scores[$0.id] ?? 0) > (scores[$1.id] ?? 0) }
         suggestedVehicles = Array(filtered.prefix(3))
         if selectedVehicle == nil { selectedVehicle = suggestedVehicles.first }
     }
 
-    /// Calcola un punteggio di idoneità per un veicolo rispetto alla linea.
-    /// Composto da: corrispondenza velocità, altimetria, spaziatura fermate, elettrificazione.
     func vehicleSuitabilityScore(_ vehicle: Vehicle, lineMaxSpeed: Double) -> Double {
-        let speedScore   = scoreForSpeedMatch(vehicle: vehicle, lineMaxSpeed: lineMaxSpeed)
-        let altitudeScore = scoreForAltitude(vehicle: vehicle)
-        let stopScore    = scoreForStopSpacing(vehicle: vehicle, lineMaxSpeed: lineMaxSpeed)
-        let elecScore    = scoreForElectrification(vehicle: vehicle)
-        return speedScore + altitudeScore + stopScore + elecScore
-    }
-
-    /// Punteggio parziale: corrispondenza tra velocità max veicolo e velocità linea (peso 35%).
-    private func scoreForSpeedMatch(vehicle: Vehicle, lineMaxSpeed: Double) -> Double {
-        max(0, 100 - abs(vehicle.maxSpeed - lineMaxSpeed)) * 0.35
-    }
-
-    /// Punteggio parziale: capacità del veicolo di affrontare le pendenze della linea (peso 15%).
-    private func scoreForAltitude(vehicle: Vehicle) -> Double {
-        let altInfo = calculateAltitudeCharacteristics()
-        guard let maxGrad = altInfo.maxGradient else { return 0 }
-        let multiplier: Double
-        if maxGrad > 25      { multiplier = 40 }
-        else if maxGrad > 15 { multiplier = 30 }
-        else if maxGrad > 10 { multiplier = 20 }
-        else                 { return 50 * 0.15 }
-        return min(vehicle.acceleration * multiplier, 100) * 0.15
-    }
-
-    /// Punteggio parziale: adeguatezza del veicolo alla spaziatura media delle fermate (peso 25%).
-    private func scoreForStopSpacing(vehicle: Vehicle, lineMaxSpeed: Double) -> Double {
-        let stopCount = max(stationSequence.count - 1, 1)
-        let avgDist = estimatedDistance / Double(stopCount)
-        if avgDist < 10 {
-            return min(vehicle.acceleration * 30, 100) * 0.25
-        } else if avgDist < 20 {
-            let accelPart = min(vehicle.acceleration * 20, 100) * 0.15
-            let speedPart = min((vehicle.maxSpeed / lineMaxSpeed) * 50, 50) * 0.1
-            return accelPart + speedPart
-        } else {
-            return min((vehicle.maxSpeed / lineMaxSpeed) * 100, 100) * 0.25
-        }
-    }
-
-    /// Punteggio parziale: compatibilità elettrificazione veicolo/linea (peso 10%).
-    private func scoreForElectrification(vehicle: Vehicle) -> Double {
-        let isElec = checkLineElectrification()
-        let rawScore: Double
-        if isElec == vehicle.isElectric { rawScore = 25 }
-        else if isElec                  { rawScore = 10 }
-        else                            { rawScore = -100 }
-        return rawScore * 0.10
+        return suitabilityEngine.calculateSuitabilityScore(
+            vehicle: vehicle,
+            lineMaxSpeed: lineMaxSpeed,
+            stationSequence: stationSequence,
+            estimatedDistance: estimatedDistance,
+            isLineElectrified: checkLineElectrification())
     }
 
     /// Verifica se la linea è elettrificata. Default conservativo: `true`.
     func checkLineElectrification() -> Bool { true }
 
-    /// Calcola le caratteristiche altimetriche della linea: dislivello totale, pendenza massima e media.
-    func calculateAltitudeCharacteristics() -> (totalElevationGain: Double?, maxGradient: Double?, avgGradient: Double?) {
-        let nodes = stationSequence.compactMap { id in net.nodes.first(where: { $0.id == id }) }
-        guard nodes.count >= 2 else { return (nil, nil, nil) }
 
-        let service = InfrastructureService(network: net)
-        var totalGain = 0.0
-        var maxGrad = 0.0
-        var totalDist = 0.0
-        var totalDescent = 0.0
-
-        for i in 0..<(nodes.count - 1) {
-            let (gain, descent, grad, dist) = segmentElevation(
-                from: nodes[i].id, to: nodes[i + 1].id, service: service)
-            totalGain += gain
-            totalDescent += descent
-            maxGrad = max(maxGrad, grad)
-            totalDist += dist
-        }
-
-        let totalChange = totalGain + totalDescent
-        let avg = totalDist > 0 ? (totalChange / (totalDist * 1000)) * 1000 : 0
-        return (totalGain, maxGrad, avg)
-    }
-
-    /// Calcola i dati altimetrici per un singolo segmento tra due stazioni.
-    /// Restituisce: guadagno in salita, discesa, pendenza massima e distanza.
-    private func segmentElevation(from: String, to: String,
-                                   service: InfrastructureService) -> (gain: Double, descent: Double, maxGrad: Double, dist: Double) {
-        guard let path = service.findPath(from: from, to: to) else { return (0, 0, 0, 0) }
-        var gain = 0.0, descent = 0.0, maxGrad = 0.0, dist = 0.0
-
-        for j in 0..<(path.nodes.count - 1) {
-            guard let alt1 = path.nodes[j].altitude,
-                  let alt2 = path.nodes[j + 1].altitude,
-                  j < path.segments.count else { continue }
-            let segDist = path.segments[j].distance
-            let diff = alt2 - alt1
-            if diff > 0 { gain += diff } else { descent += abs(diff) }
-            if segDist > 0 {
-                let gradient = abs(diff / (segDist * 1000)) * 1000
-                maxGrad = max(maxGrad, gradient)
-            }
-            dist += segDist
-        }
-        return (gain, descent, maxGrad, dist)
-    }
 
     // MARK: - Train type preset
 
@@ -686,7 +573,7 @@ final class ScheduleCreationViewModel: ObservableObject {
             selectedTrainType = existing
             return
         }
-        selectedTrainType = lineHasHighSpeedTrack() ? .highSpeed : .regional
+        selectedTrainType = pathResolver.hasHighSpeedTrack(stationSequence: stationSequence) ? .highSpeed : .regional
     }
 
     /// Trova la categoria di treno più frequente su questa linea, se esistono treni.
@@ -702,21 +589,7 @@ final class ScheduleCreationViewModel: ObservableObject {
         return TrainCategory(rawValue: topType)
     }
 
-    /// Verifica se la linea contiene segmenti di binario ad alta velocità.
-    private func lineHasHighSpeedTrack() -> Bool {
-        guard line.stations.count >= 2 else { return false }
-        for i in 0..<(line.stations.count - 1) {
-            let from = line.stations[i]
-            let to = line.stations[i + 1]
-            let hasHS = net.edges.contains { edge in
-                let matchesDirection = (edge.from == from && edge.to == to)
-                    || (edge.from == to && edge.to == from)
-                return matchesDirection && edge.trackType == .highSpeed
-            }
-            if hasHS { return true }
-        }
-        return false
-    }
+
 
     // MARK: - Utility
 
@@ -763,39 +636,28 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - Private helpers
 
-    /// Calcola il tempo di viaggio accurato in minuti, considerando velocità massime,
-    /// pendenze e tempi di sosta intermedi per ogni tratta.
-    private func calculateAccurateTravelTime() -> Int {
-        guard stationSequence.count >= 2 else { return 0 }
-        let dummy = makeDummyTrain()
-        var totalSeconds: TimeInterval = 0
-        var prevId = stationSequence[0]
-        for i in 1..<stationSequence.count {
-            let curId = stationSequence[i]
-            if let path = net.findPathEdges(from: prevId, to: curId) {
-                var legDist: Double = 0; var legMinSpeed: Double = .infinity
-                for edge in path { legDist += edge.distance; legMinSpeed = min(legMinSpeed, Double(edge.maxSpeed)) }
-                if legDist > 0 {
-                    var gradient: Double = 0
-                    if let fN = net.nodes.first(where: { $0.id == prevId }),
-                       let tN = net.nodes.first(where: { $0.id == curId }),
-                       let fA = fN.altitude, let tA = tN.altitude {
-                        gradient = ((tA - fA) / (legDist * 1000)) * 100
-                    }
-                    let hours = FDCSchedulerEngine.calculateTravelTime(
-                        distanceKm: legDist, maxSpeedKmh: legMinSpeed == .infinity ? 100 : legMinSpeed,
-                        train: dummy, initialSpeedKmh: 0, finalSpeedKmh: 0, gradient: gradient)
-                    totalSeconds += max(hours * 3600 + 35, 60)
-                    if i < stationSequence.count - 1 {
-                        let node = net.nodes.first(where: { $0.id == curId })
-                        totalSeconds += Double((node?.type == .interchange) ? 5 : 3) * 60
-                    }
-                }
+    /// Applica lo schema Intercity: salta le stazioni non contrassegnate come nodi principali.
+    func applyIntercityPattern() {
+        skippedStopIds.removeAll()
+        guard stationSequence.count > 2 else { return }
+        for i in 1..<(stationSequence.count - 1) {
+            let sid = stationSequence[i]
+            if let station = net.nodes.first(where: { $0.id == sid }),
+               station.visualType != .filledSquare && station.visualType != .emptySquare {
+                skippedStopIds.insert(sid)
             }
-            prevId = curId
         }
-        return Int(ceil(totalSeconds / 60))
     }
+
+    /// Applica lo schema Diretto: salta tutte le fermate intermedie.
+    func applyExpressPattern() {
+        skippedStopIds.removeAll()
+        guard stationSequence.count > 2 else { return }
+        for i in 1..<(stationSequence.count - 1) {
+            skippedStopIds.insert(stationSequence[i])
+        }
+    }
+
 
     /// Crea un treno fittizio per i calcoli di tempo di percorrenza.
     private func makeDummyTrain() -> Train {
@@ -804,7 +666,8 @@ final class ScheduleCreationViewModel: ObservableObject {
               stops: [], vehicleId: nil,
               maxSpeed: Double(selectedTrainType.defaultMaxSpeed),
               acceleration: 0.5, deceleration: 0.5, mass: 200, power: 2500,
-              priority: selectedTrainType.defaultPriority)
+              priority: selectedTrainType.defaultPriority,
+              isElectric: true, isMainTrain: false)
     }
 
     /// Risolve i parametri fisici del treno: priorità modello > veicolo > default per categoria.
@@ -816,7 +679,7 @@ final class ScheduleCreationViewModel: ObservableObject {
         if let vehicle = selectedVehicle {
             return (vehicle.acceleration, vehicle.deceleration, vehicle.mass, vehicle.power, vehicle.maxSpeed)
         }
-        let dp = state.getPhysics(for: selectedTrainType)
+        let dp = appState?.getPhysics(for: selectedTrainType) ?? (acceleration: 0.5, deceleration: 0.4)
         return (dp.acceleration, dp.deceleration, 200, 2500, Double(selectedTrainType.defaultMaxSpeed))
     }
 
@@ -847,68 +710,4 @@ final class ScheduleCreationViewModel: ObservableObject {
         returnStartNumber = startNumber + 1 < 1000 ? startNumber + 1 : 1
     }
 
-    // MARK: - Train generation helpers
-
-    /// Genera coppie di treni Takt con intervallo 120 minuti (andata + ritorno simultanei).
-    private func generateTakt120Pairs(calendar: Calendar, normalizedStart: Date, currentStart: Int,
-                                       rLineObj: RailwayLine, physics: (Double,Double,Double,Double,Double),
-                                       effectiveVehicle: Vehicle?) -> [Train] {
-        let sMin = calendar.component(.hour, from: normalizedStart) * 60 + calendar.component(.minute, from: normalizedStart)
-        var eMin = calendar.component(.hour, from: normalizeDate(endTime)) * 60 + calendar.component(.minute, from: normalizeDate(endTime))
-        if eMin < sMin { eMin += 24 * 60 }
-        let iterations = (eMin - sMin) / intervalMinutes + 1
-        var result: [Train] = []
-        for i in 0..<iterations {
-            let dep = calendar.date(byAdding: .minute, value: i * intervalMinutes, to: normalizedStart) ?? normalizedStart
-            let t1 = mgr.instantiateTrain(number: (line.numberPrefix ?? 0) * 100 + currentStart + (i * 2),
-                category: selectedTrainType, departureTime: dep, line: line,
-                stationSequence: stationSequence, acceleration: physics.0, deceleration: physics.1,
-                mass: physics.2, power: physics.3, preferredTrack: "1",
-                vehicleId: effectiveVehicle?.id, skippedStopIds: skippedStopIds, isMainTrain: isMainLine)
-            let t2 = mgr.instantiateTrain(
-                number: (rLineObj.numberPrefix ?? line.numberPrefix ?? 0) * 100 + returnStartNumber + (i * 2),
-                category: selectedTrainType, departureTime: dep, line: rLineObj,
-                stationSequence: Array(stationSequence.reversed()), acceleration: physics.0, deceleration: physics.1,
-                mass: physics.2, power: physics.3, preferredTrack: "2",
-                vehicleId: effectiveVehicle?.id, skippedStopIds: skippedStopIds, isMainTrain: isMainLine)
-            result.append(contentsOf: [t1, t2])
-        }
-        return result
-    }
-
-    /// Genera treni con modalità standard (singola o cadenzata).
-    /// Crea prima le corse di andata, poi eventualmente quelle di ritorno.
-    private func generateStandard(calendar: Calendar, normalizedStart: Date, normalizedEnd: Date,
-                                   currentStart: Int, rLineObj: RailwayLine,
-                                   physics: (Double,Double,Double,Double,Double),
-                                   effectiveVehicle: Vehicle?) -> [Train] {
-        var result: [Train] = []
-        let sMin = calendar.component(.hour, from: normalizedStart) * 60 + calendar.component(.minute, from: normalizedStart)
-        var eMin = calendar.component(.hour, from: normalizedEnd) * 60 + calendar.component(.minute, from: normalizedEnd)
-        if eMin < sMin { eMin += 24 * 60 }
-        let outIter = mode == .single ? 1 : (eMin - sMin) / intervalMinutes + 1
-        for i in 0..<outIter {
-            let dep = calendar.date(byAdding: .minute, value: i * intervalMinutes, to: normalizedStart) ?? normalizedStart
-            let t = mgr.instantiateTrain(number: (line.numberPrefix ?? 0) * 100 + currentStart + (i * 2),
-                category: selectedTrainType, departureTime: dep, line: line,
-                stationSequence: stationSequence, acceleration: physics.0, deceleration: physics.1,
-                mass: physics.2, power: physics.3, preferredTrack: "1",
-                vehicleId: effectiveVehicle?.id, skippedStopIds: skippedStopIds, isMainTrain: isMainLine)
-            result.append(t)
-        }
-        if scheduleReturn {
-            let retIter = mode == .single ? 1 : outIter
-            for i in 0..<retIter {
-                let dep = calendar.date(byAdding: .minute, value: i * intervalMinutes, to: normalizedStart) ?? normalizedStart
-                let t = mgr.instantiateTrain(
-                    number: (rLineObj.numberPrefix ?? line.numberPrefix ?? 0) * 100 + returnStartNumber + (i * 2),
-                    category: selectedTrainType, departureTime: dep, line: rLineObj,
-                    stationSequence: Array(stationSequence.reversed()), acceleration: physics.0, deceleration: physics.1,
-                    mass: physics.2, power: physics.3, preferredTrack: "2",
-                    vehicleId: effectiveVehicle?.id, skippedStopIds: skippedStopIds, isMainTrain: isMainLine)
-                result.append(t)
-            }
-        }
-        return result
-    }
 }

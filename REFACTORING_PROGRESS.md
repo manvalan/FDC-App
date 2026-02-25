@@ -255,13 +255,23 @@ customJunctionStyle.base.size = 10  // Più grande
 customJunctionStyle.base.fillColor = .red  // Rosso invece di nero
 ```
 
-## 🚀 Prossima Sessione
+## ✅ Fase 2 in corso: Migrazione e Modularizzazione
 
-Quando riprenderemo:
-1. Migrare `EditorModeView` per usare `InfrastructureService`
-2. Sostituire rendering junction hardcoded con `RailwayRenderer`
-3. Testare che tutto funzioni come prima
-4. Commit delle modifiche
+### Obiettivi Raggiunti Fase 2
+- [x] **Modularizzazione EditorModeView**: Estratti oltre 1500 righe di codice UI in componenti separati:
+  - `AltimetricProfileView.swift`: Profilo altimetrico completo con logica di smart leveling.
+  - `EditorInspectorContent.swift`: Contenuto del pannello ispettore.
+  - `EditorFerrovieComponents.swift`: Lista e gestione ferrovie.
+- [x] **Integrazione InfrastructureService**:
+  - `EditorModeView` ora utilizza `InfrastructureService` per il calcolo delle distanze e dei percorsi.
+  - Eliminata logica BFS duplicata nel profilo altimetrico.
+- [x] **Creazione Unit Tests**:
+  - Creato `SchedulingServicesTests.swift` per validare `KinematicCalculator`, `TaktEngine`, `PathResolver` e `VehicleSuitabilityEngine`.
 
-**Tempo stimato Fase 2**: 1-2 ore
-**Breaking changes**: Nessuno (solo refactoring interno)
+### 🚀 Prossima Sessione
+1. **Sostituire rendering junction hardcoded** con `RailwayRenderer` in `AltimetricProfileView`.
+2. **Refactoring LineEditView.swift**: Estrazione logica in un ViewModel dedicato.
+3. **Migrazione RailwayMapView**: Utilizzare `RailwayRenderer` per unificare lo stile di disegno della rete.
+4. **Validazione finale**: Eseguire la suite di test e verificare la fluidità dell'interfaccia.
+
+**Tempo stimato completamento Fase 2**: 1 ora

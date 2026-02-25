@@ -56,7 +56,19 @@ final class RailwayScheduleOptimizer {
         var localPathCache: [String: [Edge]] = [:] 
         let hasTaktRequired = nodes.contains(where: { (node: RailwayNode) in node.taktMinutes != nil })
         
-        logPipelineInit(newTrains: newTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, useAI: useAI, useGA: useGA)
+        // 🛡️ BLINDATURA TAKT: forza GA=false quando Takt è attivo.
+        // Nessuna ottimizzazione genetica deve alterare gli orari cadenzati.
+        let effectiveUseGA: Bool
+        if hasTaktRequired {
+            effectiveUseGA = false
+            if useGA {
+                print("🛡️ [PIPELINE] BLINDATURA TAKT: GA forzatamente disabilitato (hasTaktRequired=true)")
+            }
+        } else {
+            effectiveUseGA = useGA
+        }
+        
+        logPipelineInit(newTrains: newTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, useAI: useAI, useGA: effectiveUseGA)
 
         // --- STEP 1: Time Optimization ---
         var workingTrains = await runStep1_TimeOptimization(
@@ -64,7 +76,7 @@ final class RailwayScheduleOptimizer {
             existingTrains: existingTrains, 
             nodes: nodes, 
             edges: edges, 
-            useGA: useGA, 
+            useGA: effectiveUseGA, 
             hasTaktRequired: hasTaktRequired, 
             pathCache: &localPathCache
         )
@@ -75,6 +87,7 @@ final class RailwayScheduleOptimizer {
             existingTrains: existingTrains, 
             nodes: nodes, 
             edges: edges, 
+            preferredTaktNodeId: preferredTaktNodeId,
             pathCache: &localPathCache
         )
         
@@ -97,6 +110,7 @@ final class RailwayScheduleOptimizer {
             edges: edges, 
             useAI: useAI, 
             hasTaktRequired: hasTaktRequired, 
+            preferredTaktNodeId: preferredTaktNodeId,
             pathCache: &localPathCache
         )
         
@@ -106,8 +120,9 @@ final class RailwayScheduleOptimizer {
             existingTrains: existingTrains, 
             nodes: nodes, 
             edges: edges, 
-            useGA: useGA, 
+            useGA: effectiveUseGA, 
             hasTaktRequired: hasTaktRequired, 
+            preferredTaktNodeId: preferredTaktNodeId,
             pathCache: &localPathCache,
             geneticOptimizer: geneticOptimizer
         )
@@ -119,6 +134,7 @@ final class RailwayScheduleOptimizer {
             nodes: nodes, 
             edges: edges, 
             hasTaktRequired: hasTaktRequired, 
+            preferredTaktNodeId: preferredTaktNodeId,
             pathCache: &localPathCache
         )
     }
@@ -159,11 +175,12 @@ final class RailwayScheduleOptimizer {
         existingTrains: [RailwayTrain], 
         nodes: [RailwayNode], 
         edges: [Edge], 
+        preferredTaktNodeId: String?,
         pathCache: inout [String: [Edge]]
     ) async -> [RailwayTrain] {
         print("⚙️ [STEP 2] Calcolo Fisico Orari...")
         if Task.isCancelled { return workingTrains }
-        return refreshPhysicalSchedules(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &pathCache)
+        return refreshPhysicalSchedules(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &pathCache, preferredHubId: preferredTaktNodeId)
     }
 
     private func runStep3_5_Alignment(
@@ -216,6 +233,7 @@ final class RailwayScheduleOptimizer {
         edges: [Edge], 
         useAI: Bool, 
         hasTaktRequired: Bool, 
+        preferredTaktNodeId: String?,
         pathCache: inout [String: [Edge]]
     ) async -> [RailwayTrain] {
         if !useAI {
@@ -230,7 +248,7 @@ final class RailwayScheduleOptimizer {
         print("   🔍 Conflitti pre-AI: \(conflictsBeforeAI)")
         
         let preAITrains = workingTrains
-        let aiResponse = await performCloudOptimization(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &pathCache)
+        let aiResponse = await performCloudOptimization(workingTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &pathCache, preferredHubId: preferredTaktNodeId)
         
         guard let response = aiResponse, let resolutions = response.resolutions, !resolutions.isEmpty else {
             print("   ℹ️ L'AI non ha proposto risoluzioni o la chiamata è fallita.")
@@ -269,6 +287,7 @@ final class RailwayScheduleOptimizer {
         edges: [Edge], 
         useGA: Bool, 
         hasTaktRequired: Bool, 
+        preferredTaktNodeId: String?,
         pathCache: inout [String: [Edge]],
         geneticOptimizer: GeneticOptimizer?
     ) async -> [RailwayTrain] {
@@ -297,17 +316,17 @@ final class RailwayScheduleOptimizer {
         existingTrains: [RailwayTrain], 
         nodes: [RailwayNode], 
         edges: [Edge], 
-        hasTaktRequired: Bool, 
+        hasTaktRequired: Bool,
+        preferredTaktNodeId: String?,
         pathCache: inout [String: [Edge]]
     ) async -> [RailwayTrain] {
         print("📊 [STEP 8] Verifica Finale...")
-        let verifiedTrains: [RailwayTrain]
-        if hasTaktRequired {
-            print("   ℹ️ Takt attivo: salto refresh fisico per preservare orari cadenzati")
-            verifiedTrains = finalTrains
-        } else {
-            verifiedTrains = refreshPhysicalSchedules(finalTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &pathCache)
-        }
+        if Task.isCancelled { return finalTrains }
+        
+        var verifiedTrains = finalTrains
+        // Refresh finale per garantire che tutti i tempi fisici siano allineati,
+        // ma forzando l'Hub corretto per i treni Takt.
+        refreshMultipleSchedules(&verifiedTrains, nodes: nodes, edges: edges, pathCache: &pathCache, preferredHubId: preferredTaktNodeId)
         
         let finalConflicts = detectConflicts(verifiedTrains, existingTrains: existingTrains, nodes: nodes, edges: edges, pathCache: &pathCache)
         logFinalReport(conflicts: finalConflicts, totalTrains: verifiedTrains.count, nodes: nodes)
@@ -475,29 +494,155 @@ final class RailwayScheduleOptimizer {
                                      occupancies: RailSchedulerCore.extractOccupancies(from: existingTrains, network: networkContext))
         var workingTrains = resetDwellTimes(newTrains)
         var trainsGrouped = groupTrainsByDirection(workingTrains, taktNodeId: taktNode.id)
-        print("   📋 Trovati \(trainsGrouped.count) gruppi di treni (direzioni)")
+        let isMainBatch = newTrains.first?.isMainTrain == true
+        print("   📋 \(trainsGrouped.count) gruppi – modalità: \(isMainBatch ? "PRINCIPALE" : "SECONDARIO")")
 
-        // Passo 1: calcola taktBaseTime condiviso per ciclo e blocca l'hub
-        let cycleBaseTimes = buildCycleBaseTimes(from: workingTrains, taktNode: taktNode)
-        lockHubTimesGlobally(groups: &trainsGrouped, taktNode: taktNode, cycleBaseTimes: cycleBaseTimes)
+        let calendar = Calendar.current
 
-        // Passi 2+3: propaga per ogni gruppo
-        var allResults: [Train] = []
-        for groupIdx in 0..<trainsGrouped.count {
-            if Task.isCancelled { break }
-            var group = trainsGrouped[groupIdx]
-            let sequence = group[0].stops.map { $0.stationId }
-            guard let taktIdx = sequence.firstIndex(of: taktNode.id) else { continue }
-            print("\n🚂 Gruppo \(groupIdx + 1): \(group.count) treni – \(sequence.first ?? "?") → \(sequence.last ?? "?")")
-            propagateBackward(group: &group, taktIdx: taktIdx, sequence: sequence, nodes: nodes, edges: edges, core: core)
-            propagateForward(group: &group, taktIdx: taktIdx, sequence: sequence, nodes: nodes, edges: edges, core: core)
-            for i in group.indices {
-                group[i].departureTime = group[i].stops.first?.departure ?? group[i].stops.first?.arrival
+        if isMainBatch {
+            let taktNodeId = preferredTaktNodeId // Store for refreshes
+            guard let taktNode = resolveTaktNode(from: nodes, preferredId: taktNodeId) else {
+                print("❌ [TaktEngine] Impossibile trovare un nodo Hub Takt valido.")
+                return newTrains
             }
-            allResults.append(contentsOf: group)
+            let taktMinute = taktNode.taktMinutes ?? 0
+            
+            // Gruppiamo per orario e direzione per evitare sovrapposizioni inutili
+            let trainsGrouped = groupTrainsByDirection(newTrains, taktNodeId: taktNode.id)
+            var allResults: [Train] = []
+            
+            for var group in trainsGrouped {
+                if Task.isCancelled { break }
+                let sequence = group[0].stops.map { $0.stationId }
+                guard let taktIdx = sequence.firstIndex(of: taktNode.id) else { continue }
+                
+                print("\n🔵 Gruppo MAIN: \(group.count) treni [Hub \(taktNode.id) @:\(taktMinute)]")
+                
+                // Refresh con il preferred ID fisso
+                for i in group.indices {
+                    refreshTaktSchedule(train: &group[i], hIdx: taktIdx, hNode: taktNode, nodes: nodes, edges: edges)
+                }
+                
+                allResults.append(contentsOf: group)
+            }
+            print("\n🏁 [TaktEngine] \(allResults.count) treni principali generati")
+            return allResults
+
+        } else {
+            // ═══ TRENI SECONDARI: hub relativo ai principali esistenti + conflict resolution ═══
+            var allResults: [Train] = []
+            let preferredId = preferredTaktNodeId // Fix identification for refreshes
+            
+            for var group in trainsGrouped {
+                if Task.isCancelled { break }
+                let sequence = group[0].stops.map { $0.stationId }
+                guard let taktIdx = sequence.firstIndex(of: taktNode.id) else { continue }
+                print("\n🟡 Gruppo SEC: \(group.count) treni [Hub \(taktNode.id)]")
+
+                // Per ogni treno, fissa hub relativo al principale esistente
+                for i in group.indices {
+                    let train = group[i]
+                    let mainHubTimes = findMainTrainHubTimes(
+                        for: train, taktIdx: taktIdx, taktMinute: taktMinute,
+                        existingTrains: existingTrains, taktNodeId: taktNode.id, calendar: calendar)
+
+                    if let mainArr = mainHubTimes?.arr, let mainDep = mainHubTimes?.dep {
+                        // Allineamento relativo: Arrivo PRIMA, partenza DOPO.
+                        // Usiamo una finestra di 10 min che garantisce transfer in entrambi i sensi.
+                        let secArr = mainArr.addingTimeInterval(-10 * 60)
+                        let secDep = mainDep.addingTimeInterval(10 * 60)
+                        
+                        group[i].stops[taktIdx].arrival = secArr
+                        group[i].stops[taktIdx].departure = (taktIdx < group[i].stops.count - 1) ? secDep : nil
+                        
+                        print("   📐 \(train.name): Relativo a IC -> Arr \(formatTime(secArr)) Dep \(formatTime(secDep ?? secArr))")
+                    } else {
+                        // Nessun principale trovato: usa offset standard dal Takt
+                        print("   ⚠️ \(train.name): nessun principale esistente, uso offset standard")
+                        let (arr, dep2) = calculateHubTimes(for: train, hIdx: taktIdx, hNode: taktNode)
+                        group[i].stops[taktIdx].arrival = arr
+                        group[i].stops[taktIdx].departure = (taktIdx < group[i].stops.count - 1) ? dep2 : nil
+                    }
+                    
+                    // Propaga dal hub bloccato
+                    var single = group[i]
+                    let hubArr = single.stops[taktIdx].arrival!
+                    let hubDep = single.stops[taktIdx].departure ?? hubArr
+                    
+                    propagateBackward(from: taktIdx, arrival: hubArr, train: &single, nodes: nodes, edges: edges)
+                    propagateForward(from: taktIdx, departure: hubDep, train: &single, nodes: nodes, edges: edges)
+                    single.departureTime = single.stops.first?.departure ?? single.stops.first?.arrival
+                    group[i] = single
+                }
+
+                // ─── Risoluzione conflitti: shift +1 min iterativo ───
+                var pathCache: [String: [Edge]] = [:]
+                let maxShift = 30
+                for i in group.indices {
+                    var shifted = 0
+                    while shifted < maxShift {
+                        let conflicts = detectConflicts([group[i]], existingTrains: existingTrains,
+                                                         nodes: nodes, edges: edges, pathCache: &pathCache)
+                        if conflicts.isEmpty { break }
+                        shifted += 1
+                        
+                        // Shiftiamo l'intero orario all'hub
+                        if let oldArr = group[i].stops[taktIdx].arrival {
+                            group[i].stops[taktIdx].arrival = calendar.date(byAdding: .minute, value: 1, to: oldArr)
+                        }
+                        if let oldDep = group[i].stops[taktIdx].departure {
+                            group[i].stops[taktIdx].departure = calendar.date(byAdding: .minute, value: 1, to: oldDep)
+                        }
+                        
+                        var single = group[i]
+                        let hArr = single.stops[taktIdx].arrival!
+                        let hDep = single.stops[taktIdx].departure ?? hArr
+                        propagateBackward(from: taktIdx, arrival: hArr, train: &single, nodes: nodes, edges: edges)
+                        propagateForward(from: taktIdx, departure: hDep, train: &single, nodes: nodes, edges: edges)
+                        single.departureTime = single.stops.first?.departure ?? single.stops.first?.arrival
+                        group[i] = single
+                    }
+                    if shifted > 0 {
+                        print("   🔧 \(group[i].name): +\(shifted) min shift per conflitti")
+                    }
+                }
+
+                allResults.append(contentsOf: group)
+            }
+            print("\n🏁 [TaktEngine] \(allResults.count) treni secondari generati")
+            return allResults
         }
-        print("\n🏁 [TaktEngine] Completata generazione per \(allResults.count) treni")
-        return allResults
+    }
+
+    /// Trova gli orari hub del treno principale esistente più vicino al treno secondario.
+    private func findMainTrainHubTimes(
+        for secTrain: Train, taktIdx: Int, taktMinute: Int,
+        existingTrains: [Train], taktNodeId: String, calendar: Calendar
+    ) -> (arr: Date, dep: Date)? {
+        guard let secDep = secTrain.departureTime else { return nil }
+        let estTravel = Double(taktIdx) * 3.0 * 60.0
+        let estHubTime = secDep.addingTimeInterval(estTravel)
+
+        // Cerca i principali esistenti che passano per l'hub
+        let mainAtHub = existingTrains.filter { $0.isMainTrain && $0.stops.contains(where: { $0.stationId == taktNodeId }) }
+        guard !mainAtHub.isEmpty else { return nil }
+
+        // Trova quello con orario hub (arrivo o partenza) più vicino nel tempo
+        return mainAtHub.compactMap { main -> (arr: Date, dep: Date, dist: TimeInterval)? in
+            let mainSeq = main.stops.map { $0.stationId }
+            guard let mainTIdx = mainSeq.firstIndex(of: taktNodeId) else { return nil }
+            
+            // Per treni che iniziano o finiscono al hub, usiamo l'unico orario disponibile
+            let mArr = main.stops[mainTIdx].arrival ?? main.stops[mainTIdx].departure
+            let mDep = main.stops[mainTIdx].departure ?? main.stops[mainTIdx].arrival
+            
+            guard let finalArr = mArr, let finalDep = mDep else { return nil }
+            
+            return (finalArr, finalDep, abs(finalArr.timeIntervalSince(estHubTime)))
+        }
+        .sorted(by: { $0.dist < $1.dist })
+        .first
+        .map { (arr: $0.arr, dep: $0.dep) }
     }
 
     // MARK: - Takt Engine: Helpers
@@ -564,13 +709,16 @@ final class RailwayScheduleOptimizer {
         }
         departures.sort()
         
-        // Assegna un taktBaseTime a ciascun gruppo di partenze
+        // Assegna un taktBaseTime a ciascun gruppo di partenze.
+        // Avanza di 1 ora: il minuto Takt si ripete ogni ora, quindi ogni ciclo
+        // di partenza deve avere il proprio slot hub univoco.
+        // Funziona sia per cadenza 60 min (1 slot/ora) che 120 min (1 slot/2 ore).
         var result: [Date: Date] = [:]
         var currentBase = base
         for cycleDep in departures {
-            // Avanza currentBase fino a superare cycleDep
+            // Avanza currentBase fino a superare o eguagliare cycleDep
             while currentBase < cycleDep {
-                currentBase = calendar.date(byAdding: .hour, value: 2, to: currentBase) ?? currentBase  // +120 min
+                currentBase = calendar.date(byAdding: .hour, value: 1, to: currentBase) ?? currentBase
             }
             result[cycleDep] = currentBase
             print("   🕐 Ciclo \(formatTime(cycleDep)): taktBase = \(formatTime(currentBase))")
@@ -587,10 +735,34 @@ final class RailwayScheduleOptimizer {
             guard let tIdx = seq.firstIndex(of: taktNode.id) else { continue }
             for i in groups[gIdx].indices {
                 let train = groups[gIdx][i]
-                guard let dep = train.departureTime,
-                      let base = cycleBaseTimes.first(where: { abs($0.key.timeIntervalSince(dep)) < 120 })?.value
-                else { continue }
-                let (arr, dep2) = taktHubTimes(train: train, base: base, calendar: calendar)
+                
+                let base: Date?
+                if train.isMainTrain {
+                    // Treni principali: match per partenza dal capolinea (come prima)
+                    guard let dep = train.departureTime else { continue }
+                    base = cycleBaseTimes.first(where: { abs($0.key.timeIntervalSince(dep)) < 120 })?.value
+                } else {
+                    // Treni non principali: cerchiamo il taktBase più vicino all'arrivo
+                    // STIMATO all'hub, così si allineano allo stesso ciclo dei principali.
+                    // Stima: partenza + (indice hub × 3 min come approssimazione per fermata)
+                    guard let dep = train.departureTime else { continue }
+                    let estimatedTravelToHub = Double(tIdx) * 3.0 * 60.0  // ~3 min per fermata
+                    let estimatedHubArrival = dep.addingTimeInterval(estimatedTravelToHub)
+                    
+                    // Trova il taktBase al minuto Takt più vicino all'arrivo stimato
+                    var nearestBase = calendar.date(bySetting: .minute, value: taktMinute, of: estimatedHubArrival) ?? estimatedHubArrival
+                    nearestBase = calendar.date(bySetting: .second, value: 0, of: nearestBase) ?? nearestBase
+                    // Se nearestBase è troppo prima dell'arrivo stimato, avanza di 1 ora
+                    if nearestBase < estimatedHubArrival.addingTimeInterval(-1800) {
+                        nearestBase = calendar.date(byAdding: .hour, value: 1, to: nearestBase) ?? nearestBase
+                    }
+                    base = nearestBase
+                    
+                    print("   📐 [SEC] \(train.name): dep=\(formatTime(dep)) estHubArr=\(formatTime(estimatedHubArrival)) → taktBase=\(formatTime(nearestBase))")
+                }
+                
+                guard let taktBase = base else { continue }
+                let (arr, dep2) = taktHubTimes(train: train, base: taktBase, calendar: calendar)
                 groups[gIdx][i].stops[tIdx].arrival = arr
                 groups[gIdx][i].stops[tIdx].departure = (tIdx < groups[gIdx][i].stops.count - 1) ? dep2 : nil
                 print("   🚆 [\(train.isMainTrain ? "MAIN" : "SEC ")] \(train.name): Hub :\(taktMinute) | Arr \(formatTime(arr)) Dep \(formatTime(dep2))")
@@ -599,21 +771,28 @@ final class RailwayScheduleOptimizer {
     }
 
     /// Ritorna (arrivo, partenza) all'hub takt per un treno.
-    /// Per Taktfahrplan 120 min: i treni si incrociano con offset simmetrici
-    /// T1 arriva 2-3 min prima, T2 arriva 3 min prima ma parte dopo
+    /// - Treni principali: crossing stretto ±2-3 min attorno al minuto Takt
+    /// - Treni non principali: posizionati FUORI dalla finestra dei principali.
+    ///   Arrivano 10-20 min prima del Takt e ripartono 10-20 min dopo.
+    ///   Es. con Takt :45 → arrivi :25-:35, partenze :55-:05
     private func taktHubTimes(train: Train, base: Date, calendar: Calendar) -> (Date, Date) {
         if train.isMainTrain {
             let isT1 = (train.number ?? 0) % 2 == 1
             // T1 (dispari): arriva -2, parte +1 → crossing window di 3 minuti
             // T2 (pari):   arriva -3, parte +2 → crossing window di 5 minuti
-            // Questo permette l'incrocio simmetrico
             let arr = calendar.date(byAdding: .minute, value: isT1 ? -2 : -3, to: base) ?? base
             let dep = calendar.date(byAdding: .minute, value: isT1 ?  1 :  2, to: base) ?? base
             return (arr, dep)
         } else {
-            // Treni non principali: ≥10 min di buffer prima/dopo il minuto takt
-            let arr = calendar.date(byAdding: .minute, value: -10, to: base) ?? base
-            let dep = calendar.date(byAdding: .minute, value:  10, to: base) ?? base
+            // Treni non principali: posizionati fuori dalla finestra dei principali.
+            // Dir 1 (dispari): arriva Takt-20, parte Takt+10 → sosta 30 min
+            //   Es. Takt :45 → arr :25, dep :55
+            // Dir 2 (pari):    arriva Takt-10, parte Takt+15 → sosta 25 min
+            //   Es. Takt :45 → arr :35, dep :00
+            // I secondari NON si sovrappongono ai principali (che sono a ±3 min dal Takt)
+            let isT1 = (train.number ?? 0) % 2 == 1
+            let arr = calendar.date(byAdding: .minute, value: isT1 ? -20 : -10, to: base) ?? base
+            let dep = calendar.date(byAdding: .minute, value: isT1 ?  10 :  15, to: base) ?? base
             return (arr, dep)
         }
     }
@@ -892,9 +1071,9 @@ final class RailwayScheduleOptimizer {
     
     // MARK: - Helpers & Step 6 Integation
     
-    private func performCloudOptimization(_ trains: [RailwayTrain], existingTrains: [RailwayTrain], nodes: [RailwayNode], edges: [Edge], pathCache: inout [String: [Edge]]) async -> RailwayAIResponse? {
+    private func performCloudOptimization(_ trains: [RailwayTrain], existingTrains: [RailwayTrain], nodes: [RailwayNode], edges: [Edge], pathCache: inout [String: [Edge]], preferredHubId: String? = nil) async -> RailwayAIResponse? {
         var all = existingTrains + trains
-        refreshMultipleSchedules(&all, nodes: nodes, edges: edges, pathCache: &pathCache)
+        refreshMultipleSchedules(&all, nodes: nodes, edges: edges, pathCache: &pathCache, preferredHubId: preferredHubId)
         var dc: [String: [Edge]]? = pathCache
         let currentConflicts = conflictManager.calculateConflictsWithCapacities(nodes: nodes, edges: edges, trains: all, pathCache: &dc).0
         if let u = dc { pathCache = u }
@@ -949,12 +1128,10 @@ final class RailwayScheduleOptimizer {
         return updated
     }
     
-    private func refreshPhysicalSchedules(_ trains: [RailwayTrain], existingTrains: [RailwayTrain], nodes: [RailwayNode], edges: [Edge], pathCache: inout [String: [Edge]]) -> [RailwayTrain] {
-        var all = existingTrains + trains
-        refreshMultipleSchedules(&all, nodes: nodes, edges: edges, pathCache: &pathCache)
-        
-        let updatedIds = Set(trains.map { $0.id })
-        return all.filter { updatedIds.contains($0.id) }
+    private func refreshPhysicalSchedules(_ trains: [RailwayTrain], existingTrains: [RailwayTrain], nodes: [RailwayNode], edges: [Edge], pathCache: inout [String: [Edge]], preferredHubId: String? = nil) -> [RailwayTrain] {
+        var result = trains
+        refreshMultipleSchedules(&result, nodes: nodes, edges: edges, pathCache: &pathCache, preferredHubId: preferredHubId)
+        return result
     }
     
     private func detectConflicts(_ trainSubset: [RailwayTrain], existingTrains: [RailwayTrain], nodes: [RailwayNode], edges: [Edge], pathCache: inout [String: [Edge]]) -> [ScheduleConflict] {
@@ -967,21 +1144,30 @@ final class RailwayScheduleOptimizer {
     
     // MARK: - Local Schedule Helpers (Replacing TrainManager)
     
-    private func refreshMultipleSchedules(_ trains: inout [RailwayTrain], nodes: [RailwayNode], edges: [Edge], pathCache: inout [String: [Edge]]) {
+    private func refreshMultipleSchedules(_ trains: inout [RailwayTrain], nodes: [RailwayNode], edges: [Edge], pathCache: inout [String: [Edge]], preferredHubId: String? = nil) {
         for i in trains.indices {
-            refreshSingleTrainSchedule(&trains[i], nodes: nodes, edges: edges, pathCache: &pathCache)
+            refreshSingleTrainSchedule(&trains[i], nodes: nodes, edges: edges, pathCache: &pathCache, preferredHubId: preferredHubId)
         }
     }
     
-    private func refreshSingleTrainSchedule(_ train: inout [RailwayTrain].Element, nodes: [RailwayNode], edges: [Edge], pathCache: inout [String: [Edge]]) {
-        if let (hIdx, hNode) = findHubNode(in: train, nodes: nodes) {
+    private func refreshSingleTrainSchedule(_ train: inout [RailwayTrain].Element, nodes: [RailwayNode], edges: [Edge], pathCache: inout [String: [Edge]], preferredHubId: String? = nil) {
+        if let (hIdx, hNode) = findHubNode(in: train, nodes: nodes, preferredId: preferredHubId) {
             refreshTaktSchedule(train: &train, hIdx: hIdx, hNode: hNode, nodes: nodes, edges: edges)
         } else {
             refreshStandardSchedule(train: &train, nodes: nodes, edges: edges)
         }
     }
 
-    private func findHubNode(in train: [RailwayTrain].Element, nodes: [RailwayNode]) -> (Int, RailwayNode)? {
+    private func findHubNode(in train: [RailwayTrain].Element, nodes: [RailwayNode], preferredId: String? = nil) -> (Int, RailwayNode)? {
+        // Se abbiamo un preferredId, lo cerchiamo con priorità assoluta per mantenere la coerenza del Takt
+        if let pid = preferredId {
+            if let idx = train.stops.firstIndex(where: { $0.stationId == pid }),
+               let node = nodes.first(where: { $0.id == pid && $0.taktMinutes != nil }) {
+                return (idx, node)
+            }
+        }
+        
+        // Altrimenti prendiamo il primo nodo Hub Takt che incontriamo nel percorso
         for i in train.stops.indices {
             if let node = nodes.first(where: { $0.id == train.stops[i].stationId && $0.taktMinutes != nil }) {
                 return (i, node)
@@ -1004,7 +1190,7 @@ final class RailwayScheduleOptimizer {
     private func calculateHubTimes(for train: [RailwayTrain].Element, hIdx: Int, hNode: RailwayNode) -> (Date, Date) {
         let calendar = Calendar.current
         let takt = hNode.taktMinutes ?? 0
-        let isT1 = (train.number ?? 0) % 2 == 0
+        let isT1 = (train.number ?? 0) % 2 == 1
 
         let referenceTime = train.stops[hIdx].arrival ?? train.departureTime ?? Date()
         let ttToHub = (train.stops[hIdx].arrival == nil) ? Double(hIdx) * 180.0 : 0
@@ -1015,16 +1201,32 @@ final class RailwayScheduleOptimizer {
         if anchorBase > estArrAtHub.addingTimeInterval(1800) { anchorBase = calendar.date(byAdding: .hour, value: -1, to: anchorBase) ?? anchorBase }
 
         var hArr: Date
-        if isT1 {
-            hArr = calendar.date(bySetting: .minute, value: (takt - 1 + 60) % 60, of: anchorBase) ?? anchorBase
+        var hDep: Date
+
+        if train.isMainTrain {
+            // Treni principali: crossing stretto ±2-3 min
+            if isT1 {
+                hArr = calendar.date(bySetting: .minute, value: (takt - 2 + 60) % 60, of: anchorBase) ?? anchorBase
+            } else {
+                hArr = calendar.date(bySetting: .minute, value: (takt - 3 + 60) % 60, of: anchorBase) ?? anchorBase
+            }
+            hArr = calendar.date(bySetting: .second, value: 0, of: hArr) ?? hArr
+            hDep = hArr.addingTimeInterval((isT1 ? 3 : 5) * 60)
         } else {
-            hArr = calendar.date(bySetting: .minute, value: (takt - 2 + 60) % 60, of: anchorBase) ?? anchorBase
+            // Treni non principali: posizionamento "a cavallo" della finestra dei principali.
+            // Regola semplificata: Arrival = Takt - 10, Departure = Takt + 10.
+            // Non usiamo più la parità numero treno per evitare inversioni illogiche.
+            hArr = calendar.date(bySetting: .minute, value: (takt - 10 + 60) % 60, of: anchorBase) ?? anchorBase
+            hArr = calendar.date(bySetting: .second, value: 0, of: hArr) ?? hArr
+            hDep = calendar.date(bySetting: .minute, value: (takt + 10 + 60) % 60, of: anchorBase) ?? anchorBase
+            hDep = calendar.date(bySetting: .second, value: 0, of: hDep) ?? hDep
+            
+            // Se Departure è prima di Arrival (raro con ±60min anchor), aggiustiamo
+            if hDep < hArr { hDep = calendar.date(byAdding: .hour, value: 1, to: hDep) ?? hDep }
         }
-        hArr = calendar.date(bySetting: .second, value: 0, of: hArr) ?? hArr
-        let hDep = hArr.addingTimeInterval((isT1 ? 3 : 5) * 60)
         
         #if DEBUG
-        print("🔄 [Refresh Takt] \(train.name) Hub: \(hNode.id) (#\(hIdx)) -> EstArrAtHub: \(formatTime(estArrAtHub)), Final Hub Dep: \(formatTime(hDep))")
+        print("🔄 [Refresh Takt] \(train.name) [\(train.isMainTrain ? "MAIN" : "SEC ")] Hub: \(hNode.id) (#\(hIdx)) -> EstArrAtHub: \(formatTime(estArrAtHub)), Arr: \(formatTime(hArr)), Dep: \(formatTime(hDep))")
         #endif
 
         return (hArr, hDep)
@@ -1036,12 +1238,18 @@ final class RailwayScheduleOptimizer {
         for j in (0..<hIdx).reversed() {
             let idNext = train.stops[j+1].stationId
             let idCur = train.stops[j].stationId
-            let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(from: idCur, to: idNext, train: train, nodes: nodes, edges: edges, isStarting: j==0, isStopping: true)
+            let isStoppingAtNext = !train.stops[j+1].isSkipped
+            let isStartingAtCur = (j == 0)
+            
+            let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(from: idCur, to: idNext, train: train, nodes: nodes, edges: edges, isStarting: isStartingAtCur, isStopping: isStoppingAtNext)
             
             let depTime = nextArrivalAtTarget.addingTimeInterval(-tt)
             train.stops[j].departure = roundToBusinessSeconds(depTime)
             
-            let dwell = max(120.0, (Double(train.stops[j].minDwellTime) + (train.stops[j].extraDwellTime ?? 0)) * 60.0)
+            let dwellMinutes = train.stops[j].isSkipped ? 0.0 : Double(train.stops[j].minDwellTime)
+            let extraDwell = train.stops[j].extraDwellTime ?? 0
+            let dwell = train.stops[j].isSkipped ? 0.0 : max(120.0, (dwellMinutes + extraDwell) * 60.0)
+            
             let arrTime = (train.stops[j].departure ?? depTime).addingTimeInterval(-dwell)
             train.stops[j].arrival = (j > 0) ? roundToBusinessSeconds(arrTime) : nil
             
@@ -1055,12 +1263,18 @@ final class RailwayScheduleOptimizer {
         for j in (hIdx + 1)..<train.stops.count {
             let idPrev = train.stops[j-1].stationId
             let idCur = train.stops[j].stationId
-            let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(from: idPrev, to: idCur, train: train, nodes: nodes, edges: edges, isStarting: false, isStopping: true)
+            let isStoppingAtCur = !train.stops[j].isSkipped
+            let isStartingAtPrev = (j-1 == 0) && !train.stops[j-1].isSkipped
+            
+            let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(from: idPrev, to: idCur, train: train, nodes: nodes, edges: edges, isStarting: isStartingAtPrev, isStopping: isStoppingAtCur)
             
             let arrTime = currentDeparture.addingTimeInterval(tt)
             train.stops[j].arrival = roundToBusinessSeconds(arrTime)
             
-            let dwell = max(120.0, (Double(train.stops[j].minDwellTime) + (train.stops[j].extraDwellTime ?? 0)) * 60.0)
+            let dwellMinutes = train.stops[j].isSkipped ? 0.0 : Double(train.stops[j].minDwellTime)
+            let extraDwell = train.stops[j].extraDwellTime ?? 0
+            let dwell = train.stops[j].isSkipped ? 0.0 : max(120.0, (dwellMinutes + extraDwell) * 60.0)
+            
             let depTime = (train.stops[j].arrival ?? arrTime).addingTimeInterval(dwell)
             train.stops[j].departure = (j < train.stops.count - 1) ? roundToBusinessSeconds(depTime) : nil
             

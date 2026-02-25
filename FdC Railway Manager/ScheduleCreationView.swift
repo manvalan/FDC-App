@@ -162,7 +162,7 @@ private extension ScheduleCreationView {
             Picker(title, selection: selection) {
                 ForEach(line.stations, id: \.self) { stationId in
                     HStack(spacing: 8) {
-                        stationSymbol(for: stationId, size: 14)
+                        StationSymbolView(station: network.nodes.first(where: { $0.id == stationId }), size: 14)
                         Text(vm.stationName(stationId))
                     }
                     .tag(stationId)
@@ -178,45 +178,6 @@ private extension ScheduleCreationView {
         }
     }
 
-    /// Mostra il simbolo visivo di una stazione (nodo di scambio, cerchio, quadrato, stella).
-    @ViewBuilder
-    func stationSymbol(for stationId: String, size: CGFloat = 16) -> some View {
-        if let station = network.nodes.first(where: { $0.id == stationId }) {
-            if station.type == .interchange {
-                interchangeSymbol(size: size)
-            } else {
-                regularStationSymbol(station: station, size: size)
-            }
-        } else {
-            Circle().fill(Color.gray).frame(width: size, height: size)
-        }
-    }
-
-    /// Simbolo per i nodi di scambio (doppio cerchio rosso).
-    func interchangeSymbol(size: CGFloat) -> some View {
-        ZStack {
-            Circle().stroke(Color.red, lineWidth: 2).frame(width: size, height: size)
-            Circle().stroke(Color.red, lineWidth: 2).frame(width: size * 0.6, height: size * 0.6)
-        }
-    }
-
-    /// Simbolo per le stazioni normali, con forma e colore personalizzabili.
-    @ViewBuilder
-    func regularStationSymbol(station: RailwayNode, size: CGFloat) -> some View {
-        let color = station.customColor.flatMap { Color(hex: $0) } ?? .blue
-        switch station.visualType ?? .filledCircle {
-        case .filledCircle:
-            Circle().fill(color).frame(width: size, height: size)
-        case .emptyCircle:
-            Circle().stroke(color, lineWidth: 2).frame(width: size, height: size)
-        case .filledSquare:
-            RoundedRectangle(cornerRadius: 3).fill(color).frame(width: size, height: size)
-        case .emptySquare:
-            RoundedRectangle(cornerRadius: 3).stroke(color, lineWidth: 2).frame(width: size, height: size)
-        case .filledStar:
-            Image(systemName: "star.fill").foregroundColor(color).font(.system(size: size))
-        }
-    }
 }
 
 // MARK: - Dettagli Percorso
@@ -246,9 +207,9 @@ private extension ScheduleCreationView {
     /// Riga con le metriche di servizio: stazioni, distanza e durata stimata.
     var metricsRow: some View {
         HStack(spacing: 12) {
-            MetricView(label: "Stazioni", value: "\(vm.stationSequence.count)")
-            MetricView(label: "Distanza", value: String(format: "%.1fkm", vm.estimatedDistance))
-            MetricView(label: "Durata St.", value: "\(vm.estimatedTravelTime)m")
+            ScheduleMetricView(label: "Stazioni", value: "\(vm.stationSequence.count)")
+            ScheduleMetricView(label: "Distanza", value: String(format: "%.1fkm", vm.estimatedDistance))
+            ScheduleMetricView(label: "Durata St.", value: "\(vm.estimatedTravelTime)m")
             Spacer()
         }
     }
@@ -391,7 +352,7 @@ private extension ScheduleCreationView {
 
     /// Pulsante "Intercity": salta le stazioni non principali (senza simbolo quadrato).
     var intercityButton: some View {
-        Button(action: { applyIntercityPattern() }) {
+        Button(action: { vm.applyIntercityPattern() }) {
             Text("Intercity")
                 .font(.caption2.bold())
                 .foregroundColor(.purple)
@@ -404,7 +365,7 @@ private extension ScheduleCreationView {
     /// Pulsante "Diretto": salta tutte le fermate intermedie.
     var direttoButton: some View {
         let allSkipped = vm.skippedStopIds.count == max(0, vm.stationSequence.count - 2)
-        return Button(action: { applyExpressPattern() }) {
+        return Button(action: { vm.applyExpressPattern() }) {
             Text("Diretto")
                 .font(.caption2.bold())
                 .foregroundColor(allSkipped ? .white : .orange)
@@ -414,27 +375,6 @@ private extension ScheduleCreationView {
         }
     }
 
-    /// Applica lo schema Intercity: salta le stazioni non contrassegnate come nodi principali.
-    func applyIntercityPattern() {
-        vm.skippedStopIds.removeAll()
-        guard vm.stationSequence.count > 2 else { return }
-        for i in 1..<(vm.stationSequence.count - 1) {
-            let sid = vm.stationSequence[i]
-            if let station = network.nodes.first(where: { $0.id == sid }),
-               station.visualType != .filledSquare && station.visualType != .emptySquare {
-                vm.skippedStopIds.insert(sid)
-            }
-        }
-    }
-
-    /// Applica lo schema Diretto: salta tutte le fermate intermedie.
-    func applyExpressPattern() {
-        vm.skippedStopIds.removeAll()
-        guard vm.stationSequence.count > 2 else { return }
-        for i in 1..<(vm.stationSequence.count - 1) {
-            vm.skippedStopIds.insert(vm.stationSequence[i])
-        }
-    }
 
     /// Lista delle fermate con indicatore visivo e toggle di attivazione.
     var stopPatternList: some View {
