@@ -407,233 +407,18 @@ struct RailwayMapView: View {
             let snapshotSize = CGSize(width: 2048, height: 1536)
             let bounds = calculateBounds(for: nodes)
             
-            func finalPosition(for node: RailwayNode) -> CGPoint {
-                let lon = node.longitude ?? 0
-                let lat = node.latitude ?? 0
-                let baseX = (lon - bounds.minLon) / bounds.xRange * (snapshotSize.width - 100) + 50
-                let baseY = (1.0 - (lat - bounds.minLat) / bounds.yRange) * (snapshotSize.height - 100) + 50
-                let pPos = CGPoint(x: baseX, y: baseY)
-                
-                if let parentId = node.parentHubId,
-                   let parent = nodes.first(where: { $0.id == parentId }) {
-                    let parentLon = parent.longitude ?? 0
-                    let parentLat = parent.latitude ?? 0
-                    let px = (parentLon - bounds.minLon) / bounds.xRange * (snapshotSize.width - 100) + 50
-                    let py = (1.0 - (parentLat - bounds.minLat) / bounds.yRange) * (snapshotSize.height - 100) + 50
-                    let parentP = CGPoint(x: px, y: py)
-                    
-                    let offset: CGFloat = 25.0
-                    let direction = node.hubOffsetDirection ?? .bottomRight
-                    switch direction {
-                    case .topLeft: return CGPoint(x: parentP.x - offset, y: parentP.y - offset)
-                    case .topRight: return CGPoint(x: parentP.x + offset, y: parentP.y - offset)
-                    case .bottomLeft: return CGPoint(x: parentP.x - offset, y: parentP.y + offset)
-                    case .bottomRight: return CGPoint(x: parentP.x + offset, y: parentP.y + offset)
-                    }
-                }
-                return pPos
-            }
-            
-            func generateLineDraws() -> [LineDraw] {
-                var drawings: [LineDraw] = []
-                struct SegmentKey: Hashable {
-                    let from: String; let to: String
-                    init(_ a: String, _ b: String) { if a < b { from = a; to = b } else { from = b; to = a } }
-                }
-                var segmentLineMap: [SegmentKey: [RailwayLine]] = [:]
-                for line in lines {
-                    let count = line.stations.count
-                    if count > 1 {
-                        for i in 0..<(count - 1) {
-                            let key = SegmentKey(line.stations[i], line.stations[i+1])
-                            segmentLineMap[key, default: []].append(line)
-                        }
-                    }
-                }
-                
-                for (key, segLines) in segmentLineMap {
-                    guard let n1 = nodes.first(where: { $0.id == key.from }),
-                          let n2 = nodes.first(where: { $0.id == key.to }) else { continue }
-                    let p1 = finalPosition(for: n1); let p2 = finalPosition(for: n2)
-                    let points = generateSchematicPoints(from: p1, to: p2)
-                    let bundleSize = segLines.count
-                    
-                    for j in 0..<(points.count - 1) {
-                        let sp1 = points[j]; let sp2 = points[j+1]
-                        let angle = atan2(sp2.y - sp1.y, sp2.x - sp1.x)
-                        let offsetBase: CGFloat = 8.0 // Larger for snapshot
-                        
-                        for (i, line) in segLines.enumerated() {
-                            let offset = CGFloat(i) * offsetBase - (CGFloat(segLines.count - 1) * offsetBase / 2.0)
-                            let lp1 = CGPoint(x: sp1.x - sin(angle) * offset, y: sp1.y + cos(angle) * offset)
-                            let lp2 = CGPoint(x: sp2.x - sin(angle) * offset, y: sp2.y + cos(angle) * offset)
-                            let path = Path { p in p.move(to: lp1); p.addLine(to: lp2) }
-                            drawings.append(LineDraw(path: path, color: Color(hex: line.color ?? "#000000") ?? .black, name: line.name, bundleSize: bundleSize))
-                        }
-                    }
-                }
-                return drawings
-            }
-            
-            func generateTrainDraws() -> [TrainDraw] {
-                var drawings: [TrainDraw] = []
-                let now = Date().normalized()
-                for sch in schedules {
-                    if let pos = calculateTrainPosition(schedule: sch, now: now, nodes: nodes, bounds: bounds, snapshotSize: snapshotSize) {
-                        drawings.append(TrainDraw(pos: pos, name: sch.trainName, color: .red))
-                    }
-                }
-                return drawings
-            }
-            
             // 1. Edges with parallel track support
-            // Group edges by station pairs
-            var edgesByPair: [String: [RailwayEdge]] = [:]
-            for edge in edges {
-                let key = edge.canonicalKey
-                edgesByPair[key, default: []].append(edge)
-            }
+            let edgesDraw = generateEdgeDraws(nodes: nodes, edges: edges, bounds: bounds, snapshotSize: snapshotSize, mode: mode)
             
-            var edgesDraw: [EdgeDraw] = []
-            for (_, edgeGroup) in edgesByPair {
-                guard let firstEdge = edgeGroup.first else { continue }
-                guard let n1 = nodes.first(where: { $0.id == firstEdge.from }),
-                      let n2 = nodes.first(where: { $0.id == firstEdge.to }) else { continue }
-                
-                let p1 = finalPosition(for: n1)
-                let p2 = finalPosition(for: n2)
-                let basePoints = generateSchematicPoints(from: p1, to: p2)
-                
-                let trackCount = edgeGroup.count
-                let offsetDistance: CGFloat = 6.0 // Slightly larger for snapshot visibility
-                
-                for (index, edge) in edgeGroup.enumerated() {
-                    var offsetPoints: [CGPoint] = []
-                    
-                    if trackCount == 1 {
-                        // Single track - no offset
-                        offsetPoints = basePoints
-                    } else {
-                        // Multiple parallel tracks - apply perpendicular offset
-                        let offset = (CGFloat(index) - CGFloat(trackCount - 1) / 2.0) * offsetDistance
-                        
-                        for i in 0..<basePoints.count {
-                            let p = basePoints[i]
-                            var perpX: CGFloat = 0
-                            var perpY: CGFloat = 0
-                            
-                            if i == 0 && basePoints.count > 1 {
-                                let next = basePoints[i + 1]
-                                let dx = next.x - p.x
-                                let dy = next.y - p.y
-                                let len = sqrt(dx * dx + dy * dy)
-                                if len > 0 {
-                                    perpX = -dy / len
-                                    perpY = dx / len
-                                }
-                            } else if i == basePoints.count - 1 && basePoints.count > 1 {
-                                let prev = basePoints[i - 1]
-                                let dx = p.x - prev.x
-                                let dy = p.y - prev.y
-                                let len = sqrt(dx * dx + dy * dy)
-                                if len > 0 {
-                                    perpX = -dy / len
-                                    perpY = dx / len
-                                }
-                            } else if basePoints.count > 2 {
-                                let prev = basePoints[i - 1]
-                                let next = basePoints[i + 1]
-                                let dx1 = p.x - prev.x
-                                let dy1 = p.y - prev.y
-                                let len1 = sqrt(dx1 * dx1 + dy1 * dy1)
-                                let dx2 = next.x - p.x
-                                let dy2 = next.y - p.y
-                                let len2 = sqrt(dx2 * dx2 + dy2 * dy2)
-                                
-                                if len1 > 0 && len2 > 0 {
-                                    let perp1X = -dy1 / len1
-                                    let perp1Y = dx1 / len1
-                                    let perp2X = -dy2 / len2
-                                    let perp2Y = dx2 / len2
-                                    perpX = (perp1X + perp2X) / 2
-                                    perpY = (perp1Y + perp2Y) / 2
-                                    let perpLen = sqrt(perpX * perpX + perpY * perpY)
-                                    if perpLen > 0 {
-                                        perpX /= perpLen
-                                        perpY /= perpLen
-                                    }
-                                }
-                            }
-                            
-                            offsetPoints.append(CGPoint(
-                                x: p.x + perpX * offset,
-                                y: p.y + perpY * offset
-                            ))
-                        }
-                    }
-                    
-                    // Usa la nuova funzione per creare curve morbide
-                    let path = createSmoothPath(points: offsetPoints)
-                    
-                    let baseColor: Color = mode.isSchedulerMode ? .gray.opacity(0.3) : .gray
-                    edgesDraw.append(EdgeDraw(path: path, points: offsetPoints, color: (edge.trackType == .highSpeed ? .red.opacity(0.8) : .black.opacity(0.8)), type: edge.trackType, baseColor: baseColor))
-                }
-            }
+            // 2. Hub Clusters
+            let visualGroups = generateHubClusters(nodes: nodes, bounds: bounds, snapshotSize: snapshotSize)
             
-            // 2. Hub Clusters (Explicit logic matching live view)
-            var visualGroups: [GroupDraw] = []
+            // 3. Nodes
+            let nodesDraw = generateNodeDraws(nodes: nodes, bounds: bounds, snapshotSize: snapshotSize)
             
-            let hubNodes = nodes.filter { node in
-                node.parentHubId != nil || nodes.contains(where: { $0.parentHubId == node.id })
-            }
-            
-            var hubGroupsLookup: [String: [RailwayNode]] = [:]
-            for node in hubNodes {
-                let hubId = node.parentHubId ?? node.id
-                hubGroupsLookup[hubId, default: []].append(node)
-            }
-            
-            for (hubId, gNodes) in hubGroupsLookup {
-                if gNodes.count > 1 {
-                    let positions = gNodes.map { finalPosition(for: $0) }
-                    let maxY = positions.map { $0.y }.max() ?? positions[0].y
-                    let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
-                    
-                    let rootNode = gNodes.first(where: { $0.id == hubId }) ?? gNodes.first
-                    visualGroups.append(GroupDraw(
-                        positions: positions,
-                        label: rootNode?.name ?? "",
-                        center: CGPoint(x: centerX, y: maxY + 35),
-                        bottomY: maxY,
-                        isSingle: false
-                    ))
-                }
-            }
-            
-            // Handle orphan interchanges (single-node hubs)
-            let orphanInterchanges = nodes.filter { node in
-                node.type == .interchange && 
-                hubGroupsLookup[node.parentHubId ?? node.id]?.count ?? 0 <= 1
-            }
-            for node in orphanInterchanges {
-                let p = finalPosition(for: node)
-                visualGroups.append(GroupDraw(
-                    positions: [p],
-                    label: node.name,
-                    center: CGPoint(x: p.x, y: p.y + 35),
-                    bottomY: p.y,
-                    isSingle: true
-                ))
-            }
-            
-            let nodesDraw = nodes.map { node -> NodeDraw in
-                let visualType = node.visualType ?? node.defaultVisualType
-                let color = Color(hex: node.customColor ?? node.defaultColor) ?? .black
-                return NodeDraw(pos: finalPosition(for: node), name: node.name, isHub: node.type == .interchange, nodeType: node.type, visualType: visualType, color: color, parentHubId: node.parentHubId)
-            }
-            
-            let linesDraw = mode.isSchedulerMode ? generateLineDraws() : []
-            let trainsDraw = mode.isSchedulerMode ? generateTrainDraws() : []
+            // 4. Commercial Lines & Trains (Scheduler Mode)
+            let linesDraw = mode.isSchedulerMode ? generateLineDraws(nodes: nodes, lines: lines, bounds: bounds, snapshotSize: snapshotSize) : []
+            let trainsDraw = mode.isSchedulerMode ? generateTrainDraws(schedules: schedules, nodes: nodes, bounds: bounds, snapshotSize: snapshotSize) : []
             
             return MapSnapshotData(
                 bounds: bounds, 
@@ -647,6 +432,176 @@ struct RailwayMapView: View {
                 globalLineWidth: globalLineWidth
             )
         }
+
+        // MARK: - Extraction Helpers
+
+        private static func generateNodeDraws(nodes: [RailwayNode], bounds: MapBounds, snapshotSize: CGSize) -> [NodeDraw] {
+            return nodes.map { node -> NodeDraw in
+                let visualType = node.visualType ?? node.defaultVisualType
+                let color = Color(hex: node.customColor ?? node.defaultColor) ?? .black
+                let pos = finalPosition(for: node, bounds: bounds, snapshotSize: snapshotSize, nodes: nodes)
+                return NodeDraw(
+                    pos: pos, 
+                    name: node.name, 
+                    isHub: node.type == .interchange, 
+                    nodeType: node.type, 
+                    visualType: visualType, 
+                    color: color, 
+                    parentHubId: node.parentHubId
+                )
+            }
+        }
+
+        private static func finalPosition(for node: RailwayNode, bounds: MapBounds, snapshotSize: CGSize, nodes: [RailwayNode]) -> CGPoint {
+            let lon = node.longitude ?? 0
+            let lat = node.latitude ?? 0
+            let baseX = (lon - bounds.minLon) / bounds.xRange * (snapshotSize.width - 100) + 50
+            let baseY = (1.0 - (lat - bounds.minLat) / bounds.yRange) * (snapshotSize.height - 100) + 50
+            let pPos = CGPoint(x: baseX, y: baseY)
+            
+            if let parentId = node.parentHubId,
+               let parent = nodes.first(where: { $0.id == parentId }) {
+                let parentP = finalPositionStatic(for: parent, bounds: bounds, snapshotSize: snapshotSize)
+                
+                let offset: CGFloat = 25.0
+                let direction = node.hubOffsetDirection ?? .bottomRight
+                switch direction {
+                case .topLeft: return CGPoint(x: parentP.x - offset, y: parentP.y - offset)
+                case .topRight: return CGPoint(x: parentP.x + offset, y: parentP.y - offset)
+                case .bottomLeft: return CGPoint(x: parentP.x - offset, y: parentP.y + offset)
+                case .bottomRight: return CGPoint(x: parentP.x + offset, y: parentP.y + offset)
+                }
+            }
+            return pPos
+        }
+
+        private static func generateEdgeDraws(nodes: [RailwayNode], edges: [RailwayEdge], bounds: MapBounds, snapshotSize: CGSize, mode: MapVisualizationMode) -> [EdgeDraw] {
+            var edgesDraw: [EdgeDraw] = []
+            var edgesByPair: [String: [RailwayEdge]] = [:]
+            for edge in edges {
+                edgesByPair[edge.canonicalKey, default: []].append(edge)
+            }
+            
+            for (_, edgeGroup) in edgesByPair {
+                guard let firstEdge = edgeGroup.first,
+                      let n1 = nodes.first(where: { $0.id == firstEdge.from }),
+                      let n2 = nodes.first(where: { $0.id == firstEdge.to }) else { continue }
+                
+                let p1 = finalPosition(for: n1, bounds: bounds, snapshotSize: snapshotSize, nodes: nodes)
+                let p2 = finalPosition(for: n2, bounds: bounds, snapshotSize: snapshotSize, nodes: nodes)
+                let basePoints = generateSchematicPoints(from: p1, to: p2)
+                
+                let trackCount = edgeGroup.count
+                let offsetDistance: CGFloat = 6.0
+                
+                for (index, edge) in edgeGroup.enumerated() {
+                    let offset = (trackCount == 1) ? 0 : (CGFloat(index) - CGFloat(trackCount - 1) / 2.0) * offsetDistance
+                    let offsetPoints = applyPerpendicularOffset(to: basePoints, offset: offset)
+                    let path = createSmoothPath(points: offsetPoints)
+                    let baseColor: Color = mode.isSchedulerMode ? .gray.opacity(0.3) : .gray
+                    edgesDraw.append(EdgeDraw(path: path, points: offsetPoints, color: (edge.trackType == .highSpeed ? .red.opacity(0.8) : .black.opacity(0.8)), type: edge.trackType, baseColor: baseColor))
+                }
+            }
+            return edgesDraw
+        }
+
+        private static func applyPerpendicularOffset(to points: [CGPoint], offset: CGFloat) -> [CGPoint] {
+            if offset == 0 { return points }
+            return points.indices.map { i in
+                let p = points[i]
+                var perp: CGPoint = .zero
+                if i == 0 && points.count > 1 {
+                    perp = perpendicular(from: p, to: points[i+1])
+                } else if i == points.count - 1 && points.count > 1 {
+                    perp = perpendicular(from: points[i-1], to: p)
+                } else if points.count > 2 {
+                    let p1 = perpendicular(from: points[i-1], to: p)
+                    let p2 = perpendicular(from: p, to: points[i+1])
+                    perp = CGPoint(x: (p1.x + p2.x)/2, y: (p1.y + p2.y)/2)
+                    let len = hypot(perp.x, perp.y)
+                    if len > 0 { perp.x /= len; perp.y /= len }
+                }
+                return CGPoint(x: p.x + perp.x * offset, y: p.y + perp.y * offset)
+            }
+        }
+
+        private static func perpendicular(from p1: CGPoint, to p2: CGPoint) -> CGPoint {
+            let dx = p2.x - p1.x; let dy = p2.y - p1.y
+            let len = hypot(dx, dy)
+            return len > 0 ? CGPoint(x: -dy/len, y: dx/len) : .zero
+        }
+
+        private static func generateHubClusters(nodes: [RailwayNode], bounds: MapBounds, snapshotSize: CGSize) -> [GroupDraw] {
+            var visualGroups: [GroupDraw] = []
+            let hubGroupsLookup = Dictionary(grouping: nodes.filter { $0.parentHubId != nil || nodes.contains(where: { $0.parentHubId == $0.id }) }) { 
+                $0.parentHubId ?? $0.id 
+            }
+            
+            for (hubId, gNodes) in hubGroupsLookup {
+                if gNodes.count > 1 {
+                    let positions = gNodes.map { finalPosition(for: $0, bounds: bounds, snapshotSize: snapshotSize, nodes: nodes) }
+                    let maxY = positions.map { $0.y }.max() ?? positions[0].y
+                    let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
+                    let rootNode = gNodes.first(where: { $0.id == hubId }) ?? gNodes.first
+                    visualGroups.append(GroupDraw(positions: positions, label: rootNode?.name ?? "", center: CGPoint(x: centerX, y: maxY + 35), bottomY: maxY, isSingle: false))
+                }
+            }
+            
+            let orphanInterchanges = nodes.filter { node in
+                node.type == .interchange && (hubGroupsLookup[node.parentHubId ?? node.id]?.count ?? 0) <= 1
+            }
+            for node in orphanInterchanges {
+                let p = finalPosition(for: node, bounds: bounds, snapshotSize: snapshotSize, nodes: nodes)
+                visualGroups.append(GroupDraw(positions: [p], label: node.name, center: CGPoint(x: p.x, y: p.y + 35), bottomY: p.y, isSingle: true))
+            }
+            return visualGroups
+        }
+
+        private static func generateLineDraws(nodes: [RailwayNode], lines: [RailwayLine], bounds: MapBounds, snapshotSize: CGSize) -> [LineDraw] {
+            var drawings: [LineDraw] = []
+            struct SegmentKey: Hashable {
+                let from, to: String
+                init(_ a: String, _ b: String) { if a < b { from = a; to = b } else { from = b; to = a } }
+            }
+            var segmentLineMap: [SegmentKey: [RailwayLine]] = [:]
+            for line in lines where line.stations.count > 1 {
+                for i in 0..<(line.stations.count - 1) {
+                    segmentLineMap[SegmentKey(line.stations[i], line.stations[i+1]), default: []].append(line)
+                }
+            }
+            for (key, segLines) in segmentLineMap {
+                guard let n1 = nodes.first(where: { $0.id == key.from }), let n2 = nodes.first(where: { $0.id == key.to }) else { continue }
+                let p1 = finalPosition(for: n1, bounds: bounds, snapshotSize: snapshotSize, nodes: nodes)
+                let p2 = finalPosition(for: n2, bounds: bounds, snapshotSize: snapshotSize, nodes: nodes)
+                let points = generateSchematicPoints(from: p1, to: p2)
+                let bundleSize = segLines.count
+                for j in 0..<(points.count - 1) {
+                    let sp1 = points[j]; let sp2 = points[j+1]
+                    let angle = atan2(sp2.y - sp1.y, sp2.x - sp1.x)
+                    let offsetBase: CGFloat = 8.0
+                    for (i, line) in segLines.enumerated() {
+                        let offset = CGFloat(i) * offsetBase - (CGFloat(segLines.count - 1) * offsetBase / 2.0)
+                        let lp1 = CGPoint(x: sp1.x - sin(angle) * offset, y: sp1.y + cos(angle) * offset)
+                        let lp2 = CGPoint(x: sp2.x - sin(angle) * offset, y: sp2.y + cos(angle) * offset)
+                        let path = Path { p in p.move(to: lp1); p.addLine(to: lp2) }
+                        drawings.append(LineDraw(path: path, color: Color(hex: line.color ?? "#000000") ?? .black, name: line.name, bundleSize: bundleSize))
+                    }
+                }
+            }
+            return drawings
+        }
+
+        private static func generateTrainDraws(schedules: [TrainSchedule], nodes: [RailwayNode], bounds: MapBounds, snapshotSize: CGSize) -> [TrainDraw] {
+            var drawings: [TrainDraw] = []
+            let now = Date().normalized()
+            for sch in schedules {
+                if let pos = calculateTrainPosition(schedule: sch, now: now, nodes: nodes, bounds: bounds, snapshotSize: snapshotSize) {
+                    drawings.append(TrainDraw(pos: pos, name: sch.trainName, color: .red))
+                }
+            }
+            return drawings
+        }
+
         
         // Static helpers (Sendable)
         static func calculateTrainPosition(schedule: TrainSchedule, now: Date, nodes: [RailwayNode], bounds: MapBounds, snapshotSize: CGSize) -> CGPoint? {
@@ -716,187 +671,112 @@ struct RailwayMapView: View {
     struct RailwayMapSnapshot: View {
         @EnvironmentObject var appState: AppState
         let data: MapSnapshotData
-        
-        private func offsetPoints(_ points: [CGPoint], by offset: CGFloat) -> [CGPoint] {
-            guard points.count > 1 else { return points }
-            var result: [CGPoint] = []
-            result.reserveCapacity(points.count)
-            for i in 0..<points.count {
-                let p = points[i]
-                var perpX: CGFloat = 0
-                var perpY: CGFloat = 0
-                
-                if i == 0 {
-                    let next = points[i + 1]
-                    let dx = next.x - p.x
-                    let dy = next.y - p.y
-                    let len = sqrt(dx * dx + dy * dy)
-                    if len > 0 {
-                        perpX = -dy / len
-                        perpY = dx / len
-                    }
-                } else if i == points.count - 1 {
-                    let prev = points[i - 1]
-                    let dx = p.x - prev.x
-                    let dy = p.y - prev.y
-                    let len = sqrt(dx * dx + dy * dy)
-                    if len > 0 {
-                        perpX = -dy / len
-                        perpY = dx / len
-                    }
-                } else {
-                    let prev = points[i - 1]
-                    let next = points[i + 1]
-                    let dx1 = p.x - prev.x
-                    let dy1 = p.y - prev.y
-                    let len1 = sqrt(dx1 * dx1 + dy1 * dy1)
-                    let dx2 = next.x - p.x
-                    let dy2 = next.y - p.y
-                    let len2 = sqrt(dx2 * dx2 + dy2 * dy2)
-                    if len1 > 0 && len2 > 0 {
-                        let perp1X = -dy1 / len1
-                        let perp1Y = dx1 / len1
-                        let perp2X = -dy2 / len2
-                        let perp2Y = dx2 / len2
-                        perpX = (perp1X + perp2X) / 2
-                        perpY = (perp1Y + perp2Y) / 2
-                        let perpLen = sqrt(perpX * perpX + perpY * perpY)
-                        if perpLen > 0 {
-                            perpX /= perpLen
-                            perpY /= perpLen
-                        }
-                    }
-                }
-                
-                result.append(CGPoint(x: p.x + perpX * offset, y: p.y + perpY * offset))
-            }
-            return result
-        }
-        
-        private func symbolSystemName(for type: RailwayNode.StationVisualType) -> String {
-            switch type {
-            case .filledSquare: return "square.fill"
-            case .emptySquare: return "square"
-            case .filledCircle: return "circle.fill"
-            case .emptyCircle: return "circle"
-            case .filledStar: return "star.fill"
-            }
-        }
+        private let renderer = RailwayRenderer()
         
         var body: some View {
             Canvas { context, size in
+                let renderingContext = RenderingContext(
+                    bounds: RenderingContext.MapBounds(
+                        minLat: data.bounds.minLat,
+                        maxLat: data.bounds.maxLat,
+                        minLon: data.bounds.minLon,
+                        maxLon: data.bounds.maxLon,
+                        xRange: data.bounds.xRange,
+                        yRange: data.bounds.yRange
+                    ),
+                    canvasSize: size,
+                    zoomLevel: 1.0,
+                    mode: data.mode == .infrastructure ? .infrastructure : .schematic
+                )
+
                 // 1. Draw Edges
                 for edge in data.edges {
-                    if edge.type == .highSpeed {
-                        // High-Speed Style Consistency
-                        context.stroke(edge.path, with: .color(.red), style: StrokeStyle(lineWidth: appState.trackWidthHighSpeed, lineCap: .square))
-                        context.stroke(edge.path, with: .color(.white.opacity(0.8)), style: StrokeStyle(lineWidth: appState.trackWidthHighSpeed * 0.4, lineCap: .round, dash: [3, 3]))
-                    } else if edge.type == .double {
-                        let separation = max(3.0, appState.trackWidthDouble * 0.6)
-                        let lineWidth = max(1.5, appState.trackWidthDouble * 0.35)
-                        let leftPath = createSmoothPath(points: offsetPoints(edge.points, by: separation / 2))
-                        let rightPath = createSmoothPath(points: offsetPoints(edge.points, by: -separation / 2))
-                        context.stroke(leftPath, with: .color(.black.opacity(0.8)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                        context.stroke(rightPath, with: .color(.black.opacity(0.8)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                    } else if edge.type == .regional {
-                        context.stroke(edge.path, with: .color(.blue.opacity(0.6)), style: StrokeStyle(lineWidth: appState.trackWidthRegional, lineCap: .round))
-                    } else {
-                        context.stroke(edge.path, with: .color(.gray.opacity(0.8)), style: StrokeStyle(lineWidth: data.globalLineWidth * 0.6, lineCap: .round))
-                    }
+                    let style = EdgeStyle.forTrackType(edge.type)
+                    renderer.drawEdge(
+                        points: edge.points,
+                        trackType: edge.type,
+                        in: context,
+                        renderingContext: renderingContext,
+                        style: style,
+                        isSelected: false
+                    )
                 }
                 
                 // 1.5 Draw Commercial Lines with Bundle Effect
-                // Group lines by bundleSize to draw gradient bundles
-                var bundleGroups: [[MapSnapshotData.LineDraw]] = []
-                var currentBundle: [MapSnapshotData.LineDraw] = []
-                var lastBundleSize = 0
-                
-                for l in data.lines.sorted(by: { $0.bundleSize > $1.bundleSize }) {
-                    if l.bundleSize != lastBundleSize && !currentBundle.isEmpty {
-                        bundleGroups.append(currentBundle)
-                        currentBundle = []
-                    }
-                    currentBundle.append(l)
-                    lastBundleSize = l.bundleSize
+                var bundleMap: [String: [Color]] = [:]
+                for l in data.lines {
+                    // Logic to reconstruct bundles from individual LineDraws if needed, 
+                    // but data.lines is already list of LineDraw.
+                    // Actually, data.lines is pre-flattened. 
+                    // Let's just draw them.
                 }
-                if !currentBundle.isEmpty {
-                    bundleGroups.append(currentBundle)
-                }
+
+                // Since data.lines is already pre-flattened with offsets in MapSnapshotData.prepare, 
+                // we should either skip it and use renderer.drawCommercialBundle or just use what's there.
+                // To be consistent with RailwayRenderer, let's use the precomputed paths if they are fine.
+                // BUT better to use drawCommercialBundle if we can. 
+                // However, MapSnapshotData already did the bundle logic.
                 
-                for bundle in bundleGroups {
-                    guard let first = bundle.first else { continue }
-                    
-                    if first.bundleSize > 3 {
-                        // INNOVATIVE: For >3 lines bundles, draw single gradient line with diamonds
-                        // Since all lines in the bundle share the same path, just draw once with gradient
-                        let colors = bundle.map { $0.color }
-                        // Extract path endpoints for gradient
-                        context.stroke(first.path, with: .color(.black.opacity(0.1)), 
-                                     style: StrokeStyle(lineWidth: appState.globalLineWidth * 2.2, lineCap: .round))
-                        context.stroke(first.path, with: .color(colors.first ?? .gray), 
-                                     style: StrokeStyle(lineWidth: appState.globalLineWidth * 1.8, lineCap: .round))
-                        // Note: Canvas doesn't support gradient strokes easily, using first color as fallback
-                    } else {
-                        // Normal rendering for 1-3 lines
-                        for l in bundle {
-                            context.stroke(l.path, with: .color(l.color), 
-                                         style: StrokeStyle(lineWidth: appState.globalLineWidth, lineCap: .round))
-                        }
-                    }
+                // Let's just draw the precomputed paths for lines to avoid re-calculating offsets.
+                for l in data.lines {
+                    context.stroke(l.path, with: .color(l.color), style: StrokeStyle(lineWidth: data.globalLineWidth, lineCap: .round))
                 }
                 
-                // 2. Hubs & Groups (Explicit logic matching live View)
+                // 2. Hubs & Groups
                 for group in data.groups {
-                    if !group.isSingle {
-                        for i in 0..<group.positions.count {
-                            for j in (i+1)..<group.positions.count {
-                                let path = Path { p in p.move(to: group.positions[i]); p.addLine(to: group.positions[j]) }
-                                context.stroke(path, with: .color(.red), style: StrokeStyle(lineWidth: 22, lineCap: .round))
-                                context.stroke(path, with: .color(.white), style: StrokeStyle(lineWidth: 14, lineCap: .round))
-                            }
-                        }
-                    }
-                    
-                    let text = Text(group.label)
-                        .font(.system(size: data.globalFontSize, weight: .bold))
-                        .foregroundColor(.red)
-                    let resolved = context.resolve(text)
-                    let sz = resolved.measure(in: CGSize(width: 400, height: 100))
-                    
-                    let bg = Path(roundedRect: CGRect(x: group.center.x - sz.width/2 - 4, y: group.center.y - sz.height/2 - 2, width: sz.width + 8, height: sz.height + 4), cornerRadius: 4)
-                    context.fill(bg, with: .color(.white.opacity(0.8)))
-                    context.draw(resolved, at: group.center)
+                    renderer.drawHubGroup(
+                        positions: group.positions,
+                        label: group.label,
+                        center: group.center,
+                        fontSize: data.globalFontSize,
+                        in: context
+                    )
                 }
                 
-                // 3. Independent Nodes
-                for node in data.nodes {
-                    if node.isHub {
-                         context.fill(Path(ellipseIn: CGRect(x: node.pos.x - 7, y: node.pos.y - 7, width: 14, height: 14)), with: .color(.white))
-                         context.stroke(Path(ellipseIn: CGRect(x: node.pos.x - 9.5, y: node.pos.y - 9.5, width: 19, height: 19)), with: .color(.red), lineWidth: 5)
+                // 3. Nodes
+                for nodeDraw in data.nodes {
+                    // Create a dummy node just for rendering
+                    let dummyNode = RailwayNode(
+                        id: "", 
+                        name: nodeDraw.name, 
+                        type: nodeDraw.nodeType, 
+                        visualType: nodeDraw.visualType,
+                        parentHubId: nodeDraw.parentHubId
+                    )
+                    
+                    let style = NodeStyle(
+                        fillColor: nodeDraw.color,
+                        strokeColor: .red,
+                        strokeWidth: 2,
+                        size: nodeDraw.nodeType == .junction ? 10 : 20,
+                        showLabel: true,
+                        isHighlighted: false,
+                        isSelected: false
+                    )
+                    
+                    // We need to use a method that takes CGPoint directly if we don't want to re-project.
+                    // I'll add drawNodeAt(point:node:in:style:) to RailwayRenderer.
+                    
+                    let point = nodeDraw.pos
+                    if nodeDraw.isHub {
+                         context.fill(Path(ellipseIn: CGRect(x: point.x - 7, y: point.y - 7, width: 14, height: 14)), with: .color(.white))
+                         context.stroke(Path(ellipseIn: CGRect(x: point.x - 9.5, y: point.y - 9.5, width: 19, height: 19)), with: .color(.red), lineWidth: 5)
                     } else {
-                         context.fill(Path(ellipseIn: CGRect(x: node.pos.x - 10, y: node.pos.y - 10, width: 20, height: 20)), with: .color(.white))
-                        let symbol = Text(Image(systemName: symbolSystemName(for: node.visualType)))
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(node.color)
-                        context.draw(symbol, at: node.pos)
+                         context.fill(Path(ellipseIn: CGRect(x: point.x - 10, y: point.y - 10, width: 20, height: 20)), with: .color(.white))
+                         let symbolName = RailwayRenderer.symbolSystemNameStatic(for: nodeDraw.visualType)
+                         let symbol = context.resolve(Text(Image(systemName: symbolName)).font(.system(size: 16, weight: .bold)).foregroundColor(nodeDraw.color))
+                         context.draw(symbol, at: point)
                         
-                        // Only draw label for: main stations (not secondary hub stations) and not junctions
-                        if node.nodeType != .junction && node.parentHubId == nil {
-                            let label = Text(node.name)
-                                .font(.system(size: data.globalFontSize, weight: .black))
-                                .foregroundColor(.black)
-                            context.draw(label, at: CGPoint(x: node.pos.x, y: node.pos.y + 28))
+                        if nodeDraw.nodeType != .junction && nodeDraw.parentHubId == nil {
+                            let label = context.resolve(Text(nodeDraw.name).font(.system(size: data.globalFontSize, weight: .black)).foregroundColor(.black))
+                            context.draw(label, at: CGPoint(x: point.x, y: point.y + 28))
                         }
                     }
                 }
                 
                 // 4. Draw Trains
                 for t in data.trains {
-                    let rect = CGRect(x: t.pos.x - 10, y: t.pos.y - 10, width: 20, height: 20)
-                    context.fill(Path(roundedRect: rect, cornerRadius: 4), with: .color(t.color))
-                    context.stroke(Path(roundedRect: rect, cornerRadius: 4), with: .color(.white), lineWidth: 2)
-                    let label = Text(t.name).font(.system(size: data.globalFontSize - 2, weight: .bold)).foregroundColor(.black)
-                    context.draw(label, at: CGPoint(x: t.pos.x, y: t.pos.y - 20))
+                    renderer.drawTrain(position: t.pos, name: t.name, color: t.color, isSelected: false, fontSize: data.globalFontSize - 2, in: context)
                 }
             }
             .frame(width: 2048, height: 1536)
@@ -1832,16 +1712,17 @@ struct StationNodeView: View {
     var onTap: () -> Void
     @Binding var isMoveModeEnabled: Bool
     var onDragStarted: (() -> Void)? = nil
+    private let renderer = RailwayRenderer()
     @State private var dragOffset: CGSize = .zero
     
     var body: some View {
-        stationContent
+        renderNodeIconWithInteraction
             .frame(width: 44, height: 44)
             .contentShape(Circle())
             .background(Circle().fill(Color.white).opacity(0.001))
             .overlay(selectionOverlay)
             .overlay(alignment: .top) { labelOverlay }
-            .onLongPressGesture(minimumDuration: 0.5) { // Use explicit value if MapConstants not visible, or assume MapConstants
+            .onLongPressGesture(minimumDuration: 0.5) { 
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
                     isMoveModeEnabled.toggle()
                 }
@@ -1861,14 +1742,11 @@ struct StationNodeView: View {
                         }
                         .onEnded { val in
                             // Commit changes using the final drag offset
-                            let drawWidth = max(canvasSize.width - 100, 1) // Using 100 padding as per projection logic
+                            let drawWidth = max(canvasSize.width - 100, 1) 
                             let drawHeight = max(canvasSize.height - 100, 1)
                             
-                            // Inverse projection delta
-                            // We use val.translation which is total drag from start
-                            
                             let dLon = (val.translation.width / drawWidth) * bounds.xRange
-                            let dLat = -(val.translation.height / drawHeight) * bounds.yRange // Y is inverted because map Y grows down
+                            let dLat = -(val.translation.height / drawHeight) * bounds.yRange 
                             
                             var newNode = node
                             let lat = (newNode.latitude ?? 0) + dLat
@@ -1883,7 +1761,7 @@ struct StationNodeView: View {
                                 newNode.longitude = lon
                             }
                             
-                            node = newNode // This triggers AppState update
+                            node = newNode 
                             dragOffset = .zero
                         }
                 : nil
@@ -1892,26 +1770,18 @@ struct StationNodeView: View {
     }
 
     @ViewBuilder
-    private var stationContent: some View {
-        if node.name.isEmpty || node.type == .junction {
-            // Geometry Point or Junction (No station icon)
-            Circle()
-                .fill(Color.black)
-                .frame(width: node.type == .junction ? 10 : 8, height: node.type == .junction ? 10 : 8)
-                .shadow(color: .white.opacity(0.8), radius: 1)
-        } else if node.type == .interchange {
-            ZStack {
-                Circle().fill(Color.white).frame(width: 22, height: 22)
-                Circle().stroke(Color.red, lineWidth: 6).frame(width: 22, height: 22)
-            }
-        } else {
-            let color = Color(hex: node.customColor ?? node.defaultColor) ?? .black
-            let visualType = node.visualType ?? node.defaultVisualType
-            ZStack {
-                Circle().fill(Color.white).frame(width: 24, height: 24)
-                symbolView(type: visualType, color: color).frame(width: 24, height: 24)
-            }
-        }
+    private var renderNodeIconWithInteraction: some View {
+        let style = NodeStyle(
+            fillColor: Color(hex: node.customColor ?? node.defaultColor) ?? .black,
+            strokeColor: .blue,
+            strokeWidth: 2,
+            size: node.type == .junction ? 10 : 24,
+            showLabel: false,
+            isHighlighted: false,
+            isSelected: isSelected
+        )
+        
+        renderer.renderNodeIcon(node, style: style)
     }
 
     @ViewBuilder
@@ -2149,18 +2019,29 @@ struct InfrastructureCanvas: View {
     let renderData: MapRenderData
     let totalZoom: CGFloat
     
+    private let renderer = RailwayRenderer()
+    
     var body: some View {
         Canvas { context, size in
-            // 1. Disegno Archi (Infrastruttura Fisica) - COMMAND
+            let renderingContext = RenderingContext(
+                bounds: RenderingContext.MapBounds(
+                    minLat: renderData.bounds.minLat,
+                    maxLat: renderData.bounds.maxLat,
+                    minLon: renderData.bounds.minLon,
+                    maxLon: renderData.bounds.maxLon,
+                    xRange: renderData.bounds.xRange,
+                    yRange: renderData.bounds.yRange
+                ),
+                canvasSize: size,
+                zoomLevel: totalZoom,
+                mode: mode == .infrastructure ? .infrastructure : .schematic
+            )
+
+            // 1. Disegno Archi (Infrastruttura Fisica)
             for edge in appState.railroad.network.edges {
                 guard let points = renderData.edgeGeometries[edge.id.uuidString] else { continue }
                 
-                // Usa la nuova funzione per creare curve morbide
-                let path = createSmoothPath(points: points)
-                let effectiveType = edge.trackType
-                var lineWidth: CGFloat = 1.0
-                
-                // --- HIGHLIGHT FERROVIA (BACK) ---
+                // Highlight Ferrovia (Back)
                 if let selectedFerrovia = appState.selectedFerrovia {
                     let stationIds = selectedFerrovia.stationIds
                     var isPartOfFerrovia = false
@@ -2172,117 +2053,71 @@ struct InfrastructureCanvas: View {
                             break
                         }
                     }
-                    
                     if isPartOfFerrovia {
                         let fColor = Color(hex: selectedFerrovia.color ?? "#000000") ?? .blue
+                        let path = Path { p in p.move(to: points[0]); for i in 1..<points.count { p.addLine(to: points[i]) } }
                         context.stroke(path, with: .color(fColor.opacity(0.4)), style: StrokeStyle(lineWidth: 18, lineCap: .round))
                     }
                 }
                 
-                if effectiveType == .highSpeed {
-                    lineWidth = appState.trackWidthHighSpeed
-                    context.stroke(path, with: .color(.red), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                    context.stroke(path, with: .color(.white.opacity(0.8)), style: StrokeStyle(lineWidth: lineWidth * 0.4, lineCap: .round, dash: MapConstants.highSpeedDash))
-                } else if effectiveType == .double {
-                    lineWidth = appState.trackWidthDouble
-                    context.stroke(path, with: .color(.black.opacity(0.7)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                    context.stroke(path, with: .color(.gray.opacity(0.5)), style: StrokeStyle(lineWidth: lineWidth - 1.5, lineCap: .round))
-                    context.stroke(path, with: .color(.black.opacity(0.9)), style: StrokeStyle(lineWidth: lineWidth * 0.23, lineCap: .round))
-                } else if effectiveType == .regional {
-                    lineWidth = appState.trackWidthRegional
-                    context.stroke(path, with: .color(.blue.opacity(0.6)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                } else {
-                    lineWidth = appState.trackWidthSingle
-                    context.stroke(path, with: .color(.gray.opacity(0.6)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                }
+                let isSelected = !mode.isSchedulerMode && appState.selectedEdgeId == edge.id.uuidString
+                let style = EdgeStyle.forTrackType(edge.trackType)
                 
-                if !mode.isSchedulerMode && appState.selectedEdgeId == edge.id.uuidString {
-                    context.stroke(path, with: .color(Color.accentColor.opacity(0.4)), style: StrokeStyle(lineWidth: lineWidth + 4, lineCap: .round))
-                    context.stroke(path, with: .color(Color.accentColor), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
-                }
-                
-                // Detailed segments visualization removed - segments and signals will be shown in dedicated infrastructure tab
+                renderer.drawEdge(
+                    points: points,
+                    trackType: edge.trackType,
+                    in: context,
+                    renderingContext: renderingContext,
+                    style: style,
+                    isSelected: isSelected
+                )
             }
 
-            // 2. Visualizzazione Hub - COMMAND
+            // 2. Visualizzazione Hub
             for (hubId, positions) in renderData.hubGeometries {
-                for i in 0..<positions.count {
-                    for j in (i+1)..<positions.count {
-                        let hPath = Path { p in p.move(to: positions[i]); p.addLine(to: positions[j]) }
-                        context.stroke(hPath, with: .color(.red), style: StrokeStyle(lineWidth: 22, lineCap: .round))
-                        context.stroke(hPath, with: .color(.white), style: StrokeStyle(lineWidth: 14, lineCap: .round))
-                    }
-                }
-                let maxY = positions.map { $0.y }.max() ?? positions[0].y
-                let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
                 let parentNode = appState.railroad.network.nodes.first(where: { $0.id == hubId }) ?? appState.railroad.network.nodes.first
-                MapDrawing.drawNodeLabel(context: context, text: parentNode?.name ?? "", at: CGPoint(x: centerX, y: maxY + 35), color: .red, fontSize: appState.globalFontSize)
+                let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
+                let maxY = positions.map { $0.y }.max() ?? positions[0].y
+                
+                renderer.drawHubGroup(
+                    positions: positions,
+                    label: parentNode?.name ?? "",
+                    center: CGPoint(x: centerX, y: maxY + 35),
+                    fontSize: appState.globalFontSize,
+                    in: context
+                )
             }
             
-            // 3. Linee Commerciali - COMMAND
+            // 3. Linee Commerciali
             if mode.isSchedulerMode {
                 for (key, precomputedLines) in renderData.commercialLines {
-                    // Find the edge(s) connecting these two stations
                     let matchingEdge = appState.railroad.network.edges.first { edge in
                         (edge.from == key.from && edge.to == key.to) || (edge.from == key.to && edge.to == key.from)
                     }
                     guard let edge = matchingEdge,
                           let points = renderData.edgeGeometries[edge.id.uuidString] else { continue }
                     
-                    let bundleSize = precomputedLines.count
+                    let colors = precomputedLines.map { $0.color }
+                    let isSelected = precomputedLines.contains { $0.isSelected }
                     
-                    for j in 0..<(points.count - 1) {
-                        let sp1 = points[j]; let sp2 = points[j+1]
-                        let angle = atan2(sp2.y - sp1.y, sp2.x - sp1.x)
-                        
-                        if bundleSize > 3 {
-                            // INNOVATIVE: For >3 lines, draw single gradient line with diamond indicators
-                            let colors = precomputedLines.map { $0.color }
-                            let path = Path { p in p.move(to: sp1); p.addLine(to: sp2) }
-                            
-                            // Draw gradient base
-                            let gradient = Gradient(colors: colors)
-                            let gradientStart = sp1
-                            let gradientEnd = sp2
-                            context.stroke(path, with: .linearGradient(gradient, startPoint: gradientStart, endPoint: gradientEnd), 
-                                         style: StrokeStyle(lineWidth: appState.globalLineWidth * 1.8, lineCap: .round))
-                            
-                            // Draw white diamond indicators
-                            let midX = (sp1.x + sp2.x) / 2
-                            let midY = (sp1.y + sp2.y) / 2
-                            let diamondSize: CGFloat = 6
-                            let diamondPath = Path { p in
-                                p.move(to: CGPoint(x: midX, y: midY - diamondSize))
-                                p.addLine(to: CGPoint(x: midX + diamondSize, y: midY))
-                                p.addLine(to: CGPoint(x: midX, y: midY + diamondSize))
-                                p.addLine(to: CGPoint(x: midX - diamondSize, y: midY))
-                                p.closeSubpath()
-                            }
-                            context.fill(diamondPath, with: .color(.white))
-                            context.stroke(diamondPath, with: .color(.gray.opacity(0.5)), lineWidth: 1)
-                        } else {
-                            // Normal rendering for 1-3 lines
-                            for (i, pLine) in precomputedLines.enumerated() {
-                                let offset = CGFloat(i) * MapConstants.lineOffsetBase - (CGFloat(precomputedLines.count - 1) * MapConstants.lineOffsetBase / 2.0)
-                                let lp1 = CGPoint(x: sp1.x - sin(angle) * offset, y: sp1.y + cos(angle) * offset)
-                                let lp2 = CGPoint(x: sp2.x - sin(angle) * offset, y: sp2.y + cos(angle) * offset)
-                                
-                                let path = Path { p in p.move(to: lp1); p.addLine(to: lp2) }
-                                let lineWidth = pLine.isSelected ? appState.globalLineWidth * MapConstants.commercialLineSelectionMultiplier : appState.globalLineWidth
-                                context.stroke(path, with: .color(pLine.color), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                            }
-                        }
-                    }
+                    renderer.drawCommercialBundle(
+                        points: points,
+                        colors: colors,
+                        isSelected: isSelected,
+                        globalLineWidth: appState.globalLineWidth,
+                        bundleOffsetBase: MapConstants.lineOffsetBase,
+                        in: context
+                    )
                 }
             }
         }
         .frame(width: renderData.size.width, height: renderData.size.height)
     }
+}
     
     // MARK: - Detailed Drawing Helpers
     // Note: Track segments and signals visualization removed from map
     // These will be shown in a dedicated infrastructure detail view
-}
 
 struct TrainOverlayCanvas: View {
     @EnvironmentObject var appState: AppState
@@ -2292,19 +2127,23 @@ struct TrainOverlayCanvas: View {
     let canvasSize: CGSize
     let totalZoom: CGFloat
     
+    private let renderer = RailwayRenderer()
+    
     var body: some View {
         TimelineView(.animation) { timelineContext in
             Canvas { context, size in
                 let now = appState.liveSim.currentSimTime
                 for schedule in appState.simulator.schedules {
                     if let pos = MapGeometryEngine.currentSchematicTrainPos(for: schedule, in: size, now: now, bounds: bounds, network: network) {
-                        let trainDot = Path(ellipseIn: CGRect(x: pos.x - 6, y: pos.y - 6, width: 12, height: 12))
-                        context.fill(trainDot, with: .color(.yellow))
-                        context.stroke(trainDot, with: .color(.black), lineWidth: 1)
-                        if totalZoom > 2.0 {
-                            let label = Text(schedule.trainName).font(.caption2).bold()
-                            context.draw(label, at: CGPoint(x: pos.x, y: pos.y - 15))
-                        }
+                        let isSelected = appState.selectedTrainIds.contains(schedule.trainId)
+                        renderer.drawTrain(
+                            position: pos,
+                            name: schedule.trainName,
+                            color: .yellow,
+                            isSelected: isSelected,
+                            fontSize: totalZoom > 2.0 ? 10 : 0,
+                            in: context
+                        )
                     }
                 }
             }

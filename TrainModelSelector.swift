@@ -26,6 +26,19 @@ struct TrainModel: Codable, Identifiable {
         let coefficiente_aderenza: Double
     }
     
+    /// Inferisce se il treno è a trazione elettrica dall'acronimo del tipo.
+    /// Elettrici: ETR, ALe, E., Re, SBB IC (a locomotiva elettrica).
+    /// Diesel/Idrogeno: ATR, ALn, D., DMU.
+    var isElectric: Bool {
+        let t = tipo.uppercased()
+        let electricPrefixes = ["ETR", "ALE", "E.", "RE ", "HTR", "EMU"]
+        let dieselPrefixes   = ["ATR", "ALN", "D.", "DMU", "DIESEL"]
+        if dieselPrefixes.contains(where: { t.hasPrefix($0) }) { return false }
+        if electricPrefixes.contains(where: { t.hasPrefix($0) }) { return true }
+        // Fallback: potenza elevata su trazione continua -> probabile elettrico
+        return specifiche.potenza_kw > 1000
+    }
+    
     /// Converti TrainModel in Vehicle per l'uso nel sistema
     func toVehicle(name: String? = nil) -> Vehicle {
         Vehicle(
@@ -37,7 +50,8 @@ struct TrainModel: Codable, Identifiable {
             deceleration: fisica.frenatura_servizio_m_s2,
             mass: specifiche.massa_tonnellate,
             power: Double(specifiche.potenza_kw),
-            imageName: asset_name
+            imageName: asset_name,
+            isElectric: isElectric
         )
     }
 }
@@ -382,15 +396,21 @@ struct CircularProgressView: View {
 // MARK: - Supporting Types
 
 struct LineCharacteristics {
-    let totalDistance: Double  // km
-    let averageStopDistance: Double  // km
+    let totalDistance: Double       // km
+    let averageStopDistance: Double // km
     let numberOfStops: Int
-    let maxLineSpeed: Double  // km/h
+    let maxLineSpeed: Double        // km/h
     let serviceType: TrainCategory
-    let frequency: Int?  // minutes
+    let frequency: Int?             // minuti
+    let maxGradient: Double?        // ‰ (permille), nil se non disponibile
+    let isElectrified: Bool         // true se la linea è elettrificata
     
     var isFrequentStops: Bool {
         averageStopDistance < 10
+    }
+    
+    var isMountainLine: Bool {
+        (maxGradient ?? 0) > 15
     }
     
     var isLongDistance: Bool {
@@ -440,50 +460,81 @@ class TrainDatabase {
         return .suburban
     }
     
-    /// Calcola uno score di idoneità del modello per le caratteristiche della linea
+    /// Calcola uno score di idoneità del modello per le caratteristiche della linea (0-100).
+    /// La formula usa cinque fattori ponderati:
+    /// - Velocità: match tra velocità max modello e velocità max linea (35 pt)
+    /// - Tipo servizio: compatibilità categoriale modello/linea (20 pt)
+    /// - Fermate ravvicinate: coppie (accel + tipo) per linee con fermate frequenti (20 pt)
+    /// - Pendenza: potenza specifica (kW/t) per linee montuose (15 pt)
+    /// - Alimentazione + frequenza (10 pt)
     func calculateSuitabilityScore(model: TrainModel, for line: LineCharacteristics) -> Double {
+        // Esclusione assoluta: treno elettrico su linea non elettrificata
+        if model.isElectric && !line.isElectrified { return 0 }
+        
         var score = 0.0
         
-        // 1. Speed match (40 points max)
+        // 1. VELOCITÀ (35 pt max)
+        // Penalizza progressivamente la distanza dalla velocità ideale della linea.
         let speedDiff = abs(Double(model.specifiche.velocita_max_kmh) - line.maxLineSpeed)
-        let speedScore = max(0, 40 - speedDiff / 5)
+        let speedScore = max(0, 35.0 - (speedDiff / 5.0))
         score += speedScore
         
-        // 2. Acceleration for frequent stops (30 points max)
-        if line.isFrequentStops {
-            // Più accelerazione è meglio per fermate frequenti
-            let accelScore = min(30, model.fisica.accelerazione_m_s2 * 25)
-            score += accelScore
-        } else {
-            // Per linee con poche fermate, l'accelerazione è meno importante
-            score += 15
-        }
-        
-        // 3. Service type compatibility (20 points max)
+        // 2. TIPO SERVIZIO (20 pt max)
         let modelType = inferTrainType(from: model)
-        let typeCompatibility: Double = {
-            switch (line.serviceType, modelType) {
-            case (.highSpeed, .highSpeed): return 20
-            case (.direct, .intercity): return 20
-            case (.direct, .regional): return 15
-            case (.regional, .regional): return 20
-            case (.regional, .suburban): return 18
-            case (.freight, _): return 10  // Merci è speciale
-            default: return 5
-            }
-        }()
-        score += typeCompatibility
-        
-        // 4. Frequency suitability (10 points max)
-        if let freq = line.frequency {
-            if freq <= 15 && model.fisica.accelerazione_m_s2 > 0.9 {
-                score += 10  // Alta frequenza richiede accelerazione rapida
-            } else if freq >= 60 {
-                score += 8   // Bassa frequenza, meno critico
-            } else {
-                score += 5
-            }
+        let typeScore: Double = switch (line.serviceType, modelType) {
+        case (.highSpeed, .highSpeed):   20
+        case (.direct,    .intercity):   20
+        case (.direct,    .regional):    14
+        case (.regional,  .regional):    20
+        case (.regional,  .suburban):    16
+        case (.freight,   _):            10
+        default:                          5
         }
+        score += typeScore
+        
+        // 3. FERMATE RAVVICINATE E ACCELERAZIONE (20 pt max)
+        // Su linee con distanza media tra fermate < 10 km (es. suburbano),
+        // l’accelerazione è il fattore più critico. Su linee a lunga percorrenza conta meno.
+        let accelScore: Double
+        if line.isFrequentStops {
+            accelScore = min(20, model.fisica.accelerazione_m_s2 * 16.0) // 1.25 m/s² -> 20pt
+        } else if line.averageStopDistance < 20 {
+            accelScore = min(14, model.fisica.accelerazione_m_s2 * 10.0) + 3
+        } else {
+            accelScore = 10 // Fermate rade: accelerazione meno critica
+        }
+        score += accelScore
+        
+        // 4. PENDENZA (15 pt max)
+        // Usa la potenza specifica (kW/tonnellate) come indicatore reale di capacità
+        // di gestire le pendenze, non l’accelerazione in piano che è un proxy errato.
+        if let gradient = line.maxGradient, gradient > 5 {
+            let specificPower = Double(model.specifiche.potenza_kw) / max(model.specifiche.massa_tonnellate, 1)
+            // Soglie: pianura <5‰, media >10, montagna >20, ripida >30
+            let requiredPower: Double
+            if      gradient > 30 { requiredPower = 20 }
+            else if gradient > 20 { requiredPower = 14 }
+            else if gradient > 10 { requiredPower =  9 }
+            else                  { requiredPower =  6 }
+            let gradientScore = min(15, (specificPower / requiredPower) * 15)
+            score += gradientScore
+        } else {
+            score += 10 // Linea pianeggiante: punteggio neutro
+        }
+        
+        // 5. ALIMENTAZIONE + FREQUENZA (10 pt max)
+        var lastScore = 0.0
+        // Bonus elettrificazione: treno elettrico su linea elettrificata è preferibile a diesel
+        lastScore += line.isElectrified ? (model.isElectric ? 6 : 0) : 4
+        // Frequenza: alta frequenza richiede accelerazione rapida
+        if let freq = line.frequency {
+            if      freq <= 15 && model.fisica.accelerazione_m_s2 > 0.9 { lastScore += 4 }
+            else if freq >= 60                                           { lastScore += 3 }
+            else                                                         { lastScore += 2 }
+        } else {
+            lastScore += 2
+        }
+        score += lastScore
         
         return min(100, score)
     }

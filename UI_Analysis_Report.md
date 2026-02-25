@@ -15,19 +15,24 @@ Punto di ingresso principale che coordina i vari overlay della UI e la gestione 
 | `LiveSimulationShelf.body` | Barra dei controlli per la simulazione in tempo reale. | 25 | 2 |
 
 ### `ContentView+Main.swift`
-Gestisce lo switch del contenuto centrale della finestra (Mappa, AI, Settings, etc.) in base alla navigazione.
+Gestisce lo switch del contenuto centrale della finestra (Mappa, AI, Settings, etc.) in base alla navigazione. Refactoring effettuato per migliorare la modularità.
 
 | Metodo / Proprietà | Descrizione | Lunghezza (LOC) | Complessità (CC) |
 | :--- | :--- | :---: | :---: |
-| `detailContent` | Seleziona la visualizzazione principale (Editor, Mappa, Orario, AI) basata sullo stato. | 63 | 12 |
+| `detailContent` | Seleziona la visualizzazione principale (Editor o MainArea). | 10 | 2 |
+| `mainAreaContent` | Switcher principale basato sulla sidebar selection. | 35 | 10 |
+| `mapDetailView` | Incapsula la visualizzazione della RailwayMapView. | 5 | 1 |
+| `stationTimetableView`| Gestisce la tabella oraria con logica di placeholder. | 15 | 3 |
 | `isSomethingSelected` | Helper per verificare se ci sono elementi selezionati. | 3 | 1 |
 
 ### `ContentView+Sidebar.swift`
-Definisce il contenuto della barra laterale di navigazione.
+Definisce il contenuto della barra laterale di navigazione. Ottimizzato tramite estrazione di sub-views.
 
 | Metodo / Proprietà | Descrizione | Lunghezza (LOC) | Complessità (CC) |
 | :--- | :--- | :---: | :---: |
-| `sidebarContent` | Switcher tra le liste di rete (Stazioni, Treni, Linee, etc.) nella sidebar. | 63 | 14 |
+| `sidebarContent` | Coordinatore della navigazione sidebar. | 12 | 2 |
+| `sidebarSelectionContent`| Switcher atomico per ogni categoria della sidebar. | 40 | 12 |
+| `networkListView` | Factory per la lista di rete con setup dei binding. | 15 | 2 |
 
 ### `ContentView+Toolbar.swift`
 Gestisce la barra degli strumenti superiore, inclusi i bottoni per Undo/Redo e il Tab switcher.
@@ -75,15 +80,25 @@ Interfaccia utente per la generazione guidata di nuovi orari ferroviari.
 | `ScheduleChangeModifiersA/B` | Gruppi di osservatori `onChange` per sincronizzare lo stato del ViewModel. | 30 | 14 |
 
 ### `ScheduleCreationViewModel.swift`
-Orchestratore della logica di creazione orari. Coordina l'interfaccia con i servizi di calcolo specializzati.
+Orchestratore della logica di creazione orari. Coordina l'interfaccia con i servizi di calcolo specializzati e gestisce la pipeline di generazione tramite `ScheduleGenerationEngine`.
 
 | Metodo / Proprietà | Descrizione | Lunghezza (LOC) | Complessità (CC) |
 | :--- | :--- | :---: | :---: |
-| `generateSchedule` | Pipeline principale: prepara i treni, ottimizza e pubblica i risultati. | 25 | 4 |
+| `generateSchedule` | Prepara i parametri e avvia l'engine di generazione/ottimizzazione. | 25 | 4 |
 | `updateStationSequence` | Risolve la sequenza stazioni e ricalcola distanza/tempi tramite servizi. | 15 | 2 |
 | `alignToTakt` | Delega al `TaktEngine` il calcolo dell'orario allineato ai nodi hub. | 10 | 1 |
 | `vehicleSuitabilityScore` | Calcola l'appeal di un mezzo per la linea tramite `SuitabilityEngine`. | 8 | 1 |
 | `injectDependencies` | Gestisce l'iniezione asincrona dei servizi con la rete reale. | 12 | 1 |
+
+### `ScheduleGenerationEngine.swift` (Aggiornato)
+Motore specializzato nell'istanziazione di treni e ottimizzazione automatica (Shift, AI, GA).
+
+| Metodo / Proprietà | Descrizione | Lunghezza (LOC) | Complessità (CC) |
+| :--- | :--- | :---: | :---: |
+| `generate` | Orchestratore principale della pipeline (preparazione -> ottimizzazione -> rotazione). | 35 | 5 |
+| `prepareTrains` | Calcola i parametri fisici e istanzia i treni (standard o Takt120). | 40 | 8 |
+| `runOptimizationPipeline` | Esegue la sequenza di ottimizzazione (Cadenza/AI/Genetica). | 15 | 3 |
+| `applyVehicleRotation` | Ottimizza l'assegnazione dei mezzi riducendo i vuoti e rispettando il turnaround. | 12 | 2 |
 
 ---
 
@@ -137,13 +152,14 @@ Container principale per la modalità editor della rete. Coordina la mappa e i p
 | `verticalToolbox` | Barra degli strumenti verticale (creazione stazione, binario, delete). | 35 | 4 |
 
 ### `AltimetricProfileView.swift`
-Componente estratto per la gestione del profilo altimetrico e livellamento pendenze.
+Componente per la visualizzazione del profilo altimetrico. Utilizza la struttura `AltitudePoint` (definita in `InfrastructureTypes.swift`) per mappare quote e stazioni.
 
 | Metodo / Proprietà | Descrizione | Lunghezza (LOC) | Complessità (CC) |
 | :--- | :--- | :---: | :---: |
 | `body` | Layout del grafico altimetrico filtrato per linea o selezione. | 45 | 4 |
 | `smartUpdateNodeAltitude` | Algoritmo di propagazione pendenze per rispettare i limiti tecnici (35‰). | 65 | 12 |
 | `handleGraphClick` | Gestisce l'interazione sul grafico per modificare quote o creare bivi. | 55 | 10 |
+| `calculatePoints` | Genera la sequenza di punti (distanza/quota) per il rendering del profilo. | 40 | 8 |
 
 ### `EditorInspectorContent.swift` / `EditorFerrovieComponents.swift`
 Componenti modulari per l'ispezione della rete e la gestione gerarchica delle ferrovie.
@@ -173,28 +189,39 @@ Ispettore dettagliato per un singolo treno.
 | `itineraryView` | Visualizzazione dell'itinerario verticale con fermate e orari. | 8 | 2 |
 
 ### `RollingStockView.swift`
-Gestione dell'inventario dei veicoli ferroviari (parco mezzi).
+Gestione dell'inventario dei veicoli ferroviari (parco mezzi). Refactoring massivo effettuato per estrarre ispettori e editor.
 
 | Metodo / Proprietà | Descrizione | Lunghezza (LOC) | Complessità (CC) |
 | :--- | :--- | :---: | :---: |
 | `body` | Dashboard del materiale rotabile con raggruppamento dinamico. | 46 | 5 |
-| `vehicleListByLine` | Organizza i veicoli in base alle linee su cui sono attualmente impiegati. | 61 | 10 |
-| `VehicleEditSheet.body` | Form di editing tecnico (lunghezza, velocità max, accelerazione, trazione). | 141 | 12 |
-| `TrainSelectionPicker.body`| Interfaccia per assegnare un veicolo a una corsa specifica con "Smart Filter" spaziale. | 112 | 14 |
-| `checkPotentialConflict` | Verifica preventiva di conflitti temporali prima di assegnare un turno. | 15 | 4 |
+| `vehicleListByLine` | Organizza i veicoli in base alle linee su cui sono impiegati. | 55 | 8 |
+
+### `VehicleComponents.swift`
+Nuovo file che ospita i componenti UI estratti da RollingStockView per ridurre la densità di codice.
+
+| Metodo / Proprietà | Descrizione | Lunghezza (LOC) | Complessità (CC) |
+| :--- | :--- | :---: | :---: |
+| `VehicleEditSheet` | Form di editing tecnico del materiale rotabile. | 155 | 14 |
+| `TrainSelectionPicker`| Interfaccia di assegnazione treni con Smart Filter spaziale. | 125 | 12 |
+| `VehicleInspectorView`| Visualizzazione dettagliata (premium) con specifiche tecniche. | 260 | 18 |
+| `checkPotentialConflict`| Rilevamento preventivo sovrapposizioni nei turni materiale. | 22 | 5 |
 
 ---
 
 ### 5. Mappe e Diagrammi
 
 ### `RailwayMapView.swift`
-Container principale per la visualizzazione della rete, gestisce esportazione e stampa.
+Container principale per la visualizzazione della rete. Gestisce la selezione multipla di treni e l'esportazione.
 
 | Metodo / Proprietà | Descrizione | Lunghezza (LOC) | Complessità (CC) |
 | :--- | :--- | :---: | :---: |
-| `exportMap` | Gestisce l'esportazione asincrona in PDF/JPEG tramite `ImageRenderer`. | 45 | 3 |
-| `MapSnapshotData.prepare`| Prepara una "snapshot" immutabile dei dati per il rendering non-blocking. | 240 | 18 |
-| `RailwayMapSnapshot` | Vista dedicata per il rendering statico (Canvas) ad alta risoluzione. | 130 | 12 |
+| `exportMap` | Gestisce l'esportazione asincrona in PDF/JPEG. | 45 | 3 |
+| `MapSnapshotData.prepare`| Orchestratore del pre-rendering (refactored). | 42 | 4 |
+| `generateEdgeDraws` | Genera i dati di disegno per gli archi (binari). | 45 | 8 |
+| `generateNodeDraws` | Genera i dati di disegno per i nodi (stazioni). | 18 | 2 |
+| `generateLineDraws` | Genera le tracce delle linee commerciali sulla mappa. | 55 | 6 |
+| `generateTrainDraws` | Calcola le posizioni dinamiche dei treni in transito. | 65 | 8 |
+| `RailwayMapSnapshot` | Vista dedicata per il rendering statico (Canvas). | 130 | 12 |
 
 ### `SchematicRailwayView.swift`
 Core della mappa interattiva (Canvas), gestisce zoom, pan e interazione con gli elementi.
@@ -274,39 +301,43 @@ Gestione del grafo fisico e algoritmi di pathfinding.
 
 ### 8. Gestione Linee e Validazione
 
-### `LinesManager.swift`
-Logica di business per i servizi commerciali e assegnazione turni.
+### `LinesManager.swift` (Ottimizzato)
+Logica di business per i servizi commerciali e assegnazione turni. Refactoring massivo effettuato per ridurre la complessità operativa e migliorare la manutenibilità.
 
 | Metodo / Proprietà | Descrizione | Lunghezza (LOC) | Complessità (CC) |
 | :--- | :--- | :---: | :---: |
-| `autoAssignRollingStock` | Algoritmo euristico per l'assegnazione automatica dei treni ai veicoli. | 126 | 15 |
-| `refreshSchedules` | Ricalcola tutti gli orari di passaggio in base a velocità e dwell time. | 68 | 12 |
-| `validateSchedules` | avvia il rilevamento conflitti e aggiorna lo stato di validità globale. | 12 | 2 |
+| `autoAssignRollingStock` | Coordinatore dell'assegnazione materiale. Logica estratta in helper specializzati. | 35 | 4 |
+| `refreshSchedules` | Pipeline di ricalcolo orari delegata a `updateTrainStops`. | 10 | 2 |
+| `validateSchedules` | Avvia il rilevamento conflitti e aggiorna lo stato di validità globale. | 12 | 2 |
+| `findBestVehicleCandidate` | Algoritmo di selezione del veicolo ideale basato su flotta e turnaround. | 30 | 6 |
+| `updateTrainStops` | Motore di calcolo fermate sequenziale con gestione dwell e transit. | 25 | 4 |
 
 ---
 
 ### 9. Motore Rilevamento Conflitti
 
-### `ConflictManager.swift`
-Algoritmi di analisi per sovrapposizioni temporali e saturazione risorse.
+### `ConflictManager.swift` (Refactored)
+Algoritmi di analisi per sovrapposizioni temporali e saturazione risorse. Ottimizzato tramite decomposizione funzionale per analisi veloci.
 
 | Metodo / Proprietà | Descrizione | Lunghezza (LOC) | Complessità (CC) |
 | :--- | :--- | :---: | :---: |
 | `detectConflicts` | Metodo asincrono che lancia i task di analisi su thread di background. | 54 | 4 |
 | `calculateScheduleConflicts` | Cuore del rilevamento saturazione tratte (SEGMENT) e binari (STATION). | 85 | 18 |
-| `detectOverlaps` | Rileva se N intervalli temporali superano la capacità di una risorsa. | 32 | 9 |
+| `detectOverlaps` | Metodo coordinatore per l'analisi delle sovrapposizioni (timeline-based). | 25 | 3 |
+| `generateConflictsAtEvent` | Generatore granulare di record di conflitto per risorsa e istante. | 20 | 5 |
 
 ---
 
 ### 10. Persistenza e Integrazione
 
-### `IOManager.swift`
-Gestione del salvataggio JSON e importazione da formati esterni (FDC).
+### `IOManager.swift` (Stabilità Migliorata)
+Gestione della persistenza tramite `RailwayNetworkDTO` e importazione FDC.
 
 | Metodo / Proprietà | Descrizione | Lunghezza (LOC) | Complessità (CC) |
 | :--- | :--- | :---: | :---: |
-| `save / load` | Serializzazione asincrona dell'intero database ferroviario in JSON. | 35 | 4 |
-| `importFromFDC` | Parser complesso per importare file `.fdc` esterni ricalcolando i tempi. | 95 | 16 |
+| `save / load` | Serializzazione tramite DTO esteso (incluse Ferrovie e Veicoli). | 35 | 4 |
+| `importFromFDC` | Parser per file `.fdc`. Corretto l'allineamento con `FDCScheduleData`. | 95 | 16 |
+| `populate` | Popola i sotto-sistemi da un DTO, includendo l'infrastruttura fisica (Ferrovie). | 15 | 2 |
 
 ### 10b. Servizi di Scheduling e Calcolo (Modularization)
 Componenti puri estratti per gestire la complessità del calcolo ferroviario.
@@ -367,6 +398,16 @@ Motore evolutivo per la minimizzazione dei conflitti e il bilanciamento orario.
 | `optimize` | Loop evolutivo principale con gestione di fitness e mutazione adattiva. | 68 | 15 |
 | `evaluatePopulation` | Calcolo parallelo della fitness per ogni individuo della popolazione. | 17 | 4 |
 | `precalculateTransitTimes` | Motore cinematico per stimare i tempi di percorrenza teorici. | 32 | 6 |
+
+#### `GeneticOptimizerEvaluator.swift` (Ottimizzato)
+Responsabile per la valutazione della fitness tramite analisi multidimensionale di conflitti e vincoli commerciali.
+
+| Metodo / Proprieta | Descrizione | Lunghezza (LOC) | Complessita (CC) |
+| :--- | :--- | :---: | :---: |
+| `evaluate` | Orchestratore della valutazione fitness (refactored). | 15 | 2 |
+| `calculateResourceConflicts` | Analisi delle collisioni fisiche basata su timeline di eventi. | 25 | 6 |
+| `calculateFitness` | Aggregatore di penali e bonus per il calcolo del punteggio finale. | 20 | 4 |
+| `collectOccupationsAndPenalties`| Raccoglie i dati di occupazione e calcola le penali sui vincoli fissi. | 45 | 8 |
 
 ---
 

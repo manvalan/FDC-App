@@ -5,7 +5,7 @@ import SwiftUI
 /// Operations: Gestione operativa di Linee e Treni.
 /// Responsabile della validazione degli orari e del rilevamento conflitti.
 @MainActor
-final class LinesManager: ObservableObject {
+public final class LinesManager: ObservableObject {
     @Published var lines: [RailwayLine] = [] {
         didSet { validateSchedules() }
     }
@@ -142,80 +142,30 @@ final class LinesManager: ObservableObject {
                   let endStation = train.stops.last?.stationId else { continue }
             
             // A. Trova veicolo disponibile
-            // Criteri:
-            // 1. Deve essere alla stazione di partenza 'startStation'
-            // 2. Deve essere disponibile prima di 'depTime' (considerando buffer 15 min)
             let isLineElectrified = InfrastructureService(network: network).checkPathElectrification(stationIds: line.stops.map { $0.stationId })
             
-            let candidates = fleetStatus.filter { (vid, status) -> Bool in
-                guard let v: RailwayVehicle = vehicles.first(where: { (veh: RailwayVehicle) in veh.id == vid }) else { return false }
-                
-                // Filtro elettrificazione
-                if !isLineElectrified && v.isElectric {
-                    return false // Treno elettrico su linea non elettrificata
-                }
-                
-                return status.station == startStation && depTime >= status.time.addingTimeInterval(buffer)
-            }
-            
-            // Strategia di scelta:
-            // - Priorità 1: Veicolo che deve "chiudere" il giro (numero corse dispari) -> Ritorno
-            // - Priorità 2: Veicolo con meno corse totali (Bilanciamento usura)
-            let oddServiceCandidates = candidates.filter { $0.value.serviceCount % 2 != 0 }
-            var bestCandidate: UUID? = oddServiceCandidates.min(by: { $0.value.serviceCount < $1.value.serviceCount })?.key
-            
-            if bestCandidate == nil {
-                // Se nessun ritorno prioritario, prendi qualsiasi disponibile, preferendo chi ha lavorato meno
-                bestCandidate = candidates.min(by: { $0.value.serviceCount < $1.value.serviceCount })?.key
-            }
-            
-            // Se ancora null, prendiamo un veicolo nuovo dalla flotta (prima dedicata, poi altra)
-            if bestCandidate == nil {
-                bestCandidate = dedicatedFleet.first(where: { v in
-                    fleetStatus[v.id] == nil && (!isLineElectrified ? !v.isElectric : true)
-                })?.id 
-                ?? otherFleet.first(where: { v in
-                    fleetStatus[v.id] == nil && (!isLineElectrified ? !v.isElectric : true)
-                })?.id
-            }
+            let vid = findBestVehicleCandidate(
+                for: train,
+                startStation: startStation,
+                depTime: depTime,
+                isLineElectrified: isLineElectrified,
+                fleetStatus: fleetStatus,
+                dedicatedFleet: dedicatedFleet,
+                otherFleet: otherFleet
+            )
             
             // B. Assegna e Aggiorna
-            if let vid = bestCandidate {
-                // Assegna ID veicolo al treno
-                localTrains[idx].vehicleId = vid
-                
-                let currentStatus = fleetStatus[vid]
-                let currentCount = currentStatus?.serviceCount ?? 0
-                
-                // TRACK MANAGEMENT ---------------------------------------------------------
-                // 1. Binario di Partenza
-                // Se il veicolo era già lì, DEVE ripartire dallo stesso binario dove è arrivato (giro macchina)
-                var departureTrack: String
-                if let status = currentStatus, status.station == startStation, let lastTrack = status.track {
-                    departureTrack = lastTrack
-                } else {
-                    // Se è un nuovo inserimento o reset, usa il binario stabile per questa linea
-                    departureTrack = getStableTerminalTrack(stationId: startStation)
-                }
-                
-                // Applica al primo stop
-                localTrains[idx].stops[0].track = departureTrack
-                localTrains[idx].stops[0].isManualTrack = true
-                
-                // 2. Binario di Arrivo
-                // Usa sempre il binario stabile della linea per la destinazione
-                let arrivalTrack = getStableTerminalTrack(stationId: endStation)
-                
-                let lastStopIdx = localTrains[idx].stops.count - 1
-                localTrains[idx].stops[lastStopIdx].track = arrivalTrack
-                localTrains[idx].stops[lastStopIdx].isManualTrack = true
-                // --------------------------------------------------------------------------
-                
-                // Calcola orario di arrivo stimato per disponibilità futura
-                let arrivalTime = localTrains[idx].stops[lastStopIdx].arrival ?? depTime.addingTimeInterval(3600) // Fallback +1h
-                
-                // Aggiorna stato flotta
-                fleetStatus[vid] = (endStation, arrivalTime, currentCount + 1, arrivalTrack)
+            if let vid = vid {
+                assignVehicleToTrain(
+                    trainIdx: idx,
+                    vehicleId: vid,
+                    startStation: startStation,
+                    endStation: endStation,
+                    depTime: depTime,
+                    fleetStatus: &fleetStatus,
+                    localTrains: &localTrains,
+                    line: line
+                )
             }
         }
         
@@ -223,6 +173,77 @@ final class LinesManager: ObservableObject {
         validateSchedules()
     }
     
+    private func findBestVehicleCandidate(
+        for train: Train,
+        startStation: String,
+        depTime: Date,
+        isLineElectrified: Bool,
+        fleetStatus: [UUID: (station: String, time: Date, serviceCount: Int, track: String?)],
+        dedicatedFleet: [RailwayVehicle],
+        otherFleet: [RailwayVehicle]
+    ) -> UUID? {
+        let buffer: TimeInterval = 15 * 60
+        let candidates = fleetStatus.filter { (vid, status) -> Bool in
+            guard let v = vehicles.first(where: { $0.id == vid }) else { return false }
+            if !isLineElectrified && v.isElectric { return false }
+            return status.station == startStation && depTime >= status.time.addingTimeInterval(buffer)
+        }
+        
+        let oddServiceCandidates = candidates.filter { $0.value.serviceCount % 2 != 0 }
+        if let best = oddServiceCandidates.min(by: { $0.value.serviceCount < $1.value.serviceCount })?.key {
+            return best
+        }
+        
+        if let best = candidates.min(by: { $0.value.serviceCount < $1.value.serviceCount })?.key {
+            return best
+        }
+        
+        return dedicatedFleet.first(where: { v in
+            fleetStatus[v.id] == nil && (!isLineElectrified ? !v.isElectric : true)
+        })?.id ?? otherFleet.first(where: { v in
+            fleetStatus[v.id] == nil && (!isLineElectrified ? !v.isElectric : true)
+        })?.id
+    }
+
+    private func assignVehicleToTrain(
+        trainIdx: Int,
+        vehicleId: UUID,
+        startStation: String,
+        endStation: String,
+        depTime: Date,
+        fleetStatus: inout [UUID: (station: String, time: Date, serviceCount: Int, track: String?)],
+        localTrains: inout [RailwayTrain],
+        line: RailwayLine
+    ) {
+        localTrains[trainIdx].vehicleId = vehicleId
+        let currentStatus = fleetStatus[vehicleId]
+        let currentCount = currentStatus?.serviceCount ?? 0
+        
+        let departureTrack = (currentStatus?.station == startStation) ? (currentStatus?.track ?? getStableTerminalTrack(stationId: startStation, line: line)) : getStableTerminalTrack(stationId: startStation, line: line)
+        
+        localTrains[trainIdx].stops[0].track = departureTrack
+        localTrains[trainIdx].stops[0].isManualTrack = true
+        
+        let arrivalTrack = getStableTerminalTrack(stationId: endStation, line: line)
+        let lastStopIdx = localTrains[trainIdx].stops.count - 1
+        localTrains[trainIdx].stops[lastStopIdx].track = arrivalTrack
+        localTrains[trainIdx].stops[lastStopIdx].isManualTrack = true
+        
+        let arrivalTime = localTrains[trainIdx].stops[lastStopIdx].arrival ?? depTime.addingTimeInterval(3600)
+        fleetStatus[vehicleId] = (endStation, arrivalTime, currentCount + 1, arrivalTrack)
+    }
+
+    private func getStableTerminalTrack(stationId: String, line: RailwayLine) -> String {
+        if let prefs = line.terminalTracks[stationId] { return prefs }
+        let nextId = line.stations.first(where: { $0 != stationId })
+        let best = getBestTrack(stationId: stationId, directionId: nextId, lineId: line.id)
+        if best != "1" { return best }
+        
+        let stationNode = network.nodes.first(where: { $0.id == stationId })
+        let platformCount = stationNode?.platforms ?? 2
+        let lineInt = line.numberPrefix ?? 1
+        return "\((lineInt % platformCount) + 1)"
+    }
     func validateSchedules() {
         guard !isValidating else { return }
         isValidating = true
@@ -240,90 +261,95 @@ final class LinesManager: ObservableObject {
     
     func refreshSchedules() {
         for i in trains.indices {
-            trains[i].schedulingError = nil // Resetta errori precedenti
+            trains[i].schedulingError = nil
             guard let depTime = trains[i].departureTime, !trains[i].stops.isEmpty else { continue }
-            var currentTime = depTime.normalized()
-            let originId = trains[i].stops.first?.stationId ?? ""
-            for j in trains[i].stops.indices {
-                let stop = trains[i].stops[j]
-                if stop.stationId == originId && j == 0 {
-                    trains[i].stops[j].arrival = nil
-                    let startPoint = (stop.plannedDeparture?.normalized() ?? currentTime).cleanSeconds()
-                    trains[i].stops[j].departure = startPoint
-                    currentTime = startPoint
-                } else {
-                    var legDistance: Double = 0
-                    var legMinSpeed: Double = .infinity
-                    let currentPrevId = trains[i].stops[j-1].stationId
-                    let pathKey = "\(currentPrevId)--\(stop.stationId)"
-                    // User Requirement: Use the path defined by the line (i.e., direct connection between stops).
-                    // We enforce this by:
-                    // 1. Ignoring direction (assume bidirectional physical track)
-                    // 2. Restricting intermediate stations (path cannot jump through another station)
-                    var path = pathCache[pathKey] ?? network.findPathEdges(
-                        from: currentPrevId, 
-                        to: stop.stationId, 
-                        ignoreDirection: true, 
-                        restrictIntermediateStations: true
-                    )
-                    
-                    if path == nil {
-                        // Soft fallback: Maybe there's a station in between that IS technically part of the track but not a stop? (Unlikely for "restrictIntermediateStations" logic which treats station nodes as walls).
-                        // Let's try without restricting intermediate stations but still ignoring direction.
-                        // This handles cases where user defined A->C but physically it is A->B->C and B is just a transit node in the graph (though usually B would be a stop).
-                        path = network.findPathEdges(from: currentPrevId, to: stop.stationId, ignoreDirection: true)
-                    }
-                    
-                    if let actualPath = path {
-                        pathCache[pathKey] = actualPath
-                        for edge in actualPath {
-                            legDistance += edge.distance
-                            legMinSpeed = min(legMinSpeed, Double(edge.maxSpeed))
-                        }
-                    } else {
-                        // Hard fallback if graph is totally disconnected
-                        if let edge = network.findEdge(from: currentPrevId, to: stop.stationId) {
-                             legDistance += edge.distance
-                             legMinSpeed = Double(edge.maxSpeed)
-                        } else {
-                             // Zero-distance safety
-                             legDistance += 5.0
-                             legMinSpeed = 60.0
-                             #if DEBUG
-                             print("⚠️ [LinesManager] Train '\(trains[i].name)': No path between \(currentPrevId) and \(stop.stationId). Using fallback 5km.")
-                             #endif
-                             trains[i].schedulingError = "Tratta interrotta: \(currentPrevId) -> \(stop.stationId)"
-                        }
-                    }
-                    var transitDuration: TimeInterval = 0
-                    if legDistance > 0 {
-                        let isPrevSkipped = j > 0 ? (trains[i].stops[j-1].isSkipped) : false
-                        let isCurrentSkipped = stop.isSkipped && j < trains[i].stops.count - 1
-                        
-                        let pathEdges = path ?? []
-                        
-                        let hours = FDCSchedulerEngine.calculatePathTravelTime(
-                            edges: pathEdges.isEmpty ? (network.findEdge(from: currentPrevId, to: stop.stationId).map { [$0] } ?? []) : pathEdges, 
-                            train: trains[i], 
-                            nodes: network.nodes, 
-                            isStarting: !isPrevSkipped, 
-                            isStopping: !isCurrentSkipped, 
-                            startNodeId: currentPrevId, 
-                            endNodeId: stop.stationId
-                        ) / 3600.0
-                        transitDuration = hours * 3600
-                    }
-                    currentTime = currentTime.addingTimeInterval(transitDuration)
-                    let arrivalAt = Date(timeIntervalSinceReferenceDate: floor(currentTime.timeIntervalSinceReferenceDate + 0.5))
-                    trains[i].stops[j].arrival = stop.plannedArrival?.normalized(relativeTo: currentTime) ?? arrivalAt
-                    
-                    let dwell = (stop.customDwellSeconds ?? (stop.isSkipped ? 0 : (Double(stop.minDwellTime) + stop.extraDwellTime) * 60))
-                    let departureAt = trains[i].stops[j].arrival!.addingTimeInterval(dwell)
-                    trains[i].stops[j].departure = (j < trains[i].stops.count - 1) ? Date(timeIntervalSinceReferenceDate: floor(departureAt.timeIntervalSinceReferenceDate + 0.5)).cleanSeconds() : nil
-                    currentTime = trains[i].stops[j].departure ?? arrivalAt
-                }
+            updateTrainStops(at: i, depTime: depTime)
+        }
+    }
+
+    private func updateTrainStops(at index: Int, depTime: Date) {
+        var currentTime = depTime.normalized()
+        let originId = trains[index].stops.first?.stationId ?? ""
+        
+        for j in trains[index].stops.indices {
+            if j == 0 && trains[index].stops[j].stationId == originId {
+                currentTime = processFirstStop(at: index, currentTime: currentTime)
+            } else {
+                currentTime = processSubsequentStop(trainIdx: index, stopIdx: j, currentTime: currentTime)
             }
         }
+    }
+
+    private func processFirstStop(at trainIdx: Int, currentTime: Date) -> Date {
+        trains[trainIdx].stops[0].arrival = nil
+        let startPoint = (trains[trainIdx].stops[0].plannedDeparture?.normalized() ?? currentTime).cleanSeconds()
+        trains[trainIdx].stops[0].departure = startPoint
+        return startPoint
+    }
+
+    private func processSubsequentStop(trainIdx: Int, stopIdx: Int, currentTime: Date) -> Date {
+        let prevId = trains[trainIdx].stops[stopIdx-1].stationId
+        let currentId = trains[trainIdx].stops[stopIdx].stationId
+        
+        let transitDuration = calculateTransitDuration(trainIdx: trainIdx, stopIdx: stopIdx, from: prevId, to: currentId)
+        let arrivalTime = currentTime.addingTimeInterval(transitDuration).normalized()
+        
+        trains[trainIdx].stops[stopIdx].arrival = trains[trainIdx].stops[stopIdx].plannedArrival?.normalized(relativeTo: arrivalTime) ?? arrivalAt(arrivalTime)
+        
+        let dwell = calculateDwellTime(trainIdx: trainIdx, stopIdx: stopIdx)
+        let departureAt = trains[trainIdx].stops[stopIdx].arrival!.addingTimeInterval(dwell)
+        
+        if stopIdx < trains[trainIdx].stops.count - 1 {
+            let departure = departureAt.cleanSeconds()
+            trains[trainIdx].stops[stopIdx].departure = departure
+            return departure
+        } else {
+            trains[trainIdx].stops[stopIdx].departure = nil
+            return trains[trainIdx].stops[stopIdx].arrival!
+        }
+    }
+
+    private func arrivalAt(_ time: Date) -> Date {
+        Date(timeIntervalSinceReferenceDate: floor(time.timeIntervalSinceReferenceDate + 0.5))
+    }
+
+    private func calculateTransitDuration(trainIdx: Int, stopIdx: Int, from: String, to: String) -> TimeInterval {
+        let pathKey = "\(from)--\(to)"
+        let path = pathCache[pathKey] ?? network.findPathEdges(from: from, to: to, ignoreDirection: true, restrictIntermediateStations: true)
+                   ?? network.findPathEdges(from: from, to: to, ignoreDirection: true)
+        
+        if let actualPath = path {
+            pathCache[pathKey] = actualPath
+            let isPrevSkipped = stopIdx > 0 ? trains[trainIdx].stops[stopIdx-1].isSkipped : false
+            let isCurrentSkipped = trains[trainIdx].stops[stopIdx].isSkipped && stopIdx < trains[trainIdx].stops.count - 1
+            
+            return FDCSchedulerEngine.calculatePathTravelTime(
+                edges: actualPath,
+                train: trains[trainIdx],
+                nodes: network.nodes,
+                isStarting: !isPrevSkipped,
+                isStopping: !isCurrentSkipped,
+                startNodeId: from,
+                endNodeId: to
+            )
+        } else {
+            return handleMissingPath(trainIdx: trainIdx, from: from, to: to)
+        }
+    }
+
+    private func handleMissingPath(trainIdx: Int, from: String, to: String) -> TimeInterval {
+        trains[trainIdx].schedulingError = "Tratta interrotta: \(from) -> \(to)"
+        if let edge = network.findEdge(from: from, to: to) {
+            return (edge.distance / 60.0) * 3600 // Fallback approx
+        }
+        return 300 // 5 min fallback
+    }
+
+    private func calculateDwellTime(trainIdx: Int, stopIdx: Int) -> TimeInterval {
+        let stop = trains[trainIdx].stops[stopIdx]
+        if let custom = stop.customDwellSeconds { return custom }
+        if stop.isSkipped { return 0 }
+        return (Double(stop.minDwellTime) + stop.extraDwellTime) * 60
     }
     
     func generateSchedulesPreview(with customTrains: [RailwayTrain]? = nil) -> [TrainSchedule] {

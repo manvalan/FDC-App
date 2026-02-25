@@ -63,92 +63,100 @@ final class IOManager: ObservableObject {
         guard let railroad = railroad else { return }
         let parsed = try FDCParser.parse(data: data)
         
-        // Mapping logic...
-        let nodes = parsed.stations.map { fdcStation in
-            let nodeType: Node.NodeType = {
-                switch fdcStation.type?.lowercased() {
+        railroad.network.nodes = mapFDCNodes(parsed.stations)
+        railroad.network.edges = mapFDCEdges(parsed.edges)
+        
+        var tCopy = mapFDCTrains(parsed.trains)
+        applyFDCSchedules(to: &tCopy, rawSchedules: parsed.rawSchedules)
+        
+        railroad.lines.lines = parsed.lines
+        railroad.lines.trains = tCopy
+        
+        railroad.lines.validateSchedules()
+        InfrastructureManager.shared.processNetwork(railroad.network)
+    }
+
+    private func mapFDCNodes(_ stations: [FDCStation]) -> [Node] {
+        return stations.map { fdc in
+            let type: Node.NodeType = {
+                switch fdc.type?.lowercased() {
                 case "interchange": return .interchange
                 case "depot": return .depot
                 default: return .station
                 }
             }()
-            return Node(id: fdcStation.id, name: fdcStation.name, type: nodeType, latitude: fdcStation.latitude, longitude: fdcStation.longitude, capacity: fdcStation.capacity, platforms: fdcStation.platformCount ?? 2)
+            return Node(id: fdc.id, name: fdc.name, type: type, latitude: fdc.latitude, longitude: fdc.longitude, capacity: fdc.capacity, platforms: fdc.platformCount ?? 2)
         }
-        
-        let edges = parsed.edges.map { fdcEdge in
-            let trackType: Edge.TrackType = {
-                switch fdcEdge.trackType?.lowercased() {
+    }
+
+    private func mapFDCEdges(_ edges: [FDCEdge]) -> [Edge] {
+        return edges.map { fdc in
+            let type: Edge.TrackType = {
+                switch fdc.trackType?.lowercased() {
                 case "highspeed", "high_speed": return .highSpeed
                 case "single": return .single
                 case "double": return .double
                 default: return .regional
                 }
             }()
-            return Edge(from: fdcEdge.from, to: fdcEdge.to, distance: fdcEdge.distance ?? 1.0, trackType: trackType, maxSpeed: Int(fdcEdge.maxSpeed ?? 120.0), capacity: fdcEdge.capacity)
+            return Edge(from: fdc.from, to: fdc.to, distance: fdc.distance ?? 1.0, trackType: type, maxSpeed: Int(fdc.maxSpeed ?? 120.0), capacity: fdc.capacity)
         }
-        
-        var trainIdMap: [String: UUID] = [:]
-        var tCopy = parsed.trains.enumerated().map { (idx, fdcTrain) -> Train in
-            let newId = UUID()
-            trainIdMap[fdcTrain.id] = newId
-            return Train(id: newId, number: 1000 + idx, name: fdcTrain.name, type: fdcTrain.type ?? "Regionale", maxSpeed: Double(fdcTrain.maxSpeed ?? 120), acceleration: fdcTrain.acceleration ?? 0.5, deceleration: fdcTrain.deceleration ?? 0.5, priority: fdcTrain.priority ?? 5)
+    }
+
+    private func mapFDCTrains(_ trains: [FDCTrain]) -> [Train] {
+        return trains.enumerated().map { (idx, fdc) in
+            Train(id: UUID(), number: 1000 + idx, name: fdc.name, type: fdc.type ?? "Regionale", maxSpeed: Double(fdc.maxSpeed ?? 120), acceleration: fdc.acceleration ?? 0.5, deceleration: fdc.deceleration ?? 0.5, priority: fdc.priority ?? 5)
         }
-        
+    }
+
+    private func applyFDCSchedules(to trains: inout [Train], rawSchedules: [FDCScheduleData]) {
         let iso8601 = ISO8601DateFormatter()
-        let hhmm = DateFormatter()
-        hhmm.dateFormat = "HH:mm"
-        hhmm.locale = Locale(identifier: "en_US_POSIX")
+        let hhmm = createFormatter(format: "HH:mm")
+        let hhmmss = createFormatter(format: "HH:mm:ss")
         
-        let hhmmss = DateFormatter()
-        hhmmss.dateFormat = "HH:mm:ss"
-        hhmmss.locale = Locale(identifier: "en_US_POSIX")
-        
-        func parseTime(_ s: String) -> Date? {
-            if let d = iso8601.date(from: s) { return d }
-            if let d = hhmmss.date(from: s) { return d }
-            if let d = hhmm.date(from: s) { return d }
-            return nil
+        func parse(_ s: String) -> Date? {
+            return iso8601.date(from: s) ?? hhmmss.date(from: s) ?? hhmm.date(from: s)
         }
         
-        for sch in parsed.rawSchedules {
-            if let swiftId = trainIdMap[sch.train_id], let tIdx = tCopy.firstIndex(where: { $0.id == swiftId }) {
-                var previousTime: Date? = nil
-                var dayOffset: TimeInterval = 0
-                let secondsPerDay: TimeInterval = 86400
-                
-                tCopy[tIdx].stops = sch.stops.map { stopData in
-                    var arrival = parseTime(stopData.arrival)?.addingTimeInterval(dayOffset)
-                    if let arr = arrival, let prev = previousTime, arr < prev {
-                        arrival = arr.addingTimeInterval(secondsPerDay)
-                        dayOffset += secondsPerDay
-                    }
-                    if let arr = arrival { previousTime = arr }
-                    
-                    var departure = parseTime(stopData.departure)?.addingTimeInterval(dayOffset)
-                    if let dep = departure, let prev = previousTime, dep < prev {
-                        departure = dep.addingTimeInterval(secondsPerDay)
-                        dayOffset += secondsPerDay
-                    }
-                    if let dep = departure { previousTime = dep }
-                    
-                    return RelationStop(
-                        stationId: stopData.node_id,
-                        minDwellTime: 2,
-                        track: stopData.platform.map { "\($0)" },
-                        arrival: arrival,
-                        departure: departure
-                    )
-                }
-                tCopy[tIdx].departureTime = tCopy[tIdx].stops.first?.departure
+        for sch in rawSchedules {
+            if let idx = trains.firstIndex(where: { $0.name == sch.train_id || $0.id.uuidString == sch.train_id }) {
+                trains[idx].stops = parseStops(sch.stops, parse: parse)
+                trains[idx].departureTime = trains[idx].stops.first?.departure
             }
         }
+    }
+
+    private func createFormatter(format: String) -> DateFormatter {
+        let df = DateFormatter()
+        df.dateFormat = format
+        df.locale = Locale(identifier: "en_US_POSIX")
+        return df
+    }
+
+    private func parseStops(_ stopsData: [FDCStopData], parse: (String) -> Date?) -> [RelationStop] {
+        var previousTime: Date? = nil
+        var dayOffset: TimeInterval = 0
+        let secondsPerDay: TimeInterval = 86400
         
-        railroad.network.nodes = nodes
-        railroad.network.edges = edges
-        railroad.lines.lines = parsed.lines
-        railroad.lines.trains = tCopy
-        
-        railroad.lines.validateSchedules()
-        InfrastructureManager.shared.processNetwork(railroad.network)
+        return stopsData.map { data in
+            func adjust(_ date: Date?) -> Date? {
+                guard let d = date else { return nil }
+                var adjusted = d.addingTimeInterval(dayOffset)
+                if let prev = previousTime, adjusted < prev {
+                    adjusted = adjusted.addingTimeInterval(secondsPerDay)
+                    dayOffset += secondsPerDay
+                }
+                previousTime = adjusted
+                return adjusted
+            }
+            
+            return RelationStop(
+                stationId: data.node_id,
+                minDwellTime: 2,
+                track: data.platform.map { "\($0)" },
+                arrival: adjust(parse(data.arrival)),
+                departure: adjust(parse(data.departure))
+            )
+        }
     }
 }

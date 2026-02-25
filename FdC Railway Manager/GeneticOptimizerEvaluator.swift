@@ -16,130 +16,165 @@ struct ScheduleEvaluator {
         let updatedSubset = ScheduleTransformer.apply(chromosome: chromosome, to: candidateTrains)
         let allTrains = updatedSubset + fixedTrains
         
+        var context = EvaluationContext()
+        
+        collectOccupationsAndPenalties(allTrains: allTrains, candidateCount: updatedSubset.count, context: &context)
+        calculateResourceConflicts(context: &context)
+        let fitness = calculateFitness(updatedSubset: updatedSubset, candidateTrains: candidateTrains, chromosome: chromosome, context: context)
+        
+        return (fitness, context.conflictingIds, context.conflictLocs)
+    }
+
+    private class EvaluationContext {
         var resourceOccupations: [String: [(Double, Double, UUID)]] = [:]
         var routingViolationCount = 0
         var constraintPenalty = 0.0
         var conflictingIds = Set<UUID>()
         var conflictLocs: [UUID: Set<String>] = [:]
         var conflictCount = 0
-        
+    }
+
+    private func collectOccupationsAndPenalties(allTrains: [LiteTrain], candidateCount: Int, context: inout EvaluationContext) {
         for (i, train) in allTrains.enumerated() {
-            let tid = train.id
-            let isCandidate = i < updatedSubset.count
-            let constraints = allowedTracks[tid]
-            
+            let isCandidate = i < candidateCount
+            let constraints = allowedTracks[train.id]
             var totalExtraDwell = 0.0
             
             for j in train.stops.indices {
                 let stop = train.stops[j]
                 if stop.isSkipped { continue }
                 
-                // Valutazione vincoli di sosta
                 if isCandidate {
-                    let totalDwell = stop.minDwell + stop.extraDwell
-                    if totalDwell > 15.0 {
-                        constraintPenalty += (totalDwell - 15.0) * 500000.0
-                    } else if totalDwell < 2.0 {
-                        constraintPenalty += (2.0 - totalDwell) * 1000000.0
-                    } else if totalDwell < stop.minDwell {
-                        constraintPenalty += (stop.minDwell - totalDwell) * 10000.0
-                    }
+                    context.constraintPenalty += calculateDwellPenalty(stop: stop)
                     totalExtraDwell += stop.extraDwell
-                }
-                
-                // Verifica vincoli di instradamento
-                if isCandidate, let currentConstraints = constraints?[j] {
-                    if !currentConstraints.contains(stop.track) {
-                        routingViolationCount += 1
-                        conflictingIds.insert(tid)
-                        conflictLocs[tid, default: []].insert("ROUTING::\(stop.stationId)")
+                    
+                    if let currentConstraints = constraints?[j], !currentConstraints.contains(stop.track) {
+                        context.routingViolationCount += 1
+                        context.conflictingIds.insert(train.id)
+                        context.conflictLocs[train.id, default: []].insert("ROUTING::\(stop.stationId)")
                     }
                 }
                 
-                let trackResId = "TRACK::\(stop.stationId)::\(stop.track)"
-                let globalResId = "STATION_GLOBAL::\(stop.stationId)"
-                
-                if let arr = stop.arrival, let dep = stop.departure {
-                    let occ = (arr, dep + 5, train.id)
-                    resourceOccupations[trackResId, default: []].append(occ)
-                    resourceOccupations[globalResId, default: []].append(occ)
-                }
-                
-                // Calcolo transito segmenti
-                if j > 0, let depPrev = train.stops[j-1].departure, let arr = stop.arrival {
-                    let path = precalculatedPaths[train.id]?[j]
-                    if let actualPath = path {
-                        let totalTime = arr - depPrev
-                        let totalDist = actualPath.reduce(0.0) { $0 + $1.distance }
-                        let avgSpeed = totalDist > 0 ? (totalDist / (totalTime / 3600.0)) : 0.0
-                        var curr = depPrev
-                        for edge in actualPath {
-                            let transit = avgSpeed > 0 ? (edge.distance / avgSpeed * 3600.0) : 0.0
-                            let exit = curr + transit
-                            let s1Id = edge.from < edge.to ? edge.from : edge.to
-                            let s2Id = edge.from < edge.to ? edge.to : edge.from
-                            let resId = "SEGMENT::\(s1Id)--\(s2Id)"
-                            resourceOccupations[resId, default: []].append((curr, exit + 30, train.id))
-                            curr = exit
-                        }
-                    }
+                addStationOccupations(train: train, stop: stop, context: &context)
+                if j > 0 {
+                    addSegmentOccupations(train: train, stopIdx: j, context: &context)
                 }
             }
             if isCandidate && totalExtraDwell > 30.0 {
-                constraintPenalty += (totalExtraDwell - 30.0) * 1000000.0
+                context.constraintPenalty += (totalExtraDwell - 30.0) * 1000000.0
             }
         }
+    }
+
+    private func calculateDwellPenalty(stop: LiteStop) -> Double {
+        let totalDwell = stop.minDwell + stop.extraDwell
+        if totalDwell > 15.0 { return (totalDwell - 15.0) * 500000.0 }
+        if totalDwell < 2.0 { return (2.0 - totalDwell) * 1000000.0 }
+        if totalDwell < stop.minDwell { return (stop.minDwell - totalDwell) * 10000.0 }
+        return 0
+    }
+
+    private func addStationOccupations(train: LiteTrain, stop: LiteStop, context: inout EvaluationContext) {
+        if let arr = stop.arrival, let dep = stop.departure {
+            let occ = (arr, dep + 5, train.id)
+            context.resourceOccupations["TRACK::\(stop.stationId)::\(stop.track)", default: []].append(occ)
+            context.resourceOccupations["STATION_GLOBAL::\(stop.stationId)", default: []].append(occ)
+        }
+    }
+
+    private func addSegmentOccupations(train: LiteTrain, stopIdx: Int, context: inout EvaluationContext) {
+        guard let depPrev = train.stops[stopIdx-1].departure, 
+              let arr = train.stops[stopIdx].arrival,
+              let actualPath = precalculatedPaths[train.id]?[stopIdx] else { return }
         
-        // Calcolo conflitti risorse
-        for (resId, occs) in resourceOccupations {
-            let cap = resId.hasPrefix("STATION_GLOBAL") ? (stationCapacities[resId] ?? 1) : (resId.hasPrefix("SEGMENT") ? (segmentCapacities[resId] ?? 1) : 1)
+        let totalTime = arr - depPrev
+        let totalDist = actualPath.reduce(0.0) { $0 + $1.distance }
+        let avgSpeed = totalDist > 0 ? (totalDist / (totalTime / 3600.0)) : 0.0
+        
+        var curr = depPrev
+        for edge in actualPath {
+            let transit = avgSpeed > 0 ? (edge.distance / avgSpeed * 3600.0) : 0.0
+            let exit = curr + transit
+            let resId = "SEGMENT::\(edge.from < edge.to ? edge.from : edge.to)--\(edge.from < edge.to ? edge.to : edge.from)"
+            context.resourceOccupations[resId, default: []].append((curr, exit + 30, train.id))
+            curr = exit
+        }
+    }
+
+    private func calculateResourceConflicts(context: inout EvaluationContext) {
+        for (resId, occs) in context.resourceOccupations {
+            let cap = getResourceCapacity(resId: resId)
             if occs.count <= cap { continue }
             
-            var events: [(Double, Int, UUID)] = []
-            for o in occs {
-                events.append((o.0, 1, o.2))
-                events.append((o.1, -1, o.2))
-            }
-            events.sort { $0.0 < $1.0 || ($0.0 == $1.0 && $0.1 < $1.1) }
-            
+            let events = generateConflictEvents(occs: occs)
             var active = Set<UUID>()
             for e in events {
                 if e.1 == 1 {
                     active.insert(e.2)
                     if active.count > cap {
-                        conflictCount += (active.count - cap)
+                        context.conflictCount += (active.count - cap)
                         for id in active {
-                            conflictingIds.insert(id)
-                            conflictLocs[id, default: []].insert(resId)
+                            context.conflictingIds.insert(id)
+                            context.conflictLocs[id, default: []].insert(resId)
                         }
                     }
                 } else { active.remove(e.2) }
             }
         }
-        
+    }
+
+    private func getResourceCapacity(resId: String) -> Int {
+        if resId.hasPrefix("STATION_GLOBAL") { return stationCapacities[resId] ?? 1 }
+        if resId.hasPrefix("SEGMENT") { return segmentCapacities[resId] ?? 1 }
+        return 1
+    }
+
+    private func generateConflictEvents(occs: [(Double, Double, UUID)]) -> [(Double, Int, UUID)] {
+        var events: [(Double, Int, UUID)] = []
+        for o in occs {
+            events.append((o.0, 1, o.2))
+            events.append((o.1, -1, o.2))
+        }
+        return events.sorted { $0.0 < $1.0 || ($0.0 == $1.0 && $0.1 < $1.1) }
+    }
+
+    private func calculateFitness(updatedSubset: [LiteTrain], candidateTrains: [LiteTrain], chromosome: Chromosome, context: EvaluationContext) -> Double {
         var travelTimePenalty = 0.0
         var deviationPenalty = 0.0
         var preferredTrackBonus = 0.0
+        
         for (i, train) in updatedSubset.enumerated() {
-            for j in train.stops.indices {
-                if train.stops[j].isPreferredTrack && train.stops[j].track == candidateTrains[i].stops[j].track {
-                    preferredTrackBonus += 500.0
-                }
-            }
+            preferredTrackBonus += calculateTrackBonus(train: train, candidates: candidateTrains[i])
             if let start = train.stops.first?.departure, let end = train.stops.last?.arrival {
                 travelTimePenalty += (end - start) / 60.0
             }
+            
             let gene = chromosome.genes[i]
             deviationPenalty += abs(gene.departureOffset) / 30.0
-            for j in train.stops.indices {
-                if gene.stopTracks[j] != candidateTrains[i].stops[j].track {
-                    deviationPenalty += (j == 0 || j == train.stops.count - 1) ? 100.0 : 40.0
-                }
-            }
+            deviationPenalty += calculateTrackDeviationPenalty(train: train, gene: gene, candidates: candidateTrains[i])
         }
         
-        let totalScore = Double(conflictCount) + (Double(routingViolationCount) * 10.0)
-        let fitness = (totalScore * 2000000.0) + constraintPenalty + (travelTimePenalty * 15.0) + deviationPenalty - preferredTrackBonus
-        return (fitness, conflictingIds, conflictLocs)
+        let totalScore = Double(context.conflictCount) + (Double(context.routingViolationCount) * 10.0)
+        return (totalScore * 2000000.0) + context.constraintPenalty + (travelTimePenalty * 15.0) + deviationPenalty - preferredTrackBonus
+    }
+
+    private func calculateTrackBonus(train: LiteTrain, candidates: LiteTrain) -> Double {
+        var bonus = 0.0
+        for j in train.stops.indices {
+            if train.stops[j].isPreferredTrack && train.stops[j].track == candidates.stops[j].track {
+                bonus += 500.0
+            }
+        }
+        return bonus
+    }
+
+    private func calculateTrackDeviationPenalty(train: LiteTrain, gene: TrainGene, candidates: LiteTrain) -> Double {
+        var penalty = 0.0
+        for j in train.stops.indices {
+            if gene.stopTracks[j] != candidates.stops[j].track {
+                penalty += (j == 0 || j == train.stops.count - 1) ? 100.0 : 40.0
+            }
+        }
+        return penalty
     }
 }

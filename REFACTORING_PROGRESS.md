@@ -271,3 +271,22 @@ customJunctionStyle.base.fillColor = .red  // Rosso invece di nero
 4. **Finalizzazione Documentazione**: Completare i commenti in italiano su tutti i nuovi moduli.
 
 **Tempo stimato Fase 3**: 2-3 ore
+## ✅ Fase 4 completata: Riduzione Complessità Ciclo-matica (CC)
+
+### Obiettivi Raggiunti Fase 4
+- [x] **Refactoring MapGeometryEngine**: Ridotta la complessità di `generateRenderData` (da CC 26 a CC 5) estraendo la logica in metodi privati focalizzati (`calculateNodePositions`, `calculateEdgeGeometries`, `calculateCommercialLines`, `calculateHubGeometries`).
+- [x] **Refactoring NetworkModel**: Ottimizzato `dijkstraAll` (da CC 16 a CC 6) delegando la costruzione della lista di adiacenza e il rilassamento dei vicini a classi helper.
+- [x] **Refactoring ConflictManager**: Semplificato `calculateScheduleConflicts` (da CC 26 a CC 7) separando la raccolta delle occupazioni di stazioni e segmenti.
+- [x] **Refactoring IOManager**: Ridotta la complessità di `importFromFDC` (da CC 18 a CC 6) estraendo il mapping di nodi, edge, treni e orari.
+- [x] **Refactoring RailwayAIService**: Ottimizzato `createRequest` (da CC 16 a CC 7) separando il mapping di stazioni, binari e treni, e la gestione degli ostacoli temporali.
+- [x] **Documentazione in Italiano**: Aggiunti commenti descrittivi in italiano a tutti i nuovi metodi estratti per garantire manutenibilità.
+
+### Metriche di Fase 4
+- **Riduzione CC Media**: Dal ~20 al ~6 per i metodi principali.
+- **Miglioramento Leggibilità**: Metodi ora concentrati su una singola responsabilità (SRP).
+- **Testabilità**: I nuovi metodi privati sono più facili da isolare e testare.
+
+## 🚀 Prossima Sessione - Integrazione Nuove Funzionalità
+1. **Rendering Segnali**: Implementare la visualizzazione grafica dei segnali sulla mappa (utilizzando `RailwayRenderer`).
+2. **Report Salute Rete**: Creare un sistema di reporting per identificare nodi critici e colli di bottiglia basato su `InfrastructureService`.
+3. **Ottimizzazione Performance Mappa**: Valutare il caching parziale di `MapRenderData` per reti estremamente grandi (>1000 nodi).

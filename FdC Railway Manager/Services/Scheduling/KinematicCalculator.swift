@@ -108,7 +108,7 @@ final class KinematicCalculator {
         let nodes = stationSequence.compactMap { id in network.nodes.first(where: { $0.id == id }) }
         guard nodes.count >= 2 else { return (nil, nil, nil) }
         
-        let service = InfrastructureService(network: network.network)
+        let service = InfrastructureService(network: network)
         var totalGain = 0.0
         var maxGrad = 0.0
         var totalDist = 0.0

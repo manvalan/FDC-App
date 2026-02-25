@@ -42,55 +42,16 @@ struct LineEditView: View {
                     )
                 }
                 
-                Section(header: Text("materiale_rotabile".localized)) {
-                    Button(action: {
-                        lines.autoAssignRollingStock(for: lineId)
-                    }) {
-                        Label("Ottimizza Assegnazione Mezzi", systemImage: "sparkles.rectangle.stack")
-                    }
-                    
-                    Text("Assegna i turni macchina minimizzando il materiale rotabile e bilanciando il numero di corse (preferendo turni pari).")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                    
-                    let assignedVehicleIds = Set(lines.trains.filter { $0.lineId == lineId }.compactMap { $0.vehicleId })
-                    let assignedVehicles = lines.vehicles.filter { assignedVehicleIds.contains($0.id) }
-                    
-                    if !assignedVehicles.isEmpty {
-                        Divider().padding(.vertical, 4)
-                        Text("Mezzi Attualmente Assegnati:").font(.caption.bold())
-                        
-                        ForEach(assignedVehicles) { vehicle in
-                            let count = lines.trains.filter { $0.lineId == lineId && $0.vehicleId == vehicle.id }.count
-                            HStack {
-                                Image(systemName: "train.side.front.car")
-                                    .foregroundColor(.purple)
-                                VStack(alignment: .leading) {
-                                    Text(vehicle.name).font(.subheadline)
-                                    Text(vehicle.model).font(.caption2).foregroundColor(.secondary)
-                                }
-                                Spacer()
-                                Text("\(count) corse")
-                                    .font(.caption)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 2)
-                                    .background(count % 2 == 0 ? Color.green.opacity(0.1) : Color.orange.opacity(0.1))
-                                    .foregroundColor(count % 2 == 0 ? .green : .orange)
-                                    .cornerRadius(8)
-                            }
-                            .padding(.vertical, 2)
-                        }
-                    }
-                }
+                vehicleAssignmentSection
                 
-                if let error = errorMessage {
+                if let error = vm.errorMessage {
                     Section {
                         Text(error).foregroundColor(.red)
                     }
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                if !stationSequence.isEmpty {
+                if !vm.stationSequence.isEmpty {
                     suggestionsOverlay
                 }
             }
@@ -230,6 +191,49 @@ struct LineEditView: View {
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+    
+    private var vehicleAssignmentSection: some View {
+        Section(header: Text("materiale_rotabile".localized)) {
+            Button(action: {
+                vm.lines.autoAssignRollingStock(for: lineId)
+            }) {
+                Label("Ottimizza Assegnazione Mezzi", systemImage: "sparkles.rectangle.stack")
+            }
+            
+            Text("Assegna i turni macchina minimizzando il materiale rotabile e bilanciando il numero di corse (preferendo turni pari).")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            
+            let assignedVehicleIds = Set(vm.lines.trains.filter { $0.lineId == lineId }.compactMap { $0.vehicleId })
+            let assignedVehicles = vm.lines.vehicles.filter { assignedVehicleIds.contains($0.id) }
+            
+            if !assignedVehicles.isEmpty {
+                Divider().padding(.vertical, 4)
+                Text("Mezzi Attualmente Assegnati:").font(.caption.bold())
+                
+                ForEach(assignedVehicles) { vehicle in
+                    let count = vm.lines.trains.filter { $0.lineId == lineId && $0.vehicleId == vehicle.id }.count
+                    HStack {
+                        Image(systemName: "train.side.front.car")
+                            .foregroundColor(.purple)
+                        VStack(alignment: .leading) {
+                            Text(vehicle.name).font(.subheadline)
+                            Text(vehicle.model).font(.caption2).foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Text("\(count) corse")
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(count % 2 == 0 ? Color.green.opacity(0.1) : Color.orange.opacity(0.1))
+                            .foregroundColor(count % 2 == 0 ? .green : .orange)
+                            .cornerRadius(8)
+                    }
+                    .padding(.vertical, 2)
                 }
             }
         }

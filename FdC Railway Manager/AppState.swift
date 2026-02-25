@@ -583,6 +583,15 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .settings: return "gear"
         }
     }
+
+    var isNetworkCategory: Bool {
+        switch self {
+        case .stations, .tracks, .ferrovie:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 enum AppMode: String, CaseIterable, Identifiable {

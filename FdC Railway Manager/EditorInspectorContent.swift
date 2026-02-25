@@ -1,9 +1,10 @@
 import Foundation
 import Combine
 import SwiftUI
+import CoreLocation
 
 struct EditorInspectorContent: View {
-
+    @EnvironmentObject var appState: AppState
     @Binding var editingLineId: String?
     
     var body: some View {
@@ -175,8 +176,6 @@ struct EditorInspectorContent: View {
         .padding(8)
     }
     
-    @ViewBuilder
-
     private func calculateSlope(from: RailwayNode, to: RailwayNode) -> Double {
         guard let alt1 = from.altitude, let alt2 = to.altitude else { return 0 }
         
@@ -195,9 +194,8 @@ struct EditorInspectorContent: View {
         let deltaH = alt2 - alt1 // meters
         return (deltaH / distM) * 1000 // Permille
     }
+
     private func getNodeName(_ id: String) -> String {
         appState.railroad.network.nodes.first(where: { $0.id == id })?.name ?? id
     }
-    
-    // Removed duplicate updateNode, updateEdge, generateSegments, updateSegment, splitEdge methods.
-    // Calls now directly reference appState.railroad.network.methodName
+}

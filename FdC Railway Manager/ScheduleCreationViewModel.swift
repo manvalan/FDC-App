@@ -104,6 +104,12 @@ final class ScheduleCreationViewModel: ObservableObject {
     @Published var estimatedTravelTime: Int = 0
     @Published var estimatedDistance: Double = 0
     @Published var generatedTrains: [Train]? = nil
+    /// Caratteristiche fisiche calcolate della linea, aggiornate ad ogni cambio di percorso.
+    @Published var lineCharacteristics: LineCharacteristics = LineCharacteristics(
+        totalDistance: 0, averageStopDistance: 0, numberOfStops: 0,
+        maxLineSpeed: 160, serviceType: .regional, frequency: nil,
+        maxGradient: nil, isElectrified: true
+    )
 
     // MARK: - Model / vehicle
     @Published var selectedModel: TrainModel? = nil
@@ -130,7 +136,7 @@ final class ScheduleCreationViewModel: ObservableObject {
     /// Cache per le caratteristiche altimetriche della linea (invalidata al cambio percorso).
     private var cachedAltitudeCharacteristics: (totalElevationGain: Double?, maxGradient: Double?, avgGradient: Double?)?
     let cadenceOptimizer = CadenceOptimizer()
-    private let vehicleRotationOptimizer = VehicleRotationOptimizer()
+
     let departureOptimizer = DepartureTimeOptimizer()
 
     // MARK: - Init
@@ -252,10 +258,11 @@ final class ScheduleCreationViewModel: ObservableObject {
         presetTaktHub()
     }
 
-    /// Ricalcola distanza stimata e tempo di viaggio per il percorso attuale.
+    /// Ricalcola distanza stimata, tempo di viaggio e caratteristiche infrastruttura per il percorso attuale.
     func updatePathCalculations() {
         estimatedDistance = pathResolver.calculatePathDistance(stationSequence: stationSequence)
         estimatedTravelTime = kinematicCalculator.calculateAccurateTravelTime(stationSequence: stationSequence, train: makeDummyTrain())
+        lineCharacteristics = calculateLineCharacteristics()
     }
 
     // MARK: - Preview count
@@ -407,8 +414,7 @@ final class ScheduleCreationViewModel: ObservableObject {
             isMainLine: isMainLine, scheduleReturn: scheduleReturn,
             startNumber: startNumber, returnStartNumber: returnStartNumber,
             preferredParity: preferredParity, useDepartureOptimizer: useDepartureOptimizer,
-            taktStationId: taktStationId, optimizeVehicleRotation: optimizeVehicleRotation,
-            minimumTurnaroundTime: minimumTurnaroundTime,
+            taktStationId: taktStationId,
             progressCallback: { [weak self] status in self?.aiStatus = status }
         )
 
@@ -476,27 +482,11 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - Accept / Reject
 
-    /// Accetta l'orario generato: crea veicoli se necessario, assegna i turni
-    /// e aggiunge i treni al manager. Chiude la vista di creazione.
+    /// Accetta l'orario generato e aggiunge i treni al manager.
+    /// I treni vengono creati senza mezzo fisico assegnato (vehicleId = nil):
+    /// l'assegnazione dei turni macchina è delegata al menu dedicato.
     func acceptSchedule() {
-        guard var trains = generatedTrains else { return }
-
-        if let model = selectedModel, optimizeVehicleRotation {
-            let needed = vehicleRotationOptimizer.suggestVehicleCount(
-                for: trains, minimumTurnaroundTime: minimumTurnaroundTime)
-            var created: [Vehicle] = []
-            for i in 1...needed {
-                let v = model.toVehicle(name: "\(model.nome) #\(i) - \(line.name)")
-                created.append(v); mgr.vehicles.append(v)
-            }
-            let assignment = vehicleRotationOptimizer.optimizeVehicleAssignment(
-                trains: trains, vehicles: created, minimumTurnaroundTime: minimumTurnaroundTime)
-            for (vehicleId, trainIds) in assignment {
-                for id in trainIds {
-                    if let idx = trains.firstIndex(where: { $0.id == id }) { trains[idx].vehicleId = vehicleId }
-                }
-            }
-        }
+        guard let trains = generatedTrains else { return }
 
         mgr.trains.append(contentsOf: trains)
         mgr.validateSchedules()
@@ -559,8 +549,11 @@ final class ScheduleCreationViewModel: ObservableObject {
             isLineElectrified: checkLineElectrification())
     }
 
-    /// Verifica se la linea è elettrificata. Default conservativo: `true`.
-    func checkLineElectrification() -> Bool { true }
+    /// Verifica se l'intero percorso della linea è elettrificato controllando gli edge della rete.
+    func checkLineElectrification() -> Bool {
+        guard stationSequence.count >= 2 else { return true }
+        return InfrastructureService(network: net).checkPathElectrification(stationIds: stationSequence)
+    }
 
 
 
@@ -623,14 +616,19 @@ final class ScheduleCreationViewModel: ObservableObject {
     }
 
     /// Calcola le caratteristiche della linea per la selezione del modello di treno.
+    /// Include pendenza massima reale (da altitudini nodi) e stato di elettrificazione.
     func calculateLineCharacteristics() -> LineCharacteristics {
-        LineCharacteristics(
-            totalDistance:      estimatedDistance,
+        let altInfo = kinematicCalculator.calculateAltitudeCharacteristics(stationSequence: stationSequence)
+        let isElectrified = checkLineElectrification()
+        return LineCharacteristics(
+            totalDistance:       estimatedDistance,
             averageStopDistance: estimatedDistance / Double(max(stationSequence.count - 1, 1)),
-            numberOfStops:      stationSequence.count,
-            maxLineSpeed:       Double(selectedTrainType.defaultMaxSpeed),
-            serviceType:        selectedTrainType,
-            frequency:          mode == .single ? nil : intervalMinutes
+            numberOfStops:       stationSequence.count,
+            maxLineSpeed:        Double(selectedTrainType.defaultMaxSpeed),
+            serviceType:         selectedTrainType,
+            frequency:           mode == .single ? nil : intervalMinutes,
+            maxGradient:         altInfo.maxGradient,
+            isElectrified:       isElectrified
         )
     }
 

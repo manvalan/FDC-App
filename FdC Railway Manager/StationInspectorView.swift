@@ -9,6 +9,7 @@ struct StationInspectorView: View {
     
     var onDelete: (() -> Void)?
     
+    // --- Feedback e Micro-interazioni ---
     @State private var isEditingEnabled = false
     @State private var isRoutingSheetPresented = false
     @State private var localConstraints: [RoutingConstraint] = []
@@ -62,7 +63,7 @@ struct StationInspectorView: View {
         }
     }
     
-    // MARK: - Sections
+    // MARK: - Sezioni dell'Inspector
     
     private var basicInfoSection: some View {
         InspectorSection(title: "station_data".localized, icon: "info.circle.fill", iconColor: .blue) {
@@ -202,12 +203,27 @@ struct StationInspectorView: View {
                 .frame(width: 150)
             }
             
+            if let warning = coordinatesWarning {
+                Label(warning, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundColor(.orange)
+                    .transition(.opacity)
+            }
+            
             InspectorInfoBanner(
                 type: .info,
                 title: nil,
                 message: "coordinates_drag_hint".localized
             )
         }
+    }
+    
+    /// Validazione real-time per le coordinate
+    private var coordinatesWarning: String? {
+        if station.latitude == 0 && station.longitude == 0 {
+            return "Coordinate non impostate (0, 0)"
+        }
+        return nil
     }
     
     private var routingSection: some View {
@@ -244,7 +260,7 @@ struct StationInspectorView: View {
         }
     }
     
-    // MARK: - Helpers
+    // MARK: - Helper di Visualizzazione
     
     private func symbolImage(for type: RailwayNode.StationVisualType) -> some View {
         switch type {

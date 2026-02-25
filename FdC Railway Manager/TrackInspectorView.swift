@@ -1,4 +1,7 @@
 import SwiftUI
+ 
+ /// Inspector per i binari (Archi della rete).
+ /// Permette di modificare parametri fisici e tracciamento.
 
 // MARK: - Track Inspector
 struct TrackInspectorView: View {
@@ -55,7 +58,7 @@ struct TrackInspectorView: View {
         }
     }
     
-    // MARK: - Sections
+    // MARK: - Sezioni Interfaccia
     
     private var trackTitle: String {
         if let from = fromStation, let to = toStation {
@@ -178,11 +181,30 @@ struct TrackInspectorView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+
+                if let warning = parametersWarning {
+                    Label(warning, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                        .padding(8)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(6)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
             }
+            .animation(.spring(), value: parametersWarning)
         }
     }
     
-    // MARK: - Helpers
+    private var parametersWarning: String? {
+        if edge.maxSpeed > 350 { return "Velocità eccessiva (>350 km/h)" }
+        if edge.trackType == .single && edge.maxSpeed > 160 { return "Velocità elevata per binario singolo" }
+        if edge.distance <= 0 { return "Distanza non valida" }
+        if (edge.capacity ?? 0) < 1 { return "Capacità insufficiente" }
+        return nil
+    }
+    
+    // MARK: - Metodi di Supporto
     
     private var trackTypeIcon: String {
         switch edge.trackType {

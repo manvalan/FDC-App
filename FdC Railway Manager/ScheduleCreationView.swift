@@ -193,6 +193,8 @@ private extension ScheduleCreationView {
 
             VStack(spacing: 16) {
                 metricsRow
+                infrastructureCharacteristicsRow
+                Divider()
                 trainTypePicker
                 vehicleSection
             }
@@ -212,6 +214,66 @@ private extension ScheduleCreationView {
             ScheduleMetricView(label: "Durata St.", value: "\(vm.estimatedTravelTime)m")
             Spacer()
         }
+    }
+
+    /// Riga con le caratteristiche fisiche dell'infrastruttura: elettrificazione, pendenza, spaziatura fermate.
+    var infrastructureCharacteristicsRow: some View {
+        let lc = vm.lineCharacteristics
+        return HStack(spacing: 8) {
+            infraBadge(
+                icon: lc.isElectrified ? "bolt.fill" : "fuelpump.fill",
+                label: lc.isElectrified ? "Elettrificata" : "Non elettrificata",
+                color: lc.isElectrified ? .yellow : .orange
+            )
+            if let grad = lc.maxGradient {
+                infraBadge(
+                    icon: gradientIcon(grad),
+                    label: gradientLabel(grad),
+                    color: gradientColor(grad)
+                )
+            }
+            infraBadge(
+                icon: lc.isFrequentStops ? "tram.fill" : "train.side.front.car",
+                label: lc.isFrequentStops ? "Fermate ravvic." : String(format: "%.0f km/fermata", lc.averageStopDistance),
+                color: lc.isFrequentStops ? .purple : .blue
+            )
+            Spacer()
+        }
+    }
+
+    private func infraBadge(icon: String, label: String, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2.bold())
+                .foregroundColor(color)
+            Text(label)
+                .font(.caption2.bold())
+                .foregroundColor(.primary)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 5)
+        .background(color.opacity(0.12))
+        .cornerRadius(8)
+    }
+
+    private func gradientIcon(_ g: Double) -> String {
+        if g > 30 { return "mountain.2.fill" }
+        if g > 15 { return "chevron.up.2" }
+        if g > 5  { return "chevron.up" }
+        return "minus"
+    }
+
+    private func gradientLabel(_ g: Double) -> String {
+        if g > 30 { return String(format: "%.0f‰ Ripida", g) }
+        if g > 15 { return String(format: "%.0f‰ Montana", g) }
+        if g > 5  { return String(format: "%.0f‰ Collinare", g) }
+        return String(format: "%.0f‰ Pianura", g)
+    }
+
+    private func gradientColor(_ g: Double) -> Color {
+        if g > 30 { return .red }
+        if g > 15 { return .orange }
+        if g > 5  { return .yellow }
+        return .green
     }
 
     /// Picker per la selezione del tipo di treno (regionale, diretto, AV, ecc.).
@@ -253,7 +315,7 @@ private extension ScheduleCreationView {
         .sheet(isPresented: $showModelSelector) {
             TrainModelSelectorView(
                 selectedModel: $vm.selectedModel,
-                lineCharacteristics: vm.calculateLineCharacteristics()
+                lineCharacteristics: vm.lineCharacteristics
             )
         }
     }
@@ -719,7 +781,7 @@ private extension ScheduleCreationView {
         .padding(.horizontal)
     }
 
-    /// Sezione anteprima con conteggio corse e toggle ottimizzazione turni.
+    /// Sezione anteprima con conteggio corse.
     var previewSection: some View {
         VStack(alignment: .center, spacing: 12) {
             HStack(spacing: 20) {
@@ -729,13 +791,11 @@ private extension ScheduleCreationView {
                         .font(.title2.bold()).foregroundColor(.blue)
                 }
                 Divider().frame(height: 30)
-                Toggle(isOn: $vm.optimizeVehicleRotation) {
-                    VStack(alignment: .leading) {
-                        Text("TURNI").font(.caption2).bold()
-                        Text("Ottimizza mezzi").font(.caption).foregroundColor(.secondary)
-                    }
+                VStack(alignment: .leading) {
+                    Text("TURNI").font(.caption2).bold()
+                    Text("Gestiti nel menu dedicato")
+                        .font(.caption).foregroundColor(.secondary)
                 }
-                .toggleStyle(.switch)
             }
             .padding()
             .background(.ultraThinMaterial)

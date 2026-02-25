@@ -13,6 +13,7 @@ import SwiftUI
 /// - Single Responsibility: gestisce solo il rendering
 /// - Nessuna logica di business
 /// - View components riutilizzabili
+/// - Supporta sia SwiftUI View che Canvas (GraphicsContext)
 final class RailwayRenderer {
     
     // MARK: - Node Rendering
@@ -20,15 +21,53 @@ final class RailwayRenderer {
     /// Genera la vista per un nodo (decide automaticamente station/junction/hub)
     @ViewBuilder
     func renderNode(_ node: Node, context: RenderingContext, style: NodeStyle) -> some View {
-        switch node.type {
-        case .station:
-            renderStation(node, context: context, style: StationStyle(base: style, shape: .circle, showTracks: false))
-        case .junction:
-            renderJunction(node, context: context, style: JunctionStyle(base: style, showInProfile: true))
-        case .interchange:
-            renderHub(node, context: context, style: HubStyle(base: style, showConnectionLines: false))
-        case .depot:
-            renderStation(node, context: context, style: StationStyle(base: style, shape: .square, showTracks: true))
+        let point = toCanvasCoordinates(lat: node.latitude ?? 0, lon: node.longitude ?? 0, context: context)
+        
+        renderNodeIcon(node, style: style)
+            .position(point)
+    }
+    
+    /// Rendering della sola icona/rappresentazione visuale di un nodo
+    @ViewBuilder
+    func renderNodeIcon(_ node: Node, style: NodeStyle) -> some View {
+        ZStack {
+            if node.type == .junction {
+                // Junction simple representation
+                Circle()
+                    .fill(Color.black)
+                    .frame(width: style.size * 0.4, height: style.size * 0.4)
+                    .shadow(color: .white.opacity(0.8), radius: 1)
+            } else if node.type == .interchange {
+                // Interchange style
+                ZStack {
+                    Circle().fill(Color.white).frame(width: style.size, height: style.size)
+                    Circle().stroke(Color.red, lineWidth: style.size * 0.3).frame(width: style.size, height: style.size)
+                }
+            } else {
+                // Standard station
+                let visualType = node.visualType ?? node.defaultVisualType
+                ZStack {
+                    Circle().fill(Color.white).frame(width: style.size * 1.1, height: style.size * 1.1)
+                    symbolView(type: visualType, color: style.fillColor)
+                        .frame(width: style.size * 1.1, height: style.size * 1.1)
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func symbolView(type: Node.StationVisualType, color: Color) -> some View {
+        switch type {
+        case .filledSquare:
+            Image(systemName: "square.fill").symbolRenderingMode(.palette).foregroundStyle(color)
+        case .emptySquare:
+            Image(systemName: "square").symbolRenderingMode(.palette).foregroundStyle(color).fontWeight(.bold)
+        case .filledCircle:
+            Image(systemName: "circle.fill").symbolRenderingMode(.palette).foregroundStyle(color)
+        case .emptyCircle:
+            Image(systemName: "circle").symbolRenderingMode(.palette).foregroundStyle(color).fontWeight(.bold)
+        case .filledStar:
+            Image(systemName: "star.fill").symbolRenderingMode(.palette).foregroundStyle(color)
         }
     }
     
@@ -119,25 +158,180 @@ final class RailwayRenderer {
     
     // MARK: - Edge Rendering
     
-    /// Genera la vista per un edge/binario
     @ViewBuilder
-    func renderEdge(_ edge: Edge, fromNode: Node, toNode: Node, context: RenderingContext, style: EdgeStyle) -> some View {
-        let fromPoint = toCanvasCoordinates(lat: fromNode.latitude ?? 0, lon: fromNode.longitude ?? 0, context: context)
-        let toPoint = toCanvasCoordinates(lat: toNode.latitude ?? 0, lon: toNode.longitude ?? 0, context: context)
-        
-        Path { path in
-            path.move(to: fromPoint)
-            path.addLine(to: toPoint)
-        }
-        .stroke(style.strokeColor, style: StrokeStyle(
-            lineWidth: style.strokeWidth,
-            lineCap: .round,
-            lineJoin: .round,
-            dash: style.lineStyle.dashPattern ?? []
-        ))
+    func renderEdge(points: [CGPoint], style: EdgeStyle) -> some View {
+        createSmoothPath(points: points)
+            .stroke(style.strokeColor, style: StrokeStyle(
+                lineWidth: style.strokeWidth,
+                lineCap: .round,
+                lineJoin: .round,
+                dash: style.lineStyle.dashPattern ?? []
+            ))
     }
     
-    /// Genera percorso tra due nodi (gestisce junction intermedi)
+    // MARK: - Disegno su Canvas (GraphicsContext)
+    
+    /// Disegna un nodo in un GraphicsContext (per Canvas o ImageRenderer)
+    func drawNode(_ node: Node, in context: GraphicsContext, renderingContext: RenderingContext, style: NodeStyle) {
+        let point = toCanvasCoordinates(lat: node.latitude ?? 0, lon: node.longitude ?? 0, context: renderingContext)
+        
+        if node.type == .interchange {
+            // Draw Hub style
+            let rect = CGRect(x: point.x - style.size/2, y: point.y - style.size/2, width: style.size, height: style.size)
+            context.fill(Path(ellipseIn: rect.insetBy(dx: -2, dy: -2)), with: .color(.white))
+            context.stroke(Path(ellipseIn: rect.insetBy(dx: -3, dy: -3)), with: .color(.red), lineWidth: 5)
+        } else {
+            // Draw Regular Node
+            let rect = CGRect(x: point.x - style.size/2, y: point.y - style.size/2, width: style.size, height: style.size)
+            context.fill(Path(ellipseIn: rect), with: .color(.white))
+            
+            // Draw symbol
+            let visualType = node.visualType ?? node.defaultVisualType
+            let symbolName = symbolSystemName(for: visualType)
+            let symbol = context.resolve(Text(Image(systemName: symbolName)).font(.system(size: style.size, weight: .bold)).foregroundColor(style.fillColor))
+            context.draw(symbol, at: point)
+            
+            // Draw Label
+            if style.showLabel && !node.name.isEmpty && node.parentHubId == nil {
+                let label = context.resolve(Text(node.name).font(.system(size: style.size * 1.2, weight: .black)).foregroundColor(.black))
+                context.draw(label, at: CGPoint(x: point.x, y: point.y + style.size * 1.8))
+            }
+        }
+        
+        if style.isSelected {
+            let selectRect = CGRect(x: point.x - style.size, y: point.y - style.size, width: style.size * 2, height: style.size * 2)
+            context.stroke(Path(ellipseIn: selectRect), with: .color(.blue), lineWidth: 2)
+        }
+    }
+    
+    /// Disegna un binario in un GraphicsContext
+    func drawEdge(points: [CGPoint], trackType: Edge.TrackType, in context: GraphicsContext, renderingContext: RenderingContext, style: EdgeStyle, isSelected: Bool) {
+        let path = createSmoothPath(points: points)
+        
+        switch trackType {
+        case .highSpeed:
+            context.stroke(path, with: .color(.red), style: StrokeStyle(lineWidth: style.strokeWidth, lineCap: .round))
+            context.stroke(path, with: .color(.white.opacity(0.8)), style: StrokeStyle(lineWidth: style.strokeWidth * 0.4, lineCap: .round, dash: [3, 3]))
+            
+        case .double:
+            context.stroke(path, with: .color(.black.opacity(0.7)), style: StrokeStyle(lineWidth: style.strokeWidth, lineCap: .round))
+            context.stroke(path, with: .color(.gray.opacity(0.5)), style: StrokeStyle(lineWidth: style.strokeWidth - 1.5, lineCap: .round))
+            context.stroke(path, with: .color(.black.opacity(0.9)), style: StrokeStyle(lineWidth: style.strokeWidth * 0.23, lineCap: .round))
+            
+        case .regional:
+            context.stroke(path, with: .color(.blue.opacity(0.6)), style: StrokeStyle(lineWidth: style.strokeWidth, lineCap: .round))
+            
+        case .single:
+            context.stroke(path, with: .color(.gray.opacity(0.6)), style: StrokeStyle(lineWidth: style.strokeWidth, lineCap: .round))
+        }
+        
+        if isSelected {
+            context.stroke(path, with: .color(Color.accentColor.opacity(0.4)), style: StrokeStyle(lineWidth: style.strokeWidth + 4, lineCap: .round))
+            context.stroke(path, with: .color(Color.accentColor), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+        }
+    }
+    
+    /// Disegna un bundle di linee commerciali
+    func drawCommercialBundle(points: [CGPoint], colors: [Color], isSelected: Bool, globalLineWidth: CGFloat, bundleOffsetBase: CGFloat, in context: GraphicsContext) {
+        let bundleSize = colors.count
+        guard bundleSize > 0 else { return }
+        
+        for j in 0..<(points.count - 1) {
+            let sp1 = points[j]; let sp2 = points[j+1]
+            let angle = atan2(sp2.y - sp1.y, sp2.x - sp1.x)
+            
+            if bundleSize > 3 {
+                // Style: Single path with gradient indicators for large bundles
+                let path = Path { p in p.move(to: sp1); p.addLine(to: sp2) }
+                context.stroke(path, with: .color(colors.first ?? .gray), style: StrokeStyle(lineWidth: globalLineWidth * 1.8, lineCap: .round))
+                
+                // Diamond indicator
+                let mid = CGPoint(x: (sp1.x + sp2.x)/2, y: (sp1.y + sp2.y)/2)
+                drawDiamond(at: mid, size: 6, in: context, color: .white, strokeColor: .gray.opacity(0.5))
+            } else {
+                for (i, color) in colors.enumerated() {
+                    let offset = CGFloat(i) * bundleOffsetBase - (CGFloat(bundleSize - 1) * bundleOffsetBase / 2.0)
+                    let lp1 = CGPoint(x: sp1.x - sin(angle) * offset, y: sp1.y + cos(angle) * offset)
+                    let lp2 = CGPoint(x: sp2.x - sin(angle) * offset, y: sp2.y + cos(angle) * offset)
+                    
+                    let path = Path { p in p.move(to: lp1); p.addLine(to: lp2) }
+                    let width = isSelected ? globalLineWidth * 1.5 : globalLineWidth
+                    context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: width, lineCap: .round))
+                }
+            }
+        }
+    }
+    
+    /// Disegna un treno
+    func drawTrain(position: CGPoint, name: String, color: Color, isSelected: Bool, fontSize: CGFloat, in context: GraphicsContext) {
+        let rect = CGRect(x: position.x - 10, y: position.y - 10, width: 20, height: 20)
+        context.fill(Path(roundedRect: rect, cornerRadius: 4), with: .color(color))
+        context.stroke(Path(roundedRect: rect, cornerRadius: 4), with: .color(.white), lineWidth: 2)
+        
+        if isSelected {
+            context.stroke(Path(roundedRect: rect.insetBy(dx: -3, dy: -3), cornerRadius: 6), with: .color(.blue), lineWidth: 2)
+        }
+        
+        let label = context.resolve(Text(name).font(.system(size: fontSize, weight: .bold)).foregroundColor(.black))
+        context.draw(label, at: CGPoint(x: position.x, y: position.y - 20))
+    }
+    
+    /// Disegna un gruppo di hub
+    func drawHubGroup(positions: [CGPoint], label: String, center: CGPoint, fontSize: CGFloat, in context: GraphicsContext) {
+        for i in 0..<positions.count {
+            for j in (i+1)..<positions.count {
+                let path = Path { p in p.move(to: positions[i]); p.addLine(to: positions[j]) }
+                context.stroke(path, with: .color(.red), style: StrokeStyle(lineWidth: 22, lineCap: .round))
+                context.stroke(path, with: .color(.white), style: StrokeStyle(lineWidth: 14, lineCap: .round))
+            }
+        }
+        
+        // Draw group label
+        let text = context.resolve(Text(label).font(.system(size: fontSize, weight: .bold)).foregroundColor(.red))
+        let sz = text.measure(in: CGSize(width: 400, height: 100))
+        let bgRect = CGRect(x: center.x - sz.width/2 - 4, y: center.y - sz.height/2 - 2, width: sz.width + 8, height: sz.height + 4)
+        context.fill(Path(roundedRect: bgRect, cornerRadius: 4), with: .color(.white.opacity(0.8)))
+        context.draw(text, at: center)
+    }
+    
+    // MARK: - Path Helpers
+    
+    private func createSmoothPath(points: [CGPoint]) -> Path {
+        guard points.count > 1 else { return Path() }
+        return Path { path in
+            path.move(to: points[0])
+            for i in 1..<points.count {
+                path.addLine(to: points[i])
+            }
+        }
+    }
+    
+    private func drawDiamond(at point: CGPoint, size: CGFloat, in context: GraphicsContext, color: Color, strokeColor: Color) {
+        let diamondPath = Path { p in
+            p.move(to: CGPoint(x: point.x, y: point.y - size))
+            p.addLine(to: CGPoint(x: point.x + size, y: point.y))
+            p.addLine(to: CGPoint(x: point.x, y: point.y + size))
+            p.addLine(to: CGPoint(x: point.x - size, y: point.y))
+            p.closeSubpath()
+        }
+        context.fill(diamondPath, with: .color(color))
+        context.stroke(diamondPath, with: .color(strokeColor), lineWidth: 1)
+    }
+    
+    private func symbolSystemName(for type: Node.StationVisualType) -> String {
+        return Self.symbolSystemNameStatic(for: type)
+    }
+    
+    static func symbolSystemNameStatic(for type: Node.StationVisualType) -> String {
+        switch type {
+        case .filledSquare: return "square.fill"
+        case .emptySquare: return "square"
+        case .filledCircle: return "circle.fill"
+        case .emptyCircle: return "circle"
+        case .filledStar: return "star.fill"
+        }
+    }
+    
     func renderPath(from fromNode: Node, to toNode: Node, via junctions: [Node], context: RenderingContext) -> Path {
         var path = Path()
         
@@ -199,7 +393,7 @@ final class RailwayRenderer {
         }
     }
     
-    // MARK: - Coordinate Conversion
+    // MARK: - Conversione Coordinate
     
     /// Converte coordinate geografiche (lat/lon) in coordinate canvas
     func toCanvasCoordinates(lat: Double, lon: Double, context: RenderingContext) -> CGPoint {

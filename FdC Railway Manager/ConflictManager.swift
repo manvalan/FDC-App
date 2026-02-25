@@ -224,74 +224,103 @@ class ConflictManager: ObservableObject {
     
     /// Rileva saturazione tratte o mancanza di binari totali in stazione
     private func calculateScheduleConflicts(nodes: [RailwayNode], edges: [RailwayEdge], trains: [RailwayTrain], pathCache: inout [String: [RailwayEdge]]?) -> ([ScheduleConflict], [String: Int]) {
-        var conflicts: [ScheduleConflict] = []
         var resourceOccupations: [String: [ResourceOccupation]] = [:]
         let resourceCapacities = getResourceCapacities(nodes: nodes, edges: edges)
-        
         let vehicleMissions = prepareVehicleMissions(trains: trains)
         
         for train in trains {
-            var prevId: String? = nil
-            for stop in train.stops {
-                if stop.isSkipped { continue }
-                
-                // Capacità Totale Stazione
-                let resId = "STATION_GLOBAL::\(stop.stationId)"
-                let (occEntry, occExit) = calculateEffectiveOccupationTimes(train: train, stop: stop, vehicleMissions: vehicleMissions)
-                let occ = ResourceOccupation(
-                    trainId: train.id,
-                    vehicleId: train.vehicleId,
-                    trainName: train.name,
-                    entry: occEntry.normalized(),
-                    exit: occExit.normalized(),
-                    resId: resId,
-                    bufferMinutes: 2.0 // PIGNOLO: Aligned with bufferSicurezza
-                )
-                resourceOccupations[resId, default: []].append(occ)
-                
-                // Tratte (Segmenti)
-                if let pId = prevId, let arrival = stop.arrival, let departurePrev = train.stops.first(where: { $0.stationId == pId })?.departure {
-                    let pathKey = "\(pId)--\(stop.stationId)"
-                    let path = pathCache?[pathKey] ?? NetworkModel.findPathEdges(from: pId, to: stop.stationId, nodes: nodes, edges: edges)
-                    
-                    if let actualPath = path {
-                        pathCache?[pathKey] = actualPath
-                        let totalDist = actualPath.reduce(0.0) { $0 + $1.distance }
-                        let totalTime = arrival.timeIntervalSince(departurePrev)
-                        let avgSpeed = totalDist > 0 ? (totalDist / (totalTime / 3600.0)) : 0.0
-                        
-                        var currentTime = departurePrev
-                        for edge in actualPath {
-                            let transitTime = avgSpeed > 0 ? (edge.distance / avgSpeed * 3600.0) : 0.0
-                            let exitTime = currentTime.addingTimeInterval(transitTime)
-                            let s1Id = edge.from < edge.to ? edge.from : edge.to
-                            let s2Id = edge.from < edge.to ? edge.to : edge.from
-                            let segId = "SEGMENT::\(s1Id)--\(s2Id)"
-                            
-                            let segOcc = ResourceOccupation(
-                                trainId: train.id, 
-                                vehicleId: train.vehicleId, 
-                                trainName: train.name, 
-                                entry: currentTime.normalized(), 
-                                exit: exitTime.normalized(), 
-                                resId: segId, 
-                                bufferMinutes: 2.0 // PIGNOLO: Aligned with bufferSicurezza
-                            )
-                            resourceOccupations[segId, default: []].append(segOcc)
-                            currentTime = exitTime
-                        }
-                    }
-                }
-                prevId = stop.stationId
-            }
+            collectStationOccupations(for: train, vehicleMissions: vehicleMissions, result: &resourceOccupations)
+            collectSegmentOccupations(for: train, nodes: nodes, edges: edges, pathCache: &pathCache, result: &resourceOccupations)
         }
         
+        var conflicts: [ScheduleConflict] = []
         for (resId, occupations) in resourceOccupations {
             let cap = resourceCapacities[resId] ?? 1
             conflicts.append(contentsOf: detectOverlaps(occupations: occupations, capacity: cap, resId: resId, nodes: nodes))
         }
         
         return (conflicts, resourceCapacities)
+    }
+
+    private func collectStationOccupations(for train: RailwayTrain, 
+                                         vehicleMissions: [UUID: [(trainId: UUID, stationId: String, arrival: Date?, departure: Date?)]], 
+                                         result: inout [String: [ResourceOccupation]]) {
+        for stop in train.stops where !stop.isSkipped {
+            let resId = "STATION_GLOBAL::\(stop.stationId)"
+            let (occEntry, occExit) = calculateEffectiveOccupationTimes(train: train, stop: stop, vehicleMissions: vehicleMissions)
+            
+            let occ = ResourceOccupation(
+                trainId: train.id,
+                vehicleId: train.vehicleId,
+                trainName: train.name,
+                entry: occEntry.normalized(),
+                exit: occExit.normalized(),
+                resId: resId,
+                bufferMinutes: 2.0
+            )
+            result[resId, default: []].append(occ)
+        }
+    }
+
+    private func collectSegmentOccupations(for train: RailwayTrain, 
+                                         nodes: [RailwayNode], 
+                                         edges: [RailwayEdge], 
+                                         pathCache: inout [String: [RailwayEdge]]?, 
+                                         result: inout [String: [ResourceOccupation]]) {
+        var prevId: String? = nil
+        for stop in train.stops {
+            if stop.isSkipped { continue }
+            
+            if let pId = prevId, let arrival = stop.arrival {
+                let departurePrev = train.stops.first(where: { $0.stationId == pId })?.departure
+                if let startTime = departurePrev {
+                    processSegmentPath(for: train, from: pId, to: stop.stationId, arrival: arrival, departurePrev: startTime, nodes: nodes, edges: edges, pathCache: &pathCache, result: &result)
+                }
+            }
+            prevId = stop.stationId
+        }
+    }
+
+    private func processSegmentPath(for train: RailwayTrain, 
+                                  from pId: String, 
+                                  to sId: String, 
+                                  arrival: Date, 
+                                  departurePrev: Date, 
+                                  nodes: [Node], 
+                                  edges: [Edge], 
+                                  pathCache: inout [String: [Edge]]?, 
+                                  result: inout [String: [ResourceOccupation]]) {
+        let pathKey = "\(pId)--\(sId)"
+        let path = pathCache?[pathKey] ?? NetworkModel.findPathEdges(from: pId, to: sId, nodes: nodes, edges: edges)
+        
+        guard let actualPath = path else { return }
+        pathCache?[pathKey] = actualPath
+        
+        let totalDist = actualPath.reduce(0.0) { $0 + $1.distance }
+        let totalTime = arrival.timeIntervalSince(departurePrev)
+        let avgSpeed = totalDist > 0 ? (totalDist / (totalTime / 3600.0)) : 0.0
+        
+        var currentTime = departurePrev
+        for edge in actualPath {
+            let transitTime = avgSpeed > 0 ? (edge.distance / avgSpeed * 3600.0) : 0.0
+            let exitTime = currentTime.addingTimeInterval(transitTime)
+            
+            let s1Id = edge.from < edge.to ? edge.from : edge.to
+            let s2Id = edge.from < edge.to ? edge.to : edge.from
+            let segId = "SEGMENT::\(s1Id)--\(s2Id)"
+            
+            let segOcc = ResourceOccupation(
+                trainId: train.id, 
+                vehicleId: train.vehicleId, 
+                trainName: train.name, 
+                entry: currentTime.normalized(), 
+                exit: exitTime.normalized(), 
+                resId: segId, 
+                bufferMinutes: 2.0
+            )
+            result[segId, default: []].append(segOcc)
+            currentTime = exitTime
+        }
     }
 
     // MARK: - Helper Methods
@@ -375,83 +404,106 @@ class ConflictManager: ObservableObject {
     private func detectOverlaps(occupations: [ResourceOccupation], capacity: Int, resId: String, nodes: [Node]) -> [ScheduleConflict] {
         if occupations.count <= capacity { return [] }
         
-        struct Event: Comparable {
-            let time: Date
-            let isEntry: Bool
-            let trainId: UUID
-            let vehicleId: UUID?
-            let trainName: String
-            
-            static func < (lhs: Event, rhs: Event) -> Bool {
-                if lhs.time != rhs.time { return lhs.time < rhs.time }
-                // PIGNOLO FIX: Process EXITS before ENTRIES to avoid point conflicts at transitions
-                return !lhs.isEntry && rhs.isEntry
-            }
-        }
-        
-        let events = occupations.flatMap { occ -> [Event] in
-            [Event(time: occ.entry, isEntry: true, trainId: occ.trainId, vehicleId: occ.vehicleId, trainName: occ.trainName),
-             Event(time: occ.effectiveExit(), isEntry: false, trainId: occ.trainId, vehicleId: occ.vehicleId, trainName: occ.trainName)]
-        }.sorted()
-        
+        let events = generateSortedEvents(from: occupations)
         var activeOccupants: [UUID: (vehicleId: UUID?, name: String)] = [:]
         var conflicts: [ScheduleConflict] = []
         
         for event in events {
             if event.isEntry {
                 activeOccupants[event.trainId] = (event.vehicleId, event.trainName)
+                let physicalCount = countPhysicalOccupants(activeOccupants)
                 
-                // Conta quanti "mezzi fisici" distinti ci sono
-                // Se vId è nil, è considerato un mezzo unico. Se vId esiste, conta solo se diverso.
-                var physicalOccupantsCount = 0
-                var seenVehicles = Set<UUID>()
-                for (_, data) in activeOccupants {
-                    if let vId = data.vehicleId {
-                        if !seenVehicles.contains(vId) {
-                            physicalOccupantsCount += 1
-                            seenVehicles.insert(vId)
-                        }
-                    } else {
-                        physicalOccupantsCount += 1
-                    }
-                }
-                
-                if physicalOccupantsCount > capacity {
-                    // Genera conflitti tra il nuovo arrivato e TUTTI gli altri che non sono lo stesso mezzo fisico
-                    for (otherId, otherData) in activeOccupants where otherId != event.trainId {
-                        // Cruciale: Se è lo stesso mezzo fisico, non è un conflitto!
-                        if let vId = event.vehicleId, let oVId = otherData.vehicleId, vId == oVId {
-                            continue 
-                        }
-                        
-                        let occA = occupations.first(where: { $0.trainId == otherId })!
-                        let startOverlap = max(occA.entry, event.time)
-                        let endOverlap = min(occA.effectiveExit(), event.time.addingTimeInterval(300)) // 5 min min overlap display
-                        
-                        let locInfo = parseLocationInfo(resId: resId, nodes: nodes)
-                        
-                        conflicts.append(ScheduleConflict(
-                            trainAId: otherId,
-                            trainBId: event.trainId,
-                            trainAName: otherData.name,
-                            trainBName: event.trainName,
-                            locationType: locInfo.type,
-                            locationName: locInfo.name,
-                            locationId: resId,
-                            timeStart: startOverlap,
-                            timeEnd: endOverlap,
-                            capacity: capacity,
-                            occupantsCount: physicalOccupantsCount
-                        ))
-                    }
+                if physicalCount > capacity {
+                    conflicts.append(contentsOf: generateConflictsAtEvent(
+                        event: event,
+                        activeOccupants: activeOccupants,
+                        occupations: occupations,
+                        capacity: capacity,
+                        physicalCount: physicalCount,
+                        resId: resId,
+                        nodes: nodes
+                    ))
                 }
             } else {
                 activeOccupants.removeValue(forKey: event.trainId)
             }
         }
         
-        // Grouping to avoid duplicates
         return groupConflictsByIncident(conflicts)
+    }
+
+    private struct OccupationEvent: Comparable {
+        let time: Date
+        let isEntry: Bool
+        let trainId: UUID
+        let vehicleId: UUID?
+        let trainName: String
+        
+        static func < (lhs: OccupationEvent, rhs: OccupationEvent) -> Bool {
+            if lhs.time != rhs.time { return lhs.time < rhs.time }
+            return !lhs.isEntry && rhs.isEntry
+        }
+    }
+
+    private func generateSortedEvents(from occupations: [ResourceOccupation]) -> [OccupationEvent] {
+        occupations.flatMap { occ -> [OccupationEvent] in
+            [OccupationEvent(time: occ.entry, isEntry: true, trainId: occ.trainId, vehicleId: occ.vehicleId, trainName: occ.trainName),
+             OccupationEvent(time: occ.effectiveExit(), isEntry: false, trainId: occ.trainId, vehicleId: occ.vehicleId, trainName: occ.trainName)]
+        }.sorted()
+    }
+
+    private func countPhysicalOccupants(_ active: [UUID: (vehicleId: UUID?, name: String)]) -> Int {
+        var count = 0
+        var seenVehicles = Set<UUID>()
+        for (_, data) in active {
+            if let vId = data.vehicleId {
+                if !seenVehicles.contains(vId) {
+                    count += 1
+                    seenVehicles.insert(vId)
+                }
+            } else {
+                count += 1
+            }
+        }
+        return count
+    }
+
+    private func generateConflictsAtEvent(
+        event: OccupationEvent,
+        activeOccupants: [UUID: (vehicleId: UUID?, name: String)],
+        occupations: [ResourceOccupation],
+        capacity: Int,
+        physicalCount: Int,
+        resId: String,
+        nodes: [Node]
+    ) -> [ScheduleConflict] {
+        var newConflicts: [ScheduleConflict] = []
+        for (otherId, otherData) in activeOccupants where otherId != event.trainId {
+            if let vId = event.vehicleId, let oVId = otherData.vehicleId, vId == oVId {
+                continue 
+            }
+            
+            let occA = occupations.first(where: { $0.trainId == otherId })!
+            let startOverlap = max(occA.entry, event.time)
+            let endOverlap = min(occA.effectiveExit(), event.time.addingTimeInterval(300))
+            
+            let locInfo = parseLocationInfo(resId: resId, nodes: nodes)
+            
+            newConflicts.append(ScheduleConflict(
+                trainAId: otherId,
+                trainBId: event.trainId,
+                trainAName: otherData.name,
+                trainBName: event.trainName,
+                locationType: locInfo.type,
+                locationName: locInfo.name,
+                locationId: resId,
+                timeStart: startOverlap,
+                timeEnd: endOverlap,
+                capacity: capacity,
+                occupantsCount: physicalCount
+            ))
+        }
+        return newConflicts
     }
     
     private func parseLocationInfo(resId: String, nodes: [Node]) -> (name: String, type: ScheduleConflict.LocationType) {

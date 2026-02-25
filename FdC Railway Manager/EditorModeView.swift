@@ -556,6 +556,4 @@ struct ToolIcon: View {
     }
 }
 
-}
-
 // MARK: - Altimetric Profile View

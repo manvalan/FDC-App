@@ -93,14 +93,23 @@ extension ContentView {
     
     @ViewBuilder
     private func inspectorForCurrentState() -> some View {
+        if let operationalView = operationalContextInspector() {
+            operationalView
+        } else {
+            entityInspector()
+        }
+    }
+
+    @ViewBuilder
+    private func operationalContextInspector() -> (any View)? {
         if appState.sidebarSelection == .io {
-            IOManagementView()
-                .id("io-management")
-        } else if appState.isShowingSettings {
-            SettingsInspectorView()
-                .id("settings")
-        } else if let previewData = appState.optimizedTimesPreviewData {
-            OptimizedTimesPreviewInspectorView(
+            return IOManagementView().id("io-management")
+        } 
+        if appState.isShowingSettings {
+            return SettingsInspectorView().id("settings")
+        } 
+        if let previewData = appState.optimizedTimesPreviewData {
+            return OptimizedTimesPreviewInspectorView(
                 line: previewData.line,
                 mode: previewData.mode,
                 currentOutboundTime: previewData.currentOutboundTime,
@@ -109,25 +118,30 @@ extension ContentView {
                 proposedReturnTime: previewData.proposedReturnTime,
                 proposedInterval: previewData.proposedInterval,
                 proposedReturnInterval: previewData.proposedReturnInterval
-            )
-            .id("optimized-times-preview")
-        } else if let trains = appState.schedulePreviewTrains, let line = appState.schedulePreviewLine {
-            SchedulePreviewInspectorView(
+            ).id("optimized-times-preview")
+        } 
+        if let trains = appState.schedulePreviewTrains, let line = appState.schedulePreviewLine {
+            return SchedulePreviewInspectorView(
                 trains: trains,
                 line: line,
                 mode: appState.schedulePreviewMode
-            )
-            .id("schedule-preview")
-        } else if appState.isCreatingTrack {
-            TrackCreationWizard()
-                .id("track-creation")
-        } else if appState.isCreatingLine {
-            LineCreationInspectorView()
-                .id("line-creation")
-        } else if let lineId = appState.creationLineId, let line = appState.railroad.lines.lines.first(where: { $0.id == lineId }) {
-            ScheduleCreationView(line: line)
-                .id("create-schedule-\(lineId)")
-        } else if let node = appState.selectedNode, let index = network.nodes.firstIndex(where: { $0.id == node.id }) {
+            ).id("schedule-preview")
+        } 
+        if appState.isCreatingTrack {
+            return TrackCreationWizard().id("track-creation")
+        } 
+        if appState.isCreatingLine {
+            return LineCreationInspectorView().id("line-creation")
+        } 
+        if let lineId = appState.creationLineId, let line = railroad.lines.lines.first(where: { $0.id == lineId }) {
+            return ScheduleCreationView(line: line).id("create-schedule-\(lineId)")
+        }
+        return nil
+    }
+
+    @ViewBuilder
+    private func entityInspector() -> some View {
+        if let node = appState.selectedNode, let index = network.nodes.firstIndex(where: { $0.id == node.id }) {
             StationInspectorView(
                 station: Binding(
                     get: { network.nodes[index] },
@@ -165,15 +179,20 @@ extension ContentView {
             )
             .id("edge-\(edgeId)")
         } else if !appState.selectedTrainIds.isEmpty {
-            if appState.selectedTrainIds.count == 1, let trainId = appState.selectedTrainIds.first, let train = trainManager.trains.first(where: { $0.id == trainId }) {
-                TrainInspectorView(train: train)
-                    .id("train-\(trainId)")
-            } else {
-                BatchTrainEditView(selectedIds: $appState.selectedTrainIds)
-                    .id("batch-train-edit")
-            }
+            trainSelectionInspector()
         } else {
             EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func trainSelectionInspector() -> some View {
+        if appState.selectedTrainIds.count == 1, let trainId = appState.selectedTrainIds.first, let train = railroad.lines.trains.first(where: { $0.id == trainId }) {
+            TrainInspectorView(train: train)
+                .id("train-\(trainId)")
+        } else {
+            BatchTrainEditView(selectedIds: $appState.selectedTrainIds)
+                .id("batch-train-edit")
         }
     }
 }

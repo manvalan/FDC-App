@@ -42,7 +42,7 @@ struct SchedulerView: View {
                         isLoading = true
                         schedulerResult = "calculating_in_progress".localized
                         errorMessage = nil
-                        let dto = RailwayNetworkDTO(name: "Temp", nodes: network.nodes, edges: network.edges, lines: lines.lines, trains: lines.trains)
+                        let dto = RailwayNetworkDTO(name: "Temp", nodes: network.nodes, edges: network.edges, ferrovie: network.ferrovie, lines: lines.lines, trains: lines.trains, vehicles: lines.vehicles)
                         sendToScheduler(dto: dto, trains: lines.trains) { result in
                             DispatchQueue.main.async {
                                 isLoading = false

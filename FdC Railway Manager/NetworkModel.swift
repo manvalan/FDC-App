@@ -290,32 +290,8 @@ final class NetworkModel: ObservableObject {
         var distances = [String: Double]()
         var previous = [String: String]()
         
-        // Fast lookup for node types
-        var stationNodes = Set<String>()
-        if restrictIntermediateStations {
-            for n in nodes {
-                if n.type == .station || n.type == .interchange {
-                    stationNodes.insert(n.id)
-                }
-            }
-        }
-        
-        let adj: [String: [Edge]] = {
-            var tempAdj = [String: [Edge]]()
-            for edge in edges {
-                if ignoreDirection {
-                    tempAdj[edge.from, default: []].append(edge)
-                    tempAdj[edge.to, default: []].append(edge)
-                } else if isReverse {
-                    tempAdj[edge.to, default: []].append(edge)
-                    if edge.trackType == .single { tempAdj[edge.from, default: []].append(edge) }
-                } else {
-                    tempAdj[edge.from, default: []].append(edge)
-                    if edge.trackType == .single { tempAdj[edge.to, default: []].append(edge) }
-                }
-            }
-            return tempAdj
-        }()
+        let stationNodes = restrictIntermediateStations ? getStationNodeIds(nodes: nodes) : Set<String>()
+        let adj = buildAdjacencyList(edges: edges, isReverse: isReverse, ignoreDirection: ignoreDirection)
         
         for node in nodes { distances[node.id] = Double.infinity }
         distances[start] = 0
@@ -324,18 +300,7 @@ final class NetworkModel: ObservableObject {
         var visited = Set<String>()
         
         while !candidates.isEmpty {
-            var minIndex = -1
-            var minDistance = Double.infinity
-            
-            for (i, node) in candidates.enumerated() {
-                let d = distances[node] ?? .infinity
-                if d < minDistance {
-                    minDistance = d
-                    minIndex = i
-                }
-            }
-            if minIndex == -1 { break }
-            let current = candidates.remove(at: minIndex)
+            guard let current = findMinDistanceNode(candidates: &candidates, distances: distances) else { break }
             if visited.contains(current) { continue }
             visited.insert(current)
             
@@ -344,35 +309,67 @@ final class NetworkModel: ObservableObject {
                 continue
             }
             
-            let dist = distances[current] ?? .infinity
-            if dist == .infinity { break }
-            
-            let neighbors = adj[current] ?? []
-            for edge in neighbors {
-                let neighborId = (ignoreDirection || !isReverse) ? (edge.from == current ? edge.to : edge.from) : (edge.to == current ? edge.from : edge.to)
-                
-                // Extra check for ignoreDirection logic mapping (if using undirected graph, neighbor is the other end)
-                // The above ternary handles:
-                // if ignoreDirection: generic neighbor
-                // else if isReverse: (to->from)
-                // else: (from->to)
-                // Note: The 'adj' construction already filtered edges based on directionality.
-                // However, 'adj' stores the edge object. We need to identify 'neighborId'.
-                // If ignoreDirection=true, adj contains both directions.
-                
-                let actualNeighborId = (edge.from == current) ? edge.to : edge.from
-                
-                if visited.contains(actualNeighborId) { continue }
-                
-                let alt = dist + edge.distance
-                if alt < (distances[actualNeighborId] ?? .infinity) {
-                    distances[actualNeighborId] = alt
-                    previous[actualNeighborId] = current
-                    candidates.append(actualNeighborId)
-                }
-            }
+            relaxNeighbors(current: current, adj: adj, visited: visited, distances: &distances, previous: &previous, candidates: &candidates)
         }
         return (distances, previous)
+    }
+
+    private static nonisolated func getStationNodeIds(nodes: [Node]) -> Set<String> {
+        return Set(nodes.filter { $0.type == .station || $0.type == .interchange }.map { $0.id })
+    }
+
+    private static nonisolated func buildAdjacencyList(edges: [Edge], isReverse: Bool, ignoreDirection: Bool) -> [String: [Edge]] {
+        var adj = [String: [Edge]]()
+        for edge in edges {
+            if ignoreDirection {
+                adj[edge.from, default: []].append(edge)
+                adj[edge.to, default: []].append(edge)
+            } else if isReverse {
+                adj[edge.to, default: []].append(edge)
+                if edge.trackType == .single { adj[edge.from, default: []].append(edge) }
+            } else {
+                adj[edge.from, default: []].append(edge)
+                if edge.trackType == .single { adj[edge.to, default: []].append(edge) }
+            }
+        }
+        return adj
+    }
+
+    private static nonisolated func findMinDistanceNode(candidates: inout [String], distances: [String: Double]) -> String? {
+        var minIndex = -1
+        var minDistance = Double.infinity
+        
+        for (i, node) in candidates.enumerated() {
+            let d = distances[node] ?? .infinity
+            if d < minDistance {
+                minDistance = d
+                minIndex = i
+            }
+        }
+        
+        return minIndex != -1 ? candidates.remove(at: minIndex) : nil
+    }
+
+    private static nonisolated func relaxNeighbors(current: String,
+                                                 adj: [String: [Edge]],
+                                                 visited: Set<String>,
+                                                 distances: inout [String: Double],
+                                                 previous: inout [String: String],
+                                                 candidates: inout [String]) {
+        guard let dist = distances[current], dist != .infinity else { return }
+        
+        let neighbors = adj[current] ?? []
+        for edge in neighbors {
+            let actualNeighborId = (edge.from == current) ? edge.to : edge.from
+            if visited.contains(actualNeighborId) { continue }
+            
+            let alt = dist + edge.distance
+            if alt < (distances[actualNeighborId] ?? .infinity) {
+                distances[actualNeighborId] = alt
+                previous[actualNeighborId] = current
+                candidates.append(actualNeighborId)
+            }
+        }
     }
     
     static nonisolated func findShortestPath(from start: String, to end: String, nodes: [Node], edges: [Edge], ignoreDirection: Bool = false, restrictIntermediateStations: Bool = false) -> ([String], Double)? {

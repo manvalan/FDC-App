@@ -15,7 +15,7 @@ extension NetworkModel {
     func saveToFile(url: URL) throws {
         // Basic infrastructure save using DTO
         // Note: This saves only nodes and edges unless lines/trains are included correctly via LinesManager
-        let dto = RailwayNetworkDTO(name: name, nodes: nodes, edges: edges, lines: nil, trains: nil)
+        let dto = RailwayNetworkDTO(name: name, nodes: nodes, edges: edges, ferrovie: ferrovie, lines: nil, trains: nil, vehicles: nil)
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
         let data = try encoder.encode(dto)

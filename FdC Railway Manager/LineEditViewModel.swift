@@ -33,7 +33,7 @@ final class LineEditViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     private var network: NetworkModel { appState?.railroad.network ?? NetworkModel() }
-    private var lines: LinesManager { appState?.railroad.lines ?? LinesManager(railroad: RailroadNetwork()) }
+    var lines: LinesManager { appState?.railroad.lines ?? LinesManager(network: NetworkModel()) }
     
     // MARK: - Initialization
     

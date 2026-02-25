@@ -243,3 +243,6 @@ struct AltitudeProfileStyle {
         )
     }
 }
+
+// MARK: - Altitude Data
+// AltitudePoint is now defined in InfrastructureTypes.swift

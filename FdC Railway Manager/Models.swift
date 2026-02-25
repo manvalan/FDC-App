@@ -10,13 +10,13 @@ import CoreLocation
 import MapKit
 
 // Bridge for refactoring compatibility
-typealias RailwayNetwork = NetworkModel
-typealias TrainManager = LinesManager
-typealias RailwayEdge = Edge // Disambiguation from SwiftUI.Edge
-typealias RailwayTrackSegment = TrackSegment
-typealias RailwayNode = Node
-typealias RailwayVehicle = Vehicle
-typealias RailwayTrain = Train
+public typealias RailwayNetwork = NetworkModel
+public typealias TrainManager = LinesManager
+public typealias RailwayEdge = Edge // Disambiguation from SwiftUI.Edge
+public typealias RailwayTrackSegment = TrackSegment
+public typealias RailwayNode = Node
+public typealias RailwayVehicle = Vehicle
+public typealias RailwayTrain = Train
 
 // MARK: - Electrification
 public enum ElectrificationType: String, Codable, CaseIterable, Identifiable {
@@ -35,14 +35,14 @@ public enum ElectrificationType: String, Codable, CaseIterable, Identifiable {
 
 public struct RailwayNetworkDTO: Codable {
     public var name: String? = nil
-    public let nodes: [Node]
-    public let edges: [Edge]
+    public let nodes: [RailwayNode]
+    public let edges: [RailwayEdge]
     public var ferrovie: [Ferrovia]? = nil
     public var lines: [RailwayLine]? = nil
-    public var trains: [Train]? = nil
-    public var vehicles: [Vehicle]? = nil
+    public var trains: [RailwayTrain]? = nil
+    public var vehicles: [RailwayVehicle]? = nil
     
-    public init(name: String? = nil, nodes: [Node], edges: [Edge], ferrovie: [Ferrovia]? = nil, lines: [RailwayLine]? = nil, trains: [Train]? = nil, vehicles: [Vehicle]? = nil) {
+    public init(name: String? = nil, nodes: [RailwayNode], edges: [RailwayEdge], ferrovie: [Ferrovia]? = nil, lines: [RailwayLine]? = nil, trains: [RailwayTrain]? = nil, vehicles: [RailwayVehicle]? = nil) {
         self.name = name
         self.nodes = nodes
         self.edges = edges

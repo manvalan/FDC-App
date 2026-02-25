@@ -143,246 +143,17 @@ struct MapGeometryEngine {
                                  selectedEdgeId: String?, 
                                  hiddenLineIds: Set<String>) -> MapRenderData {
         
-        var nodePositions: [String: CGPoint] = [:]
-        for node in network.nodes {
-            nodePositions[node.id] = finalPosition(for: node, in: size, bounds: bounds, network: network)
-        }
+        // 1. Posizioni Nodi
+        let nodePositions = calculateNodePositions(network: network, size: size, bounds: bounds)
         
-        var nodeNeighbors: [String: Set<String>] = [:]
-        for edge in network.edges {
-            nodeNeighbors[edge.from, default: []].insert(edge.to)
-            nodeNeighbors[edge.to, default: []].insert(edge.from)
-        }
+        // 2. Geometrie Edge (Binari paralleli)
+        let edgeGeometries = calculateEdgeGeometries(network: network, nodePositions: nodePositions, size: size, bounds: bounds)
         
-        // Group edges by station pairs to handle parallel tracks
-        var edgesByPair: [String: [RailwayEdge]] = [:]
-        for edge in network.edges {
-            let key = edge.canonicalKey
-            edgesByPair[key, default: []].append(edge)
-        }
+        // 3. Linee Commerciali (Bundle)
+        let commercialLines = calculateCommercialLines(lines: lines, hiddenLineIds: hiddenLineIds, selectedLine: selectedLine)
         
-        var edgeGeometries: [String: [CGPoint]] = [:]
-        for (canonicalKey, edges) in edgesByPair {
-            guard let firstEdge = edges.first else { continue }
-            guard let p1 = nodePositions[firstEdge.from], let p2 = nodePositions[firstEdge.to] else { continue }
-            
-            let avoid = nodePositions.values.filter { $0 != p1 && $0 != p2 }
-            let nPosStart = (nodeNeighbors[firstEdge.from]?.filter { $0 != firstEdge.to } ?? []).compactMap { nodePositions[$0] }
-            let nPosEnd = (nodeNeighbors[firstEdge.to]?.filter { $0 != firstEdge.from } ?? []).compactMap { nodePositions[$0] }
-            
-            // Check if the first edge has custom geometry points
-            let basePoints: [CGPoint]
-            if let customPoints = firstEdge.geometryPoints, !customPoints.isEmpty {
-                // Use custom geometry points if defined
-                var points: [CGPoint] = [p1]
-                for gp in customPoints {
-                    let x = (gp.longitude - bounds.minLon) / bounds.xRange * (size.width - MapConstants.canvasPadding * 2) + MapConstants.canvasPadding
-                    let y = (1.0 - (gp.latitude - bounds.minLat) / bounds.yRange) * (size.height - MapConstants.canvasPadding * 2) + MapConstants.canvasPadding
-                    points.append(CGPoint(x: x, y: y))
-                }
-                points.append(p2)
-                basePoints = points
-            } else {
-                // Generate automatic schematic path
-                basePoints = generateSchematicPoints(from: p1, to: p2, avoidPoints: Array(avoid), neighborsStart: nPosStart, neighborsEnd: nPosEnd)
-            }
-            
-            // Calculate perpendicular offset for parallel tracks
-            let trackCount = edges.count
-            if trackCount == 1 {
-                // Single track - no offset needed
-                edgeGeometries[edges[0].id.uuidString] = basePoints
-            } else if trackCount > 4 {
-                // INNOVATIVE SOLUTION: For busy junctions (>4 lines), use compact bundling
-                // Instead of spreading tracks infinitely, group them in a tight bundle
-                // This is inspired by Apple Maps' approach to complex transit networks
-                let maxSpread: CGFloat = 28.0  // Maximum total width for the bundle
-                let offsetDistance: CGFloat = maxSpread / CGFloat(trackCount - 1)
-                
-                for (index, edge) in edges.enumerated() {
-                    // Calculate offset: centered around the base path
-                    let offset = (CGFloat(index) - CGFloat(trackCount - 1) / 2.0) * offsetDistance
-                    
-                    // Apply perpendicular offset to each point
-                    var offsetPoints: [CGPoint] = []
-                    for i in 0..<basePoints.count {
-                        let p = basePoints[i]
-                        
-                        // Calculate perpendicular direction
-                        var perpX: CGFloat = 0
-                        var perpY: CGFloat = 0
-                        
-                        if i == 0 && basePoints.count > 1 {
-                            // First point: use direction to next point
-                            let next = basePoints[i + 1]
-                            let dx = next.x - p.x
-                            let dy = next.y - p.y
-                            let len = sqrt(dx * dx + dy * dy)
-                            if len > 0 {
-                                perpX = -dy / len
-                                perpY = dx / len
-                            }
-                        } else if i == basePoints.count - 1 && basePoints.count > 1 {
-                            // Last point: use direction from previous point
-                            let prev = basePoints[i - 1]
-                            let dx = p.x - prev.x
-                            let dy = p.y - prev.y
-                            let len = sqrt(dx * dx + dy * dy)
-                            if len > 0 {
-                                perpX = -dy / len
-                                perpY = dx / len
-                            }
-                        } else if basePoints.count > 2 {
-                            // Middle points: average of directions
-                            let prev = basePoints[i - 1]
-                            let next = basePoints[i + 1]
-                            let dx1 = p.x - prev.x
-                            let dy1 = p.y - prev.y
-                            let len1 = sqrt(dx1 * dx1 + dy1 * dy1)
-                            let dx2 = next.x - p.x
-                            let dy2 = next.y - p.y
-                            let len2 = sqrt(dx2 * dx2 + dy2 * dy2)
-                            
-                            if len1 > 0 && len2 > 0 {
-                                let perp1X = -dy1 / len1
-                                let perp1Y = dx1 / len1
-                                let perp2X = -dy2 / len2
-                                let perp2Y = dx2 / len2
-                                perpX = (perp1X + perp2X) / 2
-                                perpY = (perp1Y + perp2Y) / 2
-                                let perpLen = sqrt(perpX * perpX + perpY * perpY)
-                                if perpLen > 0 {
-                                    perpX /= perpLen
-                                    perpY /= perpLen
-                                }
-                            }
-                        }
-                        
-                        // Apply offset
-                        let offsetPoint = CGPoint(
-                            x: p.x + perpX * offset,
-                            y: p.y + perpY * offset
-                        )
-                        offsetPoints.append(offsetPoint)
-                    }
-                    
-                    edgeGeometries[edge.id.uuidString] = offsetPoints
-                }
-            } else {
-                // For 2-4 lines, use normal spacing
-                let baseOffset: CGFloat = 8.0
-                let offsetDistance: CGFloat = baseOffset
-                
-                for (index, edge) in edges.enumerated() {
-                    // Calculate offset: centered around the base path
-                    let offset = (CGFloat(index) - CGFloat(trackCount - 1) / 2.0) * offsetDistance
-                    
-                    // Apply perpendicular offset to each point
-                    var offsetPoints: [CGPoint] = []
-                    for i in 0..<basePoints.count {
-                        let p = basePoints[i]
-                        
-                        // Calculate perpendicular direction
-                        var perpX: CGFloat = 0
-                        var perpY: CGFloat = 0
-                        
-                        if i == 0 && basePoints.count > 1 {
-                            let next = basePoints[i + 1]
-                            let dx = next.x - p.x
-                            let dy = next.y - p.y
-                            let len = sqrt(dx * dx + dy * dy)
-                            if len > 0 {
-                                perpX = -dy / len
-                                perpY = dx / len
-                            }
-                        } else if i == basePoints.count - 1 && basePoints.count > 1 {
-                            let prev = basePoints[i - 1]
-                            let dx = p.x - prev.x
-                            let dy = p.y - prev.y
-                            let len = sqrt(dx * dx + dy * dy)
-                            if len > 0 {
-                                perpX = -dy / len
-                                perpY = dx / len
-                            }
-                        } else if basePoints.count > 2 {
-                            let prev = basePoints[i - 1]
-                            let next = basePoints[i + 1]
-                            let dx1 = p.x - prev.x
-                            let dy1 = p.y - prev.y
-                            let len1 = sqrt(dx1 * dx1 + dy1 * dy1)
-                            let dx2 = next.x - p.x
-                            let dy2 = next.y - p.y
-                            let len2 = sqrt(dx2 * dx2 + dy2 * dy2)
-                            
-                            if len1 > 0 && len2 > 0 {
-                                let perp1X = -dy1 / len1
-                                let perp1Y = dx1 / len1
-                                let perp2X = -dy2 / len2
-                                let perp2Y = dx2 / len2
-                                perpX = (perp1X + perp2X) / 2
-                                perpY = (perp1Y + perp2Y) / 2
-                                let perpLen = sqrt(perpX * perpX + perpY * perpY)
-                                if perpLen > 0 {
-                                    perpX /= perpLen
-                                    perpY /= perpLen
-                                }
-                            }
-                        }
-                        
-                        // Apply offset
-                        let offsetPoint = CGPoint(
-                            x: p.x + perpX * offset,
-                            y: p.y + perpY * offset
-                        )
-                        offsetPoints.append(offsetPoint)
-                    }
-                    
-                    edgeGeometries[edge.id.uuidString] = offsetPoints
-                }
-            }
-        }
-        
-        // First pass: collect lines by segment to determine bundle sizes
-        var segmentLines: [SegmentKey: [(line: RailwayLine, color: Color, isSelected: Bool)]] = [:]
-        for line in lines.lines {
-            if hiddenLineIds.contains(line.id) { continue }
-            guard line.stations.count >= 2 else { continue }
-            for i in 0..<(line.stations.count - 1) {
-                let key = SegmentKey(line.stations[i], line.stations[i+1])
-                let color = Color(hex: line.color ?? "#000000") ?? .black
-                let isSelected = line.id == selectedLine?.id
-                segmentLines[key, default: []].append((line, color, isSelected))
-            }
-        }
-        
-        // Second pass: create PrecomputedLine with bundleSize
-        var commercialLines: [SegmentKey: [MapRenderData.PrecomputedLine]] = [:]
-        for (key, linesOnSegment) in segmentLines {
-            let bundleSize = linesOnSegment.count
-            for item in linesOnSegment {
-                let precomputed = MapRenderData.PrecomputedLine(
-                    line: item.line,
-                    color: item.color,
-                    isSelected: item.isSelected,
-                    bundleSize: bundleSize
-                )
-                commercialLines[key, default: []].append(precomputed)
-            }
-        }
-        
-        // Calcolo Hubs
-        var hubGeometries: [String: [CGPoint]] = [:]
-        let hubNodes = network.nodes.filter { node in
-            node.parentHubId != nil || network.nodes.contains(where: { $0.parentHubId == node.id })
-        }
-        var hubGroups: [String: [RailwayNode]] = [:]
-        for node in hubNodes {
-            let hubId = node.parentHubId ?? node.id
-            hubGroups[hubId, default: []].append(node)
-        }
-        for (hubId, nodes) in hubGroups where nodes.count > 1 {
-            hubGeometries[hubId] = nodes.map { nodePositions[$0.id] ?? .zero }
-        }
+        // 4. Hubs
+        let hubGeometries = calculateHubGeometries(network: network, nodePositions: nodePositions)
         
         return MapRenderData(
             size: size,
@@ -392,6 +163,192 @@ struct MapGeometryEngine {
             hubGeometries: hubGeometries,
             commercialLines: commercialLines
         )
+    }
+
+    // MARK: - Private Extraction Methods
+
+    /// Calcola le posizioni di tutti i nodi nella rete.
+    private static func calculateNodePositions(network: NetworkModel, size: CGSize, bounds: SchematicRailwayView.MapBounds) -> [String: CGPoint] {
+        var positions: [String: CGPoint] = [:]
+        for node in network.nodes {
+            positions[node.id] = finalPosition(for: node, in: size, bounds: bounds, network: network)
+        }
+        return positions
+    }
+
+    /// Calcola le geometrie di tutti gli edge, gestendo i binari paralleli.
+    private static func calculateEdgeGeometries(network: NetworkModel, 
+                                              nodePositions: [String: CGPoint], 
+                                              size: CGSize, 
+                                              bounds: SchematicRailwayView.MapBounds) -> [String: [CGPoint]] {
+        var geometries: [String: [CGPoint]] = [:]
+        
+        let nodeNeighbors = buildNodeNeighbors(network: network)
+        let edgesByPair = groupEdgesByPair(network: network)
+        
+        for (_, edges) in edgesByPair {
+            processEdgePair(edges, nodePositions: nodePositions, nodeNeighbors: nodeNeighbors, size: size, bounds: bounds, results: &geometries)
+        }
+        
+        return geometries
+    }
+
+    /// Costruisce una mappa dei vicini per ogni nodo.
+    private static func buildNodeNeighbors(network: NetworkModel) -> [String: Set<String>] {
+        var neighbors: [String: Set<String>] = [:]
+        for edge in network.edges {
+            neighbors[edge.from, default: []].insert(edge.to)
+            neighbors[edge.to, default: []].insert(edge.from)
+        }
+        return neighbors
+    }
+
+    /// Raggruppa gli edge per coppia di stazioni (chiave canonica).
+    private static func groupEdgesByPair(network: NetworkModel) -> [String: [RailwayEdge]] {
+        var grouped: [String: [RailwayEdge]] = [:]
+        for edge in network.edges {
+            grouped[edge.canonicalKey, default: []].append(edge)
+        }
+        return grouped
+    }
+
+    /// Elabora una coppia di edge tra due stazioni, calcolando i percorsi e gli offset.
+    private static func processEdgePair(_ edges: [RailwayEdge], 
+                                      nodePositions: [String: CGPoint], 
+                                      nodeNeighbors: [String: Set<String>], 
+                                      size: CGSize, 
+                                      bounds: SchematicRailwayView.MapBounds, 
+                                      results: inout [String: [CGPoint]]) {
+        guard let firstEdge = edges.first,
+              let p1 = nodePositions[firstEdge.from],
+              let p2 = nodePositions[firstEdge.to] else { return }
+        
+        let avoid = nodePositions.values.filter { $0 != p1 && $0 != p2 }
+        let nPosStart = (nodeNeighbors[firstEdge.from]?.filter { $0 != firstEdge.to } ?? []).compactMap { nodePositions[$0] }
+        let nPosEnd = (nodeNeighbors[firstEdge.to]?.filter { $0 != firstEdge.from } ?? []).compactMap { nodePositions[$0] }
+        
+        let basePoints = getBasePoints(for: firstEdge, from: p1, to: p2, avoid: avoid, nPosStart: nPosStart, nPosEnd: nPosEnd, size: size, bounds: bounds)
+        
+        applyOffsets(for: edges, basePoints: basePoints, results: &results)
+    }
+
+    /// Ottiene i punti base per un edge (custom o schematici).
+    private static func getBasePoints(for edge: RailwayEdge, 
+                                    from p1: CGPoint, 
+                                    to p2: CGPoint, 
+                                    avoid: [CGPoint], 
+                                    nPosStart: [CGPoint], 
+                                    nPosEnd: [CGPoint], 
+                                    size: CGSize, 
+                                    bounds: SchematicRailwayView.MapBounds) -> [CGPoint] {
+        if let customPoints = edge.geometryPoints, !customPoints.isEmpty {
+            var points: [CGPoint] = [p1]
+            for gp in customPoints {
+                points.append(toCanvasCoords(lat: gp.latitude, lon: gp.longitude, size: size, bounds: bounds))
+            }
+            points.append(p2)
+            return points
+        }
+        
+        return generateSchematicPoints(from: p1, to: p2, avoidPoints: avoid, neighborsStart: nPosStart, neighborsEnd: nPosEnd)
+    }
+
+    /// Converte coordinate geo in punti canvas.
+    private static func toCanvasCoords(lat: Double, lon: Double, size: CGSize, bounds: SchematicRailwayView.MapBounds) -> CGPoint {
+        let x = (lon - bounds.minLon) / bounds.xRange * (size.width - MapConstants.canvasPadding * 2) + MapConstants.canvasPadding
+        let y = (1.0 - (lat - bounds.minLat) / bounds.yRange) * (size.height - MapConstants.canvasPadding * 2) + MapConstants.canvasPadding
+        return CGPoint(x: x, y: y)
+    }
+
+    /// Applica gli offset perpendicolari per i binari paralleli.
+    private static func applyOffsets(for edges: [RailwayEdge], basePoints: [CGPoint], results: inout [String: [CGPoint]]) {
+        let trackCount = edges.count
+        if trackCount == 1 {
+            results[edges[0].id.uuidString] = basePoints
+            return
+        }
+        
+        let offsetDistance: CGFloat = trackCount > 4 ? (28.0 / CGFloat(trackCount - 1)) : 8.0
+        
+        for (index, edge) in edges.enumerated() {
+            let offset = (CGFloat(index) - CGFloat(trackCount - 1) / 2.0) * offsetDistance
+            results[edge.id.uuidString] = offsetPoints(basePoints, offset: offset)
+        }
+    }
+
+    /// Applica un offset a una serie di punti.
+    private static func offsetPoints(_ points: [CGPoint], offset: CGFloat) -> [CGPoint] {
+        var offsetPoints: [CGPoint] = []
+        for i in 0..<points.count {
+            let perp = calculatePerpendicularAt(i, in: points)
+            offsetPoints.append(CGPoint(x: points[i].x + perp.x * offset, y: points[i].y + perp.y * offset))
+        }
+        return offsetPoints
+    }
+
+    /// Calcola la direzione perpendicolare in un punto di un tracciato.
+    private static func calculatePerpendicularAt(_ i: Int, in points: [CGPoint]) -> CGPoint {
+        guard points.count >= 2 else { return .zero }
+        
+        if i == 0 {
+            return perpendicularBetween(points[0], points[1])
+        } else if i == points.count - 1 {
+            return perpendicularBetween(points[i-1], points[i])
+        } else {
+            let p1 = perpendicularBetween(points[i-1], points[i])
+            let p2 = perpendicularBetween(points[i], points[i+1])
+            let avg = CGPoint(x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2)
+            let len = sqrt(avg.x * avg.x + avg.y * avg.y)
+            return len > 0 ? CGPoint(x: avg.x / len, y: avg.y / len) : p1
+        }
+    }
+
+    /// Calcola la perpendicolare a un segmento.
+    private static func perpendicularBetween(_ p1: CGPoint, _ p2: CGPoint) -> CGPoint {
+        let dx = p2.x - p1.x
+        let dy = p2.y - p1.y
+        let len = sqrt(dx * dx + dy * dy)
+        return len > 0 ? CGPoint(x: -dy / len, y: dx / len) : .zero
+    }
+
+    /// Calcola i dati per il rendering delle linee commerciali (bundle).
+    private static func calculateCommercialLines(lines: LinesManager, 
+                                               hiddenLineIds: Set<String>, 
+                                               selectedLine: RailwayLine?) -> [SegmentKey: [MapRenderData.PrecomputedLine]] {
+        var segmentLines: [SegmentKey: [(line: RailwayLine, color: Color, isSelected: Bool)]] = [:]
+        for line in lines.lines {
+            if hiddenLineIds.contains(line.id) || line.stations.count < 2 { continue }
+            for i in 0..<(line.stations.count - 1) {
+                let key = SegmentKey(line.stations[i], line.stations[i+1])
+                let color = Color(hex: line.color ?? "#000000") ?? .black
+                let isSelected = line.id == selectedLine?.id
+                segmentLines[key, default: []].append((line, color, isSelected))
+            }
+        }
+        
+        var commercialLines: [SegmentKey: [MapRenderData.PrecomputedLine]] = [:]
+        for (key, linesOnSegment) in segmentLines {
+            let bundleSize = linesOnSegment.count
+            commercialLines[key] = linesOnSegment.map { item in
+                MapRenderData.PrecomputedLine(line: item.line, color: item.color, isSelected: item.isSelected, bundleSize: bundleSize)
+            }
+        }
+        return commercialLines
+    }
+
+    /// Calcola le geometrie per i Hub (gruppi di stazioni vicine).
+    private static func calculateHubGeometries(network: NetworkModel, nodePositions: [String: CGPoint]) -> [String: [CGPoint]] {
+        var hubGroups: [String: [RailwayNode]] = [:]
+        for node in network.nodes {
+            let hubId = node.parentHubId ?? (network.nodes.contains(where: { $0.parentHubId == node.id }) ? node.id : nil)
+            if let hid = hubId { hubGroups[hid, default: []].append(node) }
+        }
+        
+        var geometries: [String: [CGPoint]] = [:]
+        for (hubId, nodes) in hubGroups where nodes.count > 1 {
+            geometries[hubId] = nodes.map { nodePositions[$0.id] ?? .zero }
+        }
+        return geometries
     }
 }
 

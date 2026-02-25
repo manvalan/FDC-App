@@ -6,6 +6,9 @@ import CoreLocation
 
 struct AltimetricProfileView: View {
     @EnvironmentObject var appState: AppState
+ 
+    /// Vista del profilo altimetrico.
+    /// Permette di visualizzare e modificare le quote dei nodi lungo un percorso.
 
     @Binding var lockedNodeIds: Set<String>
     
@@ -13,6 +16,8 @@ struct AltimetricProfileView: View {
     @State private var altitudeEditText: String = ""
     @State private var horizontalScale: CGFloat = 0.5  // Start with compact scale to show entire line
     @State private var verticalScale: CGFloat = 1.0    // Scale for vertical zoom (altitude)
+    
+    private let renderer = RailwayRenderer()
     
     private var selectedFerroviaId: String? {
         get { appState.selectedFerroviaId }
@@ -284,6 +289,7 @@ struct AltimetricProfileView: View {
         )
     }
     
+    // MARK: - Grafico del Profilo
     @ViewBuilder
     private func profileGraph(stations: [RailwayNode], geo: GeometryProxy) -> some View {
         let totalDist = totalDistance(stations: stations, network: appState.railroad.network)
@@ -304,81 +310,56 @@ struct AltimetricProfileView: View {
         let scaledPixelsPerKm = basePixelsPerKm * horizontalScale
         let pointsData = calculatePoints(stations: stations, graphWidth: graphWidth, geoHeight: geo.size.height, minAlt: minAlt, altRange: altRange, baseAltRange: baseAltRange, pixelsPerKm: scaledPixelsPerKm)
         
+        let altitudePoints = pointsData.compactMap { pd -> AltitudePoint? in
+            guard let nodeId = pd.nodeId,
+                  let node = appState.railroad.network.nodes.first(where: { $0.id == nodeId }) else {
+                return nil
+            }
+            return AltitudePoint(
+                id: nodeId,
+                nodeId: nodeId,
+                distance: pd.cumulativeDistance,
+                altitude: getAltitudeForPoint(pd),
+                isStation: pd.isStation,
+                node: node
+            )
+        }
+        
         ZStack {
             // Background
             Color.white
                 .frame(width: graphWidth, height: geo.size.height)
             
-            // Grid
-            ForEach(0...4, id: \.self) { i in
-                let y = geo.size.height * 0.1 + CGFloat(i) * (geo.size.height * 0.8 / 4)
-                let altValue = maxAlt - (Double(i) / 4.0) * altRange
-                
-                Path { path in
-                    path.move(to: CGPoint(x: 40, y: y))
-                    path.addLine(to: CGPoint(x: graphWidth, y: y))
-                }
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                
-                Text("\(Int(altValue))m")
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
-                    .foregroundColor(.secondary)
-                    .position(x: 20, y: y)
-            }
+            // Grid background from renderer
+            renderer.renderAltimetricProfile(
+                points: altitudePoints,
+                in: geo,
+                style: .default,
+                pixelsPerKm: scaledPixelsPerKm,
+                minAltitude: minAlt,
+                altitudeRange: altRange
+            )
+            .frame(width: graphWidth)
             
-            // Station vertical lines (dashed)
-            ForEach(pointsData.filter { $0.isStation }) { p in
-                Path { path in
-                    path.move(to: CGPoint(x: p.point.x, y: geo.size.height * 0.1))
-                    path.addLine(to: CGPoint(x: p.point.x, y: geo.size.height * 0.9))
-                }
-                .stroke(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                .foregroundColor(.blue.opacity(0.3))
+            // Custom label overlays (since renderer's ones might be too simple)
+            ForEach(0..<pointsData.count - 1, id: \.self) { i in
+                let p1 = pointsData[i]
+                let p2 = pointsData[i+1]
+                let alt1 = getAltitudeForPoint(p1)
+                let alt2 = getAltitudeForPoint(p2)
+                let distKm = abs(p2.cumulativeDistance - p1.cumulativeDistance)
+                let slope = distKm > 0 ? (alt2 - alt1) / distKm : 0
                 
-                // Station name at bottom
-                if let nodeId = p.nodeId, let station = appState.railroad.network.nodes.first(where: { $0.id == nodeId }) {
-                    Text(station.name)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.primary)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                        .background(Color.white.opacity(0.9))
-                        .cornerRadius(4)
-                        .rotationEffect(.degrees(-45))
-                        .position(x: p.point.x + 25, y: geo.size.height * 0.92)
-                }
-            }
-            
-            // Segments (draw lines between all consecutive points)
-            if pointsData.count > 1 {
-                ForEach(0..<pointsData.count - 1, id: \.self) { i in
-                    let p1 = pointsData[i]
-                    let p2 = pointsData[i+1]
-                    
-                    // Calculate slope between these two points (meters / km = permille)
-                    let alt1 = getAltitudeForPoint(p1)
-                    let alt2 = getAltitudeForPoint(p2)
-                    let distKm = abs(p2.cumulativeDistance - p1.cumulativeDistance)
-                    let slope = distKm > 0 ? (alt2 - alt1) / distKm : 0
-                    
-                    // Draw slope line (tap handling delegated to global gesture)
-                    Path { path in
-                        path.move(to: p1.point)
-                        path.addLine(to: p2.point)
-                    }
-                    .stroke(slopeColor(slope), lineWidth: 3)
-                    
-                    // Show slope percentage
-                    let midX = (p1.point.x + p2.point.x) / 2
-                    let midY = (p1.point.y + p2.point.y) / 2
-                    Text(String(format: "%.1f‰", abs(slope)))
-                         .font(.system(size: 9, weight: .bold))
-                         .foregroundColor(slopeColor(slope))
-                         .padding(2)
-                         .background(Color.white.opacity(0.8))
-                         .cornerRadius(4)
-                         .position(x: midX, y: midY - 15)
-                }
+                let midX = (p1.point.x + p2.point.x) / 2
+                let midY = (p1.point.y + p2.point.y) / 2
+                
+                Text(String(format: "%.1f‰", abs(slope)))
+                     .font(.system(size: 9, weight: .bold))
+                     .foregroundColor(slopeColor(slope))
+                     .padding(2)
+                     .background(Color.white.opacity(0.8))
+                     .cornerRadius(4)
+                     .position(x: midX, y: midY - 15)
             }
             
             // Points

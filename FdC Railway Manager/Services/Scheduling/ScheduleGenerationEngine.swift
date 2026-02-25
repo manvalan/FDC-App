@@ -4,7 +4,7 @@ import Foundation
 final class ScheduleGenerationEngine {
     private let network: RailwayNetwork
     private let trainManager: TrainManager
-    private let vehicleRotationOptimizer = VehicleRotationOptimizer()
+
     
     init(network: RailwayNetwork, trainManager: TrainManager) {
         self.network = network
@@ -30,8 +30,6 @@ final class ScheduleGenerationEngine {
         preferredParity: NumberParity,
         useDepartureOptimizer: Bool,
         taktStationId: String,
-        optimizeVehicleRotation: Bool,
-        minimumTurnaroundTime: Double,
         progressCallback: @escaping (String) -> Void
     ) async -> [Train] {
         progressCallback("Preparazione treni...")
@@ -55,14 +53,8 @@ final class ScheduleGenerationEngine {
         
         guard !optimized.isEmpty else { return [] }
         
-        if optimizeVehicleRotation {
-            progressCallback("Ottimizzazione turni mezzi...")
-            return await applyVehicleRotation(
-                to: optimized,
-                minimumTurnaroundTime: minimumTurnaroundTime
-            )
-        }
-        
+        // I turni macchina (vehicleId) vengono assegnati separatamente nel menu dedicato.
+        // I treni escono con vehicleId = nil ma con le proprietà fisiche del modello selezionato.
         return optimized
     }
     
@@ -91,25 +83,26 @@ final class ScheduleGenerationEngine {
                 calendar: calendar, normalizedStart: normalizedStart, endTime: endTime,
                 intervalMinutes: intervalMinutes, currentStart: currentStart,
                 returnStartNumber: returnStartNumber, line: line, rLineObj: rLineObj,
-                stationSequence: stationSequence, physics: physics,
-                effectiveVehicle: effectiveVehicle, skippedStopIds: skippedStopIds,
-                isMainLine: isMainLine
+                stationSequence: stationSequence, selectedTrainType: selectedTrainType,
+                physics: physics, effectiveVehicle: effectiveVehicle,
+                skippedStopIds: skippedStopIds, isMainLine: isMainLine
             )
         } else {
             raw = generateStandard(
                 calendar: calendar, normalizedStart: normalizedStart, normalizedEnd: normalizedEnd,
                 mode: mode, intervalMinutes: intervalMinutes, currentStart: currentStart,
                 returnStartNumber: returnStartNumber, line: line, rLineObj: rLineObj,
-                stationSequence: stationSequence, physics: physics,
-                effectiveVehicle: effectiveVehicle, skippedStopIds: skippedStopIds,
-                isMainLine: isMainLine, scheduleReturn: scheduleReturn
+                stationSequence: stationSequence, selectedTrainType: selectedTrainType,
+                physics: physics, effectiveVehicle: effectiveVehicle,
+                skippedStopIds: skippedStopIds, isMainLine: isMainLine,
+                scheduleReturn: scheduleReturn
             )
         }
         return raw.filter { !$0.stops.isEmpty }
     }
     
     private func runOptimizationPipeline(
-        trains: [Train], lineId: UUID, mode: ScheduleMode,
+        trains: [Train], lineId: String, mode: ScheduleMode,
         useDepartureOptimizer: Bool, taktStationId: String
     ) async -> [Train] {
         let useGA = mode == .taktfahrplan ? false : useDepartureOptimizer
@@ -124,20 +117,7 @@ final class ScheduleGenerationEngine {
             preferredTaktNodeId: taktNode)
     }
     
-    private func applyVehicleRotation(to trains: [Train], minimumTurnaroundTime: Double) async -> [Train] {
-        var result = trains
-        let assignment = vehicleRotationOptimizer.optimizeVehicleAssignment(
-            trains: result, vehicles: trainManager.vehicles,
-            minimumTurnaroundTime: minimumTurnaroundTime)
-        for (vehicleId, trainIds) in assignment {
-            for trainId in trainIds {
-                if let idx = result.firstIndex(where: { $0.id == trainId }) {
-                    result[idx].vehicleId = vehicleId
-                }
-            }
-        }
-        return result
-    }
+
     
     // MARK: - Helpers
     
@@ -175,7 +155,8 @@ final class ScheduleGenerationEngine {
     private func generateTakt120Pairs(
         calendar: Calendar, normalizedStart: Date, endTime: Date, intervalMinutes: Int,
         currentStart: Int, returnStartNumber: Int, line: RailwayLine, rLineObj: RailwayLine,
-        stationSequence: [String], physics: (Double, Double, Double, Double, Double),
+        stationSequence: [String], selectedTrainType: TrainCategory,
+        physics: (Double, Double, Double, Double, Double),
         effectiveVehicle: Vehicle?, skippedStopIds: Set<String>, isMainLine: Bool
     ) -> [Train] {
         let sMin = calendar.component(.hour, from: normalizedStart) * 60 + calendar.component(.minute, from: normalizedStart)
@@ -204,7 +185,8 @@ final class ScheduleGenerationEngine {
     private func generateStandard(
         calendar: Calendar, normalizedStart: Date, normalizedEnd: Date, mode: ScheduleMode, intervalMinutes: Int,
         currentStart: Int, returnStartNumber: Int, line: RailwayLine, rLineObj: RailwayLine,
-        stationSequence: [String], physics: (Double, Double, Double, Double, Double),
+        stationSequence: [String], selectedTrainType: TrainCategory,
+        physics: (Double, Double, Double, Double, Double),
         effectiveVehicle: Vehicle?, skippedStopIds: Set<String>, isMainLine: Bool, scheduleReturn: Bool
     ) -> [Train] {
         var result: [Train] = []
