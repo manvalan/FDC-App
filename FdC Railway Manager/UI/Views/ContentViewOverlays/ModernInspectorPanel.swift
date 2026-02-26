@@ -147,7 +147,7 @@ struct ModernInspectorPanel: View {
                     .foregroundColor(appState.sidebarSelection == .tracks ? appState.theme.accent : appState.theme.dark)
                     
                     Button(action: { appState.sidebarSelection = .infraLines }) {
-                        Text("Ferrovie")
+                        Text("Linee")
                             .font(.caption)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)

@@ -44,7 +44,7 @@ struct FloatingSideMenu: View {
                             appState.showPanel(.inspector)
                         }
                         
-                        MenuRow(title: "Linee", icon: "arrow.triangle.branch", isSelected: appState.sidebarSelection == .lines) {
+                        MenuRow(title: "Relazioni", icon: "arrow.triangle.branch", isSelected: appState.sidebarSelection == .lines) {
                              appState.sidebarSelection = .lines
                              appState.currentMode = .design
                              appState.lineInspectorMode = .infrastructure
