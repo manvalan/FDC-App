@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		05104C7CB9A6FBFE4E71477E /* TimetableChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 644A4D55976338B7CDE50DA1 /* TimetableChart.swift */; };
+		0C264A718802B3265905ED2A /* LinesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9DE4A1ABAADAC85895A2810 /* LinesManager.swift */; };
 		12974A94B63224BC25547969 /* StationRoutingConstraintsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4134ADF99C92A8CE89CFD92 /* StationRoutingConstraintsView.swift */; };
 		142F4E04984A1AAC42DE0D81 /* Switch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1042998EACDB9B0B43F1AC /* Switch.swift */; };
 		18984404894CB9F7D55B2BA4 /* EdgeGestureDetectors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F64C5EB58D351E13922054 /* EdgeGestureDetectors.swift */; };
@@ -199,6 +200,7 @@
 		B7C94C699993633A4BBD4010 /* StationPickerRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StationPickerRow.swift; path = "FdC Railway Manager/UI/Views/ScheduleCreation/StationPickerRow.swift"; sourceTree = SOURCE_ROOT; };
 		B82248ADA0B456842BBFFEC9 /* VehicleTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = VehicleTemplate.swift; path = "FdC Railway Manager/Models/VehicleTemplate.swift"; sourceTree = SOURCE_ROOT; };
 		B89542C2B91F9B7A4B78DD45 /* InfrastructureDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = InfrastructureDocument.swift; path = "FdC Railway Manager/UI/Views/IOManagement/InfrastructureDocument.swift"; sourceTree = SOURCE_ROOT; };
+		B9DE4A1ABAADAC85895A2810 /* LinesManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LinesManager.swift; path = "FdC Railway Manager/LinesManager/LinesManager.swift"; sourceTree = SOURCE_ROOT; };
 		C1464346B283612191DA4FDB /* ManualEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ManualEditView.swift; path = "FdC Railway Manager/UI/Views/Scheduler/ManualEditView.swift"; sourceTree = SOURCE_ROOT; };
 		C6CD4525AE33EE5A3658CD0E /* MultiSelectionEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MultiSelectionEditor.swift; path = "FdC Railway Manager/UI/Views/AltimetricProfile/MultiSelectionEditor.swift"; sourceTree = SOURCE_ROOT; };
 		C9B7469A988EFB584C76BB6C /* StationInlineEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StationInlineEditor.swift; path = "FdC Railway Manager/UI/Panels/Floating/StationInlineEditor.swift"; sourceTree = SOURCE_ROOT; };
@@ -341,6 +343,7 @@
 				FE2049E68153C0B8A41FD506 /* NetworkModel.swift */,
 				1E324FA0BCF686B245BB4C16 /* TypeAliases.swift */,
 				68FB4A608884AE625BCBC8A7 /* NetworkIOExporter.swift */,
+				B9DE4A1ABAADAC85895A2810 /* LinesManager.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -531,6 +534,7 @@
 				33EA4AD4AB18056605C9898B /* NetworkModel.swift in Sources */,
 				ED0A484AA56F1AA106E6752D /* TypeAliases.swift in Sources */,
 				35A746099FD3C83D87C7FC75 /* NetworkIOExporter.swift in Sources */,
+				0C264A718802B3265905ED2A /* LinesManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
