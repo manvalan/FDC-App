@@ -1,0 +1,923 @@
+import SwiftUI
+import Combine
+import MapKit
+#if canImport(UIKit)
+import UIKit
+#endif
+#if canImport(AppKit)
+import AppKit
+#endif
+
+struct SchematicRailwayView: View {
+    @EnvironmentObject var appState: AppState
+    private var railroad: RailroadNetwork { appState.railroad }
+    private var network: NetworkModel { railroad.network }
+    private var lines: LinesManager { railroad.lines }
+    
+    @Binding var selectedNode: Node?
+    @Binding var selectedLine: RailwayLine?
+    @Binding var selectedEdgeId: String?
+    @Binding var showGrid: Bool
+    @Binding var isMoveModeEnabled: Bool
+    @Binding var highlightedConflictLocation: String?
+    var mode: RailwayMapView.MapVisualizationMode
+    
+    // Export actions
+    var onExport: (RailwayMapView.ExportFormat) -> Void
+    var onPrint: () -> Void
+    
+    @State private var zoomLevel: CGFloat = 2.0
+    @State private var editMode: EditMode = .explore
+    @State private var isEditToolbarVisible: Bool = false
+
+    // Grid State: managed by parent binding now
+    // Track Creation State
+    @State private var newTrackFrom: RailwayNode? = nil
+    @State private var newTrackTo: RailwayNode? = nil
+    @State private var newTrackType: RailwayEdge.TrackType = .regional
+    @State private var newTrackDistance: Double = 10.0
+    
+    private let gridSize: CGFloat = 50.0
+    
+    // New state for line filtering
+    @State private var hiddenLineIds: Set<String> = []
+    
+    // Track Selection: managed by parent binding
+    // Removed local state
+    
+    enum EditMode: String, CaseIterable, Identifiable {
+        case explore = "explore"
+        case addTrack = "create_tracks"
+        case addStation = "add_station"
+        case createLine = "create_line" // Mode for creating lines
+        var id: String { rawValue }
+        
+        var localizedName: String {
+            self.rawValue.localized
+        }
+    }
+    
+    // Pinch to Zoom state
+    @State private var magnification: CGFloat = 1.0
+    @State private var showLineCreation: Bool = false
+    
+    private var totalZoom: CGFloat {
+        zoomLevel * magnification
+    }
+    
+    private var coordinateGridStep: Double {
+        let zoom = totalZoom
+        if zoom < 1.5 { return 10.0 }
+        if zoom < 3.0 { return 5.0 }
+        return 1.0
+    }
+    
+    struct MapBounds {
+        let minLat, maxLat, minLon, maxLon: Double
+        let xRange, yRange: Double
+    }
+    
+    private var mapBounds: MapBounds {
+        let nodes = network.nodes
+        let lats = nodes.compactMap { $0.latitude }
+        let lons = nodes.compactMap { $0.longitude }
+        
+        // Better defaults for Italy area if empty
+        let minLat = lats.min() ?? 38.0
+        let maxLat = lats.max() ?? 48.0
+        let minLon = lons.min() ?? 7.0
+        let maxLon = lons.max() ?? 19.0
+        
+        let xr = maxLon - minLon
+        let yr = maxLat - minLat
+        
+        // Add 10% padding to prevent nodes from sticking to edges
+        let padX = xr == 0 ? 0.5 : xr * 0.1
+        let padY = yr == 0 ? 0.5 : yr * 0.1
+        
+        let finalMaxLat = maxLat + padY
+        let finalMinLat = minLat - padY
+        let finalMaxLon = maxLon + padX
+        let finalMinLon = minLon - padX
+        
+        return MapBounds(minLat: finalMinLat, maxLat: finalMaxLat, minLon: finalMinLon, maxLon: finalMaxLon,
+                         xRange: (finalMaxLon - finalMinLon), yRange: (finalMaxLat - finalMinLat))
+    }
+    
+    var body: some View {
+        GeometryReader { geo in
+            let size = canvasSize(for: geo.size)
+            let bounds = self.mapBounds
+            let renderData = MapGeometryEngine.generateRenderData(
+                network: network,
+                lines: lines,
+                size: size,
+                bounds: bounds,
+                selectedRouteId: appState.selectedRouteId,
+                selectedEdgeId: selectedEdgeId,
+                hiddenLineIds: hiddenLineIds
+            )
+            
+            mainViewContainer(size: size, bounds: bounds, renderData: renderData)
+        }
+        .background(Color.white)
+        .simultaneousGesture(zoomGesture)
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                // Zoom to Fit
+                Button(action: { withAnimation { zoomLevel = 1.0 } }) {
+                    Label("reset_zoom".localized, systemImage: "arrow.down.left.and.arrow.up.right")
+                }
+                
+                Menu {
+                    Text("lines_visibility".localized)
+                    Divider()
+                    ForEach(lines.lines) { line in
+                        Button(action: {
+                            if hiddenLineIds.contains(line.id) {
+                                hiddenLineIds.remove(line.id)
+                            } else {
+                                hiddenLineIds.insert(line.id)
+                            }
+                        }) {
+                            HStack {
+                                Text(line.name)
+                                if !hiddenLineIds.contains(line.id) {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                    Divider()
+                    Button("show_all_button".localized) {
+                        hiddenLineIds.removeAll()
+                    }
+                } label: {
+                    Label("filter_lines".localized, systemImage: "line.3.horizontal.decrease.circle")
+                }
+            }
+        }
+    }
+    
+    private func canvasSize(for geoSize: CGSize) -> CGSize {
+        CGSize(
+            width: max(geoSize.width * totalZoom, geoSize.width),
+            height: max(geoSize.height * totalZoom, geoSize.height)
+        )
+    }
+    
+    @ViewBuilder
+    private func mainViewContainer(size: CGSize, bounds: MapBounds, renderData: MapRenderData) -> some View {
+        ZStack {
+            // 1. Map Content (Base)
+            scrollViewLayer(size: size, bounds: bounds, renderData: renderData)
+            
+            // 2. Overlays (Middle)
+            lineCreationOverlay
+            
+            trackCreationOverlay
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .allowsHitTesting(editMode == .addTrack) // Only block interaction when active
+            
+            stationPickingIndicator
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            
+            moveModeOverlay
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            
+            // 3. Controls (Top - Highest Z-Index)
+            MapControlsView(
+                isEditToolbarVisible: $isEditToolbarVisible,
+                editMode: $editMode,
+                isMoveModeEnabled: $isMoveModeEnabled,
+                zoomLevel: $zoomLevel,
+                onExport: onExport,
+                onPrint: onPrint
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        }
+    }
+    
+    @ViewBuilder
+    private func scrollViewLayer(size: CGSize, bounds: MapBounds, renderData: MapRenderData) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView([.horizontal, .vertical], showsIndicators: true) {
+                ZStack(alignment: .topLeading) {
+                    mapBasement(size: size, bounds: bounds)
+                    scrollingAnchors(size: size, bounds: bounds)
+                    mapMainLayers(size: size, bounds: bounds, renderData: renderData)
+                }
+                .frame(width: size.width, height: size.height)
+                .background(Color.white)
+                .id("content")
+            }
+            .background(Color.white)
+            .onChange(of: appState.selectedNodeId) { _, newNodeId in
+                if let node = network.nodes.first(where: { $0.id == newNodeId }) {
+                    centerOnNode(node, size: size, bounds: bounds, proxy: proxy)
+                }
+            }
+            .onChange(of: appState.selectedRouteId) { _, newLineId in
+                if let line = lines.lines.first(where: { $0.id == newLineId }) {
+                    centerOnLine(line, size: size, bounds: bounds, proxy: proxy)
+                }
+            }
+            .onChange(of: appState.selectedEdgeId) { _, newEdgeId in
+                centerOnEdge(newEdgeId, size: size, bounds: bounds, proxy: proxy)
+            }
+            .onChange(of: appState.selectedTrainIds) { _, newIds in centerOnTrain(Array(newIds), size: size, bounds: bounds, proxy: proxy) }
+            .onChange(of: appState.isCreatingLine) { _, isCreating in
+                setupLineCreationCallback(isCreating: isCreating)
+            }
+            .onChange(of: appState.isCreatingTrack) { _, isCreating in
+                if isCreating {
+                    editMode = .addTrack
+                    newTrackFrom = nil
+                    newTrackTo = nil
+                    // Also ensure sidebar/inspector doesn't block map if we need to tap
+                } else {
+                    if editMode == .addTrack {
+                        editMode = .explore
+                        newTrackFrom = nil
+                        newTrackTo = nil
+                    }
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func mapBasement(size: CGSize, bounds: MapBounds) -> some View {
+        ZStack {
+            Color.white
+            if showGrid {
+                CoordinateGridShape(bounds: bounds, unit: coordinateGridStep, size: size)
+                    .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .onTapGesture { location in handleCanvasTap(at: location, in: size) }
+        .onLongPressGesture(minimumDuration: 0.6) { handleCanvasLongPress() }
+    }
+    
+    @ViewBuilder
+    private func scrollingAnchors(size: CGSize, bounds: MapBounds) -> some View {
+        ForEach(network.nodes) { node in
+            Color.clear
+                .frame(width: 1, height: 1)
+                .position(MapGeometryEngine.finalPosition(for: node, in: size, bounds: bounds, network: network))
+                .id("node-\(node.id)")
+        }
+    }
+    
+    @ViewBuilder
+    private func mapMainLayers(size: CGSize, bounds: MapBounds, renderData: MapRenderData) -> some View {
+        ZStack {
+            InfrastructureCanvas(
+                mode: mode,
+                renderData: renderData,
+                totalZoom: totalZoom
+            )
+            .allowsHitTesting(false)
+            
+            if !appState.simulator.schedules.isEmpty && mode.isSchedulerMode {
+                TrainOverlayCanvas(bounds: bounds, canvasSize: size, totalZoom: totalZoom)
+                    .allowsHitTesting(false)
+            }
+            
+            StationMarkersView(
+                selectedNode: $selectedNode,
+                selectedLine: $selectedLine,
+                selectedEdgeId: $selectedEdgeId,
+                canvasSize: size,
+                bounds: bounds,
+                showGrid: showGrid,
+                coordinateGridStep: coordinateGridStep,
+                isMoveModeEnabled: $isMoveModeEnabled,
+                onTap: { handleStationTap($0) }
+            )
+        }
+    }
+
+    private var zoomGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { magnification = $0 }
+            .onEnded { value in
+                zoomLevel *= value
+                magnification = 1.0
+            }
+    }
+
+    private func handleCanvasLongPress() {
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            isEditToolbarVisible.toggle()
+            if !isEditToolbarVisible {
+                editMode = .explore
+                isMoveModeEnabled = false
+            }
+            if mode.isSchedulerMode && isEditToolbarVisible {
+                // Instead of overlay, switch to Inspector Panel for creation
+                appState.showPanel(.inspector)
+                // We need a way to tell the Inspector to show "Line Creation"
+                // Assuming AppState has a selected object paradigm. 
+                // We'll set a flag or select a dummy object.
+                // For now, let's assume we toggle the EditMode to .createLine
+                editMode = .createLine
+                appState.selectedRouteId = nil // Ensure no line is selected
+                appState.selectedTrainIds = []
+            }
+        }
+    }
+
+    // Universal method to center any position in the viewport
+    private func centerOnPosition(_ position: CGPoint, canvasSize: CGSize, proxy: ScrollViewProxy) {
+        // Calculate relative position (0.0 - 1.0) within the canvas
+        let unitX = position.x / canvasSize.width
+        let unitY = position.y / canvasSize.height
+        
+        print("📍 Element position: \(position)")
+        print("📐 Canvas size: \(canvasSize)")
+        print("🎯 UnitPoint: (x: \(unitX), y: \(unitY))")
+        
+        withAnimation(.easeInOut(duration: 0.4)) {
+            proxy.scrollTo("content", anchor: UnitPoint(x: unitX, y: unitY))
+        }
+    }
+    
+    private func centerOnNode(_ node: RailwayNode?, size: CGSize, bounds: MapBounds, proxy: ScrollViewProxy) {
+        guard let node = node else { return }
+        let position = MapGeometryEngine.finalPosition(for: node, in: size, bounds: bounds, network: network)
+        print("🎯 Centering on node: \(node.name) with ID: \(node.id)")
+        centerOnPosition(position, canvasSize: size, proxy: proxy)
+    }
+
+    private func centerOnLine(_ line: TrainRoute?, size: CGSize, bounds: MapBounds, proxy: ScrollViewProxy) {
+        guard let line = line, 
+              let firstId = line.stationIds.first,
+              let firstNode = network.nodes.first(where: { $0.id == firstId }) else { return }
+        centerOnNode(firstNode, size: size, bounds: bounds, proxy: proxy)
+    }
+
+    private func centerOnEdge(_ edgeId: String?, size: CGSize, bounds: MapBounds, proxy: ScrollViewProxy) {
+        guard let edgeId = edgeId, 
+              let edge = network.edges.first(where: { $0.id.uuidString == edgeId }),
+              let fromNode = network.nodes.first(where: { $0.id == edge.from }) else { return }
+        centerOnNode(fromNode, size: size, bounds: bounds, proxy: proxy)
+    }
+
+    private func centerOnTrain(_ ids: [UUID], size: CGSize, bounds: MapBounds, proxy: ScrollViewProxy) {
+        guard let trainId = ids.first, 
+              let schedule = appState.simulator.schedules.first(where: { $0.trainId == trainId }) else { return }
+        let now = appState.liveSim.currentSimTime
+        if let pos = MapGeometryEngine.currentSchematicTrainPos(for: schedule, in: size, now: now, bounds: bounds, network: network) {
+            centerOnPosition(pos, canvasSize: size, proxy: proxy)
+        }
+    }
+    
+    private func setupLineCreationCallback(isCreating: Bool) {
+        if isCreating {
+            print("🟢 Setting up line creation callback")
+            // Capture references we need
+            let appState = self.appState
+            let network = self.network
+            // Setup callback for line creation mode
+            appState.stationPickingCallback = { stationId in
+                print("🎯 Station tapped: \(stationId)")
+                
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                
+                // Re-show inspector if hidden (so user can see the updated list)
+                if !appState.isInspectorVisible {
+                    print("📱 Re-showing inspector")
+                    appState.showPanel(.inspector)
+                }
+                
+                withAnimation(.spring()) {
+                    if let lastId = appState.lineDraftStations.last {
+                        print("📍 Last station: \(lastId)")
+                        if lastId == stationId { 
+                            print("⚠️ Same station, skipping")
+                            return 
+                        }
+                        
+                        // SMART PATHFINDING
+                        let neighbors = network.getConnectedNodeIds(for: lastId)
+                        if neighbors.contains(stationId) {
+                            print("✅ Direct connection found")
+                            appState.lineDraftStations.append(stationId)
+                        } else {
+                            print("🔍 Finding shortest path...")
+                            // Find shortest path
+                            if let (path, _) = network.findShortestPath(from: lastId, to: stationId) {
+                                print("✅ Path found with \(path.count) stations")
+                                for nodeId in path.dropFirst() {
+                                    if !appState.lineDraftStations.contains(nodeId) || nodeId == stationId {
+                                        appState.lineDraftStations.append(nodeId)
+                                    }
+                                }
+                            } else {
+                                print("❌ No path found")
+                            }
+                        }
+                    } else {
+                        print("✅ First station")
+                        appState.lineDraftStations.append(stationId)
+                    }
+                    print("📋 Draft stations count: \(appState.lineDraftStations.count)")
+                }
+            }
+        } else {
+            print("🔴 Cleaning up line creation callback")
+            // Cleanup callback when exiting line creation mode
+            appState.stationPickingCallback = nil
+        }
+    }
+
+    @ViewBuilder
+    private var lineCreationOverlay: some View {
+        EmptyView() // Moved to Inspector
+    }
+
+    @ViewBuilder
+    private var trackCreationOverlay: some View {
+        if editMode == .addTrack {
+            VStack {
+                Spacer()
+                VStack(spacing: 12) {
+                    Text("new_track".localized)
+                        .font(.headline)
+                    
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text("from_label".localized)
+                                .font(.caption).foregroundColor(.secondary)
+                            Text(newTrackFrom?.name ?? "select_station_placeholder".localized)
+                                .fontWeight(.bold)
+                                .foregroundColor(newTrackFrom == nil ? .gray : (.primary))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        Image(systemName: "arrow.right")
+                        
+                        VStack(alignment: .trailing) {
+                            Text("to_label".localized)
+                                .font(.caption).foregroundColor(.secondary)
+                            Text(newTrackTo?.name ?? "select_station_placeholder".localized)
+                                .fontWeight(.bold)
+                                .foregroundColor(newTrackTo == nil ? .gray : (.primary))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                    .padding(.horizontal)
+                    
+                    HStack {
+                        Text("distance_label".localized).font(.caption).foregroundColor(.secondary)
+                        TextField("km", value: $newTrackDistance, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 80)
+                        Text("km")
+                    }
+                    
+                    HStack(spacing: 8) {
+                        ForEach(RailwayEdge.TrackType.allCases) { type in
+                            Button(action: { newTrackType = type }) {
+                                trackTypeButtonContent(type: type)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    
+                    trackCreationActions
+                }
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Material.ultraThinMaterial)
+                        .background(Color(UIColor.systemGray6).opacity(0.8))
+                        .shadow(color: Color.gray.opacity(0.2), radius: 10)
+                )
+                .padding()
+                .frame(maxWidth: 400)
+            }
+            .transition(.move(edge: .bottom))
+        }
+    }
+    
+    @ViewBuilder
+    private func trackTypeButtonContent(type: RailwayEdge.TrackType) -> some View {
+        VStack(spacing: 4) {
+            ZStack {
+                if type == .double || type == .highSpeed {
+                    HStack(spacing: 2) {
+                        Capsule().fill(type.color).frame(width: 3, height: 16)
+                        Capsule().fill(type.color).frame(width: 3, height: 16)
+                    }
+                } else {
+                    Capsule().fill(type.color).frame(width: 6, height: 16)
+                }
+            }
+            .frame(height: 20)
+            
+            Text(type.displayName)
+                .font(.system(size: 10, weight: .bold))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(newTrackType == type ? type.color.opacity(0.15) : Color.gray.opacity(0.05))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(newTrackType == type ? type.color : Color.clear, lineWidth: 2)
+        )
+        .cornerRadius(6)
+    }
+    
+    @ViewBuilder
+    private var trackCreationActions: some View {
+        HStack {
+            Button("close".localized) {
+                newTrackFrom = nil
+                newTrackTo = nil
+                editMode = .explore
+            }
+            .foregroundColor(.secondary)
+            .padding(.horizontal)
+            
+            Button(action: createTrack) {
+                Text("create_track_button".localized)
+                    .bold()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint((newTrackFrom != nil && newTrackTo != nil) ? Color.accentColor : Color.gray)
+            .disabled(newTrackFrom == nil || newTrackTo == nil)
+        }
+    }
+
+    @ViewBuilder
+    private var stationPickingIndicator: some View {
+        if appState.stationPickingCallback != nil {
+            VStack {
+                HStack(spacing: 12) {
+                    Image(systemName: "cursorarrow.click.2")
+                        .symbolEffect(.pulse)
+                        .foregroundColor(.accentColor)
+                    Text("Seleziona una stazione sulla mappa")
+                        .font(.system(size: 14, weight: .bold))
+                    
+                    Button(action: {
+                        withAnimation { appState.stationPickingCallback = nil }
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.leading, 16)
+                .padding(.trailing, 8)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(Color.accentColor.opacity(0.3), lineWidth: 1))
+                .shadow(color: Color.black.opacity(0.1), radius: 8, y: 4)
+                .padding(.top, 40)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .allowsHitTesting(true)
+        }
+    }
+
+    @ViewBuilder
+    private var moveModeOverlay: some View {
+        if isMoveModeEnabled {
+            VStack {
+                HStack(spacing: 12) {
+                    Image(systemName: "hand.tap.fill")
+                        .symbolEffect(.bounce, value: isMoveModeEnabled)
+                    Text("station_moving_active".localized)
+                        .font(.system(size: 14, weight: .bold))
+                    
+                    Button(action: {
+                        withAnimation { isMoveModeEnabled = false }
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.leading, 16)
+                .padding(.trailing, 8)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(Color.orange.opacity(0.3), lineWidth: 1))
+                .shadow(color: Color.black.opacity(0.1), radius: 8, y: 4)
+                .padding(.top, 40)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+    
+    // MARK: - Interaction Handlers
+    private func handleStationTap(_ node: RailwayNode) {
+        if let pickingCallback = appState.stationPickingCallback {
+            pickingCallback(node.id)
+            return
+        }
+        
+        if editMode == .addTrack {
+             // ... (keep existing logic)
+             if appState.trackDraftFromId == nil {
+                appState.trackDraftFromId = node.id
+                newTrackFrom = node
+            } else if appState.trackDraftFromId == node.id {
+                appState.trackDraftFromId = nil
+                newTrackFrom = nil
+            } else {
+                appState.trackDraftToId = node.id
+                newTrackTo = node
+                if let fromId = appState.trackDraftFromId,
+                   let n1 = network.nodes.first(where: { $0.id == fromId }) {
+                    let lat1 = n1.latitude ?? 0; let lon1 = n1.longitude ?? 0
+                    let lat2 = node.latitude ?? 0; let lon2 = node.longitude ?? 0
+                    let dLat = lat1 - lat2
+                    let dLon = lon1 - lon2
+                    let distKm = sqrt(dLat*dLat + dLon*dLon) * 111.0
+                    newTrackDistance = max(1.0, round(distKm * 10) / 10.0)
+                }
+            }
+        } else {
+            // Priority selection logic with Animation
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                // If we want multi-selection, we need AppState support. 
+                // For now, standard behavior:
+                selectedNode = node
+                selectedLine = nil
+                selectedEdgeId = nil
+            }
+        }
+    }
+    
+    private func createTrack() {
+        guard let n1 = newTrackFrom, let n2 = newTrackTo else { return }
+        
+        // Get speed from AppState based on track type
+        let speed: Int
+        switch newTrackType {
+        case .single:
+            speed = Int(appState.singleTrackMaxSpeed)
+        case .double:
+            speed = Int(appState.doubleTrackMaxSpeed)
+        case .regional:
+            speed = Int(appState.regionalTrackMaxSpeed)
+        case .highSpeed:
+            speed = Int(appState.highSpeedTrackMaxSpeed)
+        }
+        
+        
+        let newEdge = RailwayEdge(from: n1.id, to: n2.id, distance: newTrackDistance, trackType: newTrackType, maxSpeed: speed, capacity: 10)
+        network.addEdge(newEdge)
+        
+        // Note: Pathfinding treats all edges as bidirectional, so no need to create return edge
+        
+        // Auto-select the NEW edge
+        withAnimation {
+            selectedEdgeId = newEdge.id.uuidString
+            selectedNode = nil
+            selectedLine = nil
+        }
+        
+        // Reset selection contents for logic
+        newTrackFrom = nil
+        newTrackTo = nil
+        appState.trackDraftFromId = nil
+        appState.trackDraftToId = nil
+        
+        // Auto-exit mode
+        editMode = .explore
+        appState.isCreatingTrack = false
+    }
+    
+    private func handleCanvasTap(at location: CGPoint, in size: CGSize) {
+        let bounds = self.mapBounds
+        
+        // 0. Check Trains (Moving objects on top)
+        let now = appState.liveSim.currentSimTime
+        // Filter out finished trains if needed, but schedules usually contains active ones
+        for schedule in appState.simulator.schedules {
+            if let pos = MapGeometryEngine.currentSchematicTrainPos(for: schedule, in: size, now: now, bounds: bounds, network: network) {
+                // Hit test radius: 20 points
+                if hypot(pos.x - location.x, pos.y - location.y) < 20 {
+                     // Found train
+                     withAnimation {
+                         appState.selectedTrainIds = [schedule.trainId]
+                         appState.selectedNodeId = nil
+                         appState.selectedRouteId = nil
+                         appState.selectedEdgeId = nil
+                         appState.showPanel(.inspector)
+                     }
+                     return
+                }
+            }
+        }
+        
+        // 1. Check Stations (using MapGeometry)
+        for node in network.nodes {
+            let p = MapGeometryEngine.finalPosition(for: node, in: size, bounds: bounds, network: network)
+            if hypot(p.x - location.x, p.y - location.y) < MapConstants.hitTestRadius {
+                handleStationTap(node)
+                return
+            }
+        }
+        
+        // 2. Check Track Segments (Edges) - Visual hit testing with parallel track support
+        var newSelectedEdgeId: String? = nil
+        
+        // Group edges by station pairs to apply parallel track offsets
+        var edgesByPair: [String: [RailwayEdge]] = [:]
+        for edge in network.edges {
+            let key = edge.canonicalKey
+            edgesByPair[key, default: []].append(edge)
+        }
+        
+        for (_, edgeGroup) in edgesByPair {
+            guard let firstEdge = edgeGroup.first else { continue }
+            guard let n1 = network.nodes.first(where: { $0.id == firstEdge.from }),
+                  let n2 = network.nodes.first(where: { $0.id == firstEdge.to }) else { continue }
+            
+            let p1 = MapGeometryEngine.finalPosition(for: n1, in: size, bounds: bounds, network: network)
+            let p2 = MapGeometryEngine.finalPosition(for: n2, in: size, bounds: bounds, network: network)
+            let basePoints = MapGeometryEngine.generateSchematicPoints(from: p1, to: p2)
+            
+            let trackCount = edgeGroup.count
+            let offsetDistance: CGFloat = 4.0
+            
+            for (index, edge) in edgeGroup.enumerated() {
+                var offsetPoints: [CGPoint] = []
+                
+                if trackCount == 1 {
+                    offsetPoints = basePoints
+                } else {
+                    let offset = (CGFloat(index) - CGFloat(trackCount - 1) / 2.0) * offsetDistance
+                    
+                    for i in 0..<basePoints.count {
+                        let p = basePoints[i]
+                        var perpX: CGFloat = 0
+                        var perpY: CGFloat = 0
+                        
+                        if i == 0 && basePoints.count > 1 {
+                            let next = basePoints[i + 1]
+                            let dx = next.x - p.x
+                            let dy = next.y - p.y
+                            let len = sqrt(dx * dx + dy * dy)
+                            if len > 0 {
+                                perpX = -dy / len
+                                perpY = dx / len
+                            }
+                        } else if i == basePoints.count - 1 && basePoints.count > 1 {
+                            let prev = basePoints[i - 1]
+                            let dx = p.x - prev.x
+                            let dy = p.y - prev.y
+                            let len = sqrt(dx * dx + dy * dy)
+                            if len > 0 {
+                                perpX = -dy / len
+                                perpY = dx / len
+                            }
+                        } else if basePoints.count > 2 {
+                            let prev = basePoints[i - 1]
+                            let next = basePoints[i + 1]
+                            let dx1 = p.x - prev.x
+                            let dy1 = p.y - prev.y
+                            let len1 = sqrt(dx1 * dx1 + dy1 * dy1)
+                            let dx2 = next.x - p.x
+                            let dy2 = next.y - p.y
+                            let len2 = sqrt(dx2 * dx2 + dy2 * dy2)
+                            
+                            if len1 > 0 && len2 > 0 {
+                                let perp1X = -dy1 / len1
+                                let perp1Y = dx1 / len1
+                                let perp2X = -dy2 / len2
+                                let perp2Y = dx2 / len2
+                                perpX = (perp1X + perp2X) / 2
+                                perpY = (perp1Y + perp2Y) / 2
+                                let perpLen = sqrt(perpX * perpX + perpY * perpY)
+                                if perpLen > 0 {
+                                    perpX /= perpLen
+                                    perpY /= perpLen
+                                }
+                            }
+                        }
+                        
+                        offsetPoints.append(CGPoint(
+                            x: p.x + perpX * offset,
+                            y: p.y + perpY * offset
+                        ))
+                    }
+                }
+                
+                // Hit test against offset points
+                for i in 0..<(offsetPoints.count - 1) {
+                    if distanceToSegment(p: location, v: offsetPoints[i], w: offsetPoints[i+1]) < 40 {
+                        newSelectedEdgeId = edge.id.uuidString
+                        break
+                    }
+                }
+                if newSelectedEdgeId != nil { break }
+            }
+            if newSelectedEdgeId != nil { break }
+        }
+        
+        // 3. Check Commercial Lines
+        var newSelectedRouteId: String? = nil
+        if mode.isSchedulerMode {
+            for line in lines.lines {
+                if hiddenLineIds.contains(line.id) { continue }
+                guard line.stationIds.count >= 2 else { continue }
+                for i in 0..<(line.stationIds.count - 1) {
+                    guard let n1 = network.nodes.first(where: { $0.id == line.stationIds[i] }),
+                          let n2 = network.nodes.first(where: { $0.id == line.stationIds[i+1] }) else { continue }
+                    let p1 = MapGeometryEngine.finalPosition(for: n1, in: size, bounds: bounds, network: network)
+                    let p2 = MapGeometryEngine.finalPosition(for: n2, in: size, bounds: bounds, network: network)
+                    let points = MapGeometryEngine.generateSchematicPoints(from: p1, to: p2)
+                    for j in 0..<(points.count - 1) {
+                        if distanceToSegment(p: location, v: points[j], w: points[j+1]) < 35 {
+                            newSelectedRouteId = line.id
+                            break
+                        }
+                    }
+                    if newSelectedRouteId != nil { break }
+                }
+                if newSelectedRouteId != nil { break }
+            }
+        }
+        
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            if editMode == .addStation {
+                let newNode = createStation(at: location, in: size)
+                handleStationTap(newNode)
+            } else if let routeId = newSelectedRouteId, let line = lines.lines.first(where: { $0.id == routeId }) {
+                appState.selectedRouteId = routeId
+                selectedNode = nil
+                selectedEdgeId = nil
+                appState.selectedInfraLineId = nil
+                print("🎯 [Map] Selected Route: \(line.name)")
+            } else if let edgeId = newSelectedEdgeId {
+                selectedEdgeId = edgeId
+                selectedNode = nil
+                selectedLine = nil
+                appState.selectedInfraLineId = nil
+                print("🎯 [Map] Selected Track Segment: \(edgeId)")
+            } else if editMode == .explore {
+                selectedNode = nil
+                selectedLine = nil
+                selectedEdgeId = nil
+                appState.selectedInfraLineId = nil
+                print("🎯 [Map] Selection Cleared")
+            }
+        }
+    }
+    
+    private func distanceToSegment(p: CGPoint, v: CGPoint, w: CGPoint) -> CGFloat {
+        let l2 = (v.x - w.x)*(v.x - w.x) + (v.y - w.y)*(v.y - w.y)
+        if l2 == 0 { return hypot(p.x - v.x, p.y - v.y) }
+        var t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2
+        t = max(0, min(1, t))
+        let proj = CGPoint(x: v.x + t * (w.x - v.x), y: v.y + t * (w.y - v.y))
+        return hypot(p.x - proj.x, p.y - proj.y)
+    }
+    
+    @discardableResult
+    private func createStation(at location: CGPoint, in size: CGSize) -> RailwayNode {
+        let lats = network.nodes.compactMap { $0.latitude }
+        let lons = network.nodes.compactMap { $0.longitude }
+        let minLon = lons.min() ?? 0
+        let maxLon = lons.max() ?? 100
+        let minLat = lats.min() ?? 0
+        let maxLat = lats.max() ?? 100
+        
+        let xRange = maxLon - minLon
+        let yRange = maxLat - minLat
+        let safeXRange = xRange == 0 ? 1.0 : xRange
+        let safeYRange = yRange == 0 ? 1.0 : yRange
+        
+        let drawWidth = size.width - 100
+        let safeDrawWidth = drawWidth > 0 ? drawWidth : 1
+        let safeDrawHeight = (size.height - 100) > 0 ? (size.height - 100) : 1
+        
+        let lon = minLon + ((location.x - 50) / safeDrawWidth) * safeXRange
+        let lat = minLat + (1.0 - (location.y - 50) / safeDrawHeight) * safeYRange
+        
+        let name = String(format: "station_default_name".localized, network.nodes.count + 1)
+        
+        let newNode = RailwayNode(id: UUID().uuidString, name: name, type: .station, latitude: lat, longitude: lon, capacity: 10, platforms: 2)
+        network.addNode(newNode)
+        print("📍 Nuova stazione creata: \(name) a [\(lat), \(lon)]")
+        return newNode
+    }
+}
