@@ -21,3 +21,17 @@ extension NetworkModel {
         try data.write(to: url)
     }
 }
+
+extension NetworkModel {
+    func toDTO() -> RailwayNetworkDTO {
+        return RailwayNetworkDTO(name: name, nodes: nodes, edges: edges)
+    }
+    
+    func apply(dto: RailwayNetworkDTO) {
+        self.name = dto.name ?? "Network"
+        self.nodes = dto.nodes
+        self.edges = dto.edges
+        self.lines  = dto.lines  ?? []
+        self.routes = dto.routes ?? []
+    }
+}
