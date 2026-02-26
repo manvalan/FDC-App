@@ -1,8 +1,6 @@
 import SwiftUI
 import Combine
 
-/// Vista principale per la creazione di un orario ferroviario.
-/// Delega tutta la logica di business al `ScheduleCreationViewModel`.
 struct ScheduleCreationView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var network: NetworkModel
@@ -51,8 +49,6 @@ struct ScheduleCreationView: View {
     }
 }
 
-// MARK: - Gestori Eventi (≤10 righe ciascuno)
-
 private extension ScheduleCreationView {
 
     /// Gestisce la conferma degli orari ottimizzati dall'anteprima AI.
@@ -78,8 +74,6 @@ private extension ScheduleCreationView {
     }
 }
 
-// MARK: - Layout del Form
-
 private extension ScheduleCreationView {
 
     /// Contenuto scrollabile del form con tutte le sezioni.
@@ -98,8 +92,6 @@ private extension ScheduleCreationView {
         .padding(.bottom, 40)
     }
 }
-
-// MARK: - Intestazione
 
 private extension ScheduleCreationView {
 
@@ -120,8 +112,6 @@ private extension ScheduleCreationView {
         .padding(.horizontal)
     }
 }
-
-// MARK: - Selezione Stazioni
 
 private extension ScheduleCreationView {
 
@@ -158,40 +148,6 @@ private extension ScheduleCreationView {
         StationPickerRow(title: title, selection: selection, route: route, network: network, vm: vm)
     }
 }
-
-struct StationPickerRow: View {
-    let title: String
-    @Binding var selection: String
-    let route: TrainRoute
-    let network: NetworkModel
-    let vm: ScheduleCreationViewModel
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption2.bold())
-                .foregroundColor(.secondary)
-            Picker(title, selection: $selection) {
-                ForEach(route.stationIds, id: \.self) { stationId in
-                    HStack(spacing: 8) {
-                        StationSymbolView(station: network.nodes.first(where: { $0.id == stationId }), size: 14)
-                        Text(vm.stationName(stationId))
-                    }
-                    .tag(stationId)
-                }
-            }
-            .pickerStyle(.menu)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color.blue.opacity(0.15))
-            .cornerRadius(12)
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.blue.opacity(0.3), lineWidth: 1))
-        }
-    }
-}
-
-// MARK: - Dettagli Percorso
 
 private extension ScheduleCreationView {
 
@@ -377,8 +333,6 @@ private extension ScheduleCreationView {
     }
 }
 
-// MARK: - Schema Fermate
-
 private extension ScheduleCreationView {
 
     /// Sezione con lo schema delle fermate: quali stazioni vengono servite o saltate.
@@ -524,8 +478,6 @@ private extension ScheduleCreationView {
     }
 }
 
-// MARK: - Sezione Taktfahrplan
-
 private extension ScheduleCreationView {
 
     /// Sezione Taktfahrplan: selezione hub di convergenza e suggerimenti finestre temporali.
@@ -626,8 +578,6 @@ private extension ScheduleCreationView {
             .font(.caption2).foregroundColor(.secondary).italic()
     }
 }
-
-// MARK: - Selezione Cadenza
 
 private extension ScheduleCreationView {
 
@@ -773,8 +723,6 @@ private extension ScheduleCreationView {
     }
 }
 
-// MARK: - Toggle Ritorno e Anteprima
-
 private extension ScheduleCreationView {
 
     /// Toggle aggiuntivo per la generazione delle corse di ritorno.
@@ -815,8 +763,6 @@ private extension ScheduleCreationView {
         .padding(.horizontal)
     }
 }
-
-// MARK: - Pulsanti Azione
 
 private extension ScheduleCreationView {
 
@@ -939,8 +885,6 @@ private extension ScheduleCreationView {
     }
 }
 
-// MARK: - Overlay Ottimizzazione
-
 private extension ScheduleCreationView {
 
     /// Overlay a schermo intero mostrato durante l'ottimizzazione della cadenza.
@@ -1009,8 +953,6 @@ private extension ScheduleCreationView {
     }
 }
 
-// MARK: - Componenti di Supporto
-
 private extension ScheduleCreationView {
 
     /// Etichetta informativa generica con titolo e valore.
@@ -1019,77 +961,5 @@ private extension ScheduleCreationView {
             Text(title).font(.caption2).foregroundColor(.secondary).bold()
             Text(value).font(.body)
         }
-    }
-}
-
-// MARK: - ViewModifier per i gestori onChange (divisi per ridurre la pressione sul type-checker)
-
-/// Primo gruppo di ViewModifier onChange: gestisce conferma orari ottimizzati,
-/// cambio modalità, cambio stazioni e aggiornamento orari.
-struct ScheduleChangeModifiersA: ViewModifier {
-    @ObservedObject var vm: ScheduleCreationViewModel
-    @ObservedObject var appState: AppState
-    let handleOptimizedTimesConfirmed: (Bool) -> Void
-    let handleStationChange: () -> Void
-
-    func body(content: Content) -> some View {
-        content
-            .onChange(of: appState.optimizedTimesConfirmed) { _, confirmed in
-                handleOptimizedTimesConfirmed(confirmed)
-            }
-            .onChange(of: vm.mode) { _, newMode in
-                if newMode == .taktfahrplan && vm.intervalMinutes != 60 && vm.intervalMinutes != 120 {
-                    vm.intervalMinutes = 120
-                }
-            }
-            .onChange(of: vm.startStationId) { _, _ in handleStationChange() }
-            .onChange(of: vm.endStationId) { _, _ in handleStationChange() }
-            .onChange(of: vm.startTime) { _, _ in vm.updatePreview() }
-            .onChange(of: vm.endTime) { _, _ in vm.updatePreview() }
-    }
-}
-
-/// Secondo gruppo di ViewModifier onChange: gestisce intervallo, ritorno,
-/// sequenza stazioni, parità, numero iniziale e tipo treno.
-struct ScheduleChangeModifiersB: ViewModifier {
-    @ObservedObject var vm: ScheduleCreationViewModel
-    @ObservedObject var appState: AppState
-
-    func body(content: Content) -> some View {
-        content
-            .modifier(ScheduleChangeModifiersB1(vm: vm))
-            .modifier(ScheduleChangeModifiersB2(vm: vm, appState: appState))
-    }
-}
-
-struct ScheduleChangeModifiersB1: ViewModifier {
-    @ObservedObject var vm: ScheduleCreationViewModel
-
-    func body(content: Content) -> some View {
-        content
-            .onChange(of: vm.intervalMinutes) { (oldValue: Int, newValue: Int) in vm.updatePreview() }
-            .onChange(of: vm.scheduleReturn) { (oldValue: Bool, newValue: Bool) in vm.updatePreview() }
-            .onChange(of: vm.preferredParity) { (oldValue: NumberParity, newValue: NumberParity) in
-                vm.startNumber = (newValue == .odd) ? 1 : 2
-                vm.returnStartNumber = (newValue == .odd) ? 2 : 1
-            }
-            .onChange(of: vm.startNumber) { (oldValue: Int, newValue: Int) in
-                vm.returnStartNumber = (newValue % 2 == 0) ? 1 : 2
-            }
-    }
-}
-
-struct ScheduleChangeModifiersB2: ViewModifier {
-    @ObservedObject var vm: ScheduleCreationViewModel
-    @ObservedObject var appState: AppState
-
-    func body(content: Content) -> some View {
-        content
-            .onChange(of: vm.stationSequence) { (oldValue: [String], newValue: [String]) in
-                // if appState.useCloudAI && newValue.count >= 2 { vm.triggerLineAnalysis() }
-            }
-            .onChange(of: vm.selectedTrainType) { (oldValue: TrainCategory, newValue: TrainCategory) in
-                vm.updateSuggestedVehicles()
-            }
     }
 }
