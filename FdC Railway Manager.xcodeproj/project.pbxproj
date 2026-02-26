@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		12974A94B63224BC25547969 /* StationRoutingConstraintsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4134ADF99C92A8CE89CFD92 /* StationRoutingConstraintsView.swift */; };
+		18984404894CB9F7D55B2BA4 /* EdgeGestureDetectors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F64C5EB58D351E13922054 /* EdgeGestureDetectors.swift */; };
 		20374019BADD3BCC0D745385 /* LineQuickStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BF24753B860E833B82A1DA1 /* LineQuickStats.swift */; };
 		2F6F42DABBBFFAEF6D398971 /* StationNodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B5E40DCA7FC76689AE7EF42 /* StationNodeView.swift */; };
 		306C409EBBBCD30920B7EEE9 /* TrackRowContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 401240C398C12B62A7C38670 /* TrackRowContent.swift */; };
@@ -24,7 +25,6 @@
 		31294B682F432F6000E80C34 /* OptimizedTimesPreviewInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B672F432F6000E80C34 /* OptimizedTimesPreviewInspectorView.swift */; };
 		313F356D2F3F4EB100250B1A /* LayoutConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 313F356C2F3F4EB100250B1A /* LayoutConstants.swift */; };
 		313F356F2F3F4EE700250B1A /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 313F356E2F3F4EE700250B1A /* AppSettings.swift */; };
-		313F35712F3F4F9600250B1A /* ContentViewOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = 313F35702F3F4F9600250B1A /* ContentViewOverlays.swift */; };
 		31B3104F2F498F31004F4A8F /* IO_MENU_FIX.md in Resources */ = {isa = PBXBuildFile; fileRef = 31B3104E2F498F31004F4A8F /* IO_MENU_FIX.md */; };
 		31B310512F499062004F4A8F /* IO_DEBUG_GUIDE.md in Resources */ = {isa = PBXBuildFile; fileRef = 31B310502F499062004F4A8F /* IO_DEBUG_GUIDE.md */; };
 		31B310532F4990F3004F4A8F /* IO_IMPORT_STATE_FIX.md in Resources */ = {isa = PBXBuildFile; fileRef = 31B310522F4990F3004F4A8F /* IO_IMPORT_STATE_FIX.md */; };
@@ -38,10 +38,12 @@
 		505941CCB8BE2D45FE2AC029 /* TrackInlineEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9F041E8B3FDF34BDEBBE568 /* TrackInlineEditor.swift */; };
 		54624182BCDB56F5AD8C31AF /* LineRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3F34DB189EFA3ED648D471B /* LineRow.swift */; };
 		549946E1BAB592C5EE6EAC83 /* MenuRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C9453E968736DBB9266943 /* MenuRow.swift */; };
+		583C4DC083D8317496540409 /* InspectorOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A734251BFE42132D3A6E938 /* InspectorOverlay.swift */; };
 		5AB64C20A4EE4132AC71341F /* StationPickerRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C94C699993633A4BBD4010 /* StationPickerRow.swift */; };
 		65AB46A891CC1B648C4F4518 /* LineRowContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E323420BA465DCC0DC098E9B /* LineRowContent.swift */; };
 		6AA3442582B5DF741316C1E1 /* EdgeRowButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B6F43E0BBF5033746D4FAD8 /* EdgeRowButton.swift */; };
 		6BA54241A19E28BBAD36CE99 /* ContextualInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 502D44D49DFEE34E551F06DA /* ContextualInspector.swift */; };
+		6CD54323881CAF7DCA2E1559 /* ModeBarOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8D34B55B8A9BC9D806E63F0 /* ModeBarOverlay.swift */; };
 		6E404A2EBCED7981C651D44F /* InspectorWrapperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F7B4AF5B4EE88E11F7F8AFF /* InspectorWrapperView.swift */; };
 		715B45EDAFD0A9E406511CFB /* FloatingModeBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BAC4C879304BE83F1E1C6CC /* FloatingModeBar.swift */; };
 		7CD74FDB9382D568F33E51AD /* SchematicRailwayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F90E453C9E57F39176C4F7ED /* SchematicRailwayView.swift */; };
@@ -50,6 +52,7 @@
 		9293411E8FCBBA03BD1C692B /* DraggablePointView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EA3461AAA122EA18D53B022 /* DraggablePointView.swift */; };
 		A28D4976B31E25CD69032331 /* ScheduleCreationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66284254B9E10BE5328B570A /* ScheduleCreationView.swift */; };
 		A5CD483480250C13EB765C35 /* TrackQuickStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB854A7080622D51365E316C /* TrackQuickStats.swift */; };
+		ABF34EFDA9E9D8D7D1D6C341 /* SidebarOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66C84549AB4E429769DFEEDE /* SidebarOverlay.swift */; };
 		AC4E41F4AF530A46BB2B8B6A /* StationInlineEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9B7469A988EFB584C76BB6C /* StationInlineEditor.swift */; };
 		AFB74664A39300331EF5C7D0 /* AltimetricProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5954426864DCB48AD14F3D2 /* AltimetricProfileView.swift */; };
 		B31E468FBF3860600409B9B6 /* StationQuickStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C9F426898C80BC304B31082 /* StationQuickStats.swift */; };
@@ -58,13 +61,16 @@
 		BED0465893857F81D9035FF2 /* LineInfrastructureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DB447359D5DD4897C0B8BBA /* LineInfrastructureView.swift */; };
 		C0564B35BF95428DC59ED0FB /* ScheduleChangeModifiersB2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ECB4213945B412B625B7C79 /* ScheduleChangeModifiersB2.swift */; };
 		C9444C85AC8732D963065F35 /* RoutingConstraintRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DE841E3A0D05C66F951FDC4 /* RoutingConstraintRow.swift */; };
+		C9974B2D8942E4A3C6530099 /* WidePanelOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45894C9DA05B9B0ED3EB8437 /* WidePanelOverlay.swift */; };
 		CC834ADDB3CFFA2F7B56FAEB /* TrainOverlayCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C9F4573B6F2F8AE3F419E12 /* TrainOverlayCanvas.swift */; };
+		D1634C16994C52ACB1E844D5 /* ModernInspectorPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE274914AFAD3931E187D9C2 /* ModernInspectorPanel.swift */; };
 		D33D4CF09EF663970E70488E /* StationRowContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 178648CD87017A50CC807D4C /* StationRowContent.swift */; };
 		DB5F4337AD20D3BC5E339D4D /* SidebarSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EA14389AE1AA07CFED28BF5 /* SidebarSection.swift */; };
 		DCA9427EB88E9D5EED77399E /* SidebarButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 473A4728AE688B93C2435160 /* SidebarButton.swift */; };
 		DDC446D2BDB13A95776C6D08 /* LineVehiclesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 585D448DBF3B2C15BDEA8AC6 /* LineVehiclesView.swift */; };
 		DE49450FBB5153C4F29EE6E6 /* MetricView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7640E9885F287AE31D5D0B /* MetricView.swift */; };
 		DEB747F88A4796DF91D9CED3 /* MultiSelectionEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6CD4525AE33EE5A3658CD0E /* MultiSelectionEditor.swift */; };
+		DED64FADBC983463BC133A59 /* SimulationControlsOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F34406697E6B182716F1DE5 /* SimulationControlsOverlay.swift */; };
 		E0CE44CA9EB0C841E1A9EA10 /* RoundedCorner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DD9414ABD4E8712D78437C3 /* RoundedCorner.swift */; };
 		E2AD459FA34C8F8EBD7BB86C /* InfrastructureCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AAD44BF944AFE68FA51359B /* InfrastructureCanvas.swift */; };
 		E320408F9ED1A51B71482855 /* FerroviaRowContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33934A6C98650A7DEF5E46D3 /* FerroviaRowContent.swift */; };
@@ -77,9 +83,11 @@
 /* Begin PBXFileReference section */
 		022F4C1D9E3C1F79F9C3B7F6 /* ScheduleChangeModifiersB1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ScheduleChangeModifiersB1.swift; path = "FdC Railway Manager/UI/Views/ScheduleCreation/ScheduleChangeModifiersB1.swift"; sourceTree = SOURCE_ROOT; };
 		04C9453E968736DBB9266943 /* MenuRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MenuRow.swift; path = "FdC Railway Manager/UI/Panels/Floating/MenuRow.swift"; sourceTree = SOURCE_ROOT; };
+		0A734251BFE42132D3A6E938 /* InspectorOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = InspectorOverlay.swift; path = "FdC Railway Manager/UI/Views/ContentViewOverlays/InspectorOverlay.swift"; sourceTree = SOURCE_ROOT; };
 		0DB447359D5DD4897C0B8BBA /* LineInfrastructureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LineInfrastructureView.swift; path = "FdC Railway Manager/UI/Panels/Floating/LineInfrastructureView.swift"; sourceTree = SOURCE_ROOT; };
 		0EA3461AAA122EA18D53B022 /* DraggablePointView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DraggablePointView.swift; path = "FdC Railway Manager/UI/Views/AltimetricProfile/DraggablePointView.swift"; sourceTree = SOURCE_ROOT; };
 		0F7B4AF5B4EE88E11F7F8AFF /* InspectorWrapperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = InspectorWrapperView.swift; path = "FdC Railway Manager/UI/Panels/Floating/InspectorWrapperView.swift"; sourceTree = SOURCE_ROOT; };
+		10F64C5EB58D351E13922054 /* EdgeGestureDetectors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EdgeGestureDetectors.swift; path = "FdC Railway Manager/UI/Views/ContentViewOverlays/EdgeGestureDetectors.swift"; sourceTree = SOURCE_ROOT; };
 		178648CD87017A50CC807D4C /* StationRowContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StationRowContent.swift; path = "FdC Railway Manager/UI/Panels/Floating/StationRowContent.swift"; sourceTree = SOURCE_ROOT; };
 		21C1471698729786590E2B95 /* CompactInfoRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CompactInfoRow.swift; path = "FdC Railway Manager/UI/Panels/Floating/CompactInfoRow.swift"; sourceTree = SOURCE_ROOT; };
 		2AAD44BF944AFE68FA51359B /* InfrastructureCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = InfrastructureCanvas.swift; path = "FdC Railway Manager/UI/Views/RailwayMap/InfrastructureCanvas.swift"; sourceTree = SOURCE_ROOT; };
@@ -98,7 +106,6 @@
 		31294B672F432F6000E80C34 /* OptimizedTimesPreviewInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptimizedTimesPreviewInspectorView.swift; sourceTree = "<group>"; };
 		313F356C2F3F4EB100250B1A /* LayoutConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutConstants.swift; sourceTree = "<group>"; };
 		313F356E2F3F4EE700250B1A /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
-		313F35702F3F4F9600250B1A /* ContentViewOverlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewOverlays.swift; sourceTree = "<group>"; };
 		31B3104E2F498F31004F4A8F /* IO_MENU_FIX.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = IO_MENU_FIX.md; sourceTree = "<group>"; };
 		31B310502F499062004F4A8F /* IO_DEBUG_GUIDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = IO_DEBUG_GUIDE.md; sourceTree = "<group>"; };
 		31B310522F4990F3004F4A8F /* IO_IMPORT_STATE_FIX.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = IO_IMPORT_STATE_FIX.md; sourceTree = "<group>"; };
@@ -107,15 +114,18 @@
 		33934A6C98650A7DEF5E46D3 /* FerroviaRowContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FerroviaRowContent.swift; path = "FdC Railway Manager/UI/Panels/Floating/FerroviaRowContent.swift"; sourceTree = SOURCE_ROOT; };
 		3BF24753B860E833B82A1DA1 /* LineQuickStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LineQuickStats.swift; path = "FdC Railway Manager/UI/Panels/Floating/LineQuickStats.swift"; sourceTree = SOURCE_ROOT; };
 		401240C398C12B62A7C38670 /* TrackRowContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TrackRowContent.swift; path = "FdC Railway Manager/UI/Panels/Floating/TrackRowContent.swift"; sourceTree = SOURCE_ROOT; };
+		45894C9DA05B9B0ED3EB8437 /* WidePanelOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidePanelOverlay.swift; path = "FdC Railway Manager/UI/Views/ContentViewOverlays/WidePanelOverlay.swift"; sourceTree = SOURCE_ROOT; };
 		473A4728AE688B93C2435160 /* SidebarButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SidebarButton.swift; path = "FdC Railway Manager/UI/Panels/Floating/SidebarButton.swift"; sourceTree = SOURCE_ROOT; };
 		4C7640E9885F287AE31D5D0B /* MetricView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MetricView.swift; path = "FdC Railway Manager/UI/Panels/Floating/MetricView.swift"; sourceTree = SOURCE_ROOT; };
 		4C9F4573B6F2F8AE3F419E12 /* TrainOverlayCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TrainOverlayCanvas.swift; path = "FdC Railway Manager/UI/Views/RailwayMap/TrainOverlayCanvas.swift"; sourceTree = SOURCE_ROOT; };
 		4DE841E3A0D05C66F951FDC4 /* RoutingConstraintRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RoutingConstraintRow.swift; path = "FdC Railway Manager/UI/Panels/Floating/RoutingConstraintRow.swift"; sourceTree = SOURCE_ROOT; };
 		4EA14389AE1AA07CFED28BF5 /* SidebarSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SidebarSection.swift; path = "FdC Railway Manager/UI/Panels/Floating/SidebarSection.swift"; sourceTree = SOURCE_ROOT; };
+		4F34406697E6B182716F1DE5 /* SimulationControlsOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SimulationControlsOverlay.swift; path = "FdC Railway Manager/UI/Views/ContentViewOverlays/SimulationControlsOverlay.swift"; sourceTree = SOURCE_ROOT; };
 		502D44D49DFEE34E551F06DA /* ContextualInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ContextualInspector.swift; path = "FdC Railway Manager/UI/Panels/Floating/ContextualInspector.swift"; sourceTree = SOURCE_ROOT; };
 		585D448DBF3B2C15BDEA8AC6 /* LineVehiclesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LineVehiclesView.swift; path = "FdC Railway Manager/UI/Panels/Floating/LineVehiclesView.swift"; sourceTree = SOURCE_ROOT; };
 		599040FD8B994AC8B8BC2AF7 /* LineScheduleSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LineScheduleSummaryView.swift; path = "FdC Railway Manager/UI/Panels/Floating/LineScheduleSummaryView.swift"; sourceTree = SOURCE_ROOT; };
 		66284254B9E10BE5328B570A /* ScheduleCreationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ScheduleCreationView.swift; path = "FdC Railway Manager/UI/Views/ScheduleCreation/ScheduleCreationView.swift"; sourceTree = SOURCE_ROOT; };
+		66C84549AB4E429769DFEEDE /* SidebarOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SidebarOverlay.swift; path = "FdC Railway Manager/UI/Views/ContentViewOverlays/SidebarOverlay.swift"; sourceTree = SOURCE_ROOT; };
 		6B6F43E0BBF5033746D4FAD8 /* EdgeRowButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EdgeRowButton.swift; path = "FdC Railway Manager/UI/Panels/Floating/EdgeRowButton.swift"; sourceTree = SOURCE_ROOT; };
 		6DD9414ABD4E8712D78437C3 /* RoundedCorner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RoundedCorner.swift; path = "FdC Railway Manager/UI/Panels/Floating/RoundedCorner.swift"; sourceTree = SOURCE_ROOT; };
 		73654F998955E039A4D1123A /* ScheduleChangeModifiersA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ScheduleChangeModifiersA.swift; path = "FdC Railway Manager/UI/Views/ScheduleCreation/ScheduleChangeModifiersA.swift"; sourceTree = SOURCE_ROOT; };
@@ -126,11 +136,13 @@
 		9C9F426898C80BC304B31082 /* StationQuickStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StationQuickStats.swift; path = "FdC Railway Manager/UI/Panels/Floating/StationQuickStats.swift"; sourceTree = SOURCE_ROOT; };
 		9D984135BF3FA33A54D13164 /* CoordinateGridShape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CoordinateGridShape.swift; path = "FdC Railway Manager/UI/Views/RailwayMap/CoordinateGridShape.swift"; sourceTree = SOURCE_ROOT; };
 		9ECB4213945B412B625B7C79 /* ScheduleChangeModifiersB2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ScheduleChangeModifiersB2.swift; path = "FdC Railway Manager/UI/Views/ScheduleCreation/ScheduleChangeModifiersB2.swift"; sourceTree = SOURCE_ROOT; };
+		AE274914AFAD3931E187D9C2 /* ModernInspectorPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ModernInspectorPanel.swift; path = "FdC Railway Manager/UI/Views/ContentViewOverlays/ModernInspectorPanel.swift"; sourceTree = SOURCE_ROOT; };
 		B38A4D539DBECE3372632790 /* LinePropertyEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LinePropertyEditor.swift; path = "FdC Railway Manager/UI/Panels/Floating/LinePropertyEditor.swift"; sourceTree = SOURCE_ROOT; };
 		B7C94C699993633A4BBD4010 /* StationPickerRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StationPickerRow.swift; path = "FdC Railway Manager/UI/Views/ScheduleCreation/StationPickerRow.swift"; sourceTree = SOURCE_ROOT; };
 		C6CD4525AE33EE5A3658CD0E /* MultiSelectionEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MultiSelectionEditor.swift; path = "FdC Railway Manager/UI/Views/AltimetricProfile/MultiSelectionEditor.swift"; sourceTree = SOURCE_ROOT; };
 		C9B7469A988EFB584C76BB6C /* StationInlineEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StationInlineEditor.swift; path = "FdC Railway Manager/UI/Panels/Floating/StationInlineEditor.swift"; sourceTree = SOURCE_ROOT; };
 		CD934151B9C1355A7199BB7A /* FloatingSideMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FloatingSideMenu.swift; path = "FdC Railway Manager/UI/Panels/Floating/FloatingSideMenu.swift"; sourceTree = SOURCE_ROOT; };
+		D8D34B55B8A9BC9D806E63F0 /* ModeBarOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ModeBarOverlay.swift; path = "FdC Railway Manager/UI/Views/ContentViewOverlays/ModeBarOverlay.swift"; sourceTree = SOURCE_ROOT; };
 		DADC41A38106CEE34F737BC2 /* SidebarSubButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SidebarSubButton.swift; path = "FdC Railway Manager/UI/Panels/Floating/SidebarSubButton.swift"; sourceTree = SOURCE_ROOT; };
 		E323420BA465DCC0DC098E9B /* LineRowContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LineRowContent.swift; path = "FdC Railway Manager/UI/Panels/Floating/LineRowContent.swift"; sourceTree = SOURCE_ROOT; };
 		E5954426864DCB48AD14F3D2 /* AltimetricProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AltimetricProfileView.swift; path = "FdC Railway Manager/UI/Views/AltimetricProfile/AltimetricProfileView.swift"; sourceTree = SOURCE_ROOT; };
@@ -147,16 +159,6 @@
 		31234B432F1FD849003C8FEC /* FdC Railway Manager */ = {isa = PBXFileSystemSynchronizedRootGroup; path = "FdC Railway Manager"; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
-/* Begin PBXFrameworksBuildPhase section */
-		31234B3E2F1FD849003C8FEC /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXFrameworksBuildPhase section */
-
 /* Begin PBXGroup section */
 		31234B382F1FD849003C8FEC = {
 			isa = PBXGroup;
@@ -165,7 +167,6 @@
 				31234B422F1FD849003C8FEC /* Products */,
 				313F356C2F3F4EB100250B1A /* LayoutConstants.swift */,
 				313F356E2F3F4EE700250B1A /* AppSettings.swift */,
-				313F35702F3F4F9600250B1A /* ContentViewOverlays.swift */,
 				31294B442F40AB6500E80C34 /* GenericEntityListView.swift */,
 				31294B532F4259D900E80C34 /* LineColorAssigner.swift */,
 				31294B552F425FDB00E80C34 /* SettingsInspectorView.swift */,
@@ -228,6 +229,13 @@
 				8B6440FD87209E3AB4AA318B /* ScheduleChangeModifiersB.swift */,
 				022F4C1D9E3C1F79F9C3B7F6 /* ScheduleChangeModifiersB1.swift */,
 				9ECB4213945B412B625B7C79 /* ScheduleChangeModifiersB2.swift */,
+				D8D34B55B8A9BC9D806E63F0 /* ModeBarOverlay.swift */,
+				66C84549AB4E429769DFEEDE /* SidebarOverlay.swift */,
+				45894C9DA05B9B0ED3EB8437 /* WidePanelOverlay.swift */,
+				0A734251BFE42132D3A6E938 /* InspectorOverlay.swift */,
+				AE274914AFAD3931E187D9C2 /* ModernInspectorPanel.swift */,
+				4F34406697E6B182716F1DE5 /* SimulationControlsOverlay.swift */,
+				10F64C5EB58D351E13922054 /* EdgeGestureDetectors.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -247,7 +255,6 @@
 			buildConfigurationList = 31234B4C2F1FD84A003C8FEC /* Build configuration list for PBXNativeTarget "FdC Railway Manager" */;
 			buildPhases = (
 				31234B3D2F1FD849003C8FEC /* Sources */,
-				31234B3E2F1FD849003C8FEC /* Frameworks */,
 				31234B3F2F1FD849003C8FEC /* Resources */,
 			);
 			buildRules = (
@@ -329,7 +336,6 @@
 				31294B542F4259D900E80C34 /* LineColorAssigner.swift in Sources */,
 				31B310592F4A553F004F4A8F /* FerroviaInspectorView.swift in Sources */,
 				31294B5C2F426FEB00E80C34 /* VehicleRotationOptimizer.swift in Sources */,
-				313F35712F3F4F9600250B1A /* ContentViewOverlays.swift in Sources */,
 				313F356D2F3F4EB100250B1A /* LayoutConstants.swift in Sources */,
 				715B45EDAFD0A9E406511CFB /* FloatingModeBar.swift in Sources */,
 				44A941BC8B122EF78C8985C9 /* FloatingSideMenu.swift in Sources */,
@@ -378,6 +384,13 @@
 				460445189BB3D221C17A8762 /* ScheduleChangeModifiersB.swift in Sources */,
 				E6FD476D9D417E9A2F84CA02 /* ScheduleChangeModifiersB1.swift in Sources */,
 				C0564B35BF95428DC59ED0FB /* ScheduleChangeModifiersB2.swift in Sources */,
+				6CD54323881CAF7DCA2E1559 /* ModeBarOverlay.swift in Sources */,
+				ABF34EFDA9E9D8D7D1D6C341 /* SidebarOverlay.swift in Sources */,
+				C9974B2D8942E4A3C6530099 /* WidePanelOverlay.swift in Sources */,
+				583C4DC083D8317496540409 /* InspectorOverlay.swift in Sources */,
+				D1634C16994C52ACB1E844D5 /* ModernInspectorPanel.swift in Sources */,
+				DED64FADBC983463BC133A59 /* SimulationControlsOverlay.swift in Sources */,
+				18984404894CB9F7D55B2BA4 /* EdgeGestureDetectors.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
