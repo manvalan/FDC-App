@@ -40,10 +40,10 @@ struct PathPickerComponent: View {
     
     @Binding var activePicker: PickerType?
     @Binding var manualStationId: String
-    var lineContext: RailwayLine? = nil
+    var lineContext: TrainRoute? = nil
     
     // AI Analysis
-    var lineAnalysis: RailwayAIService.LineAnalysis? = nil
+    var lineAnalysis: RailwayAIService.RouteAnalysis? = nil
     var isAnalyzing: Bool = false
     
     @State private var isCalculating = false
@@ -365,7 +365,7 @@ struct PathPickerComponent: View {
         startStationId: String,
         endStationId: String,
         viaStationIds: [String],
-        lineContext: RailwayLine?,
+        lineContext: TrainRoute?,
         language: AppLanguage
     ) async -> (alternatives: [(path: [String], distance: Double, description: String)], error: String?) {
         
@@ -382,7 +382,7 @@ struct PathPickerComponent: View {
         
         // --- CASE A: Calculation restricted to a specific Line context ---
         if let line = lineContext {
-            let stations = line.stations
+            let stations = line.stationIds
             guard let startIndex = stations.firstIndex(of: startStationId),
                   let endIndex = stations.firstIndex(of: endStationId) else {
                 return ([], localize("error_stations_not_in_line"))
@@ -492,7 +492,7 @@ struct PathPickerComponent: View {
     }
     
     @ViewBuilder
-    private func aiAnalysisView(analysis: RailwayAIService.LineAnalysis) -> some View {
+    private func aiAnalysisView(analysis: RailwayAIService.RouteAnalysis) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Divider()
             HStack {
@@ -608,12 +608,14 @@ struct PathPickerComponent: View {
         guard stationSequence.count >= 2 else { return }
         Task {
             // Find frequency from line context or default to 60
-            let freq = lineContext?.cadenceFrequency ?? 60.0
+            let freq = 60.0 // Default frequency
             
-            let tempLine = RailwayLine(
+            let tempLine = TrainRoute(
                 id: lineContext?.id ?? "preview",
                 name: "Preview",
-                stops: stationSequence.map { RelationStop(stationId: $0) }
+                originStationId: stationSequence.first ?? "",
+                destinationStationId: stationSequence.last ?? "",
+                stationIds: stationSequence
             )
             
             let offset = await cadenceOptimizer.proposeIdealWindow(

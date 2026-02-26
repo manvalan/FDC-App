@@ -13,7 +13,7 @@ extension ContentView {
     }
 
     @ViewBuilder
-    private func sidebarSelectionContent(for selection: AppState.SidebarCategory) -> some View {
+    private func sidebarSelectionContent(for selection: SidebarItem) -> some View {
         if selection.isNetworkCategory {
             networkSidebarContent(for: selection)
         } else {
@@ -22,9 +22,9 @@ extension ContentView {
     }
 
     @ViewBuilder
-    private func networkSidebarContent(for selection: AppState.SidebarCategory) -> some View {
+    private func networkSidebarContent(for selection: SidebarItem) -> some View {
         switch selection {
-        case .stations, .tracks, .ferrovie:
+        case .stations, .tracks, .infraLines:
             networkListView(for: selection)
         default:
             EmptyView()
@@ -32,13 +32,13 @@ extension ContentView {
     }
 
     @ViewBuilder
-    private func operationalSidebarContent(for selection: AppState.SidebarCategory) -> some View {
+    private func operationalSidebarContent(for selection: SidebarItem) -> some View {
         switch selection {
-        case .lines:
-            LinesListView(
+        case .routes:
+            RoutesListView(
                 network: network,
                 lines: lines,
-                selectedLine: Binding(get: { appState.selectedLine }, set: { appState.selectedLineId = $0?.id })
+                selectedRoute: Binding(get: { appState.selectedRoute }, set: { appState.selectLine($0 ?? TrainRoute(name: "")) })
             )
         case .trains:
             TrainsListView(selectedTrains: $appState.selectedTrainIds)
@@ -62,12 +62,12 @@ extension ContentView {
     }
 
     @ViewBuilder
-    private func networkListView(for selection: AppState.SidebarCategory) -> some View {
-        let mode: NetworkListView.ListMode = {
+    private func networkListView(for selection: SidebarItem) -> some View {
+        let mode: NetworkListView.NetworkListMode = {
             switch selection {
             case .stations: return .stations
             case .tracks: return .tracks
-            case .ferrovie: return .ferrovie
+            case .infraLines: return .ferrovie
             default: return .stations
             }
         }()

@@ -131,8 +131,8 @@ struct NetworkListView: View {
             title: String(format: "Ferrovie: %d", ferroviaVM.items.count),
             items: ferroviaVM.items,
             selectedItemId: Binding(
-                get: { appState.selectedFerroviaId },
-                set: { appState.selectedFerroviaId = $0 }
+                get: { appState.selectedInfraLineId },
+                set: { appState.selectedInfraLineId = $0 }
             ),
             rowContent: { ferrovia in
                 HStack {
@@ -140,7 +140,7 @@ struct NetworkListView: View {
                     Text(ferrovia.name)
                         .font(.subheadline)
                     Spacer()
-                    Text("\(ferrovia.stationIds.count) stazioni")
+                    Text("\(ferrovia.nodeIds.count) stazioni")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }

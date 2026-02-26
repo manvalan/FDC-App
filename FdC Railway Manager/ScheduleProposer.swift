@@ -1,6 +1,6 @@
 import Foundation
 
-struct ProposedLine: Codable {
+struct ProposedRoute: Codable {
     let id: String
     let origin: Int
     let destination: Int
@@ -55,11 +55,11 @@ struct SchedulePreviewItem: Codable {
 }
 
 struct ProposalResponse: Codable {
-    let proposedLines: [ProposedLine]
+    let proposedRoutes: [ProposedRoute]
     let schedulePreviewItems: [SchedulePreviewItem]?
 
     enum CodingKeys: String, CodingKey {
-        case proposedLines = "proposed_lines"
+        case proposedRoutes = "proposed_lines"
         case schedulePreviewItems = "schedule_preview"
     }
 }
@@ -77,7 +77,7 @@ class ScheduleProposer {
     
     private init() {}
     
-    func requestProposal(using graph: RailwayGraphManager, network: RailwayNetwork, targetLines: Int, completion: @escaping (Result<ProposalResponse, Error>) -> Void) {
+    func requestProposal(using graph: RailwayGraphManager, network: NetworkModel, targetRoutes: Int, completion: @escaping (Result<ProposalResponse, Error>) -> Void) {
         // 1. Generate the network JSON using the graph manager
         guard let networkDict = graph.generateAIRequestDictionary(for: [], network: network) else {
             completion(.failure(NSError(domain: "Impossibile generare il grafo della rete.", code: 0)))
@@ -100,7 +100,7 @@ class ScheduleProposer {
         
         // PIGNOLO PROTOCOL: Flatten the dictionary. Server expects stations and tracks at top level.
         var body = networkDict
-        body["target_lines"] = targetLines
+        body["target_lines"] = targetRoutes
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)

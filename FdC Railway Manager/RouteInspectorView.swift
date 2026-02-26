@@ -1,11 +1,11 @@
 import SwiftUI
 
-struct LineInspectorView: View {
+struct RouteInspectorView: View {
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var network: RailwayNetwork
+    @EnvironmentObject var network: NetworkModel
     @EnvironmentObject var lines: LinesManager
     
-    let line: RailwayLine
+    let route: TrainRoute
     
     var body: some View {
         ScrollView {
@@ -16,10 +16,10 @@ struct LineInspectorView: View {
                         .font(.caption.bold())
                     
                     TextField("Nome Linea", text: Binding(
-                        get: { line.name },
+                        get: { route.name },
                         set: { newName in
-                            if let idx = lines.lines.firstIndex(where: { $0.id == line.id }) {
-                                lines.lines[idx].name = newName
+                            if let idx = lines.routes.firstIndex(where: { $0.id == route.id }) {
+                                lines.routes[idx].name = newName
                             }
                         }
                     ))
@@ -27,20 +27,20 @@ struct LineInspectorView: View {
                     
                     HStack {
                         TextField("Prefisso", text: Binding(
-                            get: { line.codePrefix ?? "" },
+                            get: { route.serviceCodePrefix ?? "" },
                             set: { newValue in
-                                if let idx = lines.lines.firstIndex(where: { $0.id == line.id }) {
-                                    lines.lines[idx].codePrefix = newValue.isEmpty ? nil : newValue
+                                if let idx = lines.routes.firstIndex(where: { $0.id == route.id }) {
+                                    lines.routes[idx].serviceCodePrefix = newValue.isEmpty ? nil : newValue
                                 }
                             }
                         ))
                         .textFieldStyle(.roundedBorder)
                         
                         TextField("Numero", value: Binding(
-                            get: { line.numberPrefix ?? 0 },
+                            get: { route.numberPrefix ?? 0 },
                             set: { newValue in
-                                if let idx = lines.lines.firstIndex(where: { $0.id == line.id }) {
-                                    lines.lines[idx].numberPrefix = newValue
+                                if let idx = lines.routes.firstIndex(where: { $0.id == route.id }) {
+                                    lines.routes[idx].numberPrefix = newValue
                                 }
                             }
                         ), format: .number)
@@ -58,10 +58,10 @@ struct LineInspectorView: View {
                 case .infrastructure:
                     VerticalTrackDiagramView(
                         line: Binding(
-                            get: { appState.selectedLine ?? line },
-                            set: { newLine in
-                                if let idx = lines.lines.firstIndex(where: { $0.id == line.id }) {
-                                    lines.lines[idx] = newLine
+                            get: { appState.selectedRoute ?? route },
+                            set: { newRoute in
+                                if let idx = lines.routes.firstIndex(where: { $0.id == route.id }) {
+                                    lines.routes[idx] = newRoute
                                 }
                             }
                         ),
@@ -72,9 +72,9 @@ struct LineInspectorView: View {
                         isSidebarEditMode: $appState.isLineEditing
                     )
                 case .schedule:
-                    LineScheduleSummaryView(line: line)
+                    LineScheduleSummaryView(line: route)
                 case .vehicles:
-                    LineVehiclesView(lineId: line.id)
+                    LineVehiclesView(lineId: route.id)
                 }
             }
             .padding(.horizontal, 16)

@@ -1,16 +1,18 @@
 import Foundation
 import SwiftUI
 
-struct FerrovieListPopover: View {
+// MARK: - RailwayLine (Infrastructure) List Popover
+
+struct InfraLinesListPopover: View {
 
     @EnvironmentObject var appState: AppState
-    var onSelect: (Ferrovia) -> Void
+    var onSelect: (RailwayLine) -> Void
     var onCreate: () -> Void
-    
+
     var body: some View {
         VStack {
             HStack {
-                Text("Ferrovie")
+                Text("Linee")
                     .font(.headline)
                 Spacer()
                 Button(action: onCreate) {
@@ -18,16 +20,16 @@ struct FerrovieListPopover: View {
                 }
             }
             .padding()
-            
-            if appState.railroad.network.ferrovie.isEmpty {
+
+            if appState.railroad.network.lines.isEmpty {
                 VStack(spacing: 12) {
-                    Image(systemName: "point.topleft.down.to.point.bottomright.curvepath")
+                    Image(systemName: "map.fill")
                         .font(.largeTitle)
                         .foregroundColor(.secondary)
-                    Text("Nessuna ferrovia")
+                    Text("Nessuna Linea")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                    Text("Crea una ferrovia per definire un percorso fisico della rete")
+                    Text("Crea una linea per definire un percorso fisico dell'infrastruttura")
                         .font(.caption)
                         .foregroundColor(.secondary.opacity(0.7))
                         .multilineTextAlignment(.center)
@@ -35,59 +37,58 @@ struct FerrovieListPopover: View {
                 .padding()
             } else {
                 List {
-                    ForEach(appState.railroad.network.ferrovie) { ferrovia in
-                        Button(action: { onSelect(ferrovia) }) {
-                           HStack {
-                               Circle()
-                                   .fill(ferrovia.uiColor)
-                                   .frame(width: 8, height: 8)
-                               Text(ferrovia.name)
-                               Spacer()
-                               Text("\(ferrovia.stationIds.count) staz.")
-                                   .font(.caption)
-                                   .foregroundColor(.secondary)
-                           }
-                           .contentShape(Rectangle())
+                    ForEach(appState.railroad.network.lines) { line in
+                        Button(action: { onSelect(line) }) {
+                            HStack {
+                                Circle()
+                                    .fill(line.displayColor)
+                                    .frame(width: 8, height: 8)
+                                Text(line.name)
+                                Spacer()
+                                Text("\(line.nodeIds.count) nodi")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
-                    .onDelete(perform: deleteFerrovia)
+                    .onDelete(perform: deleteInfraLine)
                 }
                 .scrollContentBackground(.hidden)
             }
         }
         .background(Color(UIColor.systemBackground))
     }
-    
-    func deleteFerrovia(at offsets: IndexSet) {
+
+    func deleteInfraLine(at offsets: IndexSet) {
         offsets.forEach { index in
-            let fer = appState.railroad.network.ferrovie[index]
-            if appState.selectedFerroviaId == fer.id {
-                appState.selectedFerroviaId = nil
+            let line = appState.railroad.network.lines[index]
+            if appState.selectedInfraLineId == line.id {
+                appState.selectedInfraLineId = nil
             }
-            appState.railroad.network.ferrovie.removeAll { $0.id == fer.id }
+            appState.railroad.network.lines.removeAll { $0.id == line.id }
         }
     }
 }
-// MARK: - Ferrovia Inspector List
-/// Lista ferrovie per il pannello inspector laterale
-struct FerrovieInspectorList: View {
+
+// MARK: - RailwayLine (Infrastructure) Inspector List
+
+struct InfraLinesInspectorList: View {
     @EnvironmentObject var appState: AppState
-    var onSelect: (Ferrovia) -> Void
-    
+    var onSelect: (RailwayLine) -> Void
+
     var body: some View {
         VStack(spacing: 0) {
-            if appState.railroad.network.ferrovie.isEmpty {
+            if appState.railroad.network.lines.isEmpty {
                 VStack(spacing: 16) {
-                    Image(systemName: "point.topleft.down.to.point.bottomright.curvepath")
+                    Image(systemName: "map.fill")
                         .font(.system(size: 48))
                         .foregroundColor(.secondary.opacity(0.5))
-                    
-                    Text("Nessuna ferrovia")
+                    Text("Nessuna Linea")
                         .font(.headline)
                         .foregroundColor(.secondary)
-                    
-                    Text("Seleziona 2 o più stazioni sulla mappa e usa l'icona 'F' per creare una ferrovia")
+                    Text("Seleziona 2 o più nodi sulla mappa e usa il pulsante '+' per creare una linea infrastrutturale")
                         .font(.caption)
                         .foregroundColor(.secondary.opacity(0.7))
                         .multilineTextAlignment(.center)
@@ -98,39 +99,28 @@ struct FerrovieInspectorList: View {
             } else {
                 ScrollView {
                     VStack(spacing: 8) {
-                        ForEach(appState.railroad.network.ferrovie) { ferrovia in
-                            Button(action: {
-                                onSelect(ferrovia)
-                            }) {
+                        ForEach(appState.railroad.network.lines) { line in
+                            Button(action: { onSelect(line) }) {
                                 HStack(spacing: 12) {
-                                    // Color indicator
                                     Circle()
-                                        .fill(ferrovia.uiColor)
+                                        .fill(line.displayColor)
                                         .frame(width: 12, height: 12)
-                                    
-                                    // Ferrovia info
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text(ferrovia.name)
+                                        Text(line.name)
                                             .font(.subheadline.bold())
                                             .foregroundColor(.primary)
-                                        
-                                        Text("\(ferrovia.stationIds.count) stazioni")
+                                        Text("\(line.nodeIds.count) nodi · \(line.electrification.rawValue)")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                     }
-                                    
                                     Spacer()
-                                    
-                                    // Arrow indicator
                                     Image(systemName: "chevron.right")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
                                 .padding(12)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(Color(UIColor.tertiarySystemBackground))
-                                )
+                                .background(RoundedRectangle(cornerRadius: 10)
+                                    .fill(Color(UIColor.tertiarySystemBackground)))
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -144,3 +134,6 @@ struct FerrovieInspectorList: View {
     }
 }
 
+// MARK: - Backward compat typealiases (remove after full migration of call sites)
+typealias FerrovieListPopover    = InfraLinesListPopover
+typealias FerrovieInspectorList  = InfraLinesInspectorList

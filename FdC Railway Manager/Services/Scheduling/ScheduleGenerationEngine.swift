@@ -13,7 +13,7 @@ final class ScheduleGenerationEngine {
     
     /// Esegue la pipeline completa di generazione orario.
     func generate(
-        line: RailwayLine,
+        line: TrainRoute,
         mode: ScheduleMode,
         startTime: Date,
         endTime: Date,
@@ -47,7 +47,7 @@ final class ScheduleGenerationEngine {
         
         progressCallback("Ottimizzazione pipeline...")
         let optimized = await runOptimizationPipeline(
-            trains: trains, lineId: line.id, mode: mode,
+            trains: trains, routeId: line.id, mode: mode,
             useDepartureOptimizer: useDepartureOptimizer, taktStationId: taktStationId
         )
         
@@ -59,7 +59,7 @@ final class ScheduleGenerationEngine {
     }
     
     private func prepareTrains(
-        line: RailwayLine, mode: ScheduleMode, startTime: Date, endTime: Date,
+        line: TrainRoute, mode: ScheduleMode, startTime: Date, endTime: Date,
         intervalMinutes: Int, stationSequence: [String],
         selectedTrainType: TrainCategory, selectedVehicle: Vehicle?,
         selectedModel: TrainModel?, skippedStopIds: Set<String>,
@@ -73,7 +73,7 @@ final class ScheduleGenerationEngine {
         let normalizedEnd = normalizeDate(endTime)
         let physics = resolvePhysics(selectedModel: selectedModel, selectedVehicle: selectedVehicle, selectedTrainType: selectedTrainType)
         let effectiveVehicle = selectedModel?.toVehicle() ?? selectedVehicle
-        let rLineObj = findReturnLine(line: line)
+        let rLineObj = findReturnLine(route: line)
         
         let isTakt120 = mode == .taktfahrplan && intervalMinutes == 120 && scheduleReturn
         let raw: [Train]
@@ -102,7 +102,7 @@ final class ScheduleGenerationEngine {
     }
     
     private func runOptimizationPipeline(
-        trains: [Train], lineId: String, mode: ScheduleMode,
+        trains: [Train], routeId: String, mode: ScheduleMode,
         useDepartureOptimizer: Bool, taktStationId: String
     ) async -> [Train] {
         let useGA = mode == .taktfahrplan ? false : useDepartureOptimizer
@@ -110,7 +110,7 @@ final class ScheduleGenerationEngine {
         
         return await RailwayScheduleOptimizer.shared.executePipeline(
             newTrains: trains,
-            existingTrains: trainManager.trains.filter { $0.lineId != lineId },
+            existingTrains: trainManager.trains.filter { $0.routeId != routeId },
             nodes: network.nodes, edges: network.edges,
             useAI: false, useGA: useGA,
             geneticOptimizer: (nil as GeneticOptimizer?),
@@ -128,10 +128,10 @@ final class ScheduleGenerationEngine {
         return num
     }
     
-    private func findReturnLine(line: RailwayLine) -> RailwayLine {
-        trainManager.lines.first(where: {
-            $0.originId == line.destinationId && $0.destinationId == line.originId
-        }) ?? line
+    private func findReturnLine(route: TrainRoute) -> TrainRoute {
+        trainManager.routes.first(where: {
+            $0.originStationId == route.destinationStationId && $0.destinationStationId == route.originStationId
+        }) ?? route
     }
     
     private func normalizeDate(_ date: Date) -> Date {
@@ -154,7 +154,7 @@ final class ScheduleGenerationEngine {
     
     private func generateTakt120Pairs(
         calendar: Calendar, normalizedStart: Date, endTime: Date, intervalMinutes: Int,
-        currentStart: Int, returnStartNumber: Int, line: RailwayLine, rLineObj: RailwayLine,
+        currentStart: Int, returnStartNumber: Int, line: TrainRoute, rLineObj: TrainRoute,
         stationSequence: [String], selectedTrainType: TrainCategory,
         physics: (Double, Double, Double, Double, Double),
         effectiveVehicle: Vehicle?, skippedStopIds: Set<String>, isMainLine: Bool
@@ -167,13 +167,13 @@ final class ScheduleGenerationEngine {
         for i in 0..<iterations {
             let dep = calendar.date(byAdding: .minute, value: i * intervalMinutes, to: normalizedStart) ?? normalizedStart
             let t1 = trainManager.instantiateTrain(number: (line.numberPrefix ?? 0) * 100 + currentStart + (i * 2),
-                category: selectedTrainType, departureTime: dep, line: line,
+                category: selectedTrainType, departureTime: dep, route: line,
                 stationSequence: stationSequence, acceleration: physics.0, deceleration: physics.1,
                 mass: physics.2, power: physics.3, preferredTrack: "1",
                 vehicleId: effectiveVehicle?.id, skippedStopIds: skippedStopIds, isMainTrain: isMainLine)
             let t2 = trainManager.instantiateTrain(
                 number: (rLineObj.numberPrefix ?? line.numberPrefix ?? 0) * 100 + returnStartNumber + (i * 2),
-                category: selectedTrainType, departureTime: dep, line: rLineObj,
+                category: selectedTrainType, departureTime: dep, route: rLineObj,
                 stationSequence: Array(stationSequence.reversed()), acceleration: physics.0, deceleration: physics.1,
                 mass: physics.2, power: physics.3, preferredTrack: "2",
                 vehicleId: effectiveVehicle?.id, skippedStopIds: skippedStopIds, isMainTrain: isMainLine)
@@ -184,7 +184,7 @@ final class ScheduleGenerationEngine {
     
     private func generateStandard(
         calendar: Calendar, normalizedStart: Date, normalizedEnd: Date, mode: ScheduleMode, intervalMinutes: Int,
-        currentStart: Int, returnStartNumber: Int, line: RailwayLine, rLineObj: RailwayLine,
+        currentStart: Int, returnStartNumber: Int, line: TrainRoute, rLineObj: TrainRoute,
         stationSequence: [String], selectedTrainType: TrainCategory,
         physics: (Double, Double, Double, Double, Double),
         effectiveVehicle: Vehicle?, skippedStopIds: Set<String>, isMainLine: Bool, scheduleReturn: Bool
@@ -197,7 +197,7 @@ final class ScheduleGenerationEngine {
         for i in 0..<outIter {
             let dep = calendar.date(byAdding: .minute, value: i * intervalMinutes, to: normalizedStart) ?? normalizedStart
             let t = trainManager.instantiateTrain(number: (line.numberPrefix ?? 0) * 100 + currentStart + (i * 2),
-                category: selectedTrainType, departureTime: dep, line: line,
+                category: selectedTrainType, departureTime: dep, route: line,
                 stationSequence: stationSequence, acceleration: physics.0, deceleration: physics.1,
                 mass: physics.2, power: physics.3, preferredTrack: "1",
                 vehicleId: effectiveVehicle?.id, skippedStopIds: skippedStopIds, isMainTrain: isMainLine)
@@ -211,7 +211,7 @@ final class ScheduleGenerationEngine {
                 let dep = calendar.date(byAdding: .minute, value: i * intervalMinutes + returnOffset, to: normalizedStart) ?? normalizedStart
                 let t = trainManager.instantiateTrain(
                     number: (rLineObj.numberPrefix ?? line.numberPrefix ?? 0) * 100 + returnStartNumber + (i * 2),
-                    category: selectedTrainType, departureTime: dep, line: rLineObj,
+                    category: selectedTrainType, departureTime: dep, route: rLineObj,
                     stationSequence: Array(stationSequence.reversed()), acceleration: physics.0, deceleration: physics.1,
                     mass: physics.2, power: physics.3, preferredTrack: "2",
                     vehicleId: effectiveVehicle?.id, skippedStopIds: skippedStopIds, isMainTrain: isMainLine)

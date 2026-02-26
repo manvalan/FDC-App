@@ -71,7 +71,7 @@ class LineColorAssigner {
     /// Assegna automaticamente colori a tutte le linee
     /// - Parameter lines: Array di linee da colorare
     /// - Returns: Array di linee con colori assegnati
-    static func assignColors(to lines: [RailwayLine]) -> [RailwayLine] {
+    static func assignColors(to lines: [TrainRoute]) -> [TrainRoute] {
         var updatedLines = lines
         
         // Raggruppa linee per tipologia (basandosi sul nome o sul prefisso)
@@ -92,7 +92,7 @@ class LineColorAssigner {
     }
     
     /// Assegna colori a un gruppo di linee
-    private static func assignColorsToGroup(_ allLines: inout [RailwayLine], lines: [RailwayLine], colors: [Color]) {
+    private static func assignColorsToGroup(_ allLines: inout [TrainRoute], lines: [TrainRoute], colors: [Color]) {
         for (index, line) in lines.enumerated() {
             guard let lineIndex = allLines.firstIndex(where: { $0.id == line.id }) else { continue }
             
@@ -107,9 +107,9 @@ class LineColorAssigner {
     }
     
     /// Determina se una linea è ad alta velocità
-    private static func isHighSpeed(_ line: RailwayLine) -> Bool {
+    private static func isHighSpeed(_ line: TrainRoute) -> Bool {
         let name = line.name.lowercased()
-        let code = line.codePrefix?.lowercased() ?? ""
+        let code = line.serviceCodePrefix?.lowercased() ?? ""
         
         return name.contains("av") ||
                name.contains("alta velocità") ||
@@ -121,9 +121,9 @@ class LineColorAssigner {
     }
     
     /// Determina se una linea è diretta/interregionale
-    private static func isDirect(_ line: RailwayLine) -> Bool {
+    private static func isDirect(_ line: TrainRoute) -> Bool {
         let name = line.name.lowercased()
-        let code = line.codePrefix?.lowercased() ?? ""
+        let code = line.serviceCodePrefix?.lowercased() ?? ""
         
         return name.contains("intercity") ||
                name.contains("ic") ||
@@ -138,9 +138,9 @@ class LineColorAssigner {
     }
     
     /// Determina se una linea è regionale
-    private static func isRegional(_ line: RailwayLine) -> Bool {
+    private static func isRegional(_ line: TrainRoute) -> Bool {
         let name = line.name.lowercased()
-        let code = line.codePrefix?.lowercased() ?? ""
+        let code = line.serviceCodePrefix?.lowercased() ?? ""
         
         return name.contains("regional") ||
                name.contains("regionale") ||
@@ -154,9 +154,9 @@ class LineColorAssigner {
     }
     
     /// Determina se una linea è merci
-    private static func isFreight(_ line: RailwayLine) -> Bool {
+    private static func isFreight(_ line: TrainRoute) -> Bool {
         let name = line.name.lowercased()
-        let code = line.codePrefix?.lowercased() ?? ""
+        let code = line.serviceCodePrefix?.lowercased() ?? ""
         
         return name.contains("merci") ||
                name.contains("cargo") ||
@@ -189,7 +189,7 @@ class LineColorAssigner {
     }
     
     /// Assegna colori distinguibili quando ci sono troppe linee dello stesso tipo
-    static func assignDistinguishableColors(to lines: [RailwayLine], existingColors: Set<String>) -> [RailwayLine] {
+    static func assignDistinguishableColors(to lines: [TrainRoute], existingColors: Set<String>) -> [TrainRoute] {
         var updatedLines = lines
         var usedColors = existingColors
 
@@ -212,7 +212,7 @@ class LineColorAssigner {
     ///   - lines: Array di linee da colorare
     ///   - network: Network model per analizzare le intersezioni
     /// - Returns: Array di linee con colori ottimizzati
-    static func assignSmartColors(to lines: [RailwayLine], in network: RailwayNetwork) -> [RailwayLine] {
+    static func assignSmartColors(to lines: [TrainRoute], in network: RailwayNetwork) -> [TrainRoute] {
         guard !lines.isEmpty else { return lines }
 
         var updatedLines = lines
@@ -230,8 +230,8 @@ class LineColorAssigner {
                 let line1 = lines[i]
                 let line2 = lines[j]
 
-                let stations1 = Set(line1.stops.map { $0.stationId })
-                let stations2 = Set(line2.stops.map { $0.stationId })
+                let stations1 = Set(line1.stationIds)
+                let stations2 = Set(line2.stationIds)
 
                 if !stations1.intersection(stations2).isEmpty {
                     adjacencyMap[line1.id]?.insert(line2.id)

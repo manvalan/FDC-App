@@ -382,8 +382,8 @@ struct TrainDetailView: View {
                 Text("Servizio Assegnato").font(.headline).foregroundColor(appState.theme.dark)
             }
             
-            if let lineId = trainBinding.wrappedValue.lineId,
-               let line = manager.lines.first(where: { $0.id == lineId }) {
+            if let routeId = trainBinding.wrappedValue.routeId,
+               let line = manager.routes.first(where: { $0.id == routeId }) {
                 
                 HStack {
                     if let color = line.color {

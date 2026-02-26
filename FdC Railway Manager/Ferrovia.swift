@@ -1,29 +1,44 @@
 import Foundation
 import SwiftUI
 
-// MARK: - Ferrovia (Infrastruttura Fisica)
-/// Una Ferrovia rappresenta un percorso fisico dell'infrastruttura ferroviaria:
-/// un segmento della rete composto da una sequenza ordinata di stazioni/nodi collegati da binari.
-/// NON contiene informazioni di servizio (treni, orari, cadenzamento).
-public struct Ferrovia: Identifiable, Codable, Hashable {
+// MARK: - RailwayLine (Physical Infrastructure)
+
+/// Represents a physical railway infrastructure line:
+/// an ordered sequence of connected nodes (stations/junctions) sharing
+/// a common electrification system and visual identity.
+/// Does NOT contain service information (trains, schedules, timetables).
+public struct RailwayLine: Identifiable, Codable, Hashable {
+
     public let id: String
     public var name: String
-    public var color: String? // Colore per visualizzazione (hex)
-    public var stationIds: [String] // Sequenza ordinata di stazioni/nodi
-    public var electrification: ElectrificationType = .dc3kv // Tipo di elettrificazione
-    
-    public var uiColor: Color {
-        if let hex = color, let c = Color(hex: hex) {
-            return c
-        }
-        return .gray
+    public var color: String?                             // Hex color for map display
+    public var nodeIds: [String]                          // Ordered sequence of infrastructure node IDs
+    public var electrification: ElectrificationType      // Electrification type for the whole line
+
+    // MARK: - Computed
+
+    public var displayColor: Color {
+        color.flatMap { Color(hex: $0) } ?? .gray
     }
-    
-    public init(id: String = UUID().uuidString, name: String, color: String? = nil, stationIds: [String] = [], electrification: ElectrificationType = .dc3kv) {
+
+    // MARK: - Init
+
+    public init(
+        id: String = UUID().uuidString,
+        name: String,
+        color: String? = nil,
+        nodeIds: [String] = [],
+        electrification: ElectrificationType = .dc3kv
+    ) {
         self.id = id
         self.name = name
         self.color = color
-        self.stationIds = stationIds
+        self.nodeIds = nodeIds
         self.electrification = electrification
     }
 }
+
+// MARK: - Backward compatibility
+// Temporary alias so existing code referencing `Ferrovia` still compiles
+// while the rename is applied across the codebase.
+public typealias Ferrovia = RailwayLine

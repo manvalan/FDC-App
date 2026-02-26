@@ -36,7 +36,7 @@ struct IOManagementView: View {
         }
         .fileExporter(
             isPresented: $showExporter,
-            document: RailwayNetworkDocument(network: network, lines: trainManager.lines, trains: trainManager.trains),
+            document: RailwayNetworkDocument(network: network, lines: trainManager.routes, trains: trainManager.trains),
             contentType: .rail,
             defaultFilename: "rete-ferroviaria"
         ) { _ in }
@@ -384,9 +384,9 @@ struct IOManagementView: View {
         
         currentNetwork.nodes = normalizedInfrastructureNodes(dto.nodes)
         currentNetwork.edges = dto.edges
-        currentNetwork.ferrovie = dto.ferrovie ?? []
+        currentNetwork.lines = dto.lines ?? []
         
-        if let l = dto.lines { trainManager.lines = l }
+        if let l = dto.routes { trainManager.routes = l }
         if let t = dto.trains { trainManager.trains = t }
         if let v = dto.vehicles { trainManager.vehicles = v }
         
@@ -709,8 +709,8 @@ struct RailwayNetworkDocument: @preconcurrency FileDocument {
     var dto: RailwayNetworkDTO
     
     @MainActor
-    init(network: NetworkModel, lines: [RailwayLine], trains: [RailwayTrain]) { 
-        self.dto = RailwayNetworkDTO(name: network.name, nodes: network.nodes, edges: network.edges, lines: lines, trains: trains)
+    init(network: NetworkModel, lines: [TrainRoute], trains: [RailwayTrain]) { 
+        self.dto = RailwayNetworkDTO(name: network.name, nodes: network.nodes, edges: network.edges, lines: network.lines, routes: lines, trains: trains)
     }
     
     @MainActor

@@ -5,7 +5,7 @@ struct TrainCreationView: View {
     @EnvironmentObject var linesManager: LinesManager
     @EnvironmentObject var appState: AppState
     
-    let line: RailwayLine
+    let route: TrainRoute
     
     // Configurazione
     enum CreationMode: String, CaseIterable {
@@ -55,14 +55,13 @@ struct TrainCreationView: View {
                 
                 Section("Percorso") {
                     Picker("Partenza", selection: $originStationId) {
-                        ForEach(line.stops, id: \.stationId) { stop in
-                            Text(stationName(for: stop.stationId)).tag(stop.stationId)
+                        ForEach(route.stationIds, id: \.self) { stationId in
+                            Text(stationName(for: stationId)).tag(stationId)
                         }
                     }
-                    
                     Picker("Arrivo", selection: $destinationStationId) {
-                        ForEach(line.stops, id: \.stationId) { stop in
-                            Text(stationName(for: stop.stationId)).tag(stop.stationId)
+                        ForEach(route.stationIds, id: \.self) { stationId in
+                            Text(stationName(for: stationId)).tag(stationId)
                         }
                     }
                 }
@@ -172,13 +171,12 @@ struct TrainCreationView: View {
     
     private func setupDefaults() {
         if originStationId.isEmpty {
-            if let first = line.stops.first { originStationId = first.stationId }
-            if let last = line.stops.last { destinationStationId = last.stationId }
+            originStationId      = route.stationIds.first ?? ""
+            destinationStationId = route.stationIds.last  ?? ""
         }
-        
-        let prefix = line.numberPrefix ?? 0
+        let prefix = route.numberPrefix ?? 0
         let base = prefix * 1000
-        startNumber = base + 1 
+        startNumber = base + 1
         startNumberReturn = base + 2
         
         let now = Date()
@@ -190,16 +188,14 @@ struct TrainCreationView: View {
     }
     
     private func nominalDuration(from startId: String, to endId: String) -> TimeInterval {
-        guard let startIndex = line.stops.firstIndex(where: { $0.stationId == startId }),
-              let endIndex = line.stops.firstIndex(where: { $0.stationId == endId }) else { return 1800 }
-        
-        let diff = abs(startIndex - endIndex)
-        return TimeInterval(diff * 10 * 60)
+        guard let startIdx = route.stationIds.firstIndex(of: startId),
+              let endIdx   = route.stationIds.firstIndex(of: endId) else { return 1800 }
+        return TimeInterval(abs(startIdx - endIdx) * 10 * 60)
     }
     
     private var previewTrains: [String] {
         var list: [String] = []
-        let code = line.codePrefix ?? "T"
+        let code = route.serviceCodePrefix ?? "T"
         
         var currentDeparture = departureTime
         var currentReturnDeparture = returnDepartureTime
@@ -280,7 +276,7 @@ struct TrainCreationView: View {
         
         // 5. Intelligent Auto-Assignment
         // Let the manager balance the load and respect locations
-        linesManager.autoAssignRollingStock(for: line.id)
+        linesManager.autoAssignRollingStock(for: route.id)
         
 
         
@@ -289,7 +285,7 @@ struct TrainCreationView: View {
     }
     
     private func buildTrain(number: Int, origin: String, dest: String, departure: Date) -> Train {
-        let code = line.codePrefix ?? "T"
+        let code = route.serviceCodePrefix ?? "T"
         let name = "\(code) - \(number)"
         
         let stops = extractStops(from: origin, to: dest)
@@ -300,7 +296,7 @@ struct TrainCreationView: View {
             number: number,
             name: name,
             type: "Regionale",
-            lineId: line.id,
+            lineId: route.id,
             departureTime: departure,
             stops: stops,
             vehicleId: nil, // Will be assigned in processCreation for batteries
@@ -311,34 +307,24 @@ struct TrainCreationView: View {
         )
     }
     
+    /// Builds the ordered list of RelationStops for a train running from `start` to `end`
+    /// along this route's stationIds.
     private func extractStops(from start: String, to end: String) -> [RelationStop] {
-        print("🔍 [extractStops] Searching for stops from '\(start)' to '\(end)'")
-        print("   Line '\(line.name)' has \(line.stops.count) stops total")
-        print("   Available stops: \(line.stops.map { $0.stationId })")
-        
-        guard let startIndex = line.stops.firstIndex(where: { $0.stationId == start }),
-              let endIndex = line.stops.firstIndex(where: { $0.stationId == end }) else {
-            print("❌ [extractStops] Could not find start or end station!")
-            print("   Start '\(start)' found: \(line.stops.contains(where: { $0.stationId == start }))")
-            print("   End '\(end)' found: \(line.stops.contains(where: { $0.stationId == end }))")
+        guard let startIdx = route.stationIds.firstIndex(of: start),
+              let endIdx   = route.stationIds.firstIndex(of: end) else {
+            print("❌ [TrainCreationView] Station not found in route \(route.name)")
             return []
         }
+        let ordered: [String] = startIdx <= endIdx
+            ? Array(route.stationIds[startIdx...endIdx])
+            : Array(route.stationIds[endIdx...startIdx].reversed())
         
-        print("✅ [extractStops] Found startIndex=\(startIndex), endIndex=\(endIndex)")
-        
-        let subset: [RelationStop]
-        if startIndex <= endIndex {
-            subset = Array(line.stops[startIndex...endIndex])
-        } else {
-            subset = Array(line.stops[endIndex...startIndex].reversed())
-        }
-        
-        print("✅ [extractStops] Extracted \(subset.count) stops")
-        
-        return subset.map { s in
-            var copy = s
-            copy.id = UUID()
-            return copy
+        return ordered.map { stationId in
+            RelationStop(
+                id: UUID(),
+                stationId: stationId,
+                minDwellTime: linesManager.getStandardDwell(for: stationId)
+            )
         }
     }
     

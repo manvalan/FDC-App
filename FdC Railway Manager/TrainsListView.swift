@@ -8,100 +8,121 @@ struct TrainsListView: View {
     
     @Binding var selectedTrains: Set<UUID>
     @State private var showAddTrain = false
-    @State private var customTrainLine: RailwayLine? = nil
-    @State private var showScheduleForLine: RailwayLine? = nil
+    @State private var customTrainRoute: TrainRoute? = nil
+    @State private var showScheduleForRoute: TrainRoute? = nil
 
     // AI State
-    @State private var suggestingForLine: RailwayLine? = nil
+    @State private var suggestingForRoute: TrainRoute? = nil
     @State private var aiSuggestion: String? = nil
     @State private var isAiLoading = false
     
     struct ScheduleRequest: Identifiable {
         let id = UUID()
-        let line: RailwayLine
+        let route: TrainRoute
         let mode: ScheduleMode
     }
     @State private var activeScheduleRequest: ScheduleRequest? = nil
     
     var body: some View {
+        listContent
+            .navigationTitle("schedule_management".localized)
+            .toolbar { toolbarContent }
+            .sheet(item: $activeScheduleRequest) { scheduleCreationSheet(for: $0) }
+            .sheet(item: $customTrainRoute) { trainCreationSheet(for: $0) }
+            .fullScreenCover(item: $showScheduleForRoute) { scheduleViewCover(for: $0) }
+            .alert("ai_suggestion_alert".localized, isPresented: aiAlertBinding) {
+                Button("ok".localized, role: .cancel) { }
+            } message: {
+                Text(aiSuggestion ?? "")
+            }
+    }
+    
+    private var listContent: some View {
         List {
-            ForEach(manager.sortedLines) { line in
-                LineSectionView(
-                    line: line,
+            ForEach(manager.sortedRoutes) { route in
+                RouteSectionView(
+                    route: route,
                     manager: manager,
                     selectedTrains: $selectedTrains,
-                    onShowSchedule: { showScheduleForLine = $0 },
-                    onAddTrain: { line, mode in
-                        activeScheduleRequest = ScheduleRequest(line: line, mode: mode)
+                    onShowSchedule: { showScheduleForRoute = $0 },
+                    onAddTrain: { route, mode in
+                        activeScheduleRequest = ScheduleRequest(route: route, mode: mode)
                     }
                 )
             }
             
-            Section("unassigned_trains".localized) {
-                let unassigned = manager.trains.filter { $0.lineId == nil }
-                ForEach(unassigned) { train in
-                    TrainRow(
-                        train: train,
-                        selectedIds: selectedTrains,
-                        onSelectTrain: { t in selectedTrains = [t.id] },
-                        onToggleSelection: { t in
-                            if selectedTrains.contains(t.id) { selectedTrains.remove(t.id) }
-                            else { selectedTrains.insert(t.id) }
-                        }
-                    )
-                }
-                .onDelete { idx in
-                    let toDel = idx.map { unassigned[$0] }
-                    manager.trains.removeAll { t in toDel.contains(where: { $0.id == t.id }) }
-                }
+            unassignedSection
+        }
+    }
+    
+    private var unassignedSection: some View {
+        Section("unassigned_trains".localized) {
+            let unassigned = manager.trains.filter { $0.routeId == nil }
+            ForEach(unassigned) { train in
+                TrainRow(
+                    train: train,
+                    selectedIds: selectedTrains,
+                    onSelectTrain: { t in selectedTrains = [t.id] },
+                    onToggleSelection: { t in
+                        if selectedTrains.contains(t.id) { selectedTrains.remove(t.id) }
+                        else { selectedTrains.insert(t.id) }
+                    }
+                )
+            }
+            .onDelete { idx in
+                let toDel = idx.map { unassigned[$0] }
+                manager.trains.removeAll { t in toDel.contains(where: { $0.id == t.id }) }
             }
         }
-        .navigationTitle("schedule_management".localized)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(action: {
-                    manager.trains.removeAll()
-                    appState.simulator.schedules.removeAll()
-                    selectedTrains.removeAll()
-                }) {
-                    Label("delete_all_trains".localized, systemImage: "trash.fill")
-                }
-                .foregroundColor(.red)
-                .help("delete_all_trains_help".localized)
+    }
+    
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Button(action: {
+                manager.trains.removeAll()
+                appState.simulator.schedules.removeAll()
+                selectedTrains.removeAll()
+            }) {
+                Label("delete_all_trains".localized, systemImage: "trash.fill")
             }
+            .foregroundColor(.red)
+            .help("delete_all_trains_help".localized)
         }
-        .sheet(item: $activeScheduleRequest) { req in
-            ScheduleCreationView(line: req.line, initialMode: req.mode)
-                .environmentObject(network)
-                .environmentObject(manager)
-                .environmentObject(appState)
-        }
-        .sheet(item: $customTrainLine) { line in
-            TrainCreationView(line: line)
-        }
-        .fullScreenCover(item: $showScheduleForLine) { line in
-            NavigationStack {
-                LineScheduleView(line: line)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarLeading) {
-                            Button("close".localized) {
-                                showScheduleForLine = nil
-                            }
+    }
+    
+    private func scheduleCreationSheet(for req: ScheduleRequest) -> some View {
+        ScheduleCreationView(route: req.route, initialMode: req.mode)
+            .environmentObject(network)
+            .environmentObject(manager)
+            .environmentObject(appState)
+    }
+    
+    private func trainCreationSheet(for route: TrainRoute) -> some View {
+        TrainCreationView(route: route)
+    }
+    
+    private func scheduleViewCover(for route: TrainRoute) -> some View {
+        NavigationStack {
+            LineScheduleView(line: route)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("close".localized) {
+                            showScheduleForRoute = nil
                         }
                     }
-            }
+                }
         }
-        .alert("ai_suggestion_alert".localized, isPresented: Binding(get: { aiSuggestion != nil }, set: { if !$0 { aiSuggestion = nil } })) {
-            Button("ok".localized, role: .cancel) { }
-        } message: {
-            Text(aiSuggestion ?? "")
-        }
+    }
+    
+    private var aiAlertBinding: Binding<Bool> {
+        Binding(get: { aiSuggestion != nil }, set: { if !$0 { aiSuggestion = nil } })
     }
 }
 
 // Helpers
 struct LineHeader: View {
-    let line: RailwayLine
+    let line: TrainRoute
     let onAddTrain: () -> Void
     let onAddTrainCadenced: () -> Void
     let onShowSchedule: () -> Void

@@ -286,8 +286,8 @@ struct TrainInspectorView: View {
     
     private func timetableSection(train: Binding<RailwayTrain>) -> some View {
         InspectorSection(title: "assigned_service".localized, icon: "clock.fill", iconColor: .orange) {
-            if let lineId = train.wrappedValue.lineId,
-               let line = manager.lines.first(where: { $0.id == lineId }) {
+            if let routeId = train.wrappedValue.routeId,
+               let line = manager.routes.first(where: { $0.id == routeId }) {
                 
                 lineInfo(line: line)
                 priorityStepper(train: train)
@@ -299,7 +299,7 @@ struct TrainInspectorView: View {
         }
     }
     
-    private func lineInfo(line: RailwayLine) -> some View {
+    private func lineInfo(line: TrainRoute) -> some View {
         HStack {
             if let color = line.color {
                 Circle()
@@ -328,7 +328,7 @@ struct TrainInspectorView: View {
         }
     }
     
-    private func itineraryView(train: Binding<RailwayTrain>, line: RailwayLine) -> some View {
+    private func itineraryView(train: Binding<RailwayTrain>, line: TrainRoute) -> some View {
         RailwayItineraryView(
             train: train,
             network: appState.railroad.network,

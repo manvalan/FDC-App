@@ -1,15 +1,15 @@
 import SwiftUI
 import Combine
 
-struct LineProposalView: View {
-    @ObservedObject var network: RailwayNetwork
-    @EnvironmentObject var trainManager: TrainManager
+struct RouteProposalView: View {
+    @ObservedObject var network: NetworkModel
+    @EnvironmentObject var trainManager: LinesManager
     @Environment(\.dismiss) var dismiss
     
-    let proposals: [ProposedLine]
-    let onApply: ([ProposedLine], Bool) -> Void  // Bool = createTrains
+    let proposals: [ProposedRoute]
+    let onApply: ([ProposedRoute], Bool) -> Void  // Bool = createTrains
     
-    @State private var selectedLineIds: Set<String> = []
+    @State private var selectedRouteIds: Set<String> = []
     @State private var createSampleTrains = false  // Default: NO trains
     
     var body: some View {
@@ -30,14 +30,14 @@ struct LineProposalView: View {
                 // Selection controls
                 HStack {
                     Button(action: {
-                        selectedLineIds = Set(proposals.map { $0.id })
+                        selectedRouteIds = Set(proposals.map { $0.id })
                     }) {
                         Label("select_all".localized, systemImage: "checkmark.circle.fill")
                     }
                     .buttonStyle(.borderless)
                     
                     Button(action: {
-                        selectedLineIds.removeAll()
+                        selectedRouteIds.removeAll()
                     }) {
                         Label("deselect_all".localized, systemImage: "circle")
                     }
@@ -45,7 +45,7 @@ struct LineProposalView: View {
                     
                     Spacer()
                     
-                    Text(String(format: "selected_count_fmt".localized, selectedLineIds.count))
+                    Text(String(format: "selected_count_fmt".localized, selectedRouteIds.count))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -60,12 +60,12 @@ struct LineProposalView: View {
                             ProposalRow(
                                 proposal: proposal,
                                 network: network,
-                                isSelected: selectedLineIds.contains(proposal.id),
+                                isSelected: selectedRouteIds.contains(proposal.id),
                                 onToggle: {
-                                    if selectedLineIds.contains(proposal.id) {
-                                        selectedLineIds.remove(proposal.id)
+                                    if selectedRouteIds.contains(proposal.id) {
+                                        selectedRouteIds.remove(proposal.id)
                                     } else {
-                                        selectedLineIds.insert(proposal.id)
+                                        selectedRouteIds.insert(proposal.id)
                                     }
                                 }
                             )
@@ -102,13 +102,13 @@ struct LineProposalView: View {
                     
                     Spacer()
                     
-                    Button(String(format: "create_lines_btn_fmt".localized, selectedLineIds.count)) {
-                        let selectedProposals = proposals.filter { selectedLineIds.contains($0.id) }
+                    Button(String(format: "create_lines_btn_fmt".localized, selectedRouteIds.count)) {
+                        let selectedProposals = proposals.filter { selectedRouteIds.contains($0.id) }
                         onApply(selectedProposals, createSampleTrains)
                         dismiss()
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(selectedLineIds.isEmpty)
+                    .disabled(selectedRouteIds.isEmpty)
                 }
                 .padding()
                 .background(.ultraThinMaterial)
@@ -117,14 +117,14 @@ struct LineProposalView: View {
         }
         .onAppear {
             // Select all by default
-            selectedLineIds = Set(proposals.map { $0.id })
+            selectedRouteIds = Set(proposals.map { $0.id })
         }
     }
 }
 
 struct ProposalRow: View {
-    let proposal: ProposedLine
-    let network: RailwayNetwork
+    let proposal: ProposedRoute
+    let network: NetworkModel
     let isSelected: Bool
     let onToggle: () -> Void
     

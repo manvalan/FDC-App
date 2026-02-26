@@ -9,7 +9,7 @@ extension ContentView {
         if appState.isCreatingLine {
             return "Crea Nuova Linea"
         }
-        if appState.creationLineId != nil {
+        if appState.creationRouteId != nil {
             return "Genera Orari"
         }
         return "details".localized
@@ -19,11 +19,11 @@ extension ContentView {
     var sidebarPropertiesContent: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                if appState.creationLineId != nil || appState.selectedTrainIds.count > 0 || appState.selectedNodeId != nil || appState.selectedEdgeId != nil || appState.isCreatingLine {
+                if appState.creationRouteId != nil || appState.selectedTrainIds.count > 0 || appState.selectedNodeId != nil || appState.selectedEdgeId != nil || appState.isCreatingLine {
                      Button(action: {
                          withAnimation {
-                             if appState.creationLineId != nil {
-                                 appState.creationLineId = nil
+                             if appState.creationRouteId != nil {
+                                 appState.creationRouteId = nil
                              } else if appState.isCreatingLine {
                                  appState.isCreatingLine = false
                                  appState.lineDraftStations.removeAll()
@@ -32,8 +32,8 @@ extension ContentView {
                                  // Just clear the selection, don't close the inspector
                                  appState.selectedNodeId = nil
                                  appState.selectedEdgeId = nil
-                                 appState.selectedFerroviaId = nil
-                                 appState.selectedLineId = nil
+                                 appState.selectedInfraLineId = nil
+                                 appState.selectedRouteId = nil
                                  appState.selectedTrainIds.removeAll()
                                  appState.selectedVehicleId = nil
                              }
@@ -59,9 +59,9 @@ extension ContentView {
                             appState.isCreatingLine = false
                             appState.lineDraftStations.removeAll()
                             appState.stationPickingCallback = nil
-                        } else if appState.creationLineId != nil {
+                        } else if appState.creationRouteId != nil {
                             // Close schedule creation view
-                            appState.creationLineId = nil
+                            appState.creationRouteId = nil
                         } else if !appState.selectedTrainIds.isEmpty {
                             // Close train inspector view
                             appState.selectedTrainIds.removeAll()
@@ -93,24 +93,32 @@ extension ContentView {
     
     @ViewBuilder
     private func inspectorForCurrentState() -> some View {
-        if let operationalView = operationalContextInspector() {
-            operationalView
+        if hasOperationalContext {
+            operationalContextInspector()
         } else {
             entityInspector()
         }
     }
+    
+    private var hasOperationalContext: Bool {
+        appState.sidebarSelection == .io || 
+        appState.isShowingSettings || 
+        appState.optimizedTimesPreviewData != nil || 
+        appState.schedulePreviewTrains != nil || 
+        appState.isCreatingTrack ||
+        appState.isCreatingLine ||
+        appState.creationRouteId != nil
+    }
 
     @ViewBuilder
-    private func operationalContextInspector() -> (any View)? {
+    private func operationalContextInspector() -> some View {
         if appState.sidebarSelection == .io {
-            return IOManagementView().id("io-management")
-        } 
-        if appState.isShowingSettings {
-            return SettingsInspectorView().id("settings")
-        } 
-        if let previewData = appState.optimizedTimesPreviewData {
-            return OptimizedTimesPreviewInspectorView(
-                line: previewData.line,
+            IOManagementView().id("io-management")
+        } else if appState.isShowingSettings {
+            SettingsInspectorView().id("settings")
+        } else if let previewData = appState.optimizedTimesPreviewData {
+            OptimizedTimesPreviewInspectorView(
+                route: previewData.route,
                 mode: previewData.mode,
                 currentOutboundTime: previewData.currentOutboundTime,
                 currentReturnTime: previewData.currentReturnTime,
@@ -119,24 +127,19 @@ extension ContentView {
                 proposedInterval: previewData.proposedInterval,
                 proposedReturnInterval: previewData.proposedReturnInterval
             ).id("optimized-times-preview")
-        } 
-        if let trains = appState.schedulePreviewTrains, let line = appState.schedulePreviewLine {
-            return SchedulePreviewInspectorView(
+        } else if let trains = appState.schedulePreviewTrains, let route = appState.schedulePreviewRoute {
+            SchedulePreviewInspectorView(
                 trains: trains,
-                line: line,
+                line: route,
                 mode: appState.schedulePreviewMode
             ).id("schedule-preview")
-        } 
-        if appState.isCreatingTrack {
-            return TrackCreationWizard().id("track-creation")
-        } 
-        if appState.isCreatingLine {
-            return LineCreationInspectorView().id("line-creation")
-        } 
-        if let lineId = appState.creationLineId, let line = railroad.lines.lines.first(where: { $0.id == lineId }) {
-            return ScheduleCreationView(line: line).id("create-schedule-\(lineId)")
+        } else if appState.isCreatingTrack {
+            TrackCreationWizard().id("track-creation")
+        } else if appState.isCreatingLine {
+            RouteCreationInspectorView().id("line-creation")
+        } else if let routeId = appState.creationRouteId, let route = railroad.lines.routes.first(where: { $0.id == routeId }) {
+            ScheduleCreationView(route: route).id("create-schedule-\(routeId)")
         }
-        return nil
     }
 
     @ViewBuilder
@@ -156,9 +159,9 @@ extension ContentView {
                 }
             )
             .id("node-\(node.id)")
-        } else if let line = appState.selectedLine {
-            LineInspectorView(line: line)
-                .id("line-\(line.id)")
+        } else if let route = appState.selectedRoute {
+            RouteInspectorView(route: route)
+                .id("route-\(route.id)")
         } else if let edgeId = appState.selectedEdgeId, let index = network.edges.firstIndex(where: { $0.id.uuidString == edgeId }) {
             TrackInspectorView(
                 edge: Binding(

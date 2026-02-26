@@ -21,8 +21,8 @@ struct EditorModeView: View {
     
 
     @State private var lockedNodeIds: Set<String> = []
-    @State private var isShowingLineCreation = false
-    @State private var editingLineId: String? = nil
+    @State private var isShowingRouteCreation = false
+    @State private var editingRouteId: String? = nil
     
     // Altimetry State
     // REMOVED local isCreatingTrackMode to sync with appState
@@ -43,9 +43,9 @@ struct EditorModeView: View {
                             }
                         ),
                         selectedLine: Binding(
-                            get: { appState.selectedLine },
+                            get: { appState.selectedInfraLine },
                             set: { line in
-                                appState.selectedLineId = line?.id
+                                appState.selectedInfraLineId = line?.id
                                 if line != nil { appState.showPanel(.inspector) }
                             }
                         ),
@@ -81,9 +81,9 @@ struct EditorModeView: View {
                     .allowsHitTesting(true)
 
                     // 3. Bottom Panel (Floating)
-                    // Show elevation profile for: lines, edges, single nodes, multi-selection, and ferrovie
+                    // Show elevation profile for: routes, edges, single nodes, multi-selection, and infrastructure lines
                     // BUT NOT in multi-select mode (to allow selecting stations without obstruction)
-                    let showProfile = !appState.isMultiSelectMode && ((appState.selectedLineId != nil) || (appState.selectedEdgeId != nil) || (appState.selectedNodeId != nil) || (appState.selectedNodeIds.count > 1) || (appState.selectedFerroviaId != nil))
+                    let showProfile = !appState.isMultiSelectMode && ((appState.selectedRouteId != nil) || (appState.selectedEdgeId != nil) || (appState.selectedNodeId != nil) || (appState.selectedNodeIds.count > 1) || (appState.selectedInfraLineId != nil))
                     FdCBottomPanel(
                         isPresented: .constant(showProfile),
                         title: "Profilo Altimetrico",
@@ -94,42 +94,40 @@ struct EditorModeView: View {
                 
                 // Inspector Panel (right side)
                 // Only show if NOT using the main InspectorOverlay (activePanel == .inspector means user opened Rete menu)
-                if (appState.selectedNodeId != nil || appState.selectedEdgeId != nil || appState.selectedLineId != nil || appState.selectedFerroviaId != nil) && appState.activePanel != .inspector {
+                if (appState.selectedNodeId != nil || appState.selectedEdgeId != nil || appState.selectedRouteId != nil || appState.selectedInfraLineId != nil) && appState.activePanel != .inspector {
                     FdCInspectorPanel(
                         title: inspectorTitle,
                         onClose: {
                             appState.selectedNodeId = nil
                             appState.selectedEdgeId = nil
-                            appState.selectedLineId = nil
-                            selectedFerroviaId = nil
+                            appState.selectedRouteId = nil
+                            appState.selectedInfraLineId = nil
                         }
                     ) {
-                        EditorInspectorContent(editingLineId: $editingLineId)
+                        EditorInspectorContent(editingLineId: $editingRouteId)
                     }
                 }
             }
             }
         }
         .onAppear {
-            if appState.selectedFerroviaId != nil || appState.selectedLineId != nil {
-                // Clear single node/edge selections when focusing on a line or railway
-                // This hides the inspector and focuses on the profile.
+            if appState.selectedInfraLineId != nil || appState.selectedRouteId != nil {
                 appState.selectedNodeId = nil
                 appState.selectedEdgeId = nil
             }
         }
         .ignoresSafeArea()
-        .sheet(isPresented: $isShowingLineCreation) {
-            LineCreationView()
+        .sheet(isPresented: $isShowingRouteCreation) {
+            RouteCreationView()
                 .presentationDetents([.height(180), .medium, .large])
                 .presentationBackgroundInteraction(.enabled)
         }
         .sheet(item: Binding(
-            get: { editingLineId.map { IdentifiableString(id: $0) } },
-            set: { editingLineId = $0?.id }
+            get: { editingRouteId.map { IdentifiableString(id: $0) } },
+            set: { editingRouteId = $0?.id }
         )) { ident in
             NavigationStack {
-                LineEditView(lineId: ident.id)
+                RouteEditView(routeId: ident.id)
             }
         }
         .onAppear {
@@ -145,9 +143,9 @@ struct EditorModeView: View {
     private var inspectorTitle: String {
         if let node = appState.selectedNode {
             return node.name
-        } else if let lineId = appState.selectedLineId,
-                  let line = appState.railroad.lines.findLine(id: lineId) {
-            return line.name
+        } else if let routeId = appState.selectedRouteId,
+                  let route = appState.railroad.lines.findRoute(id: routeId) {
+            return route.name
         }
         return "Proprietà"
     }
@@ -164,9 +162,9 @@ struct EditorModeView: View {
         )
     }
     
-    private var selectedFerroviaId: String? {
-        get { appState.selectedFerroviaId }
-        nonmutating set { appState.selectedFerroviaId = newValue }
+    private var selectedInfraLineId: String? {
+        get { appState.selectedInfraLineId }
+        nonmutating set { appState.selectedInfraLineId = newValue }
     }
     
     private var editorToolbarItems: [FdCToolbarItem] {
@@ -190,13 +188,13 @@ struct EditorModeView: View {
                     if appState.isCreatingTrack {
                         appState.selectedNodeId = nil
                         appState.selectedEdgeId = nil
-                        appState.selectedFerroviaId = nil
+                        appState.selectedInfraLineId = nil
                     }
                 }
                 
-                ToolIcon(icon: "plus.rectangle.on.rectangle", label: "F", help: "Crea Ferrovia", active: false) {
+                ToolIcon(icon: "plus.rectangle.on.rectangle", label: "L", help: "Crea Linea", active: false) {
                     if appState.selectedNodeIds.count > 1 {
-                        createNewFerrovia()
+                        createNewRailwayLine()
                     }
                 }
                 .disabled(appState.selectedNodeIds.count < 2)
@@ -207,7 +205,7 @@ struct EditorModeView: View {
                     toggleMultiSelect()
                 }
                 
-                if !appState.selectedNodeIds.isEmpty || appState.selectedNodeId != nil || appState.selectedEdgeId != nil || selectedFerroviaId != nil {
+                if !appState.selectedNodeIds.isEmpty || appState.selectedNodeId != nil || appState.selectedEdgeId != nil || selectedInfraLineId != nil {
                     ToolIcon(icon: "trash", label: "", help: "Elimina", active: false, isDestructive: true) {
                         deleteSelectedItems()
                     }
@@ -244,72 +242,43 @@ struct EditorModeView: View {
         }
     }
     
-    func createLogicalLine() {
+    func createLogicalRoute() {
         appState.lineDraftStations.removeAll()
         withAnimation {
-            isShowingLineCreation = true
+            isShowingRouteCreation = true
         }
     }
     
-    func createNewFerrovia() {
-        let count = appState.railroad.network.ferrovie.count + 1
-        // Use the ordered selection if available, otherwise fallback to set (unordered)
-        let stations = appState.selectedNodeIdsOrder.isEmpty ? Array(appState.selectedNodeIds) : appState.selectedNodeIdsOrder
+    func createNewRailwayLine() {
+        let count = appState.railroad.network.lines.count + 1
+        let nodeIds = appState.selectedNodeIdsOrder.isEmpty ? Array(appState.selectedNodeIds) : appState.selectedNodeIdsOrder
         
-        // Auto-create missing edges between consecutive stations
-        for i in 0..<stations.count - 1 {
-            let fromId = stations[i]
-            let toId = stations[i + 1]
-            
-            // Check if edge already exists (in either direction)
+        // Auto-create missing edges between consecutive nodes
+        for i in 0..<nodeIds.count - 1 {
+            let fromId = nodeIds[i]
+            let toId = nodeIds[i + 1]
             if appState.railroad.network.findEdge(from: fromId, to: toId) == nil &&
                appState.railroad.network.findEdge(from: toId, to: fromId) == nil {
-                
-                // Get the nodes to calculate distance
                 guard let fromNode = appState.railroad.network.nodes.first(where: { $0.id == fromId }),
-                      let toNode = appState.railroad.network.nodes.first(where: { $0.id == toId }) else {
-                    continue
-                }
-                
-                // Calculate distance using geographic coordinates
+                      let toNode   = appState.railroad.network.nodes.first(where: { $0.id == toId }) else { continue }
                 let loc1 = CLLocation(latitude: fromNode.latitude ?? 0, longitude: fromNode.longitude ?? 0)
-                let loc2 = CLLocation(latitude: toNode.latitude ?? 0, longitude: toNode.longitude ?? 0)
+                let loc2 = CLLocation(latitude: toNode.latitude   ?? 0, longitude: toNode.longitude   ?? 0)
                 let distanceKm = loc1.distance(from: loc2) / 1000.0
-                
-                let edgeForward = RailwayEdge(
-                    id: UUID(),
-                    from: fromId,
-                    to: toId,
-                    distance: distanceKm,
-                    trackType: .double,  // Default to double track
-                    maxSpeed: 160  // Default max speed (km/h)
-                )
-                appState.railroad.network.addEdge(edgeForward)
-                
-                print("✅ Auto-created edge between \(fromNode.name) and \(toNode.name) (distance: \(String(format: "%.1f", distanceKm)) km)")
+                let edge = RailwayEdge(id: UUID(), from: fromId, to: toId, distance: distanceKm, trackType: .double, maxSpeed: 160)
+                appState.railroad.network.addEdge(edge)
             }
         }
         
-        let newFerrovia = Ferrovia(
-            name: "Ferrovia \(count)",
+        let newLine = RailwayLine(
+            name: "Linea \(count)",
             color: ["#3498db", "#e74c3c", "#2ecc71", "#f39c12", "#9b59b6", "#1abc9c"][count % 6],
-            stationIds: stations
+            nodeIds: nodeIds
         )
-        appState.railroad.network.ferrovie.append(newFerrovia)
-        appState.selectedFerroviaId = newFerrovia.id
-        appState.selectedNodeIds = Set(newFerrovia.stationIds)
-        appState.selectedNodeIdsOrder = Array(newFerrovia.stationIds)
-        
-        // Exit multi-select mode after creating ferrovia
+        appState.railroad.network.lines.append(newLine)
+        appState.selectedInfraLineId = newLine.id
+        appState.selectedNodeIds = Set(newLine.nodeIds)
+        appState.selectedNodeIdsOrder = Array(newLine.nodeIds)
         appState.isMultiSelectMode = false
-        
-        // Don't call showPanel(.inspector) in editor mode - the internal FdCInspectorPanel
-        // will automatically show when selectedFerroviaId is set
-        // Only call it if we're NOT in editor/design mode
-        if appState.currentMode != .editor && appState.currentMode != .design {
-            appState.showPanel(.inspector)
-        }
-        
         appState.objectWillChange.send()
     }
     
@@ -333,7 +302,7 @@ struct EditorModeView: View {
         appState.railroad.network.addNode(newStation)
         appState.selectedNodeId = id
         appState.selectedEdgeId = nil
-        appState.selectedLineId = nil
+        appState.selectedRouteId = nil
     }
     
     private func toggleTrackCreation() {
@@ -370,8 +339,8 @@ struct EditorModeView: View {
         } else {
             appState.selectedNodeId = node.id
             appState.selectedEdgeId = nil
-            appState.selectedLineId = nil
-            appState.selectedFerroviaId = nil
+            appState.selectedRouteId = nil
+            appState.selectedInfraLineId = nil
             
             // Non mostrare l'ispettore se stiamo creando binari o se abbiamo appena selezionato il secondo nodo per un binario
             if !appState.isCreatingTrack {
@@ -415,8 +384,8 @@ struct EditorModeView: View {
         appState.railroad.network.addEdge(newEdge)
         appState.selectedEdgeId = newEdge.id.uuidString
         appState.selectedNodeId = nil
-        appState.selectedLineId = nil
-        selectedFerroviaId = nil
+        appState.selectedRouteId = nil
+        selectedInfraLineId = nil
     }
     
     // MARK: - Scenario Management
@@ -494,7 +463,7 @@ struct EditorModeView: View {
         }
         
         // 4. Reset Selection
-        appState.selectedLineId = nil
+        appState.selectedRouteId = nil
     }
 }
 

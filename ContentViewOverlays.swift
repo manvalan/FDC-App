@@ -71,8 +71,40 @@ struct ModernInspectorPanel: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack {
+            headerView
+            
+            Divider()
+                .background(appState.theme.line.opacity(0.2))
+                .padding(.horizontal, 16)
+            
+            tabSelectorView
+            
+            contentView
+        }
+        .frame(width: Layout.inspectorWidth)
+        .frame(maxHeight: .infinity)
+        .fixedSize(horizontal: true, vertical: false)
+        .background(appState.theme.background)
+        .cornerRadius(Layout.panelCornerRadius)
+        .overlay(
+            RoundedRectangle(cornerRadius: Layout.panelCornerRadius)
+                .stroke(appState.theme.line.opacity(0.1), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(Layout.shadowOpacity), radius: Layout.shadowRadius, x: 0, y: Layout.shadowY)
+        .padding(.trailing, Layout.standardPadding)
+        .colorScheme(.light)
+        .transition(.move(edge: .trailing).combined(with: .opacity))
+        .gesture(
+            DragGesture().onEnded { val in
+                if val.translation.width > 30 {
+                    appState.showPanel(.none)
+                }
+            }
+        )
+    }
+    
+    private var headerView: some View {
+        HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     if appState.isShowingSettings {
                         Text("Impostazioni").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
@@ -82,11 +114,11 @@ struct ModernInspectorPanel: View {
                         Text("Anteprima Orari").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
                     } else if appState.isCreatingLine {
                         Text("Crea Nuova Relazione").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
-                    } else if let lineId = appState.creationLineId, let line = appState.railroad.lines.lines.first(where: { $0.id == lineId }) {
+                    } else if let lineId = appState.creationRouteId, let line = appState.railroad.lines.routes.first(where: { $0.id == lineId }) {
                         Text("Genera Orari: \(line.name)").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
                     } else if let node = appState.selectedNode {
                         Text(node.name).font(.subheadline.bold()).foregroundColor(appState.theme.dark)
-                    } else if let line = appState.selectedLine {
+                    } else if let line = appState.selectedRoute {
                         Text(line.name).font(.subheadline.bold()).foregroundColor(appState.theme.dark)
                     } else if appState.selectedEdgeId != nil {
                         Text("Binario").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
@@ -99,7 +131,8 @@ struct ModernInspectorPanel: View {
                 Spacer()
                 
                 // Back button
-                if appState.isShowingSettings || appState.optimizedTimesPreviewData != nil || appState.schedulePreviewTrains != nil || appState.creationLineId != nil || appState.selectedNodeId != nil || appState.selectedEdgeId != nil || appState.selectedLineId != nil || !appState.selectedTrainIds.isEmpty || appState.isCreatingLine {
+                let showBack = appState.isShowingSettings || appState.optimizedTimesPreviewData != nil || appState.schedulePreviewTrains != nil || appState.creationRouteId != nil || appState.selectedNodeId != nil || appState.selectedEdgeId != nil || appState.selectedRouteId != nil || !appState.selectedTrainIds.isEmpty || appState.isCreatingLine
+                if showBack {
                     Button(action: {
                         if appState.isShowingSettings {
                             appState.isShowingSettings = false
@@ -107,9 +140,9 @@ struct ModernInspectorPanel: View {
                             appState.optimizedTimesPreviewData = nil
                         } else if appState.schedulePreviewTrains != nil {
                             appState.schedulePreviewTrains = nil
-                            appState.schedulePreviewLine = nil
-                        } else if appState.creationLineId != nil {
-                            appState.creationLineId = nil
+                            appState.schedulePreviewRoute = nil
+                        } else if appState.creationRouteId != nil {
+                            appState.creationRouteId = nil
                         } else if appState.isCreatingLine {
                             appState.isCreatingLine = false
                             appState.lineDraftStations.removeAll()
@@ -118,8 +151,8 @@ struct ModernInspectorPanel: View {
                             // Clear individual selections but keep inspector open
                             appState.selectedNodeId = nil
                             appState.selectedEdgeId = nil
-                            appState.selectedLineId = nil
-                            appState.selectedFerroviaId = nil
+                            appState.selectedRouteId = nil
+                            appState.selectedInfraLineId = nil
                             appState.selectedTrainIds.removeAll()
                             appState.selectedVehicleId = nil
                         }
@@ -132,9 +165,9 @@ struct ModernInspectorPanel: View {
                 
                 // Close button
                 Button(action: {
-                    // Reset creationLineId if we're showing schedule creation
-                    if appState.creationLineId != nil {
-                        appState.creationLineId = nil
+                    // Reset creationRouteId if we're showing schedule creation
+                    if appState.creationRouteId != nil {
+                        appState.creationRouteId = nil
                     }
                     
                     // Clear selections when closing the main inspector panel
@@ -151,13 +184,12 @@ struct ModernInspectorPanel: View {
             .padding(.horizontal, 20)
             .padding(.top, 20)
             .padding(.bottom, 12)
-            
-            Divider()
-                .background(appState.theme.line.opacity(0.2))
-                .padding(.horizontal, 16)
-            
-            // Tab selector for "Stazioni", "Binari", and "Ferrovie"
-            if appState.selectedLine == nil && appState.selectedNode == nil && appState.selectedEdgeId == nil && (appState.sidebarSelection == .stations || appState.sidebarSelection == .tracks || appState.sidebarSelection == .ferrovie) {
+    }
+    
+    @ViewBuilder
+    private var tabSelectorView: some View {
+        let showTabs = appState.selectedRoute == nil && appState.selectedNode == nil && appState.selectedEdgeId == nil && (appState.sidebarSelection == .stations || appState.sidebarSelection == .tracks || appState.sidebarSelection == .infraLines)
+        if showTabs {
                 HStack(spacing: 0) {
                     Button(action: { appState.sidebarSelection = .stations }) {
                         Text("Stazioni")
@@ -178,14 +210,14 @@ struct ModernInspectorPanel: View {
                     }
                     .foregroundColor(appState.sidebarSelection == .tracks ? appState.theme.accent : appState.theme.dark)
                     
-                    Button(action: { appState.sidebarSelection = .ferrovie }) {
+                    Button(action: { appState.sidebarSelection = .infraLines }) {
                         Text("Ferrovie")
                             .font(.caption)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
-                            .background(appState.sidebarSelection == .ferrovie ? appState.theme.accent.opacity(0.12) : Color.clear)
+                            .background(appState.sidebarSelection == .infraLines ? appState.theme.accent.opacity(0.12) : Color.clear)
                     }
-                    .foregroundColor(appState.sidebarSelection == .ferrovie ? appState.theme.accent : appState.theme.dark)
+                    .foregroundColor(appState.sidebarSelection == .infraLines ? appState.theme.accent : appState.theme.dark)
                     .cornerRadius(10, corners: [.topRight, .bottomRight])
                 }
                 .padding(.horizontal)
@@ -193,10 +225,13 @@ struct ModernInspectorPanel: View {
                 .cornerRadius(10)
                 .padding(.top, 6)
                 .padding(.bottom, 8)
-            }
-            
-            // Content
-            if appState.sidebarSelection == .stations || appState.sidebarSelection == .tracks || appState.sidebarSelection == .ferrovie || appState.sidebarSelection == .lines || appState.sidebarSelection == .vehicles {
+        }
+    }
+    
+    @ViewBuilder
+    private var contentView: some View {
+        let showContent = appState.sidebarSelection == .stations || appState.sidebarSelection == .tracks || appState.sidebarSelection == .infraLines || appState.sidebarSelection == .routes || appState.sidebarSelection == .vehicles
+        if showContent {
                 // For list views, don't wrap in ScrollView - they handle their own scrolling
                 VStack(spacing: 0) {
                     if appState.isShowingSettings {
@@ -213,7 +248,7 @@ struct ModernInspectorPanel: View {
                     } else if let previewData = appState.optimizedTimesPreviewData {
                         ScrollView {
                             OptimizedTimesPreviewInspectorView(
-                                line: previewData.line,
+                                route: previewData.route,
                                 mode: previewData.mode,
                                 currentOutboundTime: previewData.currentOutboundTime,
                                 currentReturnTime: previewData.currentReturnTime,
@@ -225,11 +260,11 @@ struct ModernInspectorPanel: View {
                             .id("optimized-times-preview")
                             .padding(16)
                         }
-                    } else if let trains = appState.schedulePreviewTrains, let line = appState.schedulePreviewLine {
+                    } else if let trains = appState.schedulePreviewTrains, let route = appState.schedulePreviewRoute {
                         ScrollView {
                             SchedulePreviewInspectorView(
                                 trains: trains,
-                                line: line,
+                                line: route,
                                 mode: appState.schedulePreviewMode
                             )
                             .id("schedule-preview")
@@ -237,12 +272,12 @@ struct ModernInspectorPanel: View {
                         }
                     } else if appState.isCreatingLine {
                         ScrollView {
-                            LineCreationInspectorView()
+                            RouteCreationInspectorView()
                                 .id("line-creation")
                                 .padding(16)
                         }
-                    } else if let lineId = appState.creationLineId, let line = appState.railroad.lines.lines.first(where: { $0.id == lineId }) {
-                        ScheduleCreationView(line: line)
+                    } else if let lineId = appState.creationRouteId, let line = appState.railroad.lines.routes.first(where: { $0.id == lineId }) {
+                        ScheduleCreationView(route: line)
                             .id("create-schedule-\(lineId)")
                     } else if let node = appState.selectedNode, let index = appState.railroad.network.nodes.firstIndex(where: { $0.id == node.id }) {
                         ScrollView {
@@ -272,10 +307,10 @@ struct ModernInspectorPanel: View {
                             case .infrastructure:
                                 VerticalTrackDiagramView(
                                     line: Binding(
-                                        get: { appState.selectedLine ?? line },
+                                        get: { appState.selectedRoute ?? line },
                                         set: { newLine in
-                                            if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }) {
-                                                linesManager.lines[idx] = newLine
+                                            if let idx = linesManager.routes.firstIndex(where: { $0.id == line.id }) {
+                                                linesManager.routes[idx] = newLine
                                             }
                                         }
                                     ),
@@ -309,17 +344,17 @@ struct ModernInspectorPanel: View {
                             )
                             .padding(16)
                         }
-                    } else if let ferroviaId = appState.selectedFerroviaId,
-                              let index = appState.railroad.network.ferrovie.firstIndex(where: { $0.id == ferroviaId }) {
+                        } else if let ferroviaId = appState.selectedInfraLineId,
+                                  let index = appState.railroad.network.lines.firstIndex(where: { $0.id == ferroviaId }) {
                         ScrollView {
                             FerroviaInspectorView(
                                 ferrovia: Binding(
-                                    get: { appState.railroad.network.ferrovie[index] },
-                                    set: { appState.railroad.network.ferrovie[index] = $0 }
+                                    get: { appState.railroad.network.lines[index] },
+                                    set: { appState.railroad.network.lines[index] = $0 }
                                 ),
                                 onDelete: {
-                                    appState.railroad.network.ferrovie.remove(at: index)
-                                    appState.selectedFerroviaId = nil
+                                    appState.railroad.network.lines.remove(at: index)
+                                    appState.selectedInfraLineId = nil
                                     appState.selectedNodeIds.removeAll()
                                     appState.selectedNodeIdsOrder.removeAll()
                                 },
@@ -345,7 +380,7 @@ struct ModernInspectorPanel: View {
                                 .id("settings")
                         } else if let previewData = appState.optimizedTimesPreviewData {
                             OptimizedTimesPreviewInspectorView(
-                                line: previewData.line,
+                                route: previewData.route,
                                 mode: previewData.mode,
                                 currentOutboundTime: previewData.currentOutboundTime,
                                 currentReturnTime: previewData.currentReturnTime,
@@ -355,18 +390,18 @@ struct ModernInspectorPanel: View {
                                 proposedReturnInterval: previewData.proposedReturnInterval
                             )
                             .id("optimized-times-preview")
-                        } else if let trains = appState.schedulePreviewTrains, let line = appState.schedulePreviewLine {
+                        } else if let trains = appState.schedulePreviewTrains, let route = appState.schedulePreviewRoute {
                             SchedulePreviewInspectorView(
                                 trains: trains,
-                                line: line,
+                                line: route,
                                 mode: appState.schedulePreviewMode
                             )
                             .id("schedule-preview")
                         } else if appState.isCreatingLine {
-                            LineCreationInspectorView()
+                            RouteCreationInspectorView()
                                 .id("line-creation")
-                        } else if let lineId = appState.creationLineId, let line = appState.railroad.lines.lines.first(where: { $0.id == lineId }) {
-                            ScheduleCreationView(line: line)
+                        } else if let lineId = appState.creationRouteId, let line = appState.railroad.lines.lines.first(where: { $0.id == lineId }) {
+                            ScheduleCreationView(route: line)
                                 .id("create-schedule-\(lineId)")
                         } else if let node = appState.selectedNode {
                             StationInlineEditor(
@@ -379,7 +414,7 @@ struct ModernInspectorPanel: View {
                                     }
                                 )
                             )
-                        } else if let line = appState.selectedLine {
+                        } else if let line = appState.selectedRoute {
                             VStack(spacing: 0) {
                                 LineQuickStats(line: line)
                                 
@@ -412,16 +447,16 @@ struct ModernInspectorPanel: View {
                             )
                         } else if !appState.selectedTrainIds.isEmpty, let trainId = appState.selectedTrainIds.first, let train = linesManager.trains.first(where: { $0.id == trainId }) {
                             TrainDetailView(train: train)
-                        } else if let ferroviaId = appState.selectedFerroviaId,
-                                  let index = appState.railroad.network.ferrovie.firstIndex(where: { $0.id == ferroviaId }) {
+                        } else if let ferroviaId = appState.selectedInfraLineId,
+                                  let index = appState.railroad.network.lines.firstIndex(where: { $0.id == ferroviaId }) {
                             FerroviaInspectorView(
                                 ferrovia: Binding(
-                                    get: { appState.railroad.network.ferrovie[index] },
-                                    set: { appState.railroad.network.ferrovie[index] = $0 }
+                                    get: { appState.railroad.network.lines[index] },
+                                    set: { appState.railroad.network.lines[index] = $0 }
                                 ),
                                 onDelete: {
-                                    appState.railroad.network.ferrovie.remove(at: index)
-                                    appState.selectedFerroviaId = nil
+                                    appState.railroad.network.lines.remove(at: index)
+                                    appState.selectedInfraLineId = nil
                                     appState.selectedNodeIds.removeAll()
                                     appState.selectedNodeIdsOrder.removeAll()
                                 },
@@ -437,27 +472,6 @@ struct ModernInspectorPanel: View {
                     .padding(16)
                 }
             }
-        }
-        .frame(width: Layout.inspectorWidth)
-        .frame(maxHeight: .infinity)
-        .fixedSize(horizontal: true, vertical: false)
-        .background(appState.theme.background)
-        .cornerRadius(Layout.panelCornerRadius)
-        .overlay(
-            RoundedRectangle(cornerRadius: Layout.panelCornerRadius)
-                .stroke(appState.theme.line.opacity(0.1), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(Layout.shadowOpacity), radius: Layout.shadowRadius, x: 0, y: Layout.shadowY)
-        .padding(.trailing, Layout.standardPadding)
-        .colorScheme(.light)
-        .transition(.move(edge: .trailing).combined(with: .opacity))
-        .gesture(
-            DragGesture().onEnded { val in
-                if val.translation.width > 30 {
-                    appState.showPanel(.none)
-                }
-            }
-        )
     }
     
     @ViewBuilder
@@ -467,9 +481,9 @@ struct ModernInspectorPanel: View {
             stationsList
         case .tracks:
             tracksList
-        case .ferrovie:
+        case .infraLines:
             ferrovieList
-        case .lines:
+        case .lines, .routes:
             relazioniList
         case .trains:
             trainsByLineList
@@ -598,7 +612,7 @@ struct ModernInspectorPanel: View {
     }
     
     private var ferrovieList: some View {
-        let ferrovie = appState.railroad.network.sortedFerrovie
+        let ferrovie = appState.railroad.network.lines
         
         return VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -625,12 +639,12 @@ struct ModernInspectorPanel: View {
                         .contentShape(Rectangle())
                         .onTapGesture {
                             if isListEditMode == .inactive {
-                                appState.selectedFerroviaId = ferrovia.id
-                                appState.selectedNodeIds = Set(ferrovia.stationIds)
-                                appState.selectedNodeIdsOrder = ferrovia.stationIds
+                                appState.selectedInfraLineId = ferrovia.id
+                                appState.selectedNodeIds = Set(ferrovia.nodeIds)
+                                appState.selectedNodeIdsOrder = ferrovia.nodeIds
                                 appState.selectedNodeId = nil
                                 appState.selectedEdgeId = nil
-                                appState.selectedLineId = nil
+                                appState.selectedRouteId = nil
                             }
                         }
                         .onLongPressGesture(minimumDuration: 0.5) {
@@ -643,12 +657,13 @@ struct ModernInspectorPanel: View {
                         .listRowSeparator(.hidden)
                 }
                 .onDelete { indexSet in
+                    let networkLines = appState.railroad.network.lines
                     for index in indexSet {
-                        let ferrovia = ferrovie[index]
-                        if appState.selectedFerroviaId == ferrovia.id {
-                            appState.selectedFerroviaId = nil
+                        let infraLine = networkLines[index]
+                        if appState.selectedInfraLineId == infraLine.id {
+                            appState.selectedInfraLineId = nil
                         }
-                        appState.railroad.network.ferrovie.removeAll { $0.id == ferrovia.id }
+                        appState.railroad.network.lines.removeAll { $0.id == infraLine.id }
                         appState.railroad.network.createCheckpoint()
                     }
                 }
@@ -660,11 +675,11 @@ struct ModernInspectorPanel: View {
     }
     
     private var relazioniList: some View {
-        let sortedLines = linesManager.lines.sorted { l1, l2 in
+        let sortedLines = linesManager.routes.sorted { l1, l2 in
             let p1 = l1.numberPrefix ?? 0
             let p2 = l2.numberPrefix ?? 0
             if p1 != p2 { return p1 < p2 }
-            return (l1.codePrefix ?? "") < (l2.codePrefix ?? "")
+            return (l1.serviceCodePrefix ?? "") < (l2.serviceCodePrefix ?? "")
         }
         
         return VStack(alignment: .leading, spacing: 0) {
@@ -673,11 +688,11 @@ struct ModernInspectorPanel: View {
                 Spacer()
                 Button(action: {
                     // Activate graphical line creation mode
-                    appState.selectedLineId = nil
+                    appState.selectedRouteId = nil
                     appState.selectedNodeId = nil
                     appState.selectedEdgeId = nil
                     appState.selectedTrainIds = []
-                    appState.creationLineId = nil
+                    appState.creationRouteId = nil
                     appState.lineDraftStations.removeAll()
                     appState.isCreatingLine = true
                     appState.showPanel(.inspector)
@@ -700,7 +715,7 @@ struct ModernInspectorPanel: View {
                         .contentShape(Rectangle())
                         .onTapGesture {
                             if isListEditMode == .inactive {
-                                appState.selectedLineId = line.id
+                                appState.selectedRouteId = line.id
                                 appState.mapVisualizationMode = .scheduler
                             }
                         }
@@ -716,10 +731,10 @@ struct ModernInspectorPanel: View {
                 .onDelete { indexSet in
                     for index in indexSet {
                         let line = sortedLines[index]
-                        linesManager.lines.removeAll { $0.id == line.id }
-                        linesManager.trains.removeAll { $0.lineId == line.id }
-                        if appState.selectedLineId == line.id { 
-                            appState.selectedLineId = nil 
+                        linesManager.routes.removeAll { $0.id == line.id }
+                        linesManager.trains.removeAll { $0.routeId == line.id }
+                        if appState.selectedRouteId == line.id { 
+                            appState.selectedRouteId = nil 
                         }
                     }
                 }
@@ -731,7 +746,7 @@ struct ModernInspectorPanel: View {
     }
     
     private var trainsByLineList: some View {
-        TrainsByLineListView()
+        TrainsByRouteListView()
     }
     
     private var vehiclesList: some View {

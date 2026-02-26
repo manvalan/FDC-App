@@ -1320,13 +1320,12 @@ final class RailwayScheduleOptimizer {
     private func interleaveTrainsForAStar(_ trains: [Train]) -> [Train] {
         guard trains.count > 1 else { return trains }
         
-        let lineId = trains.first?.lineId
-        let lineTrains = trains.filter { $0.lineId == lineId }
+        let routeId = trains.first?.routeId
+        let routeTrains = trains.filter { $0.routeId == routeId }
         
-        // PIGNOLO BOOST: Determine direction by destination if numbers are missing/same
-        let firstDest = lineTrains.first?.stops.last?.stationId
-        let outward = lineTrains.filter { $0.stops.last?.stationId == firstDest }
-        let returns = lineTrains.filter { $0.stops.last?.stationId != firstDest }
+        let firstDest = routeTrains.first?.stops.last?.stationId
+        let outward = routeTrains.filter { $0.stops.last?.stationId == firstDest }
+        let returns = routeTrains.filter { $0.stops.last?.stationId != firstDest }
         
         var interleaved: [Train] = []
         let maxCount = max(outward.count, returns.count)
@@ -1336,7 +1335,7 @@ final class RailwayScheduleOptimizer {
             if i < returns.count { interleaved.append(returns[i]) }
         }
         
-        let others = trains.filter { $0.lineId != lineId }
+        let others = trains.filter { $0.routeId != routeId }
         interleaved.append(contentsOf: others)
         
         print("   🔄 [A*] Treni intervallati (Andata: \(outward.count), Ritorno: \(returns.count)): \(interleaved.map { $0.name }.joined(separator: ", "))")

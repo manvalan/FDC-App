@@ -18,8 +18,8 @@ final class IOManager: ObservableObject {
             name: "Current Network",
             nodes: railroad.network.nodes,
             edges: railroad.network.edges,
-            ferrovie: railroad.network.ferrovie,
-            lines: railroad.lines.lines,
+            lines: railroad.network.lines,
+            routes: railroad.lines.routes,
             trains: railroad.lines.trains,
             vehicles: railroad.lines.vehicles
         )
@@ -51,8 +51,8 @@ final class IOManager: ObservableObject {
         guard let railroad = railroad else { return }
         railroad.network.nodes = dto.nodes
         railroad.network.edges = dto.edges
-        railroad.network.ferrovie = dto.ferrovie ?? []
-        railroad.lines.lines = dto.lines ?? []
+        railroad.network.lines = dto.lines ?? []
+        railroad.lines.routes = dto.routes ?? []
         railroad.lines.trains = dto.trains ?? []
         railroad.lines.vehicles = dto.vehicles ?? []
         
@@ -65,11 +65,11 @@ final class IOManager: ObservableObject {
         
         railroad.network.nodes = mapFDCNodes(parsed.stations)
         railroad.network.edges = mapFDCEdges(parsed.edges)
+        railroad.network.lines = parsed.lines
         
         var tCopy = mapFDCTrains(parsed.trains)
         applyFDCSchedules(to: &tCopy, rawSchedules: parsed.rawSchedules)
         
-        railroad.lines.lines = parsed.lines
         railroad.lines.trains = tCopy
         
         railroad.lines.validateSchedules()

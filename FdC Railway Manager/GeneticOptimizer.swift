@@ -127,7 +127,7 @@ class GeneticOptimizer: ObservableObject {
                 }
                 let nextId = (j < train.stops.count - 1) ? train.stops[j+1].stationId : nil
                 let prevId = (j > 0) ? train.stops[j-1].stationId : nil
-                let allowed = node.getTracksByProvenance(from: prevId, nextStationId: nextId, forLine: train.lineId)
+                let allowed = node.getTracksByProvenance(from: prevId, nextStationId: nextId, forRoute: train.routeId)
                 stopConstraints.append(Set(allowed))
             }
             results[train.id] = stopConstraints

@@ -223,13 +223,13 @@ struct StationScheduleView: View {
         let currentStationId = station.id
         // Capture snapshot for background processing
         let trains = manager.trains
-        let lines = manager.lines
+        let routes = manager.routes
         let vehicles = manager.vehicles
         let nodes = network.nodes
         
         Task(priority: .userInitiated) {
             let nodeMap = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0.name) })
-            let lineMap = Dictionary(uniqueKeysWithValues: lines.map { ($0.id, $0) })
+            let routeMap = Dictionary(uniqueKeysWithValues: routes.map { ($0.id, $0) })
             let vehicleMap = Dictionary(uniqueKeysWithValues: vehicles.map { ($0.id, $0) })
             
             var results: [StationArrival] = []
@@ -242,8 +242,8 @@ struct StationScheduleView: View {
                 
                 // Optimized lookup
                 let relationName: String
-                if let lId = train.lineId, let line = lineMap[lId] {
-                    relationName = line.name
+                if let rId = train.routeId, let route = routeMap[rId] {
+                    relationName = route.name
                 } else {
                     relationName = train.type
                 }

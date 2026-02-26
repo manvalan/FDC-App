@@ -19,22 +19,22 @@ struct StationEditView: View {
     @State private var localConstraints: [RoutingConstraint] = []
     @State private var localPlatforms: Int = 2
     
-    private var allLinesSorted: [RailwayLine] {
-        lines.lines.sorted { $0.name < $1.name }
+    private var allRoutesSorted: [TrainRoute] {
+        lines.routes.sorted { $0.name < $1.name }
     }
     
-    private func isLineAtStation(_ lineId: String) -> Bool {
-        lines.lines.first(where: { $0.id == lineId })?.stops.contains(where: { $0.stationId == station.id }) ?? false
+    private func isRouteAtStation(_ routeId: String) -> Bool {
+        lines.routes.first(where: { $0.id == routeId })?.stationIds.contains(station.id) ?? false
     }
     
-    private func possibleNextStations(for lineId: String) -> [RailwayNode] {
-        guard !lineId.isEmpty, let line = lines.lines.first(where: { $0.id == lineId }) else { return [] }
-        let stopIndices = line.stops.enumerated().filter { $0.element.stationId == station.id }.map { $0.offset }
+    private func possibleNextStations(for routeId: String) -> [RailwayNode] {
+        guard !routeId.isEmpty, let route = lines.routes.first(where: { $0.id == routeId }) else { return [] }
+        let stopIndices = route.stationIds.enumerated().filter { $0.element == station.id }.map { $0.offset }
         
         var nextIds = Set<String>()
         for idx in stopIndices {
-            if idx > 0 { nextIds.insert(line.stops[idx - 1].stationId) }
-            if idx < line.stops.count - 1 { nextIds.insert(line.stops[idx + 1].stationId) }
+            if idx > 0 { nextIds.insert(route.stationIds[idx - 1]) }
+            if idx < route.stationIds.count - 1 { nextIds.insert(route.stationIds[idx + 1]) }
         }
         
         return network.nodes.filter { nextIds.contains($0.id) }.sorted { $0.name < $1.name }
@@ -48,44 +48,44 @@ struct StationEditView: View {
     private struct DirectionGroup: Identifiable {
         let id: String // ID nodo destinazione o "terminus"
         let name: String
-        let lines: [RailwayLine]
+        let routes: [TrainRoute]
     }
     
     private var directionGroups: [DirectionGroup] {
-        // Tutte le linee che fermano in questa stazione
-        let stationLines = lines.lines.filter { line in
-            line.stops.contains { $0.stationId == station.id }
+        // Tutte le rotte che fermano in questa stazione
+        let stationRoutes = lines.routes.filter { route in
+            route.stationIds.contains { $0 == station.id }
         }
         
         var groupsMap: [String: Set<String>] = [:] // Map neighborId -> Set of lineIds
         
-        for line in stationLines {
-            let neighborIds = line.stops.enumerated().flatMap { (idx, stop) -> [String] in
-                guard stop.stationId == station.id else { return [] }
+        for route in stationRoutes {
+            let neighborIds = route.stationIds.enumerated().flatMap { (idx, stationId) -> [String] in
+                guard stationId == station.id else { return [] }
                 var result: [String] = []
-                if idx > 0 { result.append(line.stops[idx - 1].stationId) }
-                if idx < line.stops.count - 1 { result.append(line.stops[idx + 1].stationId) }
+                if idx > 0 { result.append(route.stationIds[idx - 1]) }
+                if idx < route.stationIds.count - 1 { result.append(route.stationIds[idx + 1]) }
                 return result
             }
             
             if neighborIds.isEmpty {
-                groupsMap["terminus", default: Set<String>()].insert(line.id)
+                groupsMap["terminus", default: Set<String>()].insert(route.id)
             } else {
                 for nid in neighborIds {
-                    groupsMap[nid, default: Set<String>()].insert(line.id)
+                    groupsMap[nid, default: Set<String>()].insert(route.id)
                 }
             }
         }
         
-        return groupsMap.map { (key, lineIds) in
+        return groupsMap.map { (key, routeIds) in
             let name: String
             if key == "terminus" {
                 name = "Terminus / No neighbors"
             } else {
                 name = network.nodes.first(where: { $0.id == key })?.name ?? key
             }
-            let groupLines = lines.lines.filter { lineIds.contains($0.id) }.sorted { $0.name < $1.name }
-            return DirectionGroup(id: key, name: name, lines: groupLines)
+            let groupRoutes = lines.routes.filter { routeIds.contains($0.id) }.sorted { $0.name < $1.name }
+            return DirectionGroup(id: key, name: name, routes: groupRoutes)
         }.sorted { $0.name < $1.name }
     }
     
@@ -325,8 +325,8 @@ struct StationEditView: View {
             } else {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(station.routingConstraints.prefix(3)) { constraint in
-                        let lineName = lines.lines.first(where: { $0.id == constraint.lineId })?.name ?? "???"
-                        Text("• \(lineName): [\(constraint.allowedTracks.joined(separator: ", "))]").font(.caption).foregroundColor(appState.theme.dark)
+                        let routeName = lines.routes.first(where: { $0.id == constraint.routeId })?.name ?? "???"
+                        Text("• \(routeName): [\(constraint.allowedTracks.joined(separator: ", "))]").font(.caption).foregroundColor(appState.theme.dark)
                     }
                     if station.routingConstraints.count > 3 {
                         Text("+ \(station.routingConstraints.count - 3) ...").font(.caption2).foregroundColor(appState.theme.medium)
@@ -378,21 +378,21 @@ struct StationEditView: View {
                     // 1. Vincoli per Direzione Specifica (Derivati dalle linee esistenti)
                     ForEach(directionGroups) { group in
                         Section(header: Text("Collegamento: \(group.name)").font(.caption.bold()).foregroundColor(appState.theme.accent)) {
-                            ForEach(group.lines) { line in
+                            ForEach(group.routes) { route in
                                 let dirId: String? = (group.id == "terminus" ? nil : group.id)
                                 RoutingLineRow(
-                                    line: line,
+                                    route: route,
                                     allowedTracks: Binding(
-                                        get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == dirId }?.allowedTracks ?? [] },
-                                        set: { updateTracks(lineId: line.id, directionId: dirId, tracks: $0, type: .allowed) }
+                                        get: { localConstraints.first { $0.routeId == route.id && $0.directionStationId == dirId }?.allowedTracks ?? [] },
+                                        set: { updateTracks(routeId: route.id, directionId: dirId, tracks: $0, type: .allowed) }
                                     ),
                                     transitTracks: Binding(
-                                        get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == dirId }?.transitTracks ?? [] },
-                                        set: { updateTracks(lineId: line.id, directionId: dirId, tracks: $0, type: .transit) }
+                                        get: { localConstraints.first { $0.routeId == route.id && $0.directionStationId == dirId }?.transitTracks ?? [] },
+                                        set: { updateTracks(routeId: route.id, directionId: dirId, tracks: $0, type: .transit) }
                                     ),
                                     stopTracks: Binding(
-                                        get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == dirId }?.stopTracks ?? [] },
-                                        set: { updateTracks(lineId: line.id, directionId: dirId, tracks: $0, type: .stop) }
+                                        get: { localConstraints.first { $0.routeId == route.id && $0.directionStationId == dirId }?.stopTracks ?? [] },
+                                        set: { updateTracks(routeId: route.id, directionId: dirId, tracks: $0, type: .stop) }
                                     ),
                                     totalPlatforms: station.platforms ?? 2
                                 )
@@ -401,26 +401,26 @@ struct StationEditView: View {
                     }
                     
                     // 2. Sezione "Generale" per catch-all a livello di stazione/linea
-                    let stationLines = lines.lines.filter { line in
-                        line.stops.contains { $0.stationId == station.id }
+                    let stationRoutes = lines.routes.filter { route in
+                        route.stationIds.contains { $0 == station.id }
                     }.sorted { $0.name < $1.name }
                     
-                    if !stationLines.isEmpty {
+                    if !stationRoutes.isEmpty {
                         Section(header: Text("Valido per Tutte le Direzioni").font(.caption.bold()).foregroundColor(appState.theme.medium)) {
-                            ForEach(stationLines) { line in
+                            ForEach(stationRoutes) { route in
                                 RoutingLineRow(
-                                    line: line,
+                                    route: route,
                                     allowedTracks: Binding(
-                                        get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == nil }?.allowedTracks ?? [] },
-                                        set: { updateTracks(lineId: line.id, directionId: nil, tracks: $0, type: .allowed) }
+                                        get: { localConstraints.first { $0.routeId == route.id && $0.directionStationId == nil }?.allowedTracks ?? [] },
+                                        set: { updateTracks(routeId: route.id, directionId: nil, tracks: $0, type: .allowed) }
                                     ),
                                     transitTracks: Binding(
-                                        get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == nil }?.transitTracks ?? [] },
-                                        set: { updateTracks(lineId: line.id, directionId: nil, tracks: $0, type: .transit) }
+                                        get: { localConstraints.first { $0.routeId == route.id && $0.directionStationId == nil }?.transitTracks ?? [] },
+                                        set: { updateTracks(routeId: route.id, directionId: nil, tracks: $0, type: .transit) }
                                     ),
                                     stopTracks: Binding(
-                                        get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == nil }?.stopTracks ?? [] },
-                                        set: { updateTracks(lineId: line.id, directionId: nil, tracks: $0, type: .stop) }
+                                        get: { localConstraints.first { $0.routeId == route.id && $0.directionStationId == nil }?.stopTracks ?? [] },
+                                        set: { updateTracks(routeId: route.id, directionId: nil, tracks: $0, type: .stop) }
                                     ),
                                     totalPlatforms: station.platforms ?? 2
                                 )
@@ -440,17 +440,17 @@ struct StationEditView: View {
         }
     }
     
-    private func isTerminus(lineId: String) -> Bool {
-        guard let line = lines.lines.first(where: { $0.id == lineId }) else { return false }
-        return line.stops.last?.stationId == station.id
+    private func isTerminus(routeId: String) -> Bool {
+        guard let route = lines.routes.first(where: { $0.id == routeId }) else { return false }
+        return route.stationIds.last == station.id
     }
     
     private enum TrackConfigType {
         case allowed, transit, stop
     }
     
-    private func updateTracks(lineId: String, directionId: String?, tracks: [String], type: TrackConfigType) {
-        if let idx = localConstraints.firstIndex(where: { $0.lineId == lineId && $0.directionStationId == directionId }) {
+    private func updateTracks(routeId: String, directionId: String?, tracks: [String], type: TrackConfigType) {
+        if let idx = localConstraints.firstIndex(where: { $0.routeId == routeId && $0.directionStationId == directionId }) {
             switch type {
             case .allowed: localConstraints[idx].allowedTracks = tracks
             case .transit: localConstraints[idx].transitTracks = tracks
@@ -462,7 +462,7 @@ struct StationEditView: View {
                 localConstraints.remove(at: idx)
             }
         } else if !tracks.isEmpty {
-            var newC = RoutingConstraint(lineId: lineId, directionStationId: directionId, allowedTracks: [])
+            var newC = RoutingConstraint(routeId: routeId, directionStationId: directionId, allowedTracks: [])
             switch type {
             case .allowed: newC.allowedTracks = tracks
             case .transit: newC.transitTracks = tracks
@@ -477,7 +477,7 @@ struct StationEditView: View {
 // MARK: - ROW View semplificata per linea e direzione
 struct RoutingLineRow: View {
     @EnvironmentObject var appState: AppState
-    let line: RailwayLine
+    let route: TrainRoute
     @Binding var allowedTracks: [String]
     @Binding var transitTracks: [String]
     @Binding var stopTracks: [String]
@@ -487,8 +487,8 @@ struct RoutingLineRow: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 HStack(spacing: 6) {
-                    Circle().fill(Color(hex: line.color ?? "#666666") ?? .gray).frame(width: 8, height: 8)
-                    Text(line.name).font(.subheadline.bold())
+                    Circle().fill(Color(hex: route.color ?? "#666666") ?? .gray).frame(width: 8, height: 8)
+                    Text(route.name).font(.subheadline.bold())
                 }
                 Spacer()
             }

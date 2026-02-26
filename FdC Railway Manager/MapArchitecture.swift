@@ -59,7 +59,7 @@ struct MapRenderData {
     let commercialLines: [SegmentKey: [PrecomputedLine]]
     
     struct PrecomputedLine {
-        let line: RailwayLine
+        let line: TrainRoute
         let color: Color
         let isSelected: Bool
         let bundleSize: Int  // Number of parallel lines on this segment

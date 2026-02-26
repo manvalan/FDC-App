@@ -210,228 +210,15 @@ struct ContextualInspector: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    if appState.isCreatingLine {
-                        Text("Crea Nuova Linea").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
-                    } else if appState.isCreatingTrack {
-                        Text("Nuovo Binario").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
-                    } else if appState.isScheduleGeneratorVisible {
-                        Text("Genera Orari").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
-                    } else if appState.isVehicleManagementVisible {
-                        Text("Gestione Flotta").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
-                    } else if let line = appState.selectedLine {
-                        Text(line.name).font(.subheadline.bold()).foregroundColor(appState.theme.dark)
-                    } else if let node = appState.selectedNode {
-                        Text(node.name).font(.subheadline.bold()).foregroundColor(appState.theme.dark)
-                    } else if appState.sidebarSelection == .lines {
-                        Text("Seleziona Linea").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
-                    } else {
-                        Text("Ispettore").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
-                    }
-                }
-                Spacer()
-                
-                // Back button (chevron) - hierarchical navigation
-                if appState.isSomethingSelected || appState.isScheduleGeneratorVisible || appState.isVehicleManagementVisible || appState.isCreatingTrack || appState.isCreatingLine {
-                    Button(action: {
-                        if appState.isCreatingLine {
-                            appState.isCreatingLine = false
-                            appState.lineDraftStations.removeAll()
-                            appState.stationPickingCallback = nil
-                        } else if appState.isCreatingTrack {
-                            appState.isCreatingTrack = false
-                        } else if appState.isScheduleGeneratorVisible {
-                            appState.isScheduleGeneratorVisible = false
-                        } else if appState.isVehicleManagementVisible {
-                            appState.isVehicleManagementVisible = false
-                        } else if !appState.selectedTrainIds.isEmpty {
-                            appState.selectedTrainIds = []
-                        } else if appState.selectedNodeId != nil {
-                            appState.selectedNodeId = nil
-                        } else if appState.selectedEdgeId != nil {
-                            appState.selectedEdgeId = nil
-                        } else if appState.selectedLineId != nil && (appState.sidebarSelection == .lines || appState.sidebarSelection == .trains) {
-                            appState.selectedLineId = nil
-                        }
-                        // Note: No longer closes the panel when at root
-                    }) {
-                        Image(systemName: "chevron.left.circle.fill")
-                            .font(.title3)
-                            .foregroundColor(appState.theme.medium)
-                    }
-                }
-                
-                // Close button (X) - always closes the inspector
-                Button(action: { 
-                    appState.showPanel(.none) 
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title3)
-                        .foregroundColor(appState.theme.medium)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 12)
+            inspectorHeader
             
             Divider()
                 .background(appState.theme.line.opacity(0.2))
                 .padding(.horizontal, 16)
             
-            // Tab selector for "Stazioni" and "Binari"
-            if appState.selectedLine == nil && appState.selectedNode == nil && appState.selectedEdgeId == nil && (appState.sidebarSelection == .stations || appState.sidebarSelection == .tracks) {
-                HStack(spacing: 0) {
-                    Button(action: { appState.sidebarSelection = .stations }) {
-                        Text("Rete")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .background(appState.sidebarSelection == .stations ? appState.theme.accent.opacity(0.12) : Color.clear)
-                    }
-                    .foregroundColor(appState.sidebarSelection == .stations ? appState.theme.accent : appState.theme.dark)
-                    .cornerRadius(10, corners: [.topLeft, .bottomLeft])
-                    
-                    Button(action: { appState.sidebarSelection = .tracks }) {
-                        Text("Binari")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .background(appState.sidebarSelection == .tracks ? appState.theme.accent.opacity(0.12) : Color.clear)
-                    }
-                    .foregroundColor(appState.sidebarSelection == .tracks ? appState.theme.accent : appState.theme.dark)
-                    .cornerRadius(10, corners: [.topRight, .bottomRight])
-                }
-                .padding(.horizontal)
-                .background(appState.theme.light.opacity(0.4))
-                .cornerRadius(10)
-                .padding(.top, 6)
-                .padding(.bottom, 8)
-            }
+            tabSelector
             
-            if appState.isCreatingLine {
-                LineCreationInspectorView()
-            } else if appState.isCreatingTrack {
-                TrackCreationView(
-                    onBack: {
-                        appState.isCreatingTrack = false
-                        appState.selectedNodeId = nil
-                    },
-                    onCreate: {
-                        appState.isCreatingTrack = false
-                    }
-                )
-            } else if let trainId = appState.selectedTrainIds.first,
-               let train = linesManager.trains.first(where: { $0.id == trainId }) {
-                ScrollView {
-                    TrainDetailView(train: train)
-                        .padding(16)
-                }
-            } else if let line = appState.selectedLine {
-                VStack(spacing: 0) {
-                    // DEBUG TEST
-                    Text("🟢 FLOATING UI - CAMPI QUI 🟢")
-                        .font(.title.bold())
-                        .foregroundColor(.green)
-                        .padding()
-                        .background(Color.orange)
-                    
-                    LineQuickStats(line: line)
-                        .padding(16)
-                    
-                    Divider()
-                        .background(appState.theme.line.opacity(0.1))
-                        .padding(.horizontal, 16)
-                    
-                    ZStack {
-                        // Base views (Stats & Diagram)
-                        VStack(spacing: 0) {
-                            switch appState.lineInspectorMode {
-                            case .infrastructure:
-                                LineInfrastructureView(line: line)
-                            case .schedule:
-                                LineScheduleSummaryView(line: line)
-                                    .padding(16)
-                            case .vehicles:
-                                LineVehiclesView(lineId: line.id)
-                            }
-                            Spacer(minLength: 0)
-                        }
-                        .opacity((appState.isScheduleGeneratorVisible && appState.lineInspectorMode == .schedule) || (appState.isVehicleManagementVisible && appState.lineInspectorMode == .vehicles) ? 0 : 1)
-                        
-                        // Advanced Overlays
-                        if appState.isScheduleGeneratorVisible && appState.lineInspectorMode == .schedule {
-                            let _ = print("🔍 [FloatingUIComponents] About to show ScheduleCreationView")
-                            let _ = print("   Line ID: \(line.id)")
-                            let _ = print("   Line name: \(line.name)")
-                            let _ = print("   Line.stops.count: \(line.stops.count)")
-                            let _ = print("   Line.stops: \(line.stops)")
-                            let _ = print("   Line.stations.count: \(line.stations.count)")
-                            let _ = print("   Line.stations: \(line.stations)")
-                            
-                            ScheduleCreationView(line: line)
-                                .id("schedule-\(line.id)-\(line.stops.count)")
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .background(appState.theme.background)
-                                .transition(.asymmetric(insertion: .move(edge: .bottom), removal: .opacity))
-                        }
-                        
-                        if appState.isVehicleManagementVisible && appState.lineInspectorMode == .vehicles {
-                            LineFleetManagementContent(line: line, manager: linesManager)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .background(appState.theme.background)
-                                .transition(.asymmetric(insertion: .move(edge: .bottom), removal: .opacity))
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let node = appState.selectedNode {
-                InspectorWrapperView(title: node.name) {
-                    StationInlineEditor(
-                        node: Binding(
-                            get: { appState.selectedNode ?? node },
-                            set: { newNode in
-                                if let idx = appState.railroad.network.nodes.firstIndex(where: { $0.id == node.id }) {
-                                    appState.railroad.network.nodes[idx] = newNode
-                                }
-                            }
-                        )
-                    )
-                }
-            } else if let edgeId = appState.selectedEdgeId,
-                      let edge = appState.railroad.network.edges.first(where: { $0.id.uuidString == edgeId }) {
-                let fromName = appState.railroad.network.nodes.first(where: { $0.id == edge.from })?.name ?? edge.from
-                let toName = appState.railroad.network.nodes.first(where: { $0.id == edge.to })?.name ?? edge.to
-                InspectorWrapperView(title: "\(fromName) ↔ \(toName)") {
-                    TrackInlineEditor(
-                        edge: Binding(
-                            get: { appState.railroad.network.edges.first(where: { $0.id == edge.id }) ?? edge },
-                            set: { newEdge in
-                                if let idx = appState.railroad.network.edges.firstIndex(where: { $0.id == edge.id }) {
-                                    appState.railroad.network.edges[idx] = newEdge
-                                }
-                            }
-                        )
-                    )
-                }
-            } else if let vehicle = appState.selectedVehicle {
-                InspectorWrapperView(title: vehicle.name) {
-                    VehicleInspectorView(vehicle: vehicle)
-                }
-            } else {
-                // For lists with native List component, don't wrap in ScrollView
-                if appState.sidebarSelection == .lines || appState.sidebarSelection == .stations || appState.sidebarSelection == .tracks || appState.sidebarSelection == .vehicles {
-                    NavigationStack {
-                        globalSidebarList
-                    }
-                } else {
-                    ScrollView {
-                        globalSidebarList
-                            .padding(16)
-                    }
-                }
-            }
+            inspectorContent
         }
         .frame(width: Layout.inspectorWidth)
         .frame(maxHeight: .infinity)
@@ -453,7 +240,8 @@ struct ContextualInspector: View {
                 }
             }
         )
-        .alert("Conferma eliminazione", isPresented: $showingDeleteAlert) {
+        // Item deletion Alert
+        .alert("Conferma Eliminazione", isPresented: $showingDeleteAlert) {
             Button("Annulla", role: .cancel) { }
             Button("Elimina", role: .destructive) { 
                 if let item = itemToDelete {
@@ -466,7 +254,7 @@ struct ContextualInspector: View {
         // Editing Sheets
         .sheet(item: $editingLine) { line in
             NavigationStack {
-                LineEditView(lineId: line.id)
+                RouteEditView(routeId: line.id)
                     .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fatto") { editingLine = nil } } }
             }
             .presentationDetents([.medium, .large])
@@ -484,6 +272,228 @@ struct ContextualInspector: View {
         }
     }
 
+    @ViewBuilder
+    private var inspectorHeader: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                if appState.isCreatingLine {
+                    Text("Crea Nuova Linea").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
+                } else if appState.isCreatingTrack {
+                    Text("Nuovo Binario").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
+                } else if appState.isScheduleGeneratorVisible {
+                    Text("Genera Orari").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
+                } else if appState.isVehicleManagementVisible {
+                    Text("Gestione Flotta").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
+                } else if let line = appState.selectedLine {
+                    Text(line.name).font(.subheadline.bold()).foregroundColor(appState.theme.dark)
+                } else if let node = appState.selectedNode {
+                    Text(node.name).font(.subheadline.bold()).foregroundColor(appState.theme.dark)
+                } else if appState.sidebarSelection == .lines {
+                    Text("Seleziona Linea").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
+                } else {
+                    Text("Ispettore").font(.subheadline.bold()).foregroundColor(appState.theme.dark)
+                }
+            }
+            Spacer()
+            
+            // Back button (chevron) - hierarchical navigation
+            if appState.isSomethingSelected || appState.isScheduleGeneratorVisible || appState.isVehicleManagementVisible || appState.isCreatingTrack || appState.isCreatingLine {
+                Button(action: {
+                    if appState.isCreatingLine {
+                        appState.isCreatingLine = false
+                        appState.lineDraftStations.removeAll()
+                        appState.stationPickingCallback = nil
+                    } else if appState.isCreatingTrack {
+                        appState.isCreatingTrack = false
+                    } else if appState.isScheduleGeneratorVisible {
+                        appState.isScheduleGeneratorVisible = false
+                    } else if appState.isVehicleManagementVisible {
+                        appState.isVehicleManagementVisible = false
+                    } else if !appState.selectedTrainIds.isEmpty {
+                        appState.selectedTrainIds = []
+                    } else if appState.selectedNodeId != nil {
+                        appState.selectedNodeId = nil
+                    } else if appState.selectedEdgeId != nil {
+                        appState.selectedEdgeId = nil
+                    } else if appState.selectedRouteId != nil && (appState.sidebarSelection == .lines || appState.sidebarSelection == .trains) {
+                        appState.selectedRouteId = nil
+                    }
+                }) {
+                    Image(systemName: "chevron.left.circle.fill")
+                        .font(.title3)
+                        .foregroundColor(appState.theme.medium)
+                }
+            }
+            
+            // Close button (X) - always closes the inspector
+            Button(action: { 
+                appState.showPanel(.none) 
+            }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title3)
+                    .foregroundColor(appState.theme.medium)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+        .padding(.bottom, 12)
+    }
+
+    @ViewBuilder
+    private var tabSelector: some View {
+        if appState.selectedLine == nil && appState.selectedNode == nil && appState.selectedEdgeId == nil && (appState.sidebarSelection == .stations || appState.sidebarSelection == .tracks) {
+            HStack(spacing: 0) {
+                Button(action: { appState.sidebarSelection = .stations }) {
+                    Text("Rete")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(appState.sidebarSelection == .stations ? appState.theme.accent.opacity(0.12) : Color.clear)
+                }
+                .foregroundColor(appState.sidebarSelection == .stations ? appState.theme.accent : appState.theme.dark)
+                .cornerRadius(10, corners: [.topLeft, .bottomLeft])
+                
+                Button(action: { appState.sidebarSelection = .tracks }) {
+                    Text("Binari")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(appState.sidebarSelection == .tracks ? appState.theme.accent.opacity(0.12) : Color.clear)
+                }
+                .foregroundColor(appState.sidebarSelection == .tracks ? appState.theme.accent : appState.theme.dark)
+                .cornerRadius(10, corners: [.topRight, .bottomRight])
+            }
+            .padding(.horizontal)
+            .background(appState.theme.light.opacity(0.4))
+            .cornerRadius(10)
+            .padding(.top, 6)
+            .padding(.bottom, 8)
+        }
+    }
+
+    @ViewBuilder
+    private var inspectorContent: some View {
+        if appState.isCreatingLine {
+            RouteCreationInspectorView()
+        } else if appState.isCreatingTrack {
+            TrackCreationView(
+                onBack: {
+                    appState.isCreatingTrack = false
+                    appState.selectedNodeId = nil
+                },
+                onCreate: {
+                    appState.isCreatingTrack = false
+                }
+            )
+        } else if let trainId = appState.selectedTrainIds.first,
+           let train = linesManager.trains.first(where: { $0.id == trainId }) {
+            ScrollView {
+                TrainDetailView(train: train)
+                    .padding(16)
+            }
+        } else if let line = appState.selectedLine {
+            selectedLineInspector(line)
+        } else if let node = appState.selectedNode {
+            InspectorWrapperView(title: node.name) {
+                StationInlineEditor(
+                    node: Binding(
+                        get: { appState.selectedNode ?? node },
+                        set: { newNode in
+                            if let idx = appState.railroad.network.nodes.firstIndex(where: { $0.id == node.id }) {
+                                appState.railroad.network.nodes[idx] = newNode
+                            }
+                        }
+                    )
+                )
+            }
+        } else if let edgeId = appState.selectedEdgeId,
+                  let edge = appState.railroad.network.edges.first(where: { $0.id.uuidString == edgeId }) {
+            let fromName = appState.railroad.network.nodes.first(where: { $0.id == edge.from })?.name ?? edge.from
+            let toName = appState.railroad.network.nodes.first(where: { $0.id == edge.to })?.name ?? edge.to
+            InspectorWrapperView(title: "\(fromName) ↔ \(toName)") {
+                TrackInlineEditor(
+                    edge: Binding(
+                        get: { appState.railroad.network.edges.first(where: { $0.id == edge.id }) ?? edge },
+                        set: { newEdge in
+                            if let idx = appState.railroad.network.edges.firstIndex(where: { $0.id == edge.id }) {
+                                appState.railroad.network.edges[idx] = newEdge
+                            }
+                        }
+                    )
+                )
+            }
+        } else if let vehicle = appState.selectedVehicle {
+            InspectorWrapperView(title: vehicle.name) {
+                VehicleInspectorView(vehicle: vehicle)
+            }
+        } else {
+            // For lists with native List component, don't wrap in ScrollView
+            if appState.sidebarSelection == .lines || appState.sidebarSelection == .stations || appState.sidebarSelection == .tracks || appState.sidebarSelection == .vehicles {
+                NavigationStack {
+                    globalSidebarList
+                }
+            } else {
+                ScrollView {
+                    globalSidebarList
+                        .padding(16)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func selectedLineInspector(_ line: TrainRoute) -> some View {
+        VStack(spacing: 0) {
+            // DEBUG TEST
+            Text("🟢 FLOATING UI - CAMPI QUI 🟢")
+                .font(.title.bold())
+                .foregroundColor(.green)
+                .padding()
+                .background(Color.orange)
+            
+            LineQuickStats(line: line)
+                .padding(16)
+            
+            Divider()
+                .background(appState.theme.line.opacity(0.1))
+                .padding(.horizontal, 16)
+            
+            ZStack {
+                // Base views (Stats & Diagram)
+                VStack(spacing: 0) {
+                    switch appState.lineInspectorMode {
+                    case .infrastructure:
+                        LineInfrastructureView(line: line)
+                    case .schedule:
+                        LineScheduleSummaryView(line: line)
+                            .padding(16)
+                    case .vehicles:
+                        LineVehiclesView(lineId: line.id)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .opacity((appState.isScheduleGeneratorVisible && appState.lineInspectorMode == .schedule) || (appState.isVehicleManagementVisible && appState.lineInspectorMode == .vehicles) ? 0 : 1)
+                
+                // Advanced Overlays
+                if appState.isScheduleGeneratorVisible && appState.lineInspectorMode == .schedule {
+                    ScheduleCreationView(route: line)
+                        .id("schedule-\(line.id)-\(line.stationIds.count)")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(appState.theme.background)
+                        .transition(.asymmetric(insertion: .move(edge: .bottom), removal: .opacity))
+                }
+                
+                if appState.isVehicleManagementVisible && appState.lineInspectorMode == .vehicles {
+                    LineFleetManagementContent(line: line, manager: linesManager)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(appState.theme.background)
+                        .transition(.asymmetric(insertion: .move(edge: .bottom), removal: .opacity))
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     private func performDelete(_ item: AnyIdentifiable) {
         switch item.type {
         case .station:
@@ -495,9 +505,9 @@ struct ContextualInspector: View {
                 if appState.selectedEdgeId == item.id { appState.selectedEdgeId = nil }
             }
         case .line:
-            linesManager.lines.removeAll { $0.id == item.id }
-            linesManager.trains.removeAll { $0.lineId == item.id }
-            if appState.selectedLineId == item.id { appState.selectedLineId = nil }
+            linesManager.routes.removeAll { $0.id == item.id }
+            linesManager.trains.removeAll { $0.routeId == item.id }
+            if appState.selectedRouteId == item.id { appState.selectedRouteId = nil }
         }
     }
     
@@ -743,11 +753,11 @@ struct ContextualInspector: View {
     }
 
     private var linesList: some View {
-        let sortedLines = linesManager.lines.sorted { l1, l2 in
-            let p1 = l1.numberPrefix ?? 0
-            let p2 = l2.numberPrefix ?? 0
+        let sortedRoutes = linesManager.routes.sorted { r1, r2 in
+            let p1 = r1.numberPrefix ?? 0
+            let p2 = r2.numberPrefix ?? 0
             if p1 != p2 { return p1 < p2 }
-            return (l1.codePrefix ?? "") < (l2.codePrefix ?? "")
+            return (r1.serviceCodePrefix ?? "") < (r2.serviceCodePrefix ?? "")
         }
         
         return VStack(alignment: .leading, spacing: 0) {
@@ -757,11 +767,11 @@ struct ContextualInspector: View {
                 Button(action: {
                     print("🔵 Button Nuova Linea clicked")
                     // Activate graphical line creation mode
-                    appState.selectedLineId = nil
+                    appState.selectedRouteId = nil
                     appState.selectedNodeId = nil
                     appState.selectedEdgeId = nil
                     appState.selectedTrainIds = []
-                    appState.creationLineId = nil
+                    appState.creationRouteId = nil
                     appState.lineDraftStations.removeAll()
                     appState.isCreatingLine = true
                     print("🔵 isCreatingLine set to: \(appState.isCreatingLine)")
@@ -781,19 +791,17 @@ struct ContextualInspector: View {
             .padding(.bottom, 8)
             
             List {
-                ForEach(sortedLines) { line in
-                    LineRowContent(line: line)
+                ForEach(sortedRoutes) { route in
+                    LineRowContent(line: route)
                         .contentShape(Rectangle())
                         .onTapGesture {
                             if isListEditMode == .inactive {
-                                appState.selectedLineId = line.id
-                                appState.mapVisualizationMode = .scheduler  // Switch to lines visualization mode
+                                appState.selectedRouteId = route.id
+                                appState.mapVisualizationMode = .scheduler
                             }
                         }
                         .onLongPressGesture(minimumDuration: 0.5) {
-                            withAnimation {
-                                isListEditMode = (isListEditMode == .active) ? .inactive : .active
-                            }
+                            withAnimation { isListEditMode = (isListEditMode == .active) ? .inactive : .active }
                         }
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                         .listRowBackground(Color.clear)
@@ -801,8 +809,8 @@ struct ContextualInspector: View {
                 }
                 .onDelete { indexSet in
                     for index in indexSet {
-                        let line = sortedLines[index]
-                        performDelete(AnyIdentifiable(id: line.id, type: .line))
+                        let route = sortedRoutes[index]
+                        performDelete(AnyIdentifiable(id: route.id, type: .line))
                     }
                 }
             }
@@ -813,7 +821,7 @@ struct ContextualInspector: View {
     }
 
     private var trainsByLineList: some View {
-        TrainsByLineListView()
+        TrainsByRouteListView()
     }
 
     private var vehiclesList: some View {
@@ -855,7 +863,6 @@ struct ContextualInspector: View {
             } else {
                 automationsSection
             }
-
             Spacer()
         }
     }
@@ -986,22 +993,21 @@ struct ContextualInspector: View {
 }
 
 struct LineRow: View {
-    let line: RailwayLine
+    let line: TrainRoute
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var linesManager: LinesManager
     
     var body: some View {
-        Button(action: { 
-            appState.selectedLineId = line.id
-            appState.mapVisualizationMode = .scheduler  // Switch to lines visualization mode
+        Button(action: {
+            appState.selectedRouteId = line.id
+            appState.mapVisualizationMode = .scheduler
         }) {
             HStack(spacing: 12) {
-                // Large Code
-                Text(line.codePrefix ?? "L")
+                Text(line.serviceCodePrefix ?? "L")
                     .font(.system(size: 16, weight: .black, design: .rounded))
-                    .foregroundColor(line.uiColor.isDark ? .white : .black)
+                    .foregroundColor(line.displayColor.isDark ? .white : .black)
                     .frame(width: 44, height: 32)
-                    .background(line.uiColor)
+                    .background(line.displayColor)
                     .cornerRadius(6)
                 
                 VStack(alignment: .leading, spacing: 2) {
@@ -1010,46 +1016,37 @@ struct LineRow: View {
                         .foregroundColor(appState.theme.dark)
                     
                     HStack(spacing: 4) {
-                        let origin = appState.railroad.network.nodes.first(where: { $0.id == line.originId })?.name ?? "-"
-                        let destination = appState.railroad.network.nodes.first(where: { $0.id == line.destinationId })?.name ?? "-"
-                        
+                        let origin = appState.railroad.network.nodes.first(where: { $0.id == line.originStationId })?.name ?? "-"
+                        let destination = appState.railroad.network.nodes.first(where: { $0.id == line.destinationStationId })?.name ?? "-"
                         Text("\(origin) → \(destination)")
-                        
-                        if let mid = findUniqueIntermediate() {
-                            Text("(via \(mid))")
-                        }
+                        if let mid = findUniqueIntermediate() { Text("(via \(mid))") }
                     }
                     .font(.system(size: 10))
                     .foregroundColor(appState.theme.medium)
                 }
                 Spacer()
             }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(appState.selectedLineId == line.id ? appState.theme.accent.opacity(0.15) : appState.theme.backgroundSecondary)
+            .padding(.vertical, 8).padding(.horizontal, 10).frame(maxWidth: .infinity, alignment: .leading)
+            .background(appState.selectedRouteId == line.id ? appState.theme.accent.opacity(0.15) : appState.theme.backgroundSecondary)
             .cornerRadius(10)
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(appState.selectedLineId == line.id ? appState.theme.accent : appState.theme.line.opacity(0.2), lineWidth: 1)
-            )
+            .overlay(RoundedRectangle(cornerRadius: 10)
+                .stroke(appState.selectedRouteId == line.id ? appState.theme.accent : appState.theme.line.opacity(0.2), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
     
     private func findUniqueIntermediate() -> String? {
-        let allLines = linesManager.lines
-        let sameTerminals = allLines.filter { $0.originId == line.originId && $0.destinationId == line.destinationId }
+        let allRoutes = linesManager.routes
+        let sameTerminals = allRoutes.filter {
+            $0.originStationId == line.originStationId && $0.destinationStationId == line.destinationStationId
+        }
         if sameTerminals.count <= 1 { return nil }
-        
-        let midStops = line.stops.map { $0.stationId }.filter { $0 != line.originId && $0 != line.destinationId }
+        let midStops = line.stationIds.filter { $0 != line.originStationId && $0 != line.destinationStationId }
         for stopId in midStops {
             let isUnique = !sameTerminals.contains { other in
-                other.id != line.id && other.stops.contains(where: { $0.stationId == stopId })
+                other.id != line.id && other.stationIds.contains(stopId)
             }
-            if isUnique {
-                return appState.railroad.network.nodes.first(where: { $0.id == stopId })?.name
-            }
+            if isUnique { return appState.railroad.network.nodes.first(where: { $0.id == stopId })?.name }
         }
         return appState.railroad.network.nodes.first(where: { $0.id == (midStops.first ?? "") })?.name
     }
@@ -1057,64 +1054,49 @@ struct LineRow: View {
 
 // LineRowContent - Plain view version without button wrapper for List with swipe actions
 struct LineRowContent: View {
-    let line: RailwayLine
+    let line: TrainRoute
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var linesManager: LinesManager
     
     var body: some View {
         HStack(spacing: 12) {
-            // Large Code
-            Text(line.codePrefix ?? "L")
+            Text(line.serviceCodePrefix ?? "L")
                 .font(.system(size: 16, weight: .black, design: .rounded))
-                .foregroundColor(line.uiColor.isDark ? .white : .black)
+                .foregroundColor(line.displayColor.isDark ? .white : .black)
                 .frame(width: 44, height: 32)
-                .background(line.uiColor)
+                .background(line.displayColor)
                 .cornerRadius(6)
-            
             VStack(alignment: .leading, spacing: 2) {
-                Text(line.name)
-                    .font(.subheadline.bold())
-                    .foregroundColor(appState.theme.dark)
-                
+                Text(line.name).font(.subheadline.bold()).foregroundColor(appState.theme.dark)
                 HStack(spacing: 4) {
-                    let origin = appState.railroad.network.nodes.first(where: { $0.id == line.originId })?.name ?? "-"
-                    let destination = appState.railroad.network.nodes.first(where: { $0.id == line.destinationId })?.name ?? "-"
-                    
+                    let origin = appState.railroad.network.nodes.first(where: { $0.id == line.originStationId })?.name ?? "-"
+                    let destination = appState.railroad.network.nodes.first(where: { $0.id == line.destinationStationId })?.name ?? "-"
                     Text("\(origin) → \(destination)")
-                    
-                    if let mid = findUniqueIntermediate() {
-                        Text("(via \(mid))")
-                    }
+                    if let mid = findUniqueIntermediate() { Text("(via \(mid))") }
                 }
-                .font(.system(size: 10))
-                .foregroundColor(appState.theme.medium)
+                .font(.system(size: 10)).foregroundColor(appState.theme.medium)
             }
             Spacer()
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(appState.selectedLineId == line.id ? appState.theme.accent.opacity(0.15) : appState.theme.backgroundSecondary)
+        .padding(.vertical, 8).padding(.horizontal, 10).frame(maxWidth: .infinity, alignment: .leading)
+        .background(appState.selectedRouteId == line.id ? appState.theme.accent.opacity(0.15) : appState.theme.backgroundSecondary)
         .cornerRadius(10)
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(appState.selectedLineId == line.id ? appState.theme.accent : appState.theme.line.opacity(0.2), lineWidth: 1)
-        )
+        .overlay(RoundedRectangle(cornerRadius: 10)
+            .stroke(appState.selectedRouteId == line.id ? appState.theme.accent : appState.theme.line.opacity(0.2), lineWidth: 1))
     }
     
     private func findUniqueIntermediate() -> String? {
-        let allLines = linesManager.lines
-        let sameTerminals = allLines.filter { $0.originId == line.originId && $0.destinationId == line.destinationId }
+        let allRoutes = linesManager.routes
+        let sameTerminals = allRoutes.filter {
+            $0.originStationId == line.originStationId && $0.destinationStationId == line.destinationStationId
+        }
         if sameTerminals.count <= 1 { return nil }
-        
-        let midStops = line.stops.map { $0.stationId }.filter { $0 != line.originId && $0 != line.destinationId }
+        let midStops = line.stationIds.filter { $0 != line.originStationId && $0 != line.destinationStationId }
         for stopId in midStops {
             let isUnique = !sameTerminals.contains { other in
-                other.id != line.id && other.stops.contains(where: { $0.stationId == stopId })
+                other.id != line.id && other.stationIds.contains(stopId)
             }
-            if isUnique {
-                return appState.railroad.network.nodes.first(where: { $0.id == stopId })?.name
-            }
+            if isUnique { return appState.railroad.network.nodes.first(where: { $0.id == stopId })?.name }
         }
         return appState.railroad.network.nodes.first(where: { $0.id == (midStops.first ?? "") })?.name
     }
@@ -1122,7 +1104,7 @@ struct LineRowContent: View {
 
 // Helpers
 struct LineQuickStats: View {
-    let line: RailwayLine
+    let line: TrainRoute
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var linesManager: LinesManager
     @State private var longPressMode: AppState.LineInspectorMode? = nil
@@ -1173,7 +1155,7 @@ struct LineQuickStats: View {
                                         appState.isScheduleGeneratorVisible = false
                                         appState.isVehicleManagementVisible = false
                                     } else if mode == .schedule {
-                                        appState.creationLineId = line.id
+                                        appState.creationRouteId = line.id
                                         appState.isScheduleGeneratorVisible = true
                                         appState.isVehicleManagementVisible = false
                                     } else if mode == .vehicles {
@@ -1190,7 +1172,7 @@ struct LineQuickStats: View {
             .cornerRadius(12)
             
             VStack(alignment: .leading, spacing: 12) {
-                CompactInfoRow(label: "Fermate", value: "\(line.stops.count)")
+                CompactInfoRow(label: "Stazioni", value: "\(line.stationIds.count)")
                 
                 Divider()
                     .padding(.vertical, 8)
@@ -1207,27 +1189,26 @@ struct LineQuickStats: View {
                         .font(.caption2.bold())
                         .foregroundColor(appState.theme.medium)
                     TextField("Nome linea", text: Binding(
-                        get: { linesManager.lines.first(where: { $0.id == line.id })?.name ?? line.name },
+                        get: { linesManager.routes.first(where: { $0.id == line.id })?.name ?? line.name },
                         set: { newName in
-                            if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }) {
-                                linesManager.lines[idx].name = newName
+                            if let idx = linesManager.routes.firstIndex(where: { $0.id == line.id }) {
+                                linesManager.routes[idx].name = newName
                             }
                         }
                     ))
                     .textFieldStyle(.roundedBorder)
                 }
                 
-                // Prefix and Code
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Prefisso")
                             .font(.caption2.bold())
                             .foregroundColor(appState.theme.medium)
                         TextField("RE", text: Binding(
-                            get: { linesManager.lines.first(where: { $0.id == line.id })?.codePrefix ?? "" },
+                            get: { linesManager.routes.first(where: { $0.id == line.id })?.serviceCodePrefix ?? "" },
                             set: { newPrefix in
-                                if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }) {
-                                    linesManager.lines[idx].codePrefix = newPrefix.isEmpty ? nil : newPrefix
+                                if let idx = linesManager.routes.firstIndex(where: { $0.id == line.id }) {
+                                    linesManager.routes[idx].serviceCodePrefix = newPrefix.isEmpty ? nil : newPrefix
                                 }
                             }
                         ))
@@ -1239,10 +1220,10 @@ struct LineQuickStats: View {
                             .font(.caption2.bold())
                             .foregroundColor(appState.theme.medium)
                         TextField("5", value: Binding(
-                            get: { linesManager.lines.first(where: { $0.id == line.id })?.numberPrefix ?? 0 },
+                            get: { linesManager.routes.first(where: { $0.id == line.id })?.numberPrefix ?? 0 },
                             set: { newCode in
-                                if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }) {
-                                    linesManager.lines[idx].numberPrefix = newCode == 0 ? nil : newCode
+                                if let idx = linesManager.routes.firstIndex(where: { $0.id == line.id }) {
+                                    linesManager.routes[idx].numberPrefix = newCode == 0 ? nil : newCode
                                 }
                             }
                         ), format: .number)
@@ -1251,21 +1232,20 @@ struct LineQuickStats: View {
                     }
                 }
                 
-                // Color
                 HStack {
                     Text("Colore")
                         .font(.caption2.bold())
                         .foregroundColor(appState.theme.medium)
                     Spacer()
                     ColorPicker("", selection: Binding(
-                        get: { 
-                            let currentLine = linesManager.lines.first(where: { $0.id == line.id }) ?? line
-                            return Color(hex: currentLine.color ?? "") ?? .blue
+                        get: {
+                            let current = linesManager.routes.first(where: { $0.id == line.id }) ?? line
+                            return Color(hex: current.color ?? "") ?? .blue
                         },
                         set: { newColor in
-                            if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }),
+                            if let idx = linesManager.routes.firstIndex(where: { $0.id == line.id }),
                                let hex = newColor.toHex() {
-                                linesManager.lines[idx].color = hex
+                                linesManager.routes[idx].color = hex
                             }
                         }
                     ))
@@ -1280,7 +1260,7 @@ struct LineQuickStats: View {
                 let generator = UIImpactFeedbackGenerator(style: .medium)
                 generator.impactOccurred()
                 withAnimation(.spring(response: 0.4)) {
-                    appState.creationLineId = line.id
+                    appState.creationRouteId = line.id
                     appState.isScheduleGeneratorVisible = true
                     appState.isVehicleManagementVisible = false
                 }
@@ -1301,7 +1281,7 @@ struct LineVehiclesView: View {
                 .foregroundColor(appState.theme.dark)
                 .padding(.horizontal)
             
-            let assignedTrains = linesManager.trains.filter { $0.lineId == lineId }
+            let assignedTrains = linesManager.trains.filter { $0.routeId == lineId }
             let groupedTrains = Dictionary(grouping: assignedTrains) { train -> String in
                 if let vehicleId = train.vehicleId,
                    let vehicle = linesManager.vehicles.first(where: { $0.id == vehicleId }) {
@@ -1392,7 +1372,7 @@ struct LineVehiclesView: View {
 }
 
 struct LineScheduleSummaryView: View {
-    let line: RailwayLine
+    let line: TrainRoute
     @EnvironmentObject var linesManager: LinesManager
     @EnvironmentObject var appState: AppState
     
@@ -1402,7 +1382,7 @@ struct LineScheduleSummaryView: View {
                 // AGGIUNTO: Tasto per entrare in modalità generazione/modifica orario
                 Button(action: {
                     withAnimation {
-                        appState.creationLineId = line.id
+                        appState.creationRouteId = line.id
                     }
                 }) {
                     HStack {
@@ -1423,7 +1403,7 @@ struct LineScheduleSummaryView: View {
                 
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Prossime Corse").font(.headline).foregroundColor(appState.theme.dark)
-                    let trains = linesManager.trains.filter { $0.lineId == line.id }.sorted(by: { $0.departureTime ?? Date() < $1.departureTime ?? Date() })
+                    let trains = linesManager.trains.filter { $0.routeId == line.id }.sorted(by: { $0.departureTime ?? Date() < $1.departureTime ?? Date() })
                     if trains.isEmpty {
                         Text("Non ci sono corse programmate.")
                             .font(.caption).foregroundColor(appState.theme.medium)
@@ -1483,23 +1463,7 @@ struct StationQuickStats: View {
                 CompactInfoRow(label: "Capacità", value: "\(node.capacity ?? 10) treni")
             }
             
-            if !node.routingConstraints.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Vincoli").font(.system(size: 11, weight: .bold)).foregroundColor(appState.theme.medium)
-                    ForEach(node.routingConstraints) { constraint in
-                        HStack(spacing: 8) {
-                            let line = linesManager.lines.first { $0.id == constraint.lineId }
-                            Circle().fill(line?.uiColor ?? .gray).frame(width: 6, height: 6)
-                            Text(line?.name ?? constraint.lineId).font(.system(size: 11, weight: .medium)).foregroundColor(appState.theme.dark)
-                            Spacer()
-                            Text(constraint.allowedTracks.joined(separator: ", "))
-                                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundColor(appState.theme.accent)
-                        }
-                    }
-                }
-                .padding(10).background(appState.theme.light.opacity(0.3)).cornerRadius(10)
-            }
+            StationRoutingConstraintsView(node: node)
             
             Button(action: onEdit) {
                 Text("Dettagli completi")
@@ -1507,6 +1471,46 @@ struct StationQuickStats: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10).background(appState.theme.light).foregroundColor(appState.theme.dark).cornerRadius(10)
             }
+        }
+    }
+}
+
+struct StationRoutingConstraintsView: View {
+    let node: Node
+    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var linesManager: LinesManager
+    
+    var body: some View {
+        if !node.routingConstraints.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Vincoli").font(.system(size: 11, weight: .bold)).foregroundColor(appState.theme.medium)
+                ForEach(node.routingConstraints) { constraint in
+                    RoutingConstraintRow(constraint: constraint)
+                }
+            }
+            .padding(10)
+            .background(appState.theme.light.opacity(0.3))
+            .cornerRadius(10)
+        }
+    }
+}
+
+struct RoutingConstraintRow: View {
+    let constraint: RoutingConstraint
+    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var linesManager: LinesManager
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            let line = linesManager.routes.first { $0.id == constraint.routeId }
+            Circle().fill(line?.displayColor ?? .gray).frame(width: 6, height: 6)
+            Text(line?.name ?? constraint.routeId)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(appState.theme.dark)
+            Spacer()
+            Text(constraint.allowedTracks.joined(separator: ", "))
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundColor(appState.theme.accent)
         }
     }
 }
@@ -2514,7 +2518,7 @@ struct FerroviaRowContent: View {
             // Badge icon with ferrovia color
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(ferrovia.uiColor.opacity(0.15))
+                    .fill(ferrovia.displayColor.opacity(0.15))
                     .frame(width: 50, height: 50)
                 NetworkSymbols.ferroviaSymbol(color: ferrovia.color, size: 24)
             }
@@ -2524,7 +2528,7 @@ struct FerroviaRowContent: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(appState.theme.dark)
                 
-                Text("\(ferrovia.stationIds.count) stazioni")
+                Text("\(ferrovia.nodeIds.count) stazioni")
                     .font(.system(size: 13))
                     .foregroundColor(.secondary)
             }
@@ -2533,17 +2537,17 @@ struct FerroviaRowContent: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
-        .background(appState.selectedFerroviaId == ferrovia.id ? appState.theme.accent.opacity(0.15) : appState.theme.backgroundSecondary)
+        .background(appState.selectedInfraLineId == ferrovia.id ? appState.theme.accent.opacity(0.15) : appState.theme.backgroundSecondary)
         .cornerRadius(10)
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(appState.selectedFerroviaId == ferrovia.id ? appState.theme.accent : appState.theme.line.opacity(0.2), lineWidth: 1)
+                .stroke(appState.selectedInfraLineId == ferrovia.id ? appState.theme.accent : appState.theme.line.opacity(0.2), lineWidth: 1)
         )
     }
 }
 
 struct LineInfrastructureView: View {
-    let line: RailwayLine
+    let line: TrainRoute
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var linesManager: LinesManager
     
@@ -2558,8 +2562,8 @@ struct LineInfrastructureView: View {
                     line: Binding(
                         get: { appState.selectedLine ?? line },
                         set: { newLine in
-                            if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }) {
-                                linesManager.lines[idx] = newLine
+                            if let idx = linesManager.routes.firstIndex(where: { $0.id == line.id }) {
+                                linesManager.routes[idx] = newLine
                             }
                         }
                     ),
@@ -2576,7 +2580,7 @@ struct LineInfrastructureView: View {
 }
 
 struct LinePropertyEditor: View {
-    let line: RailwayLine
+    let line: TrainRoute
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var linesManager: LinesManager
     
@@ -2638,13 +2642,13 @@ struct LinePropertyEditor: View {
     private var lineNameBinding: Binding<String> {
         Binding(
             get: { 
-                linesManager.lines.first(where: { $0.id == line.id })?.name ?? line.name
+                linesManager.routes.first(where: { $0.id == line.id })?.name ?? line.name
             },
             set: { newName in
-                if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }) {
-                    linesManager.lines[idx].name = newName
+                if let idx = linesManager.routes.firstIndex(where: { $0.id == line.id }) {
+                    linesManager.routes[idx].name = newName
                     // Force UI update
-                    appState.selectedLineId = line.id
+                    appState.selectedRouteId = line.id
                 }
             }
         )
@@ -2653,13 +2657,13 @@ struct LinePropertyEditor: View {
     private var linePrefixBinding: Binding<String> {
         Binding(
             get: { 
-                linesManager.lines.first(where: { $0.id == line.id })?.codePrefix ?? line.codePrefix ?? ""
+                linesManager.routes.first(where: { $0.id == line.id })?.serviceCodePrefix ?? line.serviceCodePrefix ?? ""
             },
             set: { newPrefix in
-                if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }) {
-                    linesManager.lines[idx].codePrefix = newPrefix.isEmpty ? nil : newPrefix
+                if let idx = linesManager.routes.firstIndex(where: { $0.id == line.id }) {
+                    linesManager.routes[idx].serviceCodePrefix = newPrefix.isEmpty ? nil : newPrefix
                     // Force UI update
-                    appState.selectedLineId = line.id
+                    appState.selectedRouteId = line.id
                 }
             }
         )
@@ -2668,13 +2672,13 @@ struct LinePropertyEditor: View {
     private var lineCodeBinding: Binding<Int> {
         Binding(
             get: { 
-                linesManager.lines.first(where: { $0.id == line.id })?.numberPrefix ?? line.numberPrefix ?? 0
+                linesManager.routes.first(where: { $0.id == line.id })?.numberPrefix ?? line.numberPrefix ?? 0
             },
             set: { newCode in
-                if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }) {
-                    linesManager.lines[idx].numberPrefix = newCode == 0 ? nil : newCode
+                if let idx = linesManager.routes.firstIndex(where: { $0.id == line.id }) {
+                    linesManager.routes[idx].numberPrefix = newCode == 0 ? nil : newCode
                     // Force UI update
-                    appState.selectedLineId = line.id
+                    appState.selectedRouteId = line.id
                 }
             }
         )
@@ -2683,15 +2687,15 @@ struct LinePropertyEditor: View {
     private var lineColorBinding: Binding<Color> {
         Binding(
             get: { 
-                let currentLine = linesManager.lines.first(where: { $0.id == line.id }) ?? line
+                let currentLine = linesManager.routes.first(where: { $0.id == line.id }) ?? line
                 return Color(hex: currentLine.color ?? "") ?? .blue
             },
             set: { newColor in
-                if let idx = linesManager.lines.firstIndex(where: { $0.id == line.id }),
+                if let idx = linesManager.routes.firstIndex(where: { $0.id == line.id }),
                    let hex = newColor.toHex() {
-                    linesManager.lines[idx].color = hex
+                    linesManager.routes[idx].color = hex
                     // Force UI update
-                    appState.selectedLineId = line.id
+                    appState.selectedRouteId = line.id
                 }
             }
         )

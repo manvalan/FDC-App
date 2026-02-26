@@ -36,7 +36,7 @@ class DepartureTimeOptimizer {
     // MARK: - Context
     
     struct OptimizationContext {
-        let line: RailwayLine
+        let route: TrainRoute
         let network: RailwayNetwork
         let existingTrains: [Train]
         let timeWindow: ClosedRange<Int>  // Finestra temporale in minuti (es: 360-1200 per 6:00-20:00)
@@ -198,7 +198,7 @@ class DepartureTimeOptimizer {
         let safetyBuffer = 10
         
         for train in context.existingTrains {
-            guard train.lineId == context.line.id else { continue }
+            guard train.routeId == context.route.id else { continue }
             guard let departure = train.departureTime else { continue }
             
             let trainMinute = departure.minutesSinceMidnight
@@ -219,7 +219,7 @@ class DepartureTimeOptimizer {
         let safetyBuffer = 10
         
         for train in context.existingTrains {
-            guard train.lineId == context.line.id else { continue }
+            guard train.routeId == context.route.id else { continue }
             guard let departure = train.departureTime else { continue }
             
             let trainMinute = departure.minutesSinceMidnight
@@ -332,7 +332,7 @@ class DepartureTimeOptimizer {
     }
     
     struct CadenceContext {
-        let line: RailwayLine
+        let route: TrainRoute
         let network: RailwayNetwork
         let existingTrains: [Train]
         let timeWindow: ClosedRange<Int>
@@ -470,7 +470,7 @@ class DepartureTimeOptimizer {
         
         // 1. Penalità per conflitti con treni esistenti
         let optimizationContext = OptimizationContext(
-            line: context.line,
+            route: context.route,
             network: context.network,
             existingTrains: context.existingTrains,
             timeWindow: context.timeWindow,

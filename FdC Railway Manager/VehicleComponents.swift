@@ -257,11 +257,11 @@ struct TrainSelectionPicker: View {
     var body: some View {
         VStack(spacing: 0) {
             // Filter Header
-            Picker("Filtra per Linea", selection: $appState.lastVehicleAssignmentLineId) {
+            Picker("Filtra per Linea", selection: $appState.lastVehicleAssignmentRouteId) {
                 Text("Tutti i treni disponibili").tag(String?.none)
                 Divider()
-                ForEach(manager.sortedLines) { line in
-                    Text(line.name).tag(String?.some(line.id))
+                ForEach(manager.sortedRoutes) { route in
+                    Text(route.name).tag(String?.some(route.id))
                 }
             }
             .pickerStyle(.menu)
@@ -271,7 +271,7 @@ struct TrainSelectionPicker: View {
             List {
                 let filteredTrains = manager.trains.filter { train in
                     let isAvailable = train.vehicleId == nil
-                    let matchesLine = appState.lastVehicleAssignmentLineId == nil || train.lineId == appState.lastVehicleAssignmentLineId
+                    let matchesLine = appState.lastVehicleAssignmentRouteId == nil || train.routeId == appState.lastVehicleAssignmentRouteId
                     
                     var matchesSmart = true
                     if useSmartFilter, let lastPos = lastStationId {
@@ -318,7 +318,7 @@ struct TrainSelectionPicker: View {
 
     private var emptyTrainsSection: some View {
         Section {
-            Text(appState.lastVehicleAssignmentLineId == nil ? "Tutti i treni hanno già un mezzo assegnato." : "Nessun treno disponibile per la linea selezionata.")
+            Text(appState.lastVehicleAssignmentRouteId == nil ? "Tutti i treni hanno già un mezzo assegnato." : "Nessun treno disponibile per la linea selezionata.")
                 .foregroundColor(.secondary)
                 .italic()
                 .padding()
@@ -344,8 +344,8 @@ struct TrainSelectionPicker: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(train.name).font(.headline)
-                if let line = manager.lines.first(where: { $0.id == train.lineId }) {
-                    Text(line.name).font(.system(size: 9)).foregroundColor(.secondary)
+                if let route = manager.routes.first(where: { $0.id == train.routeId }) {
+                    Text(route.name).font(.system(size: 9)).foregroundColor(.secondary)
                 }
             }
             Spacer()
@@ -395,10 +395,6 @@ struct TrainSelectionPicker: View {
             manager.trains[idx].vehicleId = vehicleId
         }
         dismiss()
-    }
-            }
-        }
-        .navigationTitle("Assegna Treno")
     }
 
     private func checkPotentialConflict(train: Train) -> String? {
@@ -674,9 +670,9 @@ struct VehicleInspectorView: View {
             HStack {
                 Text(train.name).font(.subheadline.bold()).foregroundColor(appState.theme.dark)
                 Spacer()
-                if let line = manager.lines.first(where: { $0.id == train.lineId }) {
-                    Text(line.name).font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(line.uiColor.opacity(0.2)).foregroundColor(line.uiColor).cornerRadius(4)
+                if let route = manager.routes.first(where: { $0.id == train.routeId }) {
+                    Text(route.name).font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(route.displayColor.opacity(0.2)).foregroundColor(route.displayColor).cornerRadius(4)
                 }
             }
             assignedTrainTimeInfo(train)
@@ -719,8 +715,6 @@ struct VehicleInspectorView: View {
                     }
                 }
             }
-        }
-    }
         }
     }
 }

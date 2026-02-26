@@ -550,7 +550,7 @@ class ConflictManager: ObservableObject {
             let stopAIdx = trainA.stops.firstIndex(where: { $0.stationId == sid }) ?? 0
             let prevId = stopAIdx > 0 ? trainA.stops[stopAIdx - 1].stationId : nil
             let nextId = stopAIdx < trainA.stops.count - 1 ? trainA.stops[stopAIdx + 1].stationId : nil
-            let candidates = node.getTracksByProvenance(from: prevId, nextStationId: nextId, forLine: trainA.lineId)
+            let candidates = node.getTracksByProvenance(from: prevId, nextStationId: nextId, forRoute: trainA.routeId)
             let currentTrack = trainA.stops[stopAIdx].track ?? "1"
             for cand in candidates {
                 if cand == currentTrack { continue }

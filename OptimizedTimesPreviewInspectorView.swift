@@ -4,7 +4,7 @@ import SwiftUI
 struct OptimizedTimesPreviewInspectorView: View {
     @EnvironmentObject var appState: AppState
     
-    let line: RailwayLine
+    let route: TrainRoute
     let mode: ScheduleMode
     let currentOutboundTime: Date
     let currentReturnTime: Date?
@@ -23,7 +23,7 @@ struct OptimizedTimesPreviewInspectorView: View {
                     Text("Orari Ottimizzati")
                         .font(.title2)
                         .bold()
-                    Text(line.name)
+                    Text(route.name)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -261,7 +261,7 @@ struct OptimizedTimesPreviewInspectorView: View {
         // It will be cleared after ScheduleCreationView reads it in handleOnAppear
         
         // Ensure creationLineId is set first
-        appState.creationLineId = line.id
+        appState.creationRouteId = route.id
         
         // Small delay before forcing view recreation to avoid state inconsistency
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
@@ -282,6 +282,6 @@ struct OptimizedTimesPreviewInspectorView: View {
     private func cancelPreview() {
         appState.optimizedTimesPreviewData = nil
         // Ripristina creationLineId per tornare a ScheduleCreationView
-        appState.creationLineId = line.id
+        appState.creationRouteId = route.id
     }
 }

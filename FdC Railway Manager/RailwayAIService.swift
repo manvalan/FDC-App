@@ -5,7 +5,7 @@ import Combine
 class RailwayAIService: ObservableObject {
     static let shared = RailwayAIService()
     
-    struct LineAnalysis: Codable {
+    struct RouteAnalysis: Codable {
         let maxFrequency: String?
         let recommendedFrequency: String?
         let optimalOffsetAB: Int? // In minutes
@@ -347,13 +347,13 @@ class RailwayAIService: ObservableObject {
     }
     
     // PIGNOLO PROTOCOL: Unified analysis for lines (created or in-progress)
-    func analyzeLine(name: String, stationIds: [String], nodes: [RailwayNode], edges: [RailwayEdge]) async throws -> LineAnalysis {
+    func analyzeRoute(name: String, stationIds: [String], nodes: [RailwayNode], edges: [RailwayEdge]) async throws -> RouteAnalysis {
         // 1. Resolve Station Names for the Prompt
         let stopNames = stationIds.compactMap { sid in
             nodes.first(where: { $0.id == sid })?.name
         }.joined(separator: ", ")
         
-        print("🧠 [AI DEBUG] analyzeLine: stationsCount=\(stationIds.count), resolvedNames='\(stopNames)'")
+        print("🧠 [AI DEBUG] analyzeRoute: stationsCount=\(stationIds.count), resolvedNames='\(stopNames)'")
         
         // Validation: If stops are empty, AI will hallucinate based on the whole network.
         // Fallback: If we have at least 2 stationIds but names are empty, the IDs might be mismatched.
@@ -365,7 +365,7 @@ class RailwayAIService: ObservableObject {
         }
         
         let prompt = """
-        Analyze the railway line: "\(name)"
+        Analyze the railway route: "\(name)"
         Stops: \(stopNames.isEmpty ? "None specified (analyze the provided network)" : stopNames)
         
         CONTEXT: 
@@ -388,7 +388,7 @@ class RailwayAIService: ObservableObject {
         """
         
         // PIGNOLO PROTOCOL: We must map the network to the AI's expected format (Integer IDs, etc.)
-        // We filter the tracks to only include those relevant to the line if possible.
+        // We filter the tracks to only include those relevant to the route if possible.
         // If we have a sequence, we find the edges.
         var relevantEdgeIds = Set<UUID>()
         if stationIds.count >= 2 {
@@ -526,7 +526,7 @@ class RailwayAIService: ObservableObject {
                 let decoder = JSONDecoder()
                 // PIGNOLO PROTOCOL: If the AI uses camelCase despite instructions, try to handle it.
                 // Note: The CodingKeys in the struct usually take precedence.
-                return try decoder.decode(LineAnalysis.self, from: data)
+                return try decoder.decode(RouteAnalysis.self, from: data)
             } catch {
                 print("❌ [AI DECODE ERROR] \(error)")
                 throw error

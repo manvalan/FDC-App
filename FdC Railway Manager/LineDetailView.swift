@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct LineDetailView: View {
-    @Binding var line: RailwayLine
+    @Binding var line: TrainRoute
     @EnvironmentObject var network: NetworkModel
     @EnvironmentObject var appState: AppState
     @Binding var isMoveModeEnabled: Bool
@@ -51,8 +51,8 @@ struct LineDetailView: View {
                         VStack(alignment: .leading) {
                             Text("prefix".localized).font(.caption2)
                             TextField("RE", text: Binding(
-                                get: { line.codePrefix ?? "" },
-                                set: { line.codePrefix = $0.isEmpty ? nil : $0 }
+                                get: { line.serviceCodePrefix ?? "" },
+                                set: { line.serviceCodePrefix = $0.isEmpty ? nil : $0 }
                             ))
                             .textFieldStyle(.roundedBorder)
                         }
@@ -68,7 +68,7 @@ struct LineDetailView: View {
                         }
                     }
                     
-                    Text(String(format: "numbering_example".localized, line.codePrefix ?? "RE", line.numberPrefix ?? 5))
+                    Text(String(format: "numbering_example".localized, line.serviceCodePrefix ?? "RE", line.numberPrefix ?? 5))
                         .font(.caption2)
                         .foregroundColor(appState.theme.medium)
                         .italic()
@@ -105,36 +105,9 @@ struct LineDetailView: View {
                 }
                 
                 // 4. Dwell Times & Tracks
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("tracks_dwells".localized.uppercased())
-                        .font(.caption.bold())
-                        .foregroundColor(appState.theme.medium)
-                    
-                    ForEach($line.stops) { $stop in
-                        HStack {
-                            Text(stopName(stop.stationId))
-                                .font(.system(size: 13, weight: .medium))
-                                .frame(width: 120, alignment: .leading)
-                            
-                            TextField("track_label_short".localized, text: Binding(
-                                get: { stop.track ?? "" },
-                                set: { stop.track = $0.isEmpty ? nil : $0 }
-                            ))
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 50)
-                            
-                            Spacer()
-                            
-                            Stepper(String(format: "dwell_time_min".localized, stop.minDwellTime), value: $stop.minDwellTime, in: 0...120)
-                                .font(.caption)
-                        }
-                        .padding(.vertical, 4)
-                        Divider()
-                    }
-                }
-                .padding()
-                .background(appState.theme.backgroundSecondary)
-                .cornerRadius(12)
+                // Note: Track and dwell time configuration is per-train, not per-route
+                // This section is commented out as TrainRoute doesn't contain this data
+                // Configure tracks and dwell times when creating individual trains on this route
                 
                 // 5. Fleet / Rolling Stock
                 VStack(alignment: .leading, spacing: 12) {
@@ -143,7 +116,7 @@ struct LineDetailView: View {
                             .font(.caption.bold())
                             .foregroundColor(appState.theme.medium)
                         Spacer()
-                        let unassignedTrains = appState.railroad.lines.trains.filter({ $0.lineId == line.id && $0.vehicleId == nil })
+                        let unassignedTrains = appState.railroad.lines.trains.filter({ $0.routeId == line.id && $0.vehicleId == nil })
                         if !unassignedTrains.isEmpty {
                             Text("\(unassignedTrains.count) Da Assegnare")
                                 .font(.caption2.bold())
@@ -175,7 +148,7 @@ struct LineDetailView: View {
                 
                 // 6. Actions
                 Button(action: { 
-                    appState.startTrainCreation(lineId: line.id)
+                    appState.startTrainCreation(routeId: line.id)
                 }) {
                     HStack {
                         Image(systemName: "clock.badge.checkmark")
@@ -207,7 +180,7 @@ struct LineDetailView: View {
 }
 
 struct LineFleetManagementView: View {
-    let line: RailwayLine
+    let line: TrainRoute
     @ObservedObject var manager: LinesManager
     @Environment(\.dismiss) var dismiss
     
@@ -226,7 +199,7 @@ struct LineFleetManagementView: View {
 
 struct LineFleetManagementContent: View {
     @EnvironmentObject var appState: AppState
-    let line: RailwayLine
+    let line: TrainRoute
     @ObservedObject var manager: LinesManager
     @State private var showUnassignedOnly = true
     @State private var showingAddVehicle = false
@@ -238,7 +211,7 @@ struct LineFleetManagementContent: View {
             }
             
             let trains = manager.trains.filter { 
-                $0.lineId == line.id && 
+                $0.routeId == line.id && 
                 (!showUnassignedOnly || $0.vehicleId == nil)
             }.sorted { ($0.departureTime ?? Date.distantPast) < ($1.departureTime ?? Date.distantPast) }
             

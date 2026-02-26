@@ -23,7 +23,7 @@ struct ScheduleTransformer {
         return LiteTrain(
             id: train.id,
             name: train.name,
-            lineId: train.lineId,
+            routeId: train.routeId,
             departureTime: departure,
             stops: stops,
             maxSpeed: train.maxSpeed,

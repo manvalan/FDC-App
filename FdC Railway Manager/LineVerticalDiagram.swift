@@ -7,6 +7,10 @@ struct LineVerticalDiagram: View {
     @Binding var selectedStation: LineScheduleView.StationSelection?
     let onLineClick: () -> Void
     
+    private var lineColor: Color {
+        Color(hex: line.color ?? "") ?? .green
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             // Header: Line Name
@@ -41,8 +45,8 @@ struct LineVerticalDiagram: View {
                             network: network,
                             isLast: isLast,
                             nextStationId: nextId,
-                            lineColor: Color(hex: line.color ?? "") ?? .green,
-                            isTransit: line.stops.first(where: { $0.stationId == station.id })?.minDwellTime == 0,
+                            lineColor: lineColor,
+                            isTransit: false,
                             onStationTap: {
                                 withAnimation {
                                     selectedStation = LineScheduleView.StationSelection(id: station.id)

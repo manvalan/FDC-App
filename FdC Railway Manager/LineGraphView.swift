@@ -5,7 +5,7 @@ struct LineGraphView: View {
     @EnvironmentObject var network: RailwayNetwork
     @EnvironmentObject var manager: TrainManager
     @EnvironmentObject var appState: AppState // Added for theme access
-    let line: RailwayLine
+    let line: TrainRoute
     
     // Data passed from parent
     let orderedStations: [RailwayNode]

@@ -20,8 +20,8 @@ struct AltimetricProfileView: View {
     private let renderer = RailwayRenderer()
     
     private var selectedFerroviaId: String? {
-        get { appState.selectedFerroviaId }
-        nonmutating set { appState.selectedFerroviaId = newValue }
+        get { appState.selectedInfraLineId }
+        nonmutating set { appState.selectedInfraLineId = newValue }
     }
     
     private func updateNode(_ id: String, lat: Double? = nil, lon: Double? = nil, alt: Double? = nil) {
@@ -55,6 +55,14 @@ struct AltimetricProfileView: View {
             if name.contains("montagna") || name.contains("mountain") { return .mountain }
             return .standard
         }
+        
+        static func from(_ route: TrainRoute) -> SlopeLimit {
+            let name = route.name.lowercased()
+            if name.contains("av") || name.contains("high speed") { return .highSpeed }
+            if name.contains("merci") || name.contains("freight") { return .freight }
+            if name.contains("montagna") || name.contains("mountain") { return .mountain }
+            return .standard
+        }
     }
     
     var body: some View {
@@ -74,18 +82,18 @@ struct AltimetricProfileView: View {
             Menu {
                 Text("Seleziona Ferrovia")
                 Divider()
-                ForEach(appState.railroad.network.ferrovie) { ferrovia in
+                ForEach(appState.railroad.network.lines) { ferrovia in
                     Button(ferrovia.name) {
                         selectedFerroviaId = ferrovia.id
-                        appState.selectedLineId = nil
+                        appState.selectedRouteId = nil
                         appState.selectedNodeId = nil
                         appState.selectedEdgeId = nil
-                        appState.selectedNodeIds = Set(ferrovia.stationIds)
+                        appState.selectedNodeIds = Set(ferrovia.nodeIds)
                     }
                 }
             } label: {
                 HStack {
-                    if let fId = selectedFerroviaId, let f = appState.railroad.network.ferrovie.first(where: { $0.id == fId }) {
+                    if let fId = selectedFerroviaId, let f = appState.railroad.network.lines.first(where: { $0.id == fId }) {
                         Text(f.name)
                             .font(.caption.bold())
                             .foregroundColor(.primary)
@@ -178,9 +186,9 @@ struct AltimetricProfileView: View {
             
             Spacer()
             
-            if let lineId = appState.selectedLineId,
-               let line = appState.railroad.lines.findLine(id: lineId) {
-                let limit = SlopeLimit.from(line)
+            if let routeId = appState.selectedRouteId,
+               let route = appState.railroad.lines.findRoute(id: routeId) {
+                let limit = SlopeLimit.from(route)
                 Text("Limiti: \(Int(limit.maxStandard))‰ / \(Int(limit.technicalLimit))‰")
                     .font(.caption2)
                     .foregroundColor(.secondary)
@@ -198,20 +206,20 @@ struct AltimetricProfileView: View {
     
     @ViewBuilder
     private func contentView(geo: GeometryProxy) -> some View {
-        let fId = appState.selectedFerroviaId
-        let lineId = appState.selectedLineId
+        let fId = appState.selectedInfraLineId
+        let routeId = appState.selectedRouteId
         let selectedNodeIds = appState.selectedNodeIds
         let edgeId = appState.selectedEdgeId
         
         let stations: [RailwayNode] = {
-            if let fId = fId, let fer = appState.railroad.network.ferrovie.first(where: { $0.id == fId }) {
-                // For ferrovie, rebuild complete path including junction nodes
+            if let fId = fId, let fer = appState.railroad.network.lines.first(where: { $0.id == fId }) {
+                // For infrastructure lines, rebuild complete path including junction nodes
                 let service = InfrastructureService(network: appState.railroad.network)
                 var completePath: [RailwayNode] = []
                 
-                for i in 0..<fer.stationIds.count {
-                    let stationId = fer.stationIds[i]
-                    guard let station = appState.railroad.network.nodes.first(where: { $0.id == stationId }) else {
+                for i in 0..<fer.nodeIds.count {
+                    let nodeId = fer.nodeIds[i]
+                    guard let station = appState.railroad.network.nodes.first(where: { $0.id == nodeId }) else {
                         continue
                     }
                     
@@ -220,9 +228,9 @@ struct AltimetricProfileView: View {
                         completePath.append(station)
                     } else {
                         // Find path from previous station to this one (includes junctions)
-                        let prevStationId = fer.stationIds[i - 1]
+                        let prevNodeId = fer.nodeIds[i - 1]
                         
-                        if let pathResult = service.findPath(from: prevStationId, to: stationId) {
+                        if let pathResult = service.findPath(from: prevNodeId, to: nodeId) {
                             // Add all nodes from path except the first (already in completePath)
                             completePath.append(contentsOf: pathResult.nodes.dropFirst())
                         } else {
@@ -233,8 +241,8 @@ struct AltimetricProfileView: View {
                 }
                 
                 return completePath
-            } else if let lId = lineId, let line = appState.railroad.lines.findLine(id: lId) {
-                return line.stops.compactMap { stop in appState.railroad.network.nodes.first(where: { $0.id == stop.stationId }) }
+            } else if let rId = routeId, let route = appState.railroad.lines.findRoute(id: rId) {
+                return route.stationIds.compactMap { stationId in appState.railroad.network.nodes.first(where: { $0.id == stationId }) }
             } else if selectedNodeIds.count > 1 {
                 return attemptToChain(appState.railroad.network.nodes.filter { selectedNodeIds.contains($0.id) })
             } else if let eId = edgeId, let edge = appState.railroad.network.edges.first(where: { $0.id.uuidString == eId }),

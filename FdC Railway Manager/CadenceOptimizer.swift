@@ -22,7 +22,7 @@ class CadenceOptimizer: ObservableObject {
     ///   - existingTrains: Traffico reale già presente
     ///   - network: La rete ferroviaria
     @MainActor
-    func proposeIdealWindow(for line: RailwayLine, frequency: Double, existingTrains: [Train], network: NetworkModel) async -> Double {
+    func proposeIdealWindow(for line: TrainRoute, frequency: Double, existingTrains: [Train], network: NetworkModel) async -> Double {
         self.isRunning = true
         self.progress = 0.0
         
@@ -104,7 +104,7 @@ class CadenceOptimizer: ObservableObject {
         return best
     }
     
-    private func evaluateCadence(offset: Double, line: RailwayLine, frequency: Double, existingTrains: [Train], nodes: [RailwayNode], edges: [Edge]) async -> Double {
+    private func evaluateCadence(offset: Double, line: TrainRoute, frequency: Double, existingTrains: [Train], nodes: [RailwayNode], edges: [Edge]) async -> Double {
         // Simuliamo una serie di treni durante la giornata (es. 10 treni campioni)
         var testTrains: [Train] = []
         let baseDate = Calendar.current.startOfDay(for: Date()).addingTimeInterval(6 * 3600) // Start at 06:00
@@ -117,7 +117,7 @@ class CadenceOptimizer: ObservableObject {
             
             // Genera il nome corretto
             let trainName: String
-            if let prefix = line.codePrefix, let code = line.numberPrefix {
+            if let prefix = line.serviceCodePrefix, let code = line.numberPrefix {
                 trainName = "\(prefix)\(code) \(trainNumber)"
             } else {
                 trainName = "\(trainNumber)"
@@ -141,10 +141,10 @@ class CadenceOptimizer: ObservableObject {
                 id: UUID(),
                 number: trainNumber,
                 name: trainName,
-                type: line.codePrefix ?? trainCategory.rawValue,
+                type: line.serviceCodePrefix ?? trainCategory.rawValue,
                 lineId: line.id,
                 departureTime: departure,
-                stops: line.stops,
+                stops: line.stationIds.map { RelationStop(stationId: $0) },
                 vehicleId: nil,
                 maxSpeed: Double(trainCategory.defaultMaxSpeed),
                 acceleration: acceleration,

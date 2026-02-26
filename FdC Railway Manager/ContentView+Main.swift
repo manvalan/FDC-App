@@ -61,7 +61,7 @@ extension ContentView {
     private var mapDetailView: some View {
         RailwayMapView(
             selectedNode: Binding(get: { appState.selectedNode }, set: { appState.selectedNodeId = $0?.id }),
-            selectedLine: Binding(get: { appState.selectedLine }, set: { appState.selectedLineId = $0?.id }),
+            selectedLine: Binding(get: { appState.selectedInfraLine }, set: { appState.selectedInfraLineId = $0?.id }),
             selectedEdgeId: $appState.selectedEdgeId,
             showGrid: $appState.showGrid,
             isMoveModeEnabled: $appState.isMoveModeEnabled,

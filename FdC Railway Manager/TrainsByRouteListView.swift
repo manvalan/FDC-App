@@ -1,19 +1,19 @@
 import SwiftUI
 import Combine
 
-/// Mostra i treni organizzati per linea
+/// Mostra i treni organizzati per rotta
 /// Principio: "Code that fits in your head" - ogni componente ha una singola responsabilità
-struct TrainsByLineListView: View {
+struct TrainsByRouteListView: View {
     @EnvironmentObject var linesManager: LinesManager
     @EnvironmentObject var appState: AppState
     
     @State private var assignedCount: Int = 0
     @State private var showAssignmentAlert: Bool = false
-    @State private var lineForCreation: RailwayLine? // Wizard Trigger
+    @State private var routeForCreation: TrainRoute? // Wizard Trigger
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Treni per Linea").font(.headline).foregroundColor(appState.theme.dark)
+            Text("Treni per Rotta").font(.headline).foregroundColor(appState.theme.dark)
             
             VStack(spacing: 16) {
                 if !unassignedTrains.isEmpty {
@@ -29,18 +29,18 @@ struct TrainsByLineListView: View {
                     }
                 }
                 
-                ForEach(allLinesGrouped, id: \.line.id) { item in
-                    LineTrainsSection(line: item.line, trains: item.trains, onCreateTrain: {
+                ForEach(allRoutesGrouped, id: \.route.id) { item in
+                    RouteTrainsSection(route: item.route, trains: item.trains, onCreateTrain: {
                         // Open Wizard
-                        lineForCreation = item.line
+                        routeForCreation = item.route
                     })
                 }
             }
             .alert("Assegnati \(assignedCount) treni alle linee.", isPresented: $showAssignmentAlert) {
                 Button("OK", role: .cancel) { }
             }
-            .sheet(item: $lineForCreation) { line in
-                TrainCreationView(line: line)
+            .sheet(item: $routeForCreation) { route in
+                TrainCreationView(route: route)
             }
         }
     }
@@ -62,16 +62,16 @@ struct TrainsByLineListView: View {
     
     /// Treni senza linea assegnata
     private var unassignedTrains: [Train] {
-        linesManager.trains.filter { $0.lineId == nil || $0.lineId?.isEmpty == true }
+        linesManager.trains.filter { $0.routeId == nil || $0.routeId?.isEmpty == true }
     }
     
-    /// Calcola quali linee hanno treni, includendo anche le linee vuote
-    private var allLinesGrouped: [(line: RailwayLine, trains: [Train])] {
-        linesManager.lines.map { line in
-            let trainsForLine = linesManager.trains.filter { $0.lineId == line.id }
-            return (line: line, trains: trainsForLine)
+    /// Calcola quali rotte hanno treni, includendo anche le rotte vuote
+    private var allRoutesGrouped: [(route: TrainRoute, trains: [Train])] {
+        linesManager.routes.map { route in
+            let trainsForRoute = linesManager.trains.filter { $0.routeId == route.id }
+            return (route: route, trains: trainsForRoute)
         }
-        .sorted { $0.line.name < $1.line.name }
+        .sorted { $0.route.name < $1.route.name }
     }
     
     private func autoAssignTrains() {
@@ -80,18 +80,18 @@ struct TrainsByLineListView: View {
         
         for index in linesManager.trains.indices {
             let train = linesManager.trains[index]
-            guard train.lineId == nil || train.lineId?.isEmpty == true else { continue }
+            guard train.routeId == nil || train.routeId?.isEmpty == true else { continue }
             guard !train.stops.isEmpty else { continue }
             
-            // Cerca una linea compatibile
-            // Una linea è compatibile se contiene tutte le stazioni del treno nello stesso ordine relativo
-            let matchingLines = allLines.filter { line in
-                isTrainCompatible(train, with: line)
+            // Cerca una rotta compatibile
+            // Una rotta è compatibile se contiene tutte le stazioni del treno nello stesso ordine relativo
+            let matchingRoutes = linesManager.routes.filter { route in
+                isTrainCompatible(train, with: route)
             }
             
-            if let bestMatch = matchingLines.first {
+            if let bestMatch = matchingRoutes.first {
                 // Assegna
-                linesManager.trains[index].lineId = bestMatch.id
+                linesManager.trains[index].routeId = bestMatch.id
                 count += 1
             }
         }
@@ -103,9 +103,9 @@ struct TrainsByLineListView: View {
         }
     }
     
-    private func isTrainCompatible(_ train: Train, with line: RailwayLine) -> Bool {
+    private func isTrainCompatible(_ train: Train, with route: TrainRoute) -> Bool {
         let trainStops = train.stops.map { $0.stationId }
-        let lineStops = line.stops.map { $0.stationId }
+        let lineStops = route.stationIds
         
         // Se il treno ha più fermate della linea, impossibile
         if trainStops.count > lineStops.count { return false }
@@ -126,8 +126,8 @@ struct TrainsByLineListView: View {
 }
 
 /// Sezione che mostra i treni di una singola linea
-private struct LineTrainsSection: View {
-    let line: RailwayLine
+private struct RouteTrainsSection: View {
+    let route: TrainRoute
     let trains: [Train]
     let onCreateTrain: () -> Void
     @EnvironmentObject var appState: AppState
@@ -158,7 +158,7 @@ private struct LineTrainsSection: View {
                 .padding(.top, 4)
             }
         } label: {
-            lineSectionHeader
+            routeSectionHeader
                 .contentShape(Rectangle()) // Make entire header tappable for context menu
                 .contextMenu {
                     Button(action: onCreateTrain) {
@@ -168,7 +168,7 @@ private struct LineTrainsSection: View {
                     Divider()
                     
                     Button(action: {
-                        linesManager.autoAssignRollingStock(for: line.id)
+                        linesManager.autoAssignRollingStock(for: route.id)
                     }) {
                         Label("Ottimizza Giri Macchina", systemImage: "arrow.triangle.2.circlepath")
                     }
@@ -176,13 +176,13 @@ private struct LineTrainsSection: View {
         }
     }
     
-    private var lineSectionHeader: some View {
+    private var routeSectionHeader: some View {
         HStack {
-            Text(line.name)
+            Text(route.name)
                 .font(.caption.bold())
                 .foregroundColor(appState.theme.dark)
             Spacer()
-            Circle().fill(line.uiColor).frame(width: 8, height: 8)
+            Circle().fill(route.displayColor).frame(width: 8, height: 8)
         }
         .padding(.horizontal, 4)
     }

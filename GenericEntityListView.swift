@@ -250,8 +250,8 @@ extension Train: EntityListItem {
     var displayTitle: String { name }
     
     var displaySubtitle: String? {
-        if let lineId = lineId {
-            return "line".localized + ": \(lineId)"
+        if let routeId = routeId {
+            return "line".localized + ": \(routeId)"
         }
         return type
     }
@@ -293,9 +293,9 @@ extension Vehicle: EntityListItem {
     }
 }
 
-extension RailwayLine: EntityListItem {
+extension TrainRoute: EntityListItem {
     var displayBadgeText: String {
-        if let prefix = codePrefix {
+        if let prefix = serviceCodePrefix {
             return prefix
         }
         return String(name.prefix(3)).uppercased()
@@ -305,16 +305,9 @@ extension RailwayLine: EntityListItem {
     
     var displaySubtitle: String? {
         // Get origin and destination names
-        let originName = originId
-        let destName = destinationId
+        let originName = originStationId
+        let destName = destinationStationId
         return "\(originName) → \(destName)"
-    }
-    
-    var displayColor: Color {
-        if let hexColor = color, let color = Color(hex: hexColor) {
-            return color
-        }
-        return .blue
     }
 }
 

@@ -1,12 +1,12 @@
 import SwiftUI
 import Combine
 
-/// ViewModel per la gestione dell'editing di una linea ferroviaria.
+/// ViewModel per la gestione dell'editing di una rotta commerciale (TrainRoute).
 /// Segue i principi di separazione delle responsabilità e "Code That Fits in Your Head".
-final class LineEditViewModel: ObservableObject {
+final class RouteEditViewModel: ObservableObject {
     // MARK: - State Properties
     
-    @Published var lineName: String = ""
+    @Published var routeName: String = ""
     @Published var codePrefix: String = ""
     @Published var numberPrefix: Int = 0
     @Published var cadenceFrequency: Double = 60.0
@@ -19,15 +19,15 @@ final class LineEditViewModel: ObservableObject {
     @Published var stationSequence: [String] = []
     
     @Published var errorMessage: String? = nil
-    @Published var lineAnalysis: RailwayAIService.LineAnalysis? = nil
-    @Published var isAnalyzingLine: Bool = false
+    @Published var routeAnalysis: RailwayAIService.RouteAnalysis? = nil
+    @Published var isAnalyzingRoute: Bool = false
     @Published var proposedOffset: Double? = nil
     
     @Published var isRunningOptimizer: Bool = false
     
     // MARK: - Dependencies
     
-    private var lineId: String = ""
+    private var routeId: String = ""
     private var appState: AppState?
     private let cadenceOptimizer = CadenceOptimizer()
     private var cancellables = Set<AnyCancellable>()
@@ -39,8 +39,8 @@ final class LineEditViewModel: ObservableObject {
     
     init() {}
     
-    func setup(lineId: String, appState: AppState) {
-        self.lineId = lineId
+    func setup(routeId: String, appState: AppState) {
+        self.routeId = routeId
         self.appState = appState
         
         loadLineData()
@@ -51,23 +51,23 @@ final class LineEditViewModel: ObservableObject {
     
     /// Carica i dati iniziali della linea
     private func loadLineData() {
-        guard let line = lines.lines.first(where: { $0.id == lineId }) else {
+        guard let route = lines.routes.first(where: { $0.id == routeId }) else {
             return
         }
         
-        lineName = line.name
-        codePrefix = line.codePrefix ?? ""
-        numberPrefix = line.numberPrefix ?? 0
-        cadenceFrequency = line.cadenceFrequency ?? 60.0
-        lineColor = Color(hex: line.color ?? "") ?? .blue
-        terminalTracks = line.terminalTracks
+        routeName = route.name
+        codePrefix = route.serviceCodePrefix ?? ""
+        numberPrefix = route.numberPrefix ?? 0
+        cadenceFrequency = 60.0 // cadenceFrequency non è più in TrainRoute
+        lineColor = Color(hex: route.color ?? "") ?? .blue
+        terminalTracks = [:] // terminalTracks non è più in TrainRoute
         
-        startStationId = line.originId
-        endStationId = line.destinationId
-        stationSequence = line.stops.map { $0.stationId }
+        startStationId = route.originStationId
+        endStationId = route.destinationStationId
+        stationSequence = route.stationIds
         
         if let appState = appState, appState.useCloudAI && stationSequence.count >= 2 {
-            triggerLineAnalysis()
+            triggerRouteAnalysis()
         }
     }
     
@@ -76,7 +76,7 @@ final class LineEditViewModel: ObservableObject {
             .sink { [weak self] newSeq in
                 guard let self = self else { return }
                 if let appState = self.appState, appState.useCloudAI && newSeq.count >= 2 {
-                    self.triggerLineAnalysis()
+                    self.triggerRouteAnalysis()
                 }
             }
             .store(in: &cancellables)
@@ -84,31 +84,24 @@ final class LineEditViewModel: ObservableObject {
     
     /// Salva le modifiche apportate
     func saveChanges() -> Bool {
-        guard let index = lines.lines.firstIndex(where: { $0.id == lineId }) else { return false }
+        guard let index = lines.routes.firstIndex(where: { $0.id == routeId }) else { return false }
         
         appState?.railroad.network.createCheckpoint()
         
         let hexColor = lineColor.toHex()
-        let stops = stationSequence.map { sid -> RelationStop in
-            let node = network.nodes.first(where: { $0.id == sid })
-            let defaultDwell = (node?.type == .interchange) ? 5 : 3
-            return RelationStop(stationId: sid, minDwellTime: defaultDwell)
-        }
         
-        // Update the existing line
-        lines.lines[index].name = lineName
-        lines.lines[index].color = hexColor
-        lines.lines[index].originId = stationSequence.first ?? startStationId
-        lines.lines[index].destinationId = stationSequence.last ?? endStationId
-        lines.lines[index].stops = stops
-        lines.lines[index].codePrefix = codePrefix.isEmpty ? nil : codePrefix
-        lines.lines[index].numberPrefix = numberPrefix == 0 ? nil : numberPrefix
-        lines.lines[index].cadenceFrequency = cadenceFrequency
-        lines.lines[index].terminalTracks = terminalTracks
+        // Update the existing route
+        lines.routes[index].name = routeName
+        lines.routes[index].color = hexColor
+        lines.routes[index].originStationId = stationSequence.first ?? startStationId
+        lines.routes[index].destinationStationId = stationSequence.last ?? endStationId
+        lines.routes[index].stationIds = stationSequence
+        lines.routes[index].serviceCodePrefix = codePrefix.isEmpty ? nil : codePrefix
+        lines.routes[index].numberPrefix = numberPrefix == 0 ? nil : numberPrefix
         
-        // Update all trains of this line to use these tracks at terminal stations
+        // Update all trains of this route to use these tracks at terminal stations
         for tIdx in lines.trains.indices {
-            if lines.trains[tIdx].lineId == lineId {
+            if lines.trains[tIdx].routeId == routeId {
                 // Update start stop
                 if let firstId = stationSequence.first, let track = terminalTracks[firstId] {
                     if let sIdx = lines.trains[tIdx].stops.firstIndex(where: { $0.stationId == firstId }) {
@@ -130,22 +123,22 @@ final class LineEditViewModel: ObservableObject {
         return true
     }
     
-    /// Avvia l'analisi AI della linea
-    func triggerLineAnalysis() {
+    /// Avvia l'analisi AI della rotta
+    func triggerRouteAnalysis() {
         Task {
-            await MainActor.run { isAnalyzingLine = true }
+            await MainActor.run { isAnalyzingRoute = true }
             do {
-                let analysis = try await RailwayAIService.shared.analyzeLine(
-                    name: lineName.isEmpty ? "Line" : lineName,
+                let analysis = try await RailwayAIService.shared.analyzeRoute(
+                    name: routeName.isEmpty ? "Route" : routeName,
                     stationIds: stationSequence,
                     nodes: network.nodes,
                     edges: network.edges
                 )
-                await MainActor.run { self.lineAnalysis = analysis }
+                await MainActor.run { self.routeAnalysis = analysis }
             } catch {
-                print("❌ AI Line Analysis failed: \(error)")
+                print("❌ AI Route Analysis failed: \(error)")
             }
-            await MainActor.run { isAnalyzingLine = false }
+            await MainActor.run { isAnalyzingRoute = false }
         }
     }
     
@@ -153,15 +146,15 @@ final class LineEditViewModel: ObservableObject {
     func findIdealOffset() {
         Task {
             await MainActor.run { isRunningOptimizer = true }
-            let line = RailwayLine(
-                id: lineId,
-                name: lineName,
-                stops: stationSequence.map { RelationStop(stationId: $0) }
+            let route = TrainRoute(
+                id: routeId,
+                name: routeName,
+                stationIds: stationSequence
             )
             let offset = await cadenceOptimizer.proposeIdealWindow(
-                for: line, 
+                for: route, 
                 frequency: cadenceFrequency, 
-                existingTrains: lines.trains.filter { $0.lineId != lineId }, 
+                existingTrains: lines.trains.filter { $0.routeId != routeId }, 
                 network: network
             )
             await MainActor.run { 
@@ -186,7 +179,7 @@ final class LineEditViewModel: ObservableObject {
     /// Ottimizza l'assegnazione dei mezzi
     func autoAssignRollingStock() {
         appState?.railroad.network.createCheckpoint()
-        lines.autoAssignRollingStock(for: lineId)
+        lines.autoAssignRollingStock(for: routeId)
     }
     
     /// Handlers per il picking sulla mappa o lista

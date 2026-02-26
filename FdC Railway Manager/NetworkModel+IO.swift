@@ -7,15 +7,14 @@ extension NetworkModel {
         let decoder = JSONDecoder()
         let dto = try decoder.decode(RailwayNetworkDTO.self, from: data)
         let network = NetworkModel()
-        // Assuming apply(dto:) is available on NetworkModel
         network.apply(dto: dto)
         return network
     }
     
     func saveToFile(url: URL) throws {
-        // Basic infrastructure save using DTO
-        // Note: This saves only nodes and edges unless lines/trains are included correctly via LinesManager
-        let dto = RailwayNetworkDTO(name: name, nodes: nodes, edges: edges, ferrovie: ferrovie, lines: nil, trains: nil, vehicles: nil)
+        // Saves nodes, edges, infrastructure lines and service routes.
+        // Note: trains are saved via LinesManager/TrainManager separately.
+        let dto = RailwayNetworkDTO(name: name, nodes: nodes, edges: edges)
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
         let data = try encoder.encode(dto)

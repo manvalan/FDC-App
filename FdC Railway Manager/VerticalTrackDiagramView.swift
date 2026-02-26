@@ -3,7 +3,7 @@ import Combine
 
 struct VerticalTrackDiagramView: View {
     @EnvironmentObject var appState: AppState
-    @Binding var line: RailwayLine
+    @Binding var line: TrainRoute
     @ObservedObject var network: RailwayNetwork
     @Binding var isMoveModeEnabled: Bool
     
@@ -67,9 +67,9 @@ struct VerticalTrackDiagramView: View {
             ScrollViewReader { proxy in
                 VStack(spacing: 0) {
                     // Use stops with unique IDs to avoid ForEach identity issues
-                    ForEach(line.stops) { stop in
-                        stationStep(stop: stop, lineColor: lineColor)
-                            .id("station-\(stop.stationId)")
+                    ForEach(Array(line.stationIds.enumerated()), id: \.offset) { index, stationId in
+                        stationStep(stationId: stationId, index: index, lineColor: lineColor)
+                            .id("station-\(stationId)")
                     }
                 }
                 .padding()
@@ -112,53 +112,55 @@ struct VerticalTrackDiagramView: View {
     }
     
     @ViewBuilder
-    private func stationStep(stop: RelationStop, lineColor: Color) -> some View {
-        if let index = line.stops.firstIndex(where: { $0.id == stop.id }) {
-            let isFirst = index == 0
-            let isLast = index == line.stops.count - 1
-            let isExtremity = isFirst || isLast
-            let nextId = isLast ? nil : line.stops[index + 1].stationId
-            let isTransit = stop.minDwellTime == 0
-            
-            // Only allow deleting extremity stations (first or last)
-            let onDeleteAction: (() -> Void)? = (isSidebarEditMode && isExtremity) ? { 
-                print("🔴 [ACTION] Delete action triggered for station: \(stop.stationId), id: \(stop.id)")
-                removeStop(id: stop.id) 
-            } : nil
-            let onInsertBeforeAction: (() -> Void)? = (isSidebarEditMode && isFirst) ? { prepareInsert(stop.stationId, before: true) } : nil
-            let onInsertAfterAction: (() -> Void)? = (isSidebarEditMode && isLast) ? { prepareInsert(stop.stationId, before: false) } : nil
+    private func stationStep(stationId: String, index: Int, lineColor: Color) -> some View {
+        let isFirst = index == 0
+        let isLast = index == line.stationIds.count - 1
+        let isExtremity = isFirst || isLast
+        let nextId = isLast ? nil : line.stationIds[index + 1]
+        
+        // In TrainRoute we don't store dwell, we assume 0 is transit for diagram purposes? 
+        // Or we just don't show transit style for now.
+        let isTransit = false 
+        
+        // Only allow deleting extremity stations (first or last)
+        let onDeleteAction: (() -> Void)? = (isSidebarEditMode && isExtremity) ? { 
+            print("🔴 [ACTION] Delete action triggered for station: \(stationId)")
+            removeStation(at: index) 
+        } : nil
+        let onInsertBeforeAction: (() -> Void)? = (isSidebarEditMode && isFirst) ? { prepareInsert(stationId, before: true) } : nil
+        let onInsertAfterAction: (() -> Void)? = (isSidebarEditMode && isLast) ? { prepareInsert(stationId, before: false) } : nil
 
-            ZStack(alignment: .leading) {
-                VerticalDiagramStep(
-                    stationId: stop.stationId,
-                    network: network,
-                    isLast: isLast,
-                    nextStationId: nextId,
-                    lineColor: lineColor,
-                    isTransit: isTransit,
-                    isEditing: isSidebarEditMode,
-                    onDelete: onDeleteAction,
-                    onInsertBefore: onInsertBeforeAction,
-                    onInsertAfter: onInsertAfterAction,
-                    onStationTap: {
-                        print("🔘 [UI] VerticalTrackDiagramView: Station tapped -> \(stop.stationId)")
-                        externalSelectedStationID = stop.stationId
-                    },
-                    onSegmentTap: {
-                        if let nextId = nextId, let edge = findEdge(from: stop.stationId, to: nextId) {
-                            print("🔘 [UI] VerticalTrackDiagramView: Segment tapped -> \(edge.id)")
-                            externalSelectedEdgeID = edge.id.uuidString
-                        } else {
-                            print("🔘 [UI] VerticalTrackDiagramView: Segment tapped but NO EDGE found from \(stop.stationId) to \(nextId ?? "nil")")
-                        }
-                    },
-                    leadingInfo: { EmptyView() }
-                )
+        return ZStack(alignment: .leading) {
+            VerticalDiagramStep(
+                stationId: stationId,
+                network: network,
+                isLast: isLast,
+                nextStationId: nextId,
+                lineColor: lineColor,
+                isTransit: isTransit,
+                isEditing: isSidebarEditMode,
+                onDelete: onDeleteAction,
+                onInsertBefore: onInsertBeforeAction,
+                onInsertAfter: onInsertAfterAction,
+                onStationTap: {
+                    print("🔘 [UI] VerticalTrackDiagramView: Station tapped -> \(stationId)")
+                    externalSelectedStationID = stationId
+                },
+                onSegmentTap: {
+                    if let nextId = nextId, let edge = findEdge(from: stationId, to: nextId) {
+                        print("🔘 [UI] VerticalTrackDiagramView: Segment tapped -> \(edge.id)")
+                        externalSelectedEdgeID = edge.id.uuidString
+                    } else {
+                        print("🔘 [UI] VerticalTrackDiagramView: Segment tapped but NO EDGE found from \(stationId) to \(nextId ?? "nil")")
+                    }
+                },
+                leadingInfo: { EmptyView() }
+            )
                 
                 // Add intermediate station insertion button
                 if isSidebarEditMode && !isLast {
                     Button(action: {
-                        startIntermediateInsertion(afterStation: stop.stationId)
+                        startIntermediateInsertion(afterStation: stationId)
                     }) {
                         Image(systemName: "plus.circle.fill")
                             .font(.title2)
@@ -168,7 +170,6 @@ struct VerticalTrackDiagramView: View {
                     .padding(.leading, 8)
                     .offset(y: 40) // Position on the track segment
                 }
-            }
         }
     }
     
@@ -260,8 +261,8 @@ struct VerticalTrackDiagramView: View {
     private var diagramSnapshot: some View {
         let lineColor = Color(hex: line.color ?? "") ?? .black
         return VStack(spacing: 0) {
-            ForEach(line.stops) { stop in
-                stationStep(stop: stop, lineColor: lineColor)
+            ForEach(Array(line.stationIds.enumerated()), id: \.offset) { index, stationId in
+                stationStep(stationId: stationId, index: index, lineColor: lineColor)
             }
         }
         .padding()
@@ -281,9 +282,9 @@ struct VerticalTrackDiagramView: View {
     
     // MARK: - Sheet Helpers
     
-    private var stationIDBinding: Binding<StringIdentifiable?> {
+    private var stationIDBinding: Binding<IdentifiableString?> {
         Binding(
-            get: { internalSelectedStationID.map { StringIdentifiable(id: $0) } },
+            get: { internalSelectedStationID.map { IdentifiableString(id: $0) } },
             set: { internalSelectedStationID = $0?.id }
         )
     }
@@ -355,7 +356,7 @@ struct VerticalTrackDiagramView: View {
                                     Text(station.name)
                                     Spacer()
                                     // Indicate if station is already in line
-                                    if line.stops.contains(where: { $0.stationId == station.id }) {
+                                    if line.stationIds.contains(station.id) {
                                         Image(systemName: "checkmark.circle.fill")
                                             .foregroundColor(.green)
                                         Text("in_line".localized)
@@ -418,7 +419,7 @@ struct VerticalTrackDiagramView: View {
             
             // Distance Info
             if !isLast {
-                let nextId = line.stations[index + 1]
+                let nextId = line.stationIds[index + 1]
                 if let edge = findEdge(from: stationId, to: nextId) {
                     Button(action: {
                         prepareEditEdge(edge)
@@ -516,115 +517,47 @@ struct VerticalTrackDiagramView: View {
     
     // MARK: - Inline Editing Logic
     
-    private func removeStop(id: UUID) {
-        print("🔴 [DELETE] removeStop called with id: \(id)")
-        
-        // Find the stationId for this UUID
-        guard let stopToRemove = line.stops.first(where: { $0.id == id }) else {
-            print("🔴 [DELETE] ERROR: Could not find stop with id \(id)")
-            return
-        }
-        
-        let stationIdToRemove = stopToRemove.stationId
-        print("🔴 [DELETE] Found stationId to remove: '\(stationIdToRemove)'")
-        print("🔴 [DELETE] Current stops count: \(line.stops.count)")
-        print("🔴 [DELETE] All stops: \(line.stops.map { $0.stationId })")
-        
-        // IMPORTANT: Create a new RailwayLine with filtered stops (Binding issue)
-        let countBefore = line.stops.count
-        let newStops = line.stops.filter { stop in
-            let shouldKeep = stop.stationId != stationIdToRemove
-            if !shouldKeep {
-                print("🔴 [DELETE] Filtering out stop with stationId: '\(stop.stationId)', id: \(stop.id)")
+    private func removeStation(at index: Int) {
+        guard index < line.stationIds.count else { return }
+        withAnimation {
+            line.stationIds.remove(at: index)
+            
+            // Update origin/destination if necessary
+            if line.stationIds.isEmpty {
+                 line.originStationId = ""
+                 line.destinationStationId = ""
+            } else {
+                 line.originStationId = line.stationIds.first ?? ""
+                 line.destinationStationId = line.stationIds.last ?? ""
             }
-            return shouldKeep
+            network.objectWillChange.send()
         }
-        
-        print("🔴 [DELETE] New stops array count: \(newStops.count)")
-        print("🔴 [DELETE] New stops: \(newStops.map { $0.stationId })")
-        
-        // Create a new RailwayLine with the filtered stops
-        var updatedLine = line
-        updatedLine.stops = newStops
-        
-        // Update origin/destination
-        if !newStops.isEmpty {
-            updatedLine.originId = newStops.first!.stationId
-            updatedLine.destinationId = newStops.last!.stationId
-        }
-        
-        // Assign the new line back to the binding
-        line = updatedLine
-        
-        let countAfter = line.stops.count
-        let removed = countBefore - countAfter
-        
-        print("🔴 [DELETE] Removed \(removed) instance(s) of station '\(stationIdToRemove)'")
-        print("🔴 [DELETE] Stops after removal: \(line.stops.map { $0.stationId })")
-        print("🔴 [DELETE] New stops count: \(line.stops.count)")
-        
-        // FORCE UPDATE: notify the network that a line has changed
-        network.objectWillChange.send()
-        print("🔴 [DELETE] Network update sent")
     }
     
     private func prepareInsert(_ stationId: String, before: Bool) {
-        print("🟢 [PREPARE] prepareInsert called")
-        print("🟢 [PREPARE] Station to link: \(stationId), before: \(before)")
-        print("🟢 [PREPARE] Current stops: \(line.stops.map { $0.stationId })")
-        
         stationToLinkTo = stationId
         isLinkingBefore = before
         showStationPicker = true
     }
     
     private func insertStation(_ newStationId: String, linkTo stationId: String, before: Bool) {
-        print("🟢 [INSERT] insertStation called")
-        print("🟢 [INSERT] New station: \(newStationId), link to: \(stationId), before: \(before)")
-        print("🟢 [INSERT] Current stops BEFORE: \(line.stops.map { $0.stationId })")
-        
         stationToLinkTo = nil
         showStationPicker = false
         
-        let node = network.nodes.first(where: { $0.id == newStationId })
-        let defaultDwell = (node?.type == .interchange) ? 5 : 3
-        let newStop = RelationStop(stationId: newStationId, minDwellTime: defaultDwell)
-        
-        var updatedLine = line
-        if before {
-            print("🟢 [INSERT] Inserting at position 0")
-            updatedLine.stops.insert(newStop, at: 0)
-        } else {
-            print("🟢 [INSERT] Appending to end")
-            updatedLine.stops.append(newStop)
-        }
-        
-        // Update origin/destination
-        if let first = updatedLine.stops.first?.stationId { updatedLine.originId = first }
-        if let last = updatedLine.stops.last?.stationId { updatedLine.destinationId = last }
-        
         withAnimation {
-            line = updatedLine
+            if before {
+                line.stationIds.insert(newStationId, at: 0)
+            } else {
+                line.stationIds.append(newStationId)
+            }
+            
+            // Update origin/destination
+            if let first = line.stationIds.first { line.originStationId = first }
+            if let last = line.stationIds.last { line.destinationStationId = last }
+            
             network.objectWillChange.send()
-            print("🟢 [INSERT] Line binding updated. Total stops now: \(line.stops.count)")
         }
     }
-
-
-struct StringIdentifiable: Identifiable {
-    let id: String
-}
-
-struct IdentifiableUUID: Identifiable {
-    let id: UUID
-}
-
-// Utility for concatenating view modifiers without a wrapper view
-struct ViewEmptyModifier: View {
-    var body: some View {
-        Color.clear.frame(width: 0, height: 0)
-    }
-}
     
     // MARK: - Intermediate Station Insertion
     
@@ -643,10 +576,12 @@ struct ViewEmptyModifier: View {
     }
     
     private func selectIntermediateStation(_ stationId: String) {
-        guard let lastStation = intermediatePath.last else { return }
+        guard let _ = intermediatePath.last else { return }
         print("➕ [INTERMEDIATE] Selected: \(stationId), current path: \(intermediatePath)")
         
-        if let targetIndex = line.stops.firstIndex(where: { $0.stationId == stationId }) {
+        if let targetIndex = line.stationIds.firstIndex(where: { $0 == stationId }),
+           let startIndex = line.stationIds.firstIndex(where: { $0 == (insertAfterStationId ?? "") }),
+           targetIndex != startIndex {
             completeIntermediateInsertion(targetStationId: stationId, targetIndex: targetIndex)
         } else {
             intermediatePath.append(stationId)
@@ -656,54 +591,38 @@ struct ViewEmptyModifier: View {
     
     private func completeIntermediateInsertion(targetStationId: String, targetIndex: Int) {
         guard let startStationId = insertAfterStationId,
-              let startIndex = line.stops.firstIndex(where: { $0.stationId == startStationId }) else {
+              let startIndex = line.stationIds.firstIndex(where: { $0 == startStationId }) else {
             print("❌ [INTERMEDIATE] Cannot find start station")
             cancelIntermediateInsertion()
             return
         }
         
-        print("✅ [INTERMEDIATE] Completing insertion")
-        print("   Start: \(startStationId) (index \(startIndex))")
-        print("   Target: \(targetStationId) (index \(targetIndex))")
-        print("   Full path: \(intermediatePath)")
-        print("   Current stops: \(line.stops.map { $0.stationId })")
-        
-        var updatedLine = line
-        
-        // Remove all stops between start and target (exclusive)
-        let removeStart = startIndex + 1
-        let removeEnd = targetIndex
-        print("   Removing stops from index \(removeStart) to \(removeEnd)")
-        if removeStart < removeEnd {
-            let removedStops = updatedLine.stops[removeStart..<removeEnd].map { $0.stationId }
-            print("   Removed stops: \(removedStops)")
-            updatedLine.stops.removeSubrange(removeStart..<removeEnd)
-        }
-        
-        // Insert intermediate stations (excluding start station only)
-        // The target station is NOT in intermediatePath, so we only drop the first (start) station
-        let intermediateStations = Array(intermediatePath.dropFirst())
-        print("   Intermediate stations to insert: \(intermediateStations)")
-        
-        var insertIndex = startIndex + 1
-        for stationId in intermediateStations {
-            let node = network.nodes.first(where: { $0.id == stationId })
-            let defaultDwell = (node?.type == .interchange) ? 5 : 3
-            let newStop = RelationStop(stationId: stationId, minDwellTime: defaultDwell)
-            print("   Inserting \(stationId) at index \(insertIndex)")
-            updatedLine.stops.insert(newStop, at: insertIndex)
-            insertIndex += 1
-        }
-        
-        print("   New stops: \(updatedLine.stops.map { $0.stationId })")
-        
         withAnimation {
-            line = updatedLine
+            // Remove all stations between start and target (exclusive)
+            let removeStart = min(startIndex, targetIndex) + 1
+            let removeEnd = max(startIndex, targetIndex)
+            
+            if removeStart < removeEnd {
+                line.stationIds.removeSubrange(removeStart..<removeEnd)
+            }
+            
+            // Insert intermediate stations (excluding start and target station)
+            let intermediateStations = Array(intermediatePath.dropFirst())
+            
+            var insertIndex = min(startIndex, targetIndex) + 1
+            for stationId in intermediateStations {
+                line.stationIds.insert(stationId, at: insertIndex)
+                insertIndex += 1
+            }
+            
+            // Update origin/destination
+            if let first = line.stationIds.first { line.originStationId = first }
+            if let last = line.stationIds.last { line.destinationStationId = last }
+            
             network.objectWillChange.send()
         }
         
         cancelIntermediateInsertion()
-        print("✅ [INTERMEDIATE] Insertion complete!")
     }
     
     private func cancelIntermediateInsertion() {

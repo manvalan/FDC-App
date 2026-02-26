@@ -398,7 +398,7 @@ struct RailwayMapView: View {
         static func prepare(
             nodes: [RailwayNode], 
             edges: [RailwayEdge], 
-            lines: [RailwayLine], 
+            lines: [TrainRoute], 
             schedules: [TrainSchedule],
             mode: MapVisualizationMode, 
             globalFontSize: Double, 
@@ -557,16 +557,16 @@ struct RailwayMapView: View {
             return visualGroups
         }
 
-        private static func generateLineDraws(nodes: [RailwayNode], lines: [RailwayLine], bounds: MapBounds, snapshotSize: CGSize) -> [LineDraw] {
+        private static func generateLineDraws(nodes: [RailwayNode], lines: [TrainRoute], bounds: MapBounds, snapshotSize: CGSize) -> [LineDraw] {
             var drawings: [LineDraw] = []
             struct SegmentKey: Hashable {
                 let from, to: String
                 init(_ a: String, _ b: String) { if a < b { from = a; to = b } else { from = b; to = a } }
             }
-            var segmentLineMap: [SegmentKey: [RailwayLine]] = [:]
-            for line in lines where line.stations.count > 1 {
-                for i in 0..<(line.stations.count - 1) {
-                    segmentLineMap[SegmentKey(line.stations[i], line.stations[i+1]), default: []].append(line)
+            var segmentLineMap: [SegmentKey: [TrainRoute]] = [:]
+            for line in lines where line.stationIds.count > 1 {
+                for i in 0..<(line.stationIds.count - 1) {
+                    segmentLineMap[SegmentKey(line.stationIds[i], line.stationIds[i+1]), default: []].append(line)
                 }
             }
             for (key, segLines) in segmentLineMap {
@@ -890,7 +890,7 @@ struct SchematicRailwayView: View {
                 lines: lines,
                 size: size,
                 bounds: bounds,
-                selectedLine: selectedLine,
+                selectedRouteId: appState.selectedRouteId,
                 selectedEdgeId: selectedEdgeId,
                 hiddenLineIds: hiddenLineIds
             )
@@ -994,7 +994,7 @@ struct SchematicRailwayView: View {
                     centerOnNode(node, size: size, bounds: bounds, proxy: proxy)
                 }
             }
-            .onChange(of: appState.selectedLineId) { _, newLineId in
+            .onChange(of: appState.selectedRouteId) { _, newLineId in
                 if let line = lines.lines.first(where: { $0.id == newLineId }) {
                     centerOnLine(line, size: size, bounds: bounds, proxy: proxy)
                 }
@@ -1101,7 +1101,7 @@ struct SchematicRailwayView: View {
                 // We'll set a flag or select a dummy object.
                 // For now, let's assume we toggle the EditMode to .createLine
                 editMode = .createLine
-                appState.selectedLineId = nil // Ensure no line is selected
+                appState.selectedRouteId = nil // Ensure no line is selected
                 appState.selectedTrainIds = []
             }
         }
@@ -1129,9 +1129,9 @@ struct SchematicRailwayView: View {
         centerOnPosition(position, canvasSize: size, proxy: proxy)
     }
 
-    private func centerOnLine(_ line: RailwayLine?, size: CGSize, bounds: MapBounds, proxy: ScrollViewProxy) {
+    private func centerOnLine(_ line: TrainRoute?, size: CGSize, bounds: MapBounds, proxy: ScrollViewProxy) {
         guard let line = line, 
-              let firstId = line.stops.first?.stationId,
+              let firstId = line.stationIds.first,
               let firstNode = network.nodes.first(where: { $0.id == firstId }) else { return }
         centerOnNode(firstNode, size: size, bounds: bounds, proxy: proxy)
     }
@@ -1495,7 +1495,7 @@ struct SchematicRailwayView: View {
                      withAnimation {
                          appState.selectedTrainIds = [schedule.trainId]
                          appState.selectedNodeId = nil
-                         appState.selectedLineId = nil
+                         appState.selectedRouteId = nil
                          appState.selectedEdgeId = nil
                          appState.showPanel(.inspector)
                      }
@@ -1611,26 +1611,26 @@ struct SchematicRailwayView: View {
         }
         
         // 3. Check Commercial Lines
-        var newSelectedLine: RailwayLine? = nil
+        var newSelectedRouteId: String? = nil
         if mode.isSchedulerMode {
             for line in lines.lines {
                 if hiddenLineIds.contains(line.id) { continue }
-                guard line.stations.count >= 2 else { continue }
-                for i in 0..<(line.stations.count - 1) {
-                    guard let n1 = network.nodes.first(where: { $0.id == line.stations[i] }),
-                          let n2 = network.nodes.first(where: { $0.id == line.stations[i+1] }) else { continue }
+                guard line.stationIds.count >= 2 else { continue }
+                for i in 0..<(line.stationIds.count - 1) {
+                    guard let n1 = network.nodes.first(where: { $0.id == line.stationIds[i] }),
+                          let n2 = network.nodes.first(where: { $0.id == line.stationIds[i+1] }) else { continue }
                     let p1 = MapGeometryEngine.finalPosition(for: n1, in: size, bounds: bounds, network: network)
                     let p2 = MapGeometryEngine.finalPosition(for: n2, in: size, bounds: bounds, network: network)
                     let points = MapGeometryEngine.generateSchematicPoints(from: p1, to: p2)
                     for j in 0..<(points.count - 1) {
                         if distanceToSegment(p: location, v: points[j], w: points[j+1]) < 35 {
-                            newSelectedLine = line
+                            newSelectedRouteId = line.id
                             break
                         }
                     }
-                    if newSelectedLine != nil { break }
+                    if newSelectedRouteId != nil { break }
                 }
-                if newSelectedLine != nil { break }
+                if newSelectedRouteId != nil { break }
             }
         }
         
@@ -1638,23 +1638,23 @@ struct SchematicRailwayView: View {
             if editMode == .addStation {
                 let newNode = createStation(at: location, in: size)
                 handleStationTap(newNode)
-            } else if let line = newSelectedLine {
-                selectedLine = line
+            } else if let routeId = newSelectedRouteId, let line = lines.lines.first(where: { $0.id == routeId }) {
+                appState.selectedRouteId = routeId
                 selectedNode = nil
                 selectedEdgeId = nil
-                appState.selectedFerroviaId = nil
-                print("🎯 [Map] Selected Line: \(line.name)")
+                appState.selectedInfraLineId = nil
+                print("🎯 [Map] Selected Route: \(line.name)")
             } else if let edgeId = newSelectedEdgeId {
                 selectedEdgeId = edgeId
                 selectedNode = nil
                 selectedLine = nil
-                appState.selectedFerroviaId = nil
+                appState.selectedInfraLineId = nil
                 print("🎯 [Map] Selected Track Segment: \(edgeId)")
             } else if editMode == .explore {
                 selectedNode = nil
                 selectedLine = nil
                 selectedEdgeId = nil
-                appState.selectedFerroviaId = nil
+                appState.selectedInfraLineId = nil
                 print("🎯 [Map] Selection Cleared")
             }
         }
@@ -2042,19 +2042,19 @@ struct InfrastructureCanvas: View {
                 guard let points = renderData.edgeGeometries[edge.id.uuidString] else { continue }
                 
                 // Highlight Ferrovia (Back)
-                if let selectedFerrovia = appState.selectedFerrovia {
-                    let stationIds = selectedFerrovia.stationIds
+                if let selectedInfraLine = appState.selectedInfraLine {
+                    let nodeIds = selectedInfraLine.nodeIds
                     var isPartOfFerrovia = false
-                    for i in 0..<(stationIds.count - 1) {
-                        let s1 = stationIds[i]
-                        let s2 = stationIds[i+1]
+                    for i in 0..<(nodeIds.count - 1) {
+                        let s1 = nodeIds[i]
+                        let s2 = nodeIds[i+1]
                         if (edge.from == s1 && edge.to == s2) || (edge.from == s2 && edge.to == s1) {
                             isPartOfFerrovia = true
                             break
                         }
                     }
                     if isPartOfFerrovia {
-                        let fColor = Color(hex: selectedFerrovia.color ?? "#000000") ?? .blue
+                        let fColor = Color(hex: selectedInfraLine.color ?? "#000000") ?? .blue
                         let path = Path { p in p.move(to: points[0]); for i in 1..<points.count { p.addLine(to: points[i]) } }
                         context.stroke(path, with: .color(fColor.opacity(0.4)), style: StrokeStyle(lineWidth: 18, lineCap: .round))
                     }

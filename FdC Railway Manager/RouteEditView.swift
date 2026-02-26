@@ -1,11 +1,11 @@
 import SwiftUI
 
-struct LineEditView: View {
+struct RouteEditView: View {
     @EnvironmentObject var appState: AppState
-    @StateObject private var vm = LineEditViewModel()
+    @StateObject private var vm = RouteEditViewModel()
     @Environment(\.dismiss) var dismiss
     
-    let lineId: String
+    let routeId: String
     
     // UI-only navigation state
     @State private var manualAddition: Bool = true
@@ -13,43 +13,47 @@ struct LineEditView: View {
     @State private var activePicker: PickerType?
     @State private var mapPickingType: PickerType?
     
-    var body: some View {
+    private var formContent: some View {
         Form {
             detailsSection
-                
-                Section(header: Text("path_composition".localized)) {
-                    PathPickerComponent(
-                        startStationId: $vm.startStationId,
-                        viaStationIds: $vm.viaStationIds,
-                        endStationId: $vm.endStationId,
-                        stationSequence: $vm.stationSequence,
-                        manualAddition: $manualAddition,
-                        activePicker: $activePicker,
-                        manualStationId: $manualStationId,
-                        lineAnalysis: vm.lineAnalysis,
-                        isAnalyzing: vm.isAnalyzingLine
-                    )
-                }
-                
-                if !vm.stationSequence.isEmpty || manualAddition {
-                    StationSequenceSection(
-                        stationSequence: $vm.stationSequence,
-                        lineColor: vm.lineColor,
-                        network: appState.railroad.network,
-                        activePicker: $activePicker,
-                        mapPickingType: $mapPickingType,
-                        suggestions: vm.getSuggestions()
-                    )
-                }
-                
-                vehicleAssignmentSection
-                
-                if let error = vm.errorMessage {
-                    Section {
-                        Text(error).foregroundColor(.red)
-                    }
+            
+            Section(header: Text("path_composition".localized)) {
+                PathPickerComponent(
+                    startStationId: $vm.startStationId,
+                    viaStationIds: $vm.viaStationIds,
+                    endStationId: $vm.endStationId,
+                    stationSequence: $vm.stationSequence,
+                    manualAddition: $manualAddition,
+                    activePicker: $activePicker,
+                    manualStationId: $manualStationId,
+                    lineAnalysis: vm.routeAnalysis,
+                    isAnalyzing: vm.isAnalyzingRoute
+                )
+            }
+            
+            if !vm.stationSequence.isEmpty || manualAddition {
+                StationSequenceSection(
+                    stationSequence: $vm.stationSequence,
+                    lineColor: vm.lineColor,
+                    network: appState.railroad.network,
+                    activePicker: $activePicker,
+                    mapPickingType: $mapPickingType,
+                    suggestions: vm.getSuggestions()
+                )
+            }
+            
+            vehicleAssignmentSection
+            
+            if let error = vm.errorMessage {
+                Section {
+                    Text(error).foregroundColor(.red)
                 }
             }
+        }
+    }
+    
+    var body: some View {
+        formContent
             .safeAreaInset(edge: .bottom) {
                 if !vm.stationSequence.isEmpty {
                     suggestionsOverlay
@@ -66,11 +70,11 @@ struct LineEditView: View {
                             dismiss()
                         }
                     }
-                    .disabled(vm.lineName.isEmpty || vm.stationSequence.count < 2)
+                    .disabled(vm.routeName.isEmpty || vm.stationSequence.count < 2)
                 }
             }
             .onAppear {
-                vm.setup(lineId: lineId, appState: appState)
+                vm.setup(routeId: routeId, appState: appState)
             }
             .onChange(of: manualStationId) { old, new in
                 if !new.isEmpty {
@@ -124,8 +128,8 @@ struct LineEditView: View {
     }
     
     private var detailsSection: some View {
-        Section(header: Text("line_details".localized)) {
-            TextField("line_name_placeholder".localized, text: $vm.lineName)
+        Section(header: Text("route_details".localized)) {
+            TextField("route_name_placeholder".localized, text: $vm.routeName)
             
             if appState.currentMode != .design {
                 TextField("code_prefix_placeholder".localized, text: $vm.codePrefix)
@@ -158,7 +162,7 @@ struct LineEditView: View {
                     }
                 }
             }
-            ColorPicker("Colore Linea", selection: $vm.lineColor, supportsOpacity: false)
+            ColorPicker("Colore Rotta", selection: $vm.lineColor, supportsOpacity: false)
                 
             Section(header: Text("capolinea_e_binari".localized)) {
                 if let startNode = appState.railroad.network.nodes.first(where: { $0.id == vm.stationSequence.first }) {
@@ -199,7 +203,7 @@ struct LineEditView: View {
     private var vehicleAssignmentSection: some View {
         Section(header: Text("materiale_rotabile".localized)) {
             Button(action: {
-                vm.lines.autoAssignRollingStock(for: lineId)
+                vm.lines.autoAssignRollingStock(for: routeId)
             }) {
                 Label("Ottimizza Assegnazione Mezzi", systemImage: "sparkles.rectangle.stack")
             }
@@ -208,7 +212,7 @@ struct LineEditView: View {
                 .font(.caption2)
                 .foregroundColor(.secondary)
             
-            let assignedVehicleIds = Set(vm.lines.trains.filter { $0.lineId == lineId }.compactMap { $0.vehicleId })
+            let assignedVehicleIds = Set(vm.lines.trains.filter { $0.routeId == routeId }.compactMap { $0.vehicleId })
             let assignedVehicles = vm.lines.vehicles.filter { assignedVehicleIds.contains($0.id) }
             
             if !assignedVehicles.isEmpty {
@@ -216,7 +220,7 @@ struct LineEditView: View {
                 Text("Mezzi Attualmente Assegnati:").font(.caption.bold())
                 
                 ForEach(assignedVehicles) { vehicle in
-                    let count = vm.lines.trains.filter { $0.lineId == lineId && $0.vehicleId == vehicle.id }.count
+                    let count = vm.lines.trains.filter { $0.routeId == routeId && $0.vehicleId == vehicle.id }.count
                     HStack {
                         Image(systemName: "train.side.front.car")
                             .foregroundColor(.purple)

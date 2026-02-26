@@ -7,18 +7,17 @@ final class AIManager: ObservableObject {
     weak var railroad: RailroadNetwork?
     
     @Published var isAnalyzing = false
-    @Published var lastAnalysis: RailwayAIService.LineAnalysis?
+    @Published var lastAnalysis: RailwayAIService.RouteAnalysis?
     
-    func analyzeLine(_ line: RailwayLine) async {
+    func analyzeRoute(_ route: TrainRoute) async {
         guard let railroad = railroad else { return }
         isAnalyzing = true
         defer { isAnalyzing = false }
         
         do {
-            let stationIds = line.stops.map { $0.stationId }
-            let result = try await RailwayAIService.shared.analyzeLine(
-                name: line.name,
-                stationIds: stationIds,
+            let result = try await RailwayAIService.shared.analyzeRoute(
+                name: route.name,
+                stationIds: route.stationIds,
                 nodes: railroad.network.nodes,
                 edges: railroad.network.edges
             )

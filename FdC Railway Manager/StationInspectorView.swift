@@ -236,7 +236,7 @@ struct StationInspectorView: View {
                 } else {
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(station.routingConstraints.prefix(3)) { constraint in
-                            let lineName = lines.lines.first(where: { $0.id == constraint.lineId })?.name ?? "???"
+                            let lineName = lines.routes.first(where: { $0.id == constraint.routeId })?.name ?? "???"
                             Text("• \(lineName): [\(constraint.allowedTracks.joined(separator: ", "))]")
                                 .font(.caption)
                         }
@@ -299,19 +299,19 @@ struct StationInspectorView: View {
                         Section(header: Text(String(format: "connection_to".localized, group.name)).font(.caption.bold()).foregroundColor(.blue)) {
                             ForEach(group.lines) { line in
                                 let dirId: String? = (group.id == "terminus" ? nil : group.id)
-                                RoutingLineRow(
-                                    line: line,
+                            RoutingLineRow(
+                                    route: line,
                                     allowedTracks: Binding(
-                                        get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == dirId }?.allowedTracks ?? [] },
-                                        set: { updateTracks(lineId: line.id, directionId: dirId, tracks: $0, type: .allowed) }
+                                        get: { localConstraints.first { $0.routeId == line.id && $0.directionStationId == dirId }?.allowedTracks ?? [] },
+                                        set: { updateTracks(routeId: line.id, directionId: dirId, tracks: $0, type: .allowed) }
                                     ),
                                     transitTracks: Binding(
-                                        get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == dirId }?.transitTracks ?? [] },
-                                        set: { updateTracks(lineId: line.id, directionId: dirId, tracks: $0, type: .transit) }
+                                        get: { localConstraints.first { $0.routeId == line.id && $0.directionStationId == dirId }?.transitTracks ?? [] },
+                                        set: { updateTracks(routeId: line.id, directionId: dirId, tracks: $0, type: .transit) }
                                     ),
                                     stopTracks: Binding(
-                                        get: { localConstraints.first { $0.lineId == line.id && $0.directionStationId == dirId }?.stopTracks ?? [] },
-                                        set: { updateTracks(lineId: line.id, directionId: dirId, tracks: $0, type: .stop) }
+                                        get: { localConstraints.first { $0.routeId == line.id && $0.directionStationId == dirId }?.stopTracks ?? [] },
+                                        set: { updateTracks(routeId: line.id, directionId: dirId, tracks: $0, type: .stop) }
                                     ),
                                     totalPlatforms: station.platforms ?? 2
                                 )
@@ -336,22 +336,22 @@ struct StationInspectorView: View {
     private struct DirectionGroup: Identifiable {
         let id: String
         let name: String
-        let lines: [RailwayLine]
+        let lines: [TrainRoute]
     }
     
     private var directionGroups: [DirectionGroup] {
-        let stationLines = lines.lines.filter { line in
-            line.stops.contains { $0.stationId == station.id }
+        let stationLines = lines.routes.filter { line in
+            line.stationIds.contains { $0 == station.id }
         }
         
         var groupsMap: [String: Set<String>] = [:]
         
         for line in stationLines {
-            let neighborIds = line.stops.enumerated().flatMap { (idx, stop) -> [String] in
-                guard stop.stationId == station.id else { return [] }
+            let neighborIds = line.stationIds.enumerated().flatMap { (idx, sId) -> [String] in
+                guard sId == station.id else { return [] }
                 var result: [String] = []
-                if idx > 0 { result.append(line.stops[idx - 1].stationId) }
-                if idx < line.stops.count - 1 { result.append(line.stops[idx + 1].stationId) }
+                if idx > 0 { result.append(line.stationIds[idx - 1]) }
+                if idx < line.stationIds.count - 1 { result.append(line.stationIds[idx + 1]) }
                 return result
             }
             
@@ -371,7 +371,7 @@ struct StationInspectorView: View {
             } else {
                 name = network.nodes.first(where: { $0.id == key })?.name ?? key
             }
-            let groupLines = lines.lines.filter { lineIds.contains($0.id) }.sorted { $0.name < $1.name }
+            let groupLines = lines.routes.filter { lineIds.contains($0.id) }.sorted { $0.name < $1.name }
             return DirectionGroup(id: key, name: name, lines: groupLines)
         }.sorted { $0.name < $1.name }
     }
@@ -380,8 +380,8 @@ struct StationInspectorView: View {
         case allowed, transit, stop
     }
     
-    private func updateTracks(lineId: String, directionId: String?, tracks: [String], type: TrackConfigType) {
-        if let idx = localConstraints.firstIndex(where: { $0.lineId == lineId && $0.directionStationId == directionId }) {
+    private func updateTracks(routeId: String, directionId: String?, tracks: [String], type: TrackConfigType) {
+        if let idx = localConstraints.firstIndex(where: { $0.routeId == routeId && $0.directionStationId == directionId }) {
             switch type {
             case .allowed: localConstraints[idx].allowedTracks = tracks
             case .transit: localConstraints[idx].transitTracks = tracks
@@ -393,7 +393,7 @@ struct StationInspectorView: View {
                 localConstraints.remove(at: idx)
             }
         } else if !tracks.isEmpty {
-            var newC = RoutingConstraint(lineId: lineId, directionStationId: directionId, allowedTracks: [])
+            var newC = RoutingConstraint(routeId: routeId, directionStationId: directionId, allowedTracks: [])
             switch type {
             case .allowed: newC.allowedTracks = tracks
             case .transit: newC.transitTracks = tracks

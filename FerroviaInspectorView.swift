@@ -15,10 +15,10 @@ struct FerroviaInspectorView: View {
         InspectorView(
             title: ferrovia.name,
             icon: "line.3.horizontal",
-            iconColor: ferrovia.uiColor,
+            iconColor: ferrovia.displayColor,
             onBack: onBack,
             onClose: {
-                appState.selectedFerroviaId = nil
+                appState.selectedInfraLineId = nil
                 appState.showPanel(.none)
             }
         ) {
@@ -79,7 +79,7 @@ struct FerroviaInspectorView: View {
     private var routeSection: some View {
         InspectorSection(title: "route_path".localized, icon: "point.topleft.down.curvedto.point.bottomright.up", iconColor: .orange) {
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(ferrovia.stationIds, id: \.self) { stationId in
+                ForEach(ferrovia.nodeIds, id: \.self) { stationId in
                     if let node = network.nodes.first(where: { $0.id == stationId }) {
                         HStack(spacing: 12) {
                             // Use NetworkSymbols for consistent station display
@@ -103,7 +103,7 @@ struct FerroviaInspectorView: View {
                     }
                 }
                 
-                if ferrovia.stationIds.isEmpty {
+                if ferrovia.nodeIds.isEmpty {
                     Text("no_stations_in_ferrovia".localized)
                         .font(.caption)
                         .foregroundColor(.secondary)

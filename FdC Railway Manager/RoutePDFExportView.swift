@@ -1,10 +1,10 @@
 import SwiftUI
 
 struct LinePDFExportView: View {
-    let line: RailwayLine
-    let orderedStations: [Node]
+    let route: TrainRoute
+    let orderedStations: [RailwayNode]
     let trains: [Train]
-    let network: RailwayNetwork
+    let network: NetworkModel
     
     var body: some View {
         VStack(spacing: 40) {
@@ -12,7 +12,7 @@ struct LinePDFExportView: View {
             VStack(spacing: 8) {
                 Text("ORARIO FERROVIARIO")
                     .font(.title.bold())
-                Text("Linea: \(line.name)")
+                Text("Linea: \(route.name)")
                     .font(.title2)
                 Text("Generato il: \(Date().formatted())")
                     .font(.caption)
@@ -36,7 +36,7 @@ struct LinePDFExportView: View {
         .foregroundColor(.black)
     }
     
-    private func timetableSection(title: String, stations: [Node], isReturn: Bool) -> some View {
+    private func timetableSection(title: String, stations: [RailwayNode], isReturn: Bool) -> some View {
         VStack(alignment: .leading, spacing: 15) {
             Text(title)
                 .font(.headline)
@@ -93,7 +93,7 @@ struct LinePDFExportView: View {
     }
     
     private func filterTrains(isReturn: Bool) -> [Train] {
-        let lineTrains = trains.filter { $0.lineId == line.id }
+        let lineTrains = trains.filter { $0.routeId == route.id }
         
         let filtered = lineTrains.filter { train in
             guard train.stops.count >= 2 else { return false }

@@ -28,7 +28,7 @@ final class InfrastructureService {
         // Valida il percorso
         switch validateFerroviaPath(stationIds) {
         case .success:
-            let ferrovia = Ferrovia(name: name, color: color, stationIds: stationIds, electrification: electrification)
+            let ferrovia = Ferrovia(name: name, color: color, nodeIds: stationIds, electrification: electrification)
             // Propagate electrification to nodes and edges immediately
             propagateElectrification(to: ferrovia)
             return .success(ferrovia)
@@ -40,16 +40,16 @@ final class InfrastructureService {
     /// Propaga il tipo di elettrificazione della ferrovia a tutti i nodi e binari che ne fanno parte
     func propagateElectrification(to ferrovia: Ferrovia) {
         // 1. Update nodes
-        for stationId in ferrovia.stationIds {
+        for stationId in ferrovia.nodeIds {
             if let nodeIdx = network.nodes.firstIndex(where: { $0.id == stationId }) {
                 network.nodes[nodeIdx].electrification = ferrovia.electrification
             }
         }
         
         // 2. Update edges (including junctions between stations)
-        for i in 0..<ferrovia.stationIds.count - 1 {
-            let fromId = ferrovia.stationIds[i]
-            let toId = ferrovia.stationIds[i + 1]
+        for i in 0..<ferrovia.nodeIds.count - 1 {
+            let fromId = ferrovia.nodeIds[i]
+            let toId = ferrovia.nodeIds[i + 1]
             
             if let pathResult = findPath(from: fromId, to: toId) {
                 // All nodes in the path (including junctions)
@@ -112,7 +112,7 @@ final class InfrastructureService {
     
     /// Ottiene tutte le proprietà calcolate di una ferrovia
     func getFerroviaProperties(_ ferroviaId: String) -> FerroviaProperties? {
-        guard let ferrovia = network.ferrovie.first(where: { $0.id == ferroviaId }) else {
+        guard let ferrovia = network.lines.first(where: { $0.id == ferroviaId }) else {
             return nil
         }
         
@@ -121,13 +121,13 @@ final class InfrastructureService {
     
     /// Ottiene le proprietà calcolate di una ferrovia data
     func getFerroviaProperties(ferrovia: Ferrovia) -> FerroviaProperties {
-        let nodes = ferrovia.stationIds.compactMap { id in
+        let nodes = ferrovia.nodeIds.compactMap { id in
             network.nodes.first(where: { $0.id == id })
         }
         
-        let totalDistance = calculateTotalDistance(path: ferrovia.stationIds)
-        let altitudeProfile = buildAltitudeProfile(path: ferrovia.stationIds)
-        let segments = buildFerroviaSegments(path: ferrovia.stationIds)
+        let totalDistance = calculateTotalDistance(path: ferrovia.nodeIds)
+        let altitudeProfile = buildAltitudeProfile(path: ferrovia.nodeIds)
+        let segments = buildFerroviaSegments(path: ferrovia.nodeIds)
         
         let stationCount = nodes.filter { $0.type == .station || $0.type == .interchange }.count
         let junctionCount = altitudeProfile.filter { !$0.isStation }.count

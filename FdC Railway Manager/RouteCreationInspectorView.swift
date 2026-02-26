@@ -3,10 +3,10 @@ import SwiftUI
 import UIKit
 #endif
 
-struct LineCreationInspectorView: View {
-    @EnvironmentObject var network: RailwayNetwork
+struct RouteCreationInspectorView: View {
+    @EnvironmentObject var network: NetworkModel
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var trainManager: TrainManager
+    @EnvironmentObject var trainManager: LinesManager
 
     @State private var lineName: String = ""
     @State private var codePrefix: String = ""
@@ -31,7 +31,7 @@ struct LineCreationInspectorView: View {
             }
         }
         .onAppear {
-            suggestColorForLine()
+            suggestColorForRoute()
         }
     }
 
@@ -183,8 +183,8 @@ struct LineCreationInspectorView: View {
     private var detailsFormView: some View {
         ScrollView {
             VStack(spacing: 24) {
-                InspectorSection(title: "Dettagli Linea", icon: "pencil", iconColor: .blue) {
-                    InspectorTextField(label: "Nome linea", text: $lineName, placeholder: "es. Milano-Roma")
+                InspectorSection(title: "Dettagli Rotta", icon: "pencil", iconColor: .blue) {
+                    InspectorTextField(label: "Nome rotta", text: $lineName, placeholder: "es. Milano-Roma")
                     
                     InspectorTextField(label: "Prefisso codice", text: $codePrefix, placeholder: "es. IC")
                     
@@ -197,7 +197,7 @@ struct LineCreationInspectorView: View {
                             .keyboardType(.numberPad)
                     }
                     
-                    ColorPicker("Colore linea", selection: $lineColor)
+                    ColorPicker("Colore rotta", selection: $lineColor)
                         .padding(.vertical, 4)
                 }
                 
@@ -229,10 +229,10 @@ struct LineCreationInspectorView: View {
                 }
                 
                 VStack(spacing: 12) {
-                        Button(action: saveLine) {
+                        Button(action: saveRoute) {
                         HStack {
                             Image(systemName: "checkmark.circle.fill")
-                            Text("Salva Linea")
+                            Text("Salva Rotta")
                                 .font(.headline)
                         }
                         .frame(maxWidth: .infinity)
@@ -255,7 +255,7 @@ struct LineCreationInspectorView: View {
             .padding()
         }
         .onAppear {
-            suggestColorForLine()
+            suggestColorForRoute()
         }
     }
 
@@ -274,21 +274,21 @@ struct LineCreationInspectorView: View {
     }
 
 
-    private func suggestColorForLine() {
-        // Analizza le stazioni coinvolte per trovare linee simili
+    private func suggestColorForRoute() {
+        // Analizza le stazioni coinvolte per trovare rotte simili
         let firstStation = appState.lineDraftStations.first ?? ""
         let lastStation = appState.lineDraftStations.last ?? ""
         
-        // Trova linee che condividono stazioni simili
-        let similarLines = trainManager.lines.filter { line in
-            let hasCommonOrigin = line.originId == firstStation || line.destinationId == firstStation
-            let hasCommonDestination = line.originId == lastStation || line.destinationId == lastStation
-            let sharesStations = line.stops.contains { appState.lineDraftStations.contains($0.stationId) }
+        // Trova rotte che condividono stazioni simili
+        let similarRoutes = trainManager.routes.filter { route in
+            let hasCommonOrigin = route.originStationId == firstStation || route.destinationStationId == firstStation
+            let hasCommonDestination = route.originStationId == lastStation || route.destinationStationId == lastStation
+            let sharesStations = route.stationIds.contains { appState.lineDraftStations.contains($0) }
             return hasCommonOrigin || hasCommonDestination || sharesStations
         }
         
-        if let mostSimilarLine = similarLines.first,
-           let hexColor = mostSimilarLine.color,
+        if let mostSimilarRoute = similarRoutes.first,
+           let hexColor = mostSimilarRoute.color,
            let baseColor = Color(hex: hexColor) {
             // Genera una variazione del colore
             lineColor = generateSimilarColor(from: baseColor)
@@ -319,8 +319,8 @@ struct LineCreationInspectorView: View {
     }
     
     private func generateDistinctColor() -> Color {
-        // Genera un colore distinto dalle linee esistenti
-        let existingColors = trainManager.lines.compactMap { $0.color }.compactMap { Color(hex: $0) }
+        // Genera un colore distinto dalle rotte esistenti
+        let existingColors = trainManager.routes.compactMap { $0.color }.compactMap { Color(hex: $0) }
         
         // Palette di colori base ben distinti
         let baseHues: [CGFloat] = [
@@ -360,37 +360,29 @@ struct LineCreationInspectorView: View {
         return Color(UIColor(hue: bestHue, saturation: 0.7, brightness: 0.8, alpha: 1.0))
     }
 
-    private func saveLine() {
-        print("💾 [saveLine] Starting to save line")
+    private func saveRoute() {
+        print("💾 [saveRoute] Starting to save route")
         print("   Draft stations count: \(appState.lineDraftStations.count)")
         print("   Draft stations: \(appState.lineDraftStations)")
         
         let hexColor = lineColor.toHex()
-        let stops = appState.lineDraftStations.map { sid -> RelationStop in
-            let node = network.nodes.first(where: { $0.id == sid })
-            let defaultDwell = (node?.type == .interchange) ? 5 : 3
-            return RelationStop(stationId: sid, minDwellTime: defaultDwell)
-        }
         
-        print("   Created \(stops.count) stops")
-
-        let newLine = RailwayLine(
+        let newRoute = TrainRoute(
             id: UUID().uuidString,
             name: lineName,
             color: hexColor,
-            originId: appState.lineDraftStations.first ?? "",
-            destinationId: appState.lineDraftStations.last ?? "",
-            stops: stops,
-            codePrefix: codePrefix.isEmpty ? nil : codePrefix,
-            numberPrefix: numberPrefix == 0 ? nil : numberPrefix,
-            cadenceFrequency: cadenceFrequency
+            originStationId: appState.lineDraftStations.first ?? "",
+            destinationStationId: appState.lineDraftStations.last ?? "",
+            stationIds: appState.lineDraftStations,
+            serviceCodePrefix: codePrefix.isEmpty ? nil : codePrefix,
+            numberPrefix: numberPrefix == 0 ? nil : numberPrefix
         )
         
-        print("   Line '\(newLine.name)' created with \(newLine.stops.count) stops")
-        print("   Origin: \(newLine.originId), Destination: \(newLine.destinationId)")
+        print("   Route '\(newRoute.name)' created with \(newRoute.stationIds.count) stations")
+        print("   Origin: \(newRoute.originStationId), Destination: \(newRoute.destinationStationId)")
 
-        trainManager.lines.append(newLine)
-        print("   Line added to trainManager, total lines: \(trainManager.lines.count)")
+        trainManager.routes.append(newRoute)
+        print("   Route added to trainManager, total routes: \(trainManager.routes.count)")
 
         // Cleanup
         appState.isCreatingLine = false

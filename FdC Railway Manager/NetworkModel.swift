@@ -8,7 +8,10 @@ final class NetworkModel: ObservableObject {
     @Published var name: String = "My Network"
     @Published var nodes: [Node] = []
     @Published var edges: [Edge] = []
-    @Published var ferrovie: [Ferrovia] = []
+    /// Physical infrastructure lines (ex `ferrovie`).
+    @Published var lines: [RailwayLine] = []
+    /// Service-route templates used for schedule creation (ex `lines`).
+    @Published var routes: [TrainRoute] = []
     
     /// Global system owner
     weak var owner: RailroadNetwork?
@@ -25,8 +28,12 @@ final class NetworkModel: ObservableObject {
         }
     }
     
-    var sortedFerrovie: [Ferrovia] {
-        ferrovie.sorted { $0.name < $1.name }
+    var sortedLines: [RailwayLine] {
+        lines.sorted { $0.name < $1.name }
+    }
+    
+    var sortedRoutes: [TrainRoute] {
+        routes.sorted { $0.name < $1.name }
     }
     
     init(nodes: [Node] = [], edges: [Edge] = []) {
@@ -245,9 +252,9 @@ final class NetworkModel: ObservableObject {
     func undo() { owner?.undo() }
     func redo() { owner?.redo() }
     
-    func isTrackAllowed(stationId: String, track: String?, lineId: String, prevStationId: String?, nextStationId: String?) -> Bool {
+    func isTrackAllowed(stationId: String, track: String?, routeId: String, prevStationId: String?, nextStationId: String?) -> Bool {
         guard let node = findNode(id: stationId) else { return true }
-        return node.isTrackAllowed(track: track, lineId: lineId, prevStationId: prevStationId, nextStationId: nextStationId)
+        return node.isTrackAllowed(track: track, routeId: routeId, prevStationId: prevStationId, nextStationId: nextStationId)
     }
     
     func getConnectedNodeIds(for nodeId: String) -> [String] {

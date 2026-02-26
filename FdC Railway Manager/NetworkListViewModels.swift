@@ -103,7 +103,7 @@ struct FerroviaListViewModel {
     let appState: AppState
 
     var items: [Ferrovia] {
-        network.ferrovie
+        network.lines
     }
 
     func searchText(for ferrovia: Ferrovia) -> String {
@@ -112,13 +112,13 @@ struct FerroviaListViewModel {
 
     func onSelect(_ ferrovia: Ferrovia) {
         // Select ferrovia and highlight stations on map
-        appState.selectedFerroviaId = ferrovia.id
-        appState.selectedNodeIds = Set(ferrovia.stationIds)
-        appState.selectedNodeIdsOrder = ferrovia.stationIds
+        appState.selectedInfraLineId = ferrovia.id
+        appState.selectedNodeIds = Set(ferrovia.nodeIds)
+        appState.selectedNodeIdsOrder = ferrovia.nodeIds
         // Clear other selections
         appState.selectedNodeId = nil
         appState.selectedEdgeId = nil
-        appState.selectedLineId = nil
+        appState.selectedRouteId = nil
     }
 
     func onAdd() {
@@ -127,16 +127,16 @@ struct FerroviaListViewModel {
     }
 
     func onDelete(_ ferrovia: Ferrovia) {
-        network.ferrovie.removeAll { $0.id == ferrovia.id }
-        if appState.selectedFerroviaId == ferrovia.id {
-            appState.selectedFerroviaId = nil
+        network.lines.removeAll { $0.id == ferrovia.id }
+        if appState.selectedInfraLineId == ferrovia.id {
+            appState.selectedInfraLineId = nil
         }
         network.createCheckpoint()
     }
 
     func onDeleteAll() {
-        network.ferrovie.removeAll()
-        appState.selectedFerroviaId = nil
+        network.lines.removeAll()
+        appState.selectedInfraLineId = nil
         network.createCheckpoint()
     }
 }

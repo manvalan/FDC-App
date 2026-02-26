@@ -1,61 +1,61 @@
 import SwiftUI
 
 @MainActor
-struct LinesListView: View {
+struct RoutesListView: View {
     @ObservedObject var network: NetworkModel
     @ObservedObject var lines: LinesManager
-    @Binding var selectedLine: RailwayLine?
+    @Binding var selectedRoute: TrainRoute?
     @State private var showCreate = false
-    @State private var editingLineId: String? = nil
+    @State private var editingRouteId: String? = nil
     
     var body: some View {
         FdCEntityList(
             title: "lines".localized,
-            items: lines.sortedLines,
+            items: lines.sortedRoutes,
             selectedItemId: Binding(
-                get: { selectedLine?.id },
+                get: { selectedRoute?.id },
                 set: { _ in }
             ),
-            rowContent: { line in
+            rowContent: { route in
                 HStack {
                     Circle()
-                        .fill(Color(hex: line.color ?? "#007AFF") ?? .blue)
+                        .fill(Color(hex: route.color ?? "#007AFF") ?? .blue)
                         .frame(width: 10, height: 10)
-                    Text(line.name)
+                    Text(route.name)
                         .font(.subheadline)
                     Spacer()
-                    Text("\(line.stops.count) fermate")
+                    Text("\(route.stationIds.count) fermate")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
             },
             searchText: { $0.name },
-            onSelect: { line in editingLineId = line.id },
+            onSelect: { route in editingRouteId = route.id },
             onAdd: { showCreate = true },
-            onDelete: { line in
-                if let idx = lines.lines.firstIndex(where: { $0.id == line.id }) {
-                    lines.lines.remove(at: idx)
-                    if selectedLine?.id == line.id { selectedLine = nil }
+            onDelete: { route in
+                if let idx = lines.routes.firstIndex(where: { $0.id == route.id }) {
+                    lines.routes.remove(at: idx)
+                    if selectedRoute?.id == route.id { selectedRoute = nil }
                 }
                 lines.createCheckpoint()
             },
             onDeleteAll: {
-                lines.lines.removeAll()
+                lines.routes.removeAll()
                 lines.trains.removeAll()
-                selectedLine = nil
+                selectedRoute = nil
                 lines.createCheckpoint()
             }
         )
         .sheet(isPresented: $showCreate) {
-            LineCreationView()
+            RouteCreationView()
                 .presentationDetents([.height(180), .medium, .large])
                 .presentationBackgroundInteraction(.enabled)
         }
         .sheet(item: Binding(
-            get: { editingLineId.map { IdentifiableString(id: $0) } },
-            set: { editingLineId = $0?.id }
+            get: { editingRouteId.map { IdentifiableString(id: $0) } },
+            set: { editingRouteId = $0?.id }
         )) { ident in
-            LineEditView(lineId: ident.id)
+            RouteEditView(routeId: ident.id)
         }
     }
 }

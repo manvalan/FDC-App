@@ -3,7 +3,7 @@ import Combine
 
 struct LineTableView: View {
     @EnvironmentObject var appState: AppState
-    let line: RailwayLine
+    let line: TrainRoute
     
     // Data passed from parent
     let orderedStations: [Node]
@@ -18,7 +18,7 @@ struct LineTableView: View {
     // Computed Properties for real-time reactivity
     private var sortedTrains: [Train] {
         appState.railroad.lines.trains
-            .filter { $0.lineId == line.id }
+            .filter { $0.routeId == line.id }
             .sorted { (t1, t2) in
                 (t1.departureTime ?? .distantPast) < (t2.departureTime ?? .distantPast)
             }
@@ -218,14 +218,14 @@ struct LineTableView: View {
                                 Divider()
                                 Text("SUGGERIMENTI:").font(.system(size: 10, weight: .black)).foregroundColor(.blue)
                                 
-                                ForEach(trainsToFix) { train in
+                                ForEach(trainsToFix, id: \.id) { train in
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text("Sposta \(train.name) su:").font(.caption).bold()
                                         
                                         let stopIdx = train.stops.firstIndex(where: { $0.stationId == sid }) ?? 0
                                         let prevSid = stopIdx > 0 ? train.stops[stopIdx - 1].stationId : nil
                                         let nextSid = stopIdx < train.stops.count - 1 ? train.stops[stopIdx + 1].stationId : nil
-                                        let suggested = node.getTracksByProvenance(from: prevSid, nextStationId: nextSid, forLine: train.lineId)
+                                        let suggested = node.getTracksByProvenance(from: prevSid, nextStationId: nextSid, forRoute: train.routeId)
                                         let currentTrack = train.stops[stopIdx].track ?? "1"
                                         
                                         ScrollView(.horizontal, showsIndicators: false) {
@@ -279,7 +279,7 @@ struct LineTableView: View {
     // MARK: - Actions
     
     private func deleteAllLineTrains() {
-        appState.railroad.lines.trains.removeAll { $0.lineId == line.id }
+        appState.railroad.lines.trains.removeAll { $0.routeId == line.id }
         appState.railroad.lines.validateSchedules()
     }
     

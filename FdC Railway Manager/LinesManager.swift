@@ -2,11 +2,11 @@ import Foundation
 import Combine
 import SwiftUI
 
-/// Operations: Gestione operativa di Linee e Treni.
+/// Operations: Gestione operativa di Relazioni (percorsi) e Treni.
 /// Responsabile della validazione degli orari e del rilevamento conflitti.
 @MainActor
 public final class LinesManager: ObservableObject {
-    @Published var lines: [RailwayLine] = [] {
+    @Published var routes: [TrainRoute] = [] {
         didSet { validateSchedules() }
     }
     @Published var trains: [RailwayTrain] = [] {
@@ -19,13 +19,19 @@ public final class LinesManager: ObservableObject {
     private var isValidating = false
     var onSchedulesChanged: (() -> Void)?
     
-    var sortedLines: [RailwayLine] {
-        lines.sorted { l1, l2 in
-            let p1 = l1.numberPrefix ?? 9999
-            let p2 = l2.numberPrefix ?? 9999
+    var sortedRoutes: [TrainRoute] {
+        routes.sorted { r1, r2 in
+            let p1 = r1.numberPrefix ?? 9999
+            let p2 = r2.numberPrefix ?? 9999
             if p1 != p2 { return p1 < p2 }
-            return l1.name < l2.name
+            return r1.name < r2.name
         }
+    }
+    
+    /// Backward compat alias — prefer `routes`.
+    var lines: [TrainRoute] {
+        get { routes }
+        set { routes = newValue }
     }
     
     unowned var network: NetworkModel
@@ -48,20 +54,23 @@ public final class LinesManager: ObservableObject {
     
     // MARK: - Queries
     
-    func findLine(id: String?) -> RailwayLine? {
-        lines.first(where: { $0.id == id })
+    func findRoute(id: String?) -> TrainRoute? {
+        routes.first(where: { $0.id == id })
     }
     
-    func trains(for line: RailwayLine) -> [Train] {
-        trains.filter { $0.lineId == line.id }
+    /// Backward compat alias — prefer `findRoute(id:)`.
+    func findLine(id: String?) -> TrainRoute? { findRoute(id: id) }
+    
+    func trains(for route: TrainRoute) -> [Train] {
+        trains.filter { $0.routeId == route.id }
     }
     
-    func trains(for lineId: String) -> [Train] {
-        trains.filter { $0.lineId == lineId }
+    func trains(for routeId: String) -> [Train] {
+        trains.filter { $0.routeId == routeId }
     }
     
     var unassignedTrains: [Train] {
-        trains.filter { $0.lineId == nil }
+        trains.filter { $0.routeId == nil }
     }
     
     func getVehicleConflicts(for vehicleId: UUID) -> [VehicleConflict] {
@@ -94,23 +103,22 @@ public final class LinesManager: ObservableObject {
     
     // MARK: - Operations
     
-    func autoAssignRollingStock(for lineId: String) {
-        guard let line = findLine(id: lineId) else { return }
+    func autoAssignRollingStock(for routeId: String) {
+        guard let route = findRoute(id: routeId) else { return }
         
-        // 1. Setup: Identifica flotta e treni
-        let dedicatedFleetIds = Set(trains.filter { $0.lineId == lineId }.compactMap { $0.vehicleId })
+        let dedicatedFleetIds = Set(trains.filter { $0.routeId == routeId }.compactMap { $0.vehicleId })
         let dedicatedFleet = vehicles.filter { dedicatedFleetIds.contains($0.id) }
         let otherFleet = vehicles.filter { !dedicatedFleetIds.contains($0.id) }
         
-        // Ordiniamo i treni per orario di partenza
         var localTrains = self.trains
-        let lineTrainsIndices = localTrains.indices.filter { localTrains[$0].lineId == lineId && localTrains[$0].departureTime != nil }
+        let routeTrainIndices = localTrains.indices
+            .filter { localTrains[$0].routeId == routeId && localTrains[$0].departureTime != nil }
             .sorted { (localTrains[$0].departureTime ?? Date.distantPast) < (localTrains[$1].departureTime ?? Date.distantPast) }
         
-        if lineTrainsIndices.isEmpty { return }
+        if routeTrainIndices.isEmpty { return }
         
-        // 2. Reset: Rimuove assegnazioni precedenti per questa linea
-        for i in lineTrainsIndices {
+        // Reset previous vehicle assignments for this route
+        for i in routeTrainIndices {
             localTrains[i].vehicleId = nil
         }
         
@@ -121,28 +129,24 @@ public final class LinesManager: ObservableObject {
         
         // Helper per determinare il binario di attestamento stabile
         func getStableTerminalTrack(stationId: String) -> String {
-            if let prefs = line.terminalTracks[stationId] { return prefs }
-            
-            // PIGNOLO: Check routing constraints for departure direction
-            let nextId = line.stations.first(where: { $0 != stationId }) // Simple heuristic for terminus
-            let best = getBestTrack(stationId: stationId, directionId: nextId, lineId: line.id)
+            let nextId = route.stationIds.first(where: { $0 != stationId })
+            let best = getBestTrack(stationId: stationId, directionId: nextId, routeId: route.id)
             if best != "1" { return best }
-            
             let stationNode = network.nodes.first(where: { $0.id == stationId })
             let platformCount = stationNode?.platforms ?? 2
-            let lineInt = line.numberPrefix ?? 1
-            let trackNum = (lineInt % platformCount) + 1
-            return "\(trackNum)"
+            let lineInt = route.numberPrefix ?? 1
+            return "\((lineInt % platformCount) + 1)"
         }
         
-        for idx in lineTrainsIndices {
+        for idx in routeTrainIndices {
             let train = localTrains[idx]
             guard let depTime = train.departureTime,
                   let startStation = train.stops.first?.stationId,
                   let endStation = train.stops.last?.stationId else { continue }
             
             // A. Trova veicolo disponibile
-            let isLineElectrified = InfrastructureService(network: network).checkPathElectrification(stationIds: line.stops.map { $0.stationId })
+            let isLineElectrified = InfrastructureService(network: network)
+                .checkPathElectrification(stationIds: route.stationIds)
             
             let vid = findBestVehicleCandidate(
                 for: train,
@@ -164,7 +168,7 @@ public final class LinesManager: ObservableObject {
                     depTime: depTime,
                     fleetStatus: &fleetStatus,
                     localTrains: &localTrains,
-                    line: line
+                    route: route
                 )
             }
         }
@@ -213,18 +217,20 @@ public final class LinesManager: ObservableObject {
         depTime: Date,
         fleetStatus: inout [UUID: (station: String, time: Date, serviceCount: Int, track: String?)],
         localTrains: inout [RailwayTrain],
-        line: RailwayLine
+        route: TrainRoute
     ) {
         localTrains[trainIdx].vehicleId = vehicleId
         let currentStatus = fleetStatus[vehicleId]
         let currentCount = currentStatus?.serviceCount ?? 0
         
-        let departureTrack = (currentStatus?.station == startStation) ? (currentStatus?.track ?? getStableTerminalTrack(stationId: startStation, line: line)) : getStableTerminalTrack(stationId: startStation, line: line)
+        let departureTrack = (currentStatus?.station == startStation)
+            ? (currentStatus?.track ?? getStableTerminalTrack(stationId: startStation, route: route))
+            : getStableTerminalTrack(stationId: startStation, route: route)
         
         localTrains[trainIdx].stops[0].track = departureTrack
         localTrains[trainIdx].stops[0].isManualTrack = true
         
-        let arrivalTrack = getStableTerminalTrack(stationId: endStation, line: line)
+        let arrivalTrack = getStableTerminalTrack(stationId: endStation, route: route)
         let lastStopIdx = localTrains[trainIdx].stops.count - 1
         localTrains[trainIdx].stops[lastStopIdx].track = arrivalTrack
         localTrains[trainIdx].stops[lastStopIdx].isManualTrack = true
@@ -233,15 +239,13 @@ public final class LinesManager: ObservableObject {
         fleetStatus[vehicleId] = (endStation, arrivalTime, currentCount + 1, arrivalTrack)
     }
 
-    private func getStableTerminalTrack(stationId: String, line: RailwayLine) -> String {
-        if let prefs = line.terminalTracks[stationId] { return prefs }
-        let nextId = line.stations.first(where: { $0 != stationId })
-        let best = getBestTrack(stationId: stationId, directionId: nextId, lineId: line.id)
+    private func getStableTerminalTrack(stationId: String, route: TrainRoute) -> String {
+        let nextId = route.stationIds.first(where: { $0 != stationId })
+        let best = getBestTrack(stationId: stationId, directionId: nextId, routeId: route.id)
         if best != "1" { return best }
-        
         let stationNode = network.nodes.first(where: { $0.id == stationId })
         let platformCount = stationNode?.platforms ?? 2
-        let lineInt = line.numberPrefix ?? 1
+        let lineInt = route.numberPrefix ?? 1
         return "\((lineInt % platformCount) + 1)"
     }
     func validateSchedules() {
@@ -407,7 +411,7 @@ public final class LinesManager: ObservableObject {
         name: String? = nil,
         category: TrainCategory,
         departureTime: Date,
-        line: RailwayLine? = nil,
+        route: TrainRoute? = nil,
         stationSequence: [String],
         acceleration: Double,
         deceleration: Double,
@@ -418,34 +422,21 @@ public final class LinesManager: ObservableObject {
         skippedStopIds: Set<String> = [],
         isMainTrain: Bool = false
     ) -> RailwayTrain {
-        // VALIDATION: Ensure we have at least 2 stations for a valid train
         guard stationSequence.count >= 2 else {
-            #if DEBUG
-            print("⚠️ [LinesManager] WARNING: Attempted to create train with only \(stationSequence.count) station(s). Minimum is 2.")
-            print("   Train number: \(number), Category: \(category.rawValue)")
-            print("   Station sequence: \(stationSequence)")
-            #endif
-            // Return a minimal valid train with empty stops (will be filtered later)
             let trainNumber: Int
             let fallbackName: String
-            
-            if let line = line, let lineCode = line.numberPrefix {
-                trainNumber = lineCode * 100 + number
-                if let prefix = line.codePrefix {
-                    fallbackName = "\(prefix)\(lineCode) \(trainNumber)"
-                } else {
-                    fallbackName = "\(trainNumber)"
-                }
+            if let r = route, let prefix = r.numberPrefix {
+                trainNumber = prefix * 100 + number
+                fallbackName = r.serviceCodePrefix.map { "\($0)\(trainNumber)" } ?? "\(trainNumber)"
             } else {
                 trainNumber = number
                 fallbackName = "\(number)"
             }
-            
             return RailwayTrain(
                 number: trainNumber,
                 name: name ?? fallbackName,
                 type: category.rawValue,
-                lineId: line?.id,
+                lineId: route?.id,
                 departureTime: departureTime,
                 stops: [],
                 vehicleId: vehicleId,
@@ -463,40 +454,22 @@ public final class LinesManager: ObservableObject {
         for (index, stationId) in stationSequence.enumerated() {
             let minDwell = getStandardDwell(for: stationId)
             let isSkipped = skippedStopIds.contains(stationId)
-            
-            // PIGNOLO: Determine best track based on priority for this direction
             let nextId = (index < stationSequence.count - 1) ? stationSequence[index + 1] : nil
-            let bestTrack = getBestTrack(stationId: stationId, directionId: nextId, lineId: line?.id, isSkipping: isSkipped)
-            
-            var stop = RelationStop(
-                stationId: stationId,
-                minDwellTime: minDwell,
-                isSkipped: isSkipped,
-                track: bestTrack
-            )
-            
-            // PIGNOLO PROTOCOL: Terminals use preferred track and mark as manual to avoid accidental auto-shift
-            if index == 0 || index == stationSequence.count - 1 {
-                stop.isManualTrack = true
-            }
-            
+            let bestTrack = getBestTrack(stationId: stationId, directionId: nextId, routeId: route?.id, isSkipping: isSkipped)
+            var stop = RelationStop(stationId: stationId, minDwellTime: minDwell, isSkipped: isSkipped, track: bestTrack)
+            if index == 0 || index == stationSequence.count - 1 { stop.isManualTrack = true }
             stops.append(stop)
         }
         
         let trainNumber: Int
         let trainName: String
-        
         if let customName = name {
             trainNumber = number
             trainName = customName
-        } else if let line = line, let _ = line.numberPrefix {
+        } else if let r = route, r.numberPrefix != nil {
             trainNumber = number
             let formattedNumber = String(format: "%05d", number)
-            if let prefix = line.codePrefix {
-                trainName = "\(prefix)\(formattedNumber)"
-            } else {
-                trainName = "\(formattedNumber)"
-            }
+            trainName = r.serviceCodePrefix.map { "\($0)\(formattedNumber)" } ?? formattedNumber
         } else {
             trainNumber = number
             trainName = "\(number)"
@@ -506,7 +479,7 @@ public final class LinesManager: ObservableObject {
             number: trainNumber,
             name: trainName,
             type: category.rawValue,
-            lineId: line?.id,
+            lineId: route?.id,
             departureTime: departureTime,
             stops: stops,
             vehicleId: vehicleId,
@@ -519,7 +492,7 @@ public final class LinesManager: ObservableObject {
             isMainTrain: isMainTrain
         )
     }
-    
+
     // MARK: - Binding Helper
     func binding(for train: RailwayTrain) -> Binding<RailwayTrain>? {
         guard let index = trains.firstIndex(where: { $0.id == train.id }) else { return nil }
@@ -560,33 +533,26 @@ public final class LinesManager: ObservableObject {
     /// - Parameters:
     ///   - stationId: ID della stazione
     ///   - directionId: ID della prossima stazione (direzione)
-    ///   - lineId: ID della linea ferroviaria
+    ///   - routeId: ID della rotta (servizio)
     ///   - isSkipping: true se il treno transita senza fermarsi
     /// - Returns: Il binario preferito (es: "1", "2", etc.)
-    func getBestTrack(stationId: String, directionId: String?, lineId: String?, isSkipping: Bool = false) -> String {
+    func getBestTrack(stationId: String, directionId: String?, routeId: String?, isSkipping: Bool = false) -> String {
         guard let node = network.nodes.first(where: { $0.id == stationId }) else { return "1" }
         
         // Usa la logica unificata di Train.getPreferredTracks() per consistenza
         // Creiamo un train temporaneo per accedere al metodo di estensione
         let dummyTrain = RailwayTrain(
-            number: 0,
-            name: "",
-            type: "R",
-            lineId: lineId,
-            departureTime: Date(),
-            stops: [],
-            maxSpeed: 100,
-            acceleration: 0.5,
-            deceleration: 0.5,
-            mass: 200,
-            power: 2500
+            number: 0, name: "", type: "R",
+            lineId: routeId,
+            departureTime: Date(), stops: [],
+            maxSpeed: 100, acceleration: 0.5, deceleration: 0.5, mass: 200, power: 2500
         )
         
         let priorities = dummyTrain.getPreferredTracks(
             at: node,
-            prevStationId: nil,
+            prevStationId: nil as String?,
             nextStationId: directionId,
-            for: nil,
+            for: nil as TrainRoute?,
             isSkipping: isSkipping
         )
         

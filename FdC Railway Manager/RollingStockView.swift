@@ -176,13 +176,13 @@ struct RollingStockView: View {
                 unassigned.append(vehicle)
             } else {
                 for train in assignedTrains {
-                    if let lineId = train.lineId,
-                       let line = manager.lines.first(where: { $0.id == lineId }) {
-                        if grouped[line.name] == nil {
-                            grouped[line.name] = []
+                    if let routeId = train.routeId,
+                       let route = manager.routes.first(where: { $0.id == routeId }) {
+                        if grouped[route.name] == nil {
+                            grouped[route.name] = []
                         }
-                        if !grouped[line.name]!.contains(where: { $0.id == vehicle.id }) {
-                            grouped[line.name]!.append(vehicle)
+                        if !grouped[route.name]!.contains(where: { $0.id == vehicle.id }) {
+                            grouped[route.name]!.append(vehicle)
                         }
                     }
                 }

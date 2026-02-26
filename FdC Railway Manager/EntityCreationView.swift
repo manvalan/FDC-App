@@ -137,7 +137,7 @@ struct EntityCreationCoordinator: View {
         case .vehicle:
             VehicleCreationWizard()
         case .line:
-            LineCreationInspectorView()
+            RouteCreationInspectorView()
         }
     }
 }

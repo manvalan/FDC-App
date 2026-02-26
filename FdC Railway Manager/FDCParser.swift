@@ -45,9 +45,8 @@ class FDCParser {
                 id: lineDTO.id,
                 name: lineDTO.name,
                 color: lineDTO.color,
-                originId: lineDTO.stations.first ?? "",
-                destinationId: lineDTO.stations.last ?? "",
-                stops: lineDTO.stations.map { RelationStop(stationId: $0, minDwellTime: 3) }
+                nodeIds: lineDTO.stations,
+                electrification: .dc3kv
             )
         } ?? []
         

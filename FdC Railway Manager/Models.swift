@@ -10,13 +10,13 @@ import CoreLocation
 import MapKit
 
 // Bridge for refactoring compatibility
-public typealias RailwayNetwork = NetworkModel
-public typealias TrainManager = LinesManager
-public typealias RailwayEdge = Edge // Disambiguation from SwiftUI.Edge
-public typealias RailwayTrackSegment = TrackSegment
-public typealias RailwayNode = Node
-public typealias RailwayVehicle = Vehicle
-public typealias RailwayTrain = Train
+typealias RailwayNetwork = NetworkModel
+typealias TrainManager = LinesManager
+typealias RailwayEdge = Edge // Disambiguation from SwiftUI.Edge
+typealias RailwayTrackSegment = TrackSegment
+typealias RailwayNode = Node
+typealias RailwayVehicle = Vehicle
+typealias RailwayTrain = Train
 
 // MARK: - Electrification
 public enum ElectrificationType: String, Codable, CaseIterable, Identifiable {
@@ -33,36 +33,38 @@ public enum ElectrificationType: String, Codable, CaseIterable, Identifiable {
 }
 
 
-public struct RailwayNetworkDTO: Codable {
-    public var name: String? = nil
-    public let nodes: [RailwayNode]
-    public let edges: [RailwayEdge]
-    public var ferrovie: [Ferrovia]? = nil
-    public var lines: [RailwayLine]? = nil
-    public var trains: [RailwayTrain]? = nil
-    public var vehicles: [RailwayVehicle]? = nil
-    
-    public init(name: String? = nil, nodes: [RailwayNode], edges: [RailwayEdge], ferrovie: [Ferrovia]? = nil, lines: [RailwayLine]? = nil, trains: [RailwayTrain]? = nil, vehicles: [RailwayVehicle]? = nil) {
-        self.name = name
-        self.nodes = nodes
-        self.edges = edges
-        self.ferrovie = ferrovie
-        self.lines = lines
-        self.trains = trains
-        self.vehicles = vehicles
+struct RailwayNetworkDTO: Codable {
+    var name: String? = nil
+    let nodes: [RailwayNode]
+    let edges: [RailwayEdge]
+    /// Infrastructure lines (ex `ferrovie`). JSON key kept as `"ferrovie"` for backward compat.
+    var lines: [RailwayLine]? = nil
+    /// Service-route templates (ex `lines`). JSON key kept as `"lines"` for backward compat.
+    var routes: [TrainRoute]? = nil
+    var trains: [RailwayTrain]? = nil
+    var vehicles: [RailwayVehicle]? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case name, nodes, edges
+        case lines   = "ferrovie"   // physical infrastructure lines
+        case routes  = "lines"      // service route templates
+        case trains, vehicles
     }
 }
 
+
+
 extension NetworkModel {
     func toDTO() -> RailwayNetworkDTO {
-        return RailwayNetworkDTO(name: name, nodes: nodes, edges: edges, ferrovie: ferrovie, lines: nil, trains: nil, vehicles: nil)
+        return RailwayNetworkDTO(name: name, nodes: nodes, edges: edges)
     }
     
     func apply(dto: RailwayNetworkDTO) {
         self.name = dto.name ?? "Network"
         self.nodes = dto.nodes
         self.edges = dto.edges
-        self.ferrovie = dto.ferrovie ?? []
+        self.lines  = dto.lines  ?? []
+        self.routes = dto.routes ?? []
     }
 }
 
@@ -82,19 +84,19 @@ struct AIScheduleSuggestion: Identifiable, Codable {
 // Routing Constraint for a station: defines which tracks are allowed for a specific line/direction
 public struct RoutingConstraint: Identifiable, Codable, Hashable {
     public var id: UUID = UUID()
-    public var lineId: String
+    public var routeId: String
     public var directionStationId: String? // Target station for direction (terminus or next node)
     public var allowedTracks: [String] // List of track names, e.g. ["1", "2"]
     public var transitTracks: [String]? // Prioritari per transito (senza sosta)
     public var stopTracks: [String]?    // Prioritari per sosta/partenza/arrivo
     
     enum CodingKeys: String, CodingKey {
-        case id, lineId, directionStationId, allowedTracks, transitTracks, stopTracks
+        case id, routeId = "lineId", directionStationId, allowedTracks, transitTracks, stopTracks
     }
     
-    public init(id: UUID = UUID(), lineId: String, directionStationId: String? = nil, allowedTracks: [String], transitTracks: [String]? = nil, stopTracks: [String]? = nil) {
+    public init(id: UUID = UUID(), routeId: String, directionStationId: String? = nil, allowedTracks: [String], transitTracks: [String]? = nil, stopTracks: [String]? = nil) {
         self.id = id
-        self.lineId = lineId
+        self.routeId = routeId
         self.directionStationId = directionStationId
         self.allowedTracks = allowedTracks
         self.transitTracks = transitTracks
@@ -245,7 +247,7 @@ public struct Node: Identifiable, Codable, Hashable {
         }
     }
     
-    func isTrackAllowed(track: String?, lineId: String, prevStationId: String?, nextStationId: String?) -> Bool {
+    func isTrackAllowed(track: String?, routeId: String, prevStationId: String?, nextStationId: String?) -> Bool {
         let t = track ?? "1"
         
         // --- 1. Bounds Check ---
@@ -254,7 +256,7 @@ public struct Node: Identifiable, Codable, Hashable {
         }
         
         // --- 2. Routing Check ---
-        let constraints = routingConstraints.filter { $0.lineId == lineId }
+        let constraints = routingConstraints.filter { $0.routeId == routeId }
         if constraints.isEmpty { return true }
         
         let matchingConstraint = constraints.first { $0.directionStationId != nil && $0.directionStationId == nextStationId }
@@ -271,12 +273,12 @@ public struct Node: Identifiable, Codable, Hashable {
 
     /// Restituisce i binari preferiti in base alla provenienza.
     /// Se non ci sono vincoli specifici, restituisce tutti i binari disponibili (da cui scegliere a caso).
-    func getTracksByProvenance(from prevStationId: String?, nextStationId: String? = nil, forLine lineId: String?) -> [String] {
+    func getTracksByProvenance(from prevStationId: String?, nextStationId: String? = nil, forRoute routeId: String?) -> [String] {
         let maxPlatforms = self.platforms ?? 2
         let allTracks = (1...maxPlatforms).map { "\($0)" }
         
-        guard let lineId = lineId, !lineId.isEmpty else { return allTracks }
-        let lineConstraints = routingConstraints.filter { $0.lineId == lineId }
+        guard let routeId = routeId, !routeId.isEmpty else { return allTracks }
+        let lineConstraints = routingConstraints.filter { $0.routeId == routeId }
         
         // Priority for matching direction (where we are going next)
         // Secondary priority for matching provenance (where we came from)
@@ -484,66 +486,9 @@ public struct Switch: Identifiable, Codable, Hashable {
     }
 }
 
-// Linea ferroviaria di servizio (insieme di stazioni con tempi di sosta, orari, treni)
-public struct RailwayLine: Identifiable, Codable, Hashable {
-    public let id: String
-    public var name: String
-    public var color: String? // ex: "#ff0000"
-    public var width: Double? // Line thickness in schematic view
-    public var originId: String = ""
-    public var destinationId: String = ""
-    public var stops: [RelationStop] = [] 
-    
-    // Train Numbering Logic
-    public var codePrefix: String? // e.g. "RE"
-    public var numberPrefix: Int? // e.g. 5 (results in 5001, 5002...)
-    public var cadenceFrequency: Double? // e.g. 30.0 or 60.0 minutes
-    public var terminalTracks: [String: String] = [:] // StationID -> Track
-    
-    public var stations: [String] {
-        stops.map { $0.stationId }
-    }
+// TrainRoute (service route template) is defined in TrainRoute.swift
+// RailwayLine (physical infrastructure) is defined in Ferrovia.swift
 
-    enum CodingKeys: String, CodingKey {
-        case id, name, color, width, originId, destinationId, stops, codePrefix, numberPrefix, cadenceFrequency, terminalTracks
-    }
-
-    public init(id: String, name: String, color: String? = nil, width: Double? = nil, originId: String = "", destinationId: String = "", stops: [RelationStop] = [], codePrefix: String? = nil, numberPrefix: Int? = nil, cadenceFrequency: Double? = nil) {
-        self.id = id
-        self.name = name
-        self.color = color
-        self.width = width
-        self.originId = originId
-        self.destinationId = destinationId
-        self.stops = stops
-        self.codePrefix = codePrefix
-        self.numberPrefix = numberPrefix
-        self.cadenceFrequency = cadenceFrequency
-        self.terminalTracks = [:]
-    }
-    
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        name = try container.decodeIfPresent(String.self, forKey: .name) ?? "unnamed_line".localized
-        color = try container.decodeIfPresent(String.self, forKey: .color)
-        width = try container.decodeIfPresent(Double.self, forKey: .width)
-        originId = try container.decodeIfPresent(String.self, forKey: .originId) ?? ""
-        destinationId = try container.decodeIfPresent(String.self, forKey: .destinationId) ?? ""
-        stops = try container.decodeIfPresent([RelationStop].self, forKey: .stops) ?? []
-        codePrefix = try container.decodeIfPresent(String.self, forKey: .codePrefix)
-        numberPrefix = try container.decodeIfPresent(Int.self, forKey: .numberPrefix)
-        cadenceFrequency = try container.decodeIfPresent(Double.self, forKey: .cadenceFrequency)
-        terminalTracks = try container.decodeIfPresent([String: String].self, forKey: .terminalTracks) ?? [:]
-    }
-    
-    var uiColor: Color {
-        if let hex = color, let c = Color(hex: hex) {
-            return c
-        }
-        return .accentColor
-    }
-}
 
 // Fermata in una linea di servizio (con tempo di sosta)
 public struct RelationStop: Identifiable, Codable, Hashable {
@@ -752,12 +697,16 @@ struct VehicleTemplate: Identifiable {
 
 // Treno circolante nella rete
 public struct Train: Identifiable, Codable, Hashable {
+    // MARK: - Train Properties
+
     public var id: UUID = UUID()
     public var number: Int?
     public var name: String
     public var type: String
-    public var lineId: String?
-    public var isElectric: Bool = true // Se il treno è elettrico
+    /// ID of the TrainRoute this train belongs to (used for cataloguing and train-number ordering).
+    /// Backward-compatible: decoded from both `"routeId"` (new) and `"lineId"` (legacy).
+    public var routeId: String?
+    public var isElectric: Bool = true
     public var departureTime: Date?
     public var stops: [RelationStop] = []
     
@@ -768,18 +717,18 @@ public struct Train: Identifiable, Codable, Hashable {
     public var maxSpeed: Double = 120
     public var acceleration: Double = 0.5
     public var deceleration: Double = 0.5
-    public var mass: Double = 200 // Massa in tonnellate
-    public var power: Double = 2500 // Potenza in kW
+    public var mass: Double = 200
+    public var power: Double = 2500
     public var priority: Int = 5
     public var isMainTrain: Bool = false
-    public var schedulingError: String? // Campo per segnalare errori di calcolo orario
+    public var schedulingError: String?
     
     public init(id: UUID = UUID(), number: Int? = nil, name: String, type: String, lineId: String? = nil, departureTime: Date? = nil, stops: [RelationStop] = [], vehicleId: UUID? = nil, maxSpeed: Double = 160, acceleration: Double = 0.5, deceleration: Double = 0.4, mass: Double = 200, power: Double = 2500, priority: Int = 5, isElectric: Bool = true, isMainTrain: Bool = false) {
         self.id = id
         self.number = number
         self.name = name
         self.type = type
-        self.lineId = lineId
+        self.routeId = lineId   // init param kept as lineId for call-site compat during migration
         self.stops = stops
         self.vehicleId = vehicleId
         self.departureTime = departureTime
@@ -794,7 +743,11 @@ public struct Train: Identifiable, Codable, Hashable {
     }
     
     enum CodingKeys: String, CodingKey {
-        case id, number, name, type, lineId, departureTime, stops, maxSpeed, acceleration, deceleration, mass, power, priority, vehicleId, schedulingError, isElectric, isMainTrain
+        case id, number, name, type
+        case routeId             // new key
+        case lineId              // legacy key (read-only for migration)
+        case departureTime, stops, maxSpeed, acceleration, deceleration
+        case mass, power, priority, vehicleId, schedulingError, isElectric, isMainTrain
     }
 
     public init(from decoder: Decoder) throws {
@@ -803,7 +756,9 @@ public struct Train: Identifiable, Codable, Hashable {
         number = try container.decodeIfPresent(Int.self, forKey: .number)
         name = try container.decode(String.self, forKey: .name)
         type = try container.decode(String.self, forKey: .type)
-        lineId = try container.decodeIfPresent(String.self, forKey: .lineId)
+        // Backward compat: prefer new routeId key, fall back to legacy lineId
+        routeId = try container.decodeIfPresent(String.self, forKey: .routeId)
+            ?? container.decodeIfPresent(String.self, forKey: .lineId)
         departureTime = try container.decodeIfPresent(Date.self, forKey: .departureTime)
         stops = try container.decodeIfPresent([RelationStop].self, forKey: .stops) ?? []
         vehicleId = try container.decodeIfPresent(UUID.self, forKey: .vehicleId)
@@ -817,6 +772,27 @@ public struct Train: Identifiable, Codable, Hashable {
         isMainTrain = try container.decodeIfPresent(Bool.self, forKey: .isMainTrain) ?? false
         schedulingError = try container.decodeIfPresent(String.self, forKey: .schedulingError)
     }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(number, forKey: .number)
+        try container.encode(name, forKey: .name)
+        try container.encode(type, forKey: .type)
+        try container.encodeIfPresent(routeId, forKey: .routeId)
+        try container.encodeIfPresent(departureTime, forKey: .departureTime)
+        try container.encode(stops, forKey: .stops)
+        try container.encodeIfPresent(vehicleId, forKey: .vehicleId)
+        try container.encode(maxSpeed, forKey: .maxSpeed)
+        try container.encode(acceleration, forKey: .acceleration)
+        try container.encode(deceleration, forKey: .deceleration)
+        try container.encode(mass, forKey: .mass)
+        try container.encode(power, forKey: .power)
+        try container.encode(priority, forKey: .priority)
+        try container.encode(isElectric, forKey: .isElectric)
+        try container.encode(isMainTrain, forKey: .isMainTrain)
+        try container.encodeIfPresent(schedulingError, forKey: .schedulingError)
+    }
 }
 
 extension Train {
@@ -828,13 +804,13 @@ extension Train {
     ///   - line: La linea di appartenenza del treno (se nil, usa quella del treno).
     ///   - isSkipping: Se il treno transita senza fermarsi in questa stazione.
     /// - Returns: Una lista di stringhe (es: ["2", "1", "3"]) dove il primo è il preferito.
-    func getPreferredTracks(at node: Node, prevStationId: String?, nextStationId: String?, for line: RailwayLine?, isSkipping: Bool = false) -> [String] {
+    func getPreferredTracks(at node: Node, prevStationId: String?, nextStationId: String?, for route: TrainRoute?, isSkipping: Bool = false) -> [String] {
         let maxPlatforms = node.platforms ?? 2
         let allPlatforms = (1...maxPlatforms).map { "\($0)" }
-        let targetLineId = line?.id ?? self.lineId ?? ""
+        let targetRouteId = route?.id ?? self.routeId ?? ""
         
         // Cerchiamo i vincoli specifici per questa linea in questa stazione
-        let lineConstraints = node.routingConstraints.filter { $0.lineId == targetLineId }
+        let lineConstraints = node.routingConstraints.filter { $0.routeId == targetRouteId }
         
         // 1. Cerchiamo un vincolo che corrisponda esattamente alla direzione (prossima stazione)
         let matchingConstraint = lineConstraints.first { $0.directionStationId == nextStationId } 
@@ -876,9 +852,9 @@ extension Train {
         return finalList
     }
 
-    func isTrackPreferred(_ track: String, at node: Node, prevStationId: String?, nextStationId: String?, for lineId: String?) -> Bool {
-        let targetLineId = lineId ?? self.lineId ?? ""
-        let lineConstraints = node.routingConstraints.filter { $0.lineId == targetLineId }
+    func isTrackPreferred(_ track: String, at node: Node, prevStationId: String?, nextStationId: String?, for routeId: String?) -> Bool {
+        let targetRouteId = routeId ?? self.routeId ?? ""
+        let lineConstraints = node.routingConstraints.filter { $0.routeId == targetRouteId }
         let matchingConstraint = lineConstraints.first { $0.directionStationId == nextStationId } 
                               ?? lineConstraints.first { $0.directionStationId == nil }
         return matchingConstraint?.allowedTracks.contains(track) ?? false

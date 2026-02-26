@@ -42,7 +42,7 @@ struct SchedulerView: View {
                         isLoading = true
                         schedulerResult = "calculating_in_progress".localized
                         errorMessage = nil
-                        let dto = RailwayNetworkDTO(name: "Temp", nodes: network.nodes, edges: network.edges, ferrovie: network.ferrovie, lines: lines.lines, trains: lines.trains, vehicles: lines.vehicles)
+                        let dto = RailwayNetworkDTO(name: "Temp", nodes: network.nodes, edges: network.edges, lines: network.lines, routes: lines.routes, trains: lines.trains, vehicles: lines.vehicles)
                         sendToScheduler(dto: dto, trains: lines.trains) { result in
                             DispatchQueue.main.async {
                                 isLoading = false
@@ -66,7 +66,7 @@ struct SchedulerView: View {
                 Section(header: Text("local_infrastructure".localized)) {
                     Button("simulate_full_network".localized) {
                         simulateLocally()
-                    }.disabled(lines.trains.isEmpty || lines.lines.isEmpty)
+                    }.disabled(lines.trains.isEmpty || lines.routes.isEmpty)
                     
                     if !appState.simulator.schedules.isEmpty {
                         ForEach(appState.simulator.schedules) { schedule in

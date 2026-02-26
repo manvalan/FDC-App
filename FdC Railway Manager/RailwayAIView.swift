@@ -13,10 +13,10 @@ struct RailwayAIView: View {
     @State private var errorMessage: String? = nil
     
     // Proposer State
-    @State private var proposedLines: [ProposedLine] = []
+    @State private var proposedRoutes: [ProposedRoute] = []
     @State private var schedulePreview: String = ""
-    @State private var targetLines: Int = 6
-    @State private var showLineProposalSheet = false
+    @State private var targetRoutes: Int = 6
+    @State private var showRouteProposalSheet = false
     
     // Solver State
     @State private var solutions: [AIScheduleSuggestion] = []
@@ -59,7 +59,7 @@ struct RailwayAIView: View {
                 }
 
                 Section(header: Text("planning_assistant_fast".localized)) {
-                    Stepper(String(format: "target_lines_fmt".localized, targetLines), value: $targetLines, in: 1...20)
+                    Stepper(String(format: "target_lines_fmt".localized, targetRoutes), value: $targetRoutes, in: 1...20)
                     
                     Button(action: runFastProposer) {
                         HStack {
@@ -69,9 +69,9 @@ struct RailwayAIView: View {
                     }
                     .disabled(isLoading || network.nodes.count < 2)
                     
-                    if !proposedLines.isEmpty {
-                        Button(String(format: "review_proposals_fmt".localized, proposedLines.count)) {
-                            showLineProposalSheet = true
+                    if !proposedRoutes.isEmpty {
+                        Button(String(format: "review_proposals_fmt".localized, proposedRoutes.count)) {
+                            showRouteProposalSheet = true
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.blue)
@@ -166,10 +166,10 @@ struct RailwayAIView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showLineProposalSheet) {
-                LineProposalView(
+            .sheet(isPresented: $showRouteProposalSheet) {
+                RouteProposalView(
                     network: network,
-                    proposals: proposedLines,
+                    proposals: proposedRoutes,
                     onApply: { selectedProposals, createTrains in
                         applySelectedProposals(selectedProposals, createTrains: createTrains)
                     }
@@ -283,7 +283,7 @@ struct RailwayAIView: View {
     private func runFastProposer() {
         isLoading = true
         errorMessage = nil
-        proposedLines = []
+        proposedRoutes = []
         schedulePreview = ""
         
         RailwayAIService.shared.syncCredentials(
@@ -293,36 +293,36 @@ struct RailwayAIView: View {
         )
         
         let graph = RailwayGraphManager.shared
-        ScheduleProposer.shared.requestProposal(using: graph, network: network, targetLines: targetLines) { result in
+        ScheduleProposer.shared.requestProposal(using: graph, network: network, targetRoutes: targetRoutes) { result in
             isLoading = false
             switch result {
             case .success(let proposal):
-                self.proposedLines = proposal.proposedLines
-                self.aiResult = "L'IA ha proposto \(proposal.proposedLines.count) nuove linee!"
+                self.proposedRoutes = proposal.proposedRoutes
+                self.aiResult = "L'IA ha proposto \(proposal.proposedRoutes.count) nuove linee!"
             case .failure(let error):
                 self.errorMessage = "Errore Proposta: \(error.localizedDescription)"
             }
         }
     }
     
-    private func applySelectedProposals(_ selectedProposals: [ProposedLine], createTrains: Bool) {
+    private func applySelectedProposals(_ selectedProposals: [ProposedRoute], createTrains: Bool) {
         for pline in selectedProposals {
-            let lineId = UUID().uuidString
+            let routeId = UUID().uuidString
             let stops = pline.stationSequence.map { sid -> RelationStop in
                 let node = network.nodes.first(where: { $0.id == sid })
                 let dwell = (node?.type == .interchange) ? 5 : 3
                 return RelationStop(stationId: sid, minDwellTime: dwell)
             }
             
-            let newLine = RailwayLine(
-                id: lineId,
+            let newRoute = TrainRoute(
+                id: routeId,
                 name: pline.name,
                 color: pline.color ?? "#007AFF",
-                originId: pline.stationSequence.first ?? "",
-                destinationId: pline.stationSequence.last ?? "",
-                stops: stops
+                originStationId: pline.stationSequence.first ?? "",
+                destinationStationId: pline.stationSequence.last ?? "",
+                stationIds: pline.stationSequence
             )
-            trainManager.lines.append(newLine)
+            trainManager.routes.append(newRoute)
             
             if createTrains {
                 let freq = pline.frequencyMinutes > 0 ? pline.frequencyMinutes : 60
@@ -342,7 +342,7 @@ struct RailwayAIView: View {
                             number: trainNum,
                             name: "\(pline.name) - \(trainNum)",
                             type: "Regionale",
-                            lineId: lineId,
+                            lineId: routeId,
                             departureTime: departureTime,
                             stops: stops,
                             vehicleId: nil,
@@ -357,7 +357,7 @@ struct RailwayAIView: View {
             }
         }
         
-        proposedLines = []
+        proposedRoutes = []
         let trainsMsg = createTrains ? " con treni di esempio" : ""
         aiResult = "Creazione completata: \(selectedProposals.count) linee aggiunte\(trainsMsg)."
         trainManager.validateSchedules()

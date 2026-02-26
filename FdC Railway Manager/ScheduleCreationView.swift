@@ -5,8 +5,8 @@ import Combine
 /// Delega tutta la logica di business al `ScheduleCreationViewModel`.
 struct ScheduleCreationView: View {
     @Environment(\.dismiss) var dismiss
-    @EnvironmentObject var network: RailwayNetwork
-    @EnvironmentObject var manager: TrainManager
+    @EnvironmentObject var network: NetworkModel
+    @EnvironmentObject var manager: LinesManager
     @EnvironmentObject var appState: AppState
 
     @StateObject private var vm: ScheduleCreationViewModel
@@ -15,12 +15,12 @@ struct ScheduleCreationView: View {
     @State private var showModelSelector = false
     @State private var showOptimizedTimesPreview = false
 
-    let line: RailwayLine
+    let route: TrainRoute
 
-    /// Inizializza la vista con la linea ferroviaria e la modalità iniziale.
-    init(line: RailwayLine, initialMode: ScheduleMode = .single) {
-        self.line = line
-        self._vm = StateObject(wrappedValue: ScheduleCreationViewModel(line: line, initialMode: initialMode))
+    /// Inizializza la vista con la relazione di servizio e la modalità iniziale.
+    init(route: TrainRoute, initialMode: ScheduleMode = .single) {
+        self.route = route
+        self._vm = StateObject(wrappedValue: ScheduleCreationViewModel(line: route, initialMode: initialMode))
     }
 
     // MARK: - Body
@@ -106,7 +106,7 @@ private extension ScheduleCreationView {
     /// Intestazione con nome della linea e selettore modalità (singola/cadenzata/Takt).
     var headerSection: some View {
         HStack {
-            Text(String(format: "schedule_gen_line_fmt".localized, line.name))
+            Text(String(format: "schedule_gen_line_fmt".localized, route.name))
                 .font(.headline)
             Spacer()
             Picker("mode".localized, selection: $vm.mode) {
@@ -155,12 +155,24 @@ private extension ScheduleCreationView {
 
     /// Riga singola con picker di selezione stazione.
     func stationPickerRow(title: String, selection: Binding<String>) -> some View {
+        StationPickerRow(title: title, selection: selection, route: route, network: network, vm: vm)
+    }
+}
+
+struct StationPickerRow: View {
+    let title: String
+    @Binding var selection: String
+    let route: TrainRoute
+    let network: NetworkModel
+    let vm: ScheduleCreationViewModel
+    
+    var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption2.bold())
                 .foregroundColor(.secondary)
-            Picker(title, selection: selection) {
-                ForEach(line.stations, id: \.self) { stationId in
+            Picker(title, selection: $selection) {
+                ForEach(route.stationIds, id: \.self) { stationId in
                     HStack(spacing: 8) {
                         StationSymbolView(station: network.nodes.first(where: { $0.id == stationId }), size: 14)
                         Text(vm.stationName(stationId))
@@ -177,7 +189,6 @@ private extension ScheduleCreationView {
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.blue.opacity(0.3), lineWidth: 1))
         }
     }
-
 }
 
 // MARK: - Dettagli Percorso
@@ -920,7 +931,7 @@ private extension ScheduleCreationView {
 
     /// Pulsante di annullamento per chiudere la vista senza generare.
     var cancelButton: some View {
-        Button(action: { appState.creationLineId = nil }) {
+        Button(action: { appState.creationRouteId = nil }) {
             Text("cancel".localized.uppercased())
                 .font(.caption.bold()).foregroundColor(.secondary)
         }
@@ -1046,18 +1057,39 @@ struct ScheduleChangeModifiersB: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .onChange(of: vm.intervalMinutes) { _, _ in vm.updatePreview() }
-            .onChange(of: vm.scheduleReturn) { _, _ in vm.updatePreview() }
-            .onChange(of: vm.stationSequence) { _, newSeq in
-                if appState.useCloudAI && newSeq.count >= 2 { vm.triggerLineAnalysis() }
-            }
-            .onChange(of: vm.preferredParity) { _, newValue in
+            .modifier(ScheduleChangeModifiersB1(vm: vm))
+            .modifier(ScheduleChangeModifiersB2(vm: vm, appState: appState))
+    }
+}
+
+struct ScheduleChangeModifiersB1: ViewModifier {
+    @ObservedObject var vm: ScheduleCreationViewModel
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: vm.intervalMinutes) { (oldValue: Int, newValue: Int) in vm.updatePreview() }
+            .onChange(of: vm.scheduleReturn) { (oldValue: Bool, newValue: Bool) in vm.updatePreview() }
+            .onChange(of: vm.preferredParity) { (oldValue: NumberParity, newValue: NumberParity) in
                 vm.startNumber = (newValue == .odd) ? 1 : 2
                 vm.returnStartNumber = (newValue == .odd) ? 2 : 1
             }
-            .onChange(of: vm.startNumber) { _, newValue in
+            .onChange(of: vm.startNumber) { (oldValue: Int, newValue: Int) in
                 vm.returnStartNumber = (newValue % 2 == 0) ? 1 : 2
             }
-            .onChange(of: vm.selectedTrainType) { _, _ in vm.updateSuggestedVehicles() }
+    }
+}
+
+struct ScheduleChangeModifiersB2: ViewModifier {
+    @ObservedObject var vm: ScheduleCreationViewModel
+    @ObservedObject var appState: AppState
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: vm.stationSequence) { (oldValue: [String], newValue: [String]) in
+                // if appState.useCloudAI && newValue.count >= 2 { vm.triggerLineAnalysis() }
+            }
+            .onChange(of: vm.selectedTrainType) { (oldValue: TrainCategory, newValue: TrainCategory) in
+                vm.updateSuggestedVehicles()
+            }
     }
 }

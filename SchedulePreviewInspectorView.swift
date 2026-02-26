@@ -6,7 +6,7 @@ struct SchedulePreviewInspectorView: View {
     @EnvironmentObject var network: RailwayNetwork
     
     let trains: [Train]
-    let line: RailwayLine
+    let line: TrainRoute
     let mode: ScheduleMode
     
     @State private var acceptSchedule: Bool = false
@@ -29,7 +29,7 @@ struct SchedulePreviewInspectorView: View {
         // Trains going from origin to destination (first stop matches line origin)
         trains.filter { train in
             guard let firstStop = train.stops.first?.stationId else { return false }
-            return firstStop == line.originId
+            return firstStop == line.originStationId
         }
     }
     
@@ -37,7 +37,7 @@ struct SchedulePreviewInspectorView: View {
         // Trains going from destination back to origin (first stop matches line destination)
         trains.filter { train in
             guard let firstStop = train.stops.first?.stationId else { return false }
-            return firstStop == line.destinationId
+            return firstStop == line.destinationStationId
         }
     }
     
@@ -513,15 +513,15 @@ struct SchedulePreviewInspectorView: View {
         
         // Clear preview state
         appState.schedulePreviewTrains = nil
-        appState.schedulePreviewLine = nil
+        appState.schedulePreviewRoute = nil
         appState.schedulePreviewSelectedModel = nil
         
         // Select the line to show timetable
-        appState.selectedLineId = line.id
+        appState.selectedRouteId = line.id
         appState.sidebarSelection = .lines
         
         // Close schedule creation inspector
-        appState.creationLineId = nil
+        appState.creationRouteId = nil
     }
     
     private func rejectSchedule() {
@@ -529,7 +529,7 @@ struct SchedulePreviewInspectorView: View {
         
         // Clear preview and return to schedule creation
         appState.schedulePreviewTrains = nil
-        appState.schedulePreviewLine = nil
+        appState.schedulePreviewRoute = nil
     }
 }
 
@@ -568,7 +568,7 @@ extension Train {
 #Preview {
     SchedulePreviewInspectorView(
         trains: [],
-        line: RailwayLine(id: "test", name: "Test Line", stops: []),
+        line: TrainRoute(id: "test", name: "Test Route"),
         mode: .single
     )
     .environmentObject(AppState.shared)

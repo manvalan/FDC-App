@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct LineCreationView: View {
-    @EnvironmentObject var network: RailwayNetwork
+struct RouteCreationView: View {
+    @EnvironmentObject var network: NetworkModel
     @Environment(\.dismiss) var dismiss
     
     @State private var lineName: String = ""
@@ -25,8 +25,8 @@ struct LineCreationView: View {
     
     // AI Analysis
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var trainManager: TrainManager
-    @State private var lineAnalysis: RailwayAIService.LineAnalysis? = nil
+    @EnvironmentObject var trainManager: LinesManager
+    @State private var routeAnalysis: RailwayAIService.RouteAnalysis? = nil
     @State private var isAnalyzingLine: Bool = false
     
     // Local Cadence Optimization
@@ -294,7 +294,7 @@ struct LineCreationView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Salva") {
-                        saveLine()
+                        saveAndFinish()
                     }
                     .disabled(lineName.isEmpty || stationSequence.count < 2)
                 }
@@ -346,13 +346,13 @@ struct LineCreationView: View {
         Task {
             // Find best offset against current traffic manager trains
             // For now, use appState.trainManager.trains as reference
-            let line = RailwayLine(
+            let route = TrainRoute(
                 id: "temp",
                 name: lineName,
-                stops: stationSequence.map { RelationStop(stationId: $0) }
+                stationIds: stationSequence
             )
             let offset = await cadenceOptimizer.proposeIdealWindow(
-                for: line, 
+                for: route, 
                 frequency: cadenceFrequency, 
                 existingTrains: trainManager.trains, 
                 network: network
@@ -360,26 +360,23 @@ struct LineCreationView: View {
             self.proposedOffset = offset
         }
     }
-    
-    private func saveLine() {
+    private func saveAndFinish() {
         let hexColor = lineColor.toHex()
-        let stops = stationSequence.map { sid -> RelationStop in
-            let node = network.nodes.first(where: { $0.id == sid })
-            let defaultDwell = (node?.type == .interchange) ? 5 : 3
-            return RelationStop(stationId: sid, minDwellTime: defaultDwell)
-        }
-        let newLine = RailwayLine(
+        
+        let newRoute = TrainRoute(
             id: UUID().uuidString,
             name: lineName,
             color: hexColor,
-            originId: stationSequence.first ?? startStationId,
-            destinationId: stationSequence.last ?? endStationId,
-            stops: stops,
-            codePrefix: codePrefix.isEmpty ? nil : codePrefix,
-            numberPrefix: numberPrefix == 0 ? nil : numberPrefix,
-            cadenceFrequency: cadenceFrequency
+            originStationId: stationSequence.first ?? "",
+            destinationStationId: stationSequence.last ?? "",
+            stationIds: stationSequence,
+            serviceCodePrefix: codePrefix.isEmpty ? nil : codePrefix,
+            numberPrefix: numberPrefix == 0 ? nil : numberPrefix
         )
-        trainManager.lines.append(newLine)
+        trainManager.routes.append(newRoute)
+        
+        // Se c'è una cadenza, propone di creare i treni (opzionale, semplificato qui)
+        
         dismiss()
     }
     
@@ -407,8 +404,8 @@ struct LineCreationView: View {
             
             isAnalyzingLine = true
             do {
-                lineAnalysis = try await RailwayAIService.shared.analyzeLine(
-                    name: lineName.isEmpty ? "New Line" : lineName,
+                routeAnalysis = try await RailwayAIService.shared.analyzeRoute(
+                    name: lineName.isEmpty ? "New Route" : lineName,
                     stationIds: stationSequence,
                     nodes: network.nodes,
                     edges: network.edges

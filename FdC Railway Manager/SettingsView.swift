@@ -352,8 +352,8 @@ struct SettingsView: View {
     
     private func assignColorsToAllLines() {
         // Usa l'algoritmo intelligente che evita colori simili per linee adiacenti
-        let updatedLines = LineColorAssigner.assignSmartColors(to: trainManager.lines, in: network)
-        trainManager.lines = updatedLines
-        print("✅ Colori intelligenti assegnati a \(updatedLines.count) linee (massimo contrasto)")
+        let updatedRoutes = LineColorAssigner.assignSmartColors(to: trainManager.routes, in: network)
+        trainManager.routes = updatedRoutes
+        print("✅ Colori intelligenti assegnati a \(updatedRoutes.count) relazioni (massimo contrasto)")
     }
 }

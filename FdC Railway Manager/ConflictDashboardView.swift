@@ -113,7 +113,7 @@ struct ConflictDashboardView: View {
             let prevId = getPrevStation(for: train, currentStation: station)
             
             // Usa i criteri di provenienza
-            let candidates = station.getTracksByProvenance(from: prevId, forLine: train.lineId)
+            let candidates = station.getTracksByProvenance(from: prevId, forRoute: train.routeId)
             
             for cand in candidates {
                 if cand == currentTrack { continue }

@@ -55,7 +55,8 @@ final class RailroadNetwork: ObservableObject {
     struct RailroadSnapshot: Equatable {
         let nodes: [RailwayNode]
         let edges: [Edge]
-        let lines: [RailwayLine]
+        let ferrovie: [RailwayLine]
+        let lines: [TrainRoute]
         let trains: [RailwayTrain]
         let vehicles: [RailwayVehicle]
     }
@@ -70,6 +71,7 @@ final class RailroadNetwork: ObservableObject {
         let snapshot = RailroadSnapshot(
             nodes: network.nodes,
             edges: network.edges,
+            ferrovie: network.lines,
             lines: lines.lines,
             trains: lines.trains,
             vehicles: lines.vehicles
@@ -86,6 +88,7 @@ final class RailroadNetwork: ObservableObject {
         let current = RailroadSnapshot(
             nodes: network.nodes,
             edges: network.edges,
+            ferrovie: network.lines,
             lines: lines.lines,
             trains: lines.trains,
             vehicles: lines.vehicles
@@ -99,6 +102,7 @@ final class RailroadNetwork: ObservableObject {
         let current = RailroadSnapshot(
             nodes: network.nodes,
             edges: network.edges,
+            ferrovie: network.lines,
             lines: lines.lines,
             trains: lines.trains,
             vehicles: lines.vehicles
@@ -110,6 +114,7 @@ final class RailroadNetwork: ObservableObject {
     private func applySnapshot(_ snapshot: RailroadSnapshot) {
         network.nodes = snapshot.nodes
         network.edges = snapshot.edges
+        network.lines = snapshot.ferrovie
         lines.lines = snapshot.lines
         lines.trains = snapshot.trains
         lines.vehicles = snapshot.vehicles

@@ -95,7 +95,7 @@ final class AppState: ObservableObject {
     @Published var mapVisualizationMode: RailwayMapView.MapVisualizationMode = .schematic
     
     // Selection State (Global)
-    @Published var selectedLineId: String? = nil { 
+    @Published var selectedRouteId: String? = nil { 
         didSet { 
             updateInspectorVisibilityForSelection()
             updateMapVisualizationMode()
@@ -148,13 +148,14 @@ final class AppState: ObservableObject {
         didSet { updateInspectorVisibilityForSelection() }
     }
     
-    @Published var selectedFerroviaId: String? = nil {
+    @Published var selectedInfraLineId: String? = nil {
         didSet { updateInspectorVisibilityForSelection() }
     }
     
-    var selectedFerrovia: Ferrovia? {
-        guard let id = selectedFerroviaId else { return nil }
-        return railroad.network.ferrovie.first(where: { $0.id == id })
+    /// The currently selected physical infrastructure line (ex `selectedFerrovia`).
+    var selectedInfraLine: RailwayLine? {
+        guard let id = selectedInfraLineId else { return nil }
+        return railroad.network.lines.first(where: { $0.id == id })
     }
     @Published var selectedTrainIds: Set<UUID> = [] { 
         didSet { updateInspectorVisibilityForSelection() }
@@ -166,7 +167,7 @@ final class AppState: ObservableObject {
         didSet { updateInspectorVisibilityForSelection() }
     }
     @Published var isInspectorEditingMode: Bool = false
-    @Published var lastVehicleAssignmentLineId: String? = nil
+    @Published var lastVehicleAssignmentRouteId: String? = nil
     @Published var isLineEditing: Bool = false
     @Published var isScheduleGeneratorVisible: Bool = false
     @Published var isVehicleManagementVisible: Bool = false
@@ -191,9 +192,9 @@ final class AppState: ObservableObject {
     @Published var trackDraftFromId: String? = nil
     @Published var trackDraftToId: String? = nil
     @Published var isCreatingLine: Bool = false
-    @Published var creationLineId: String? = nil { 
+    @Published var creationRouteId: String? = nil { 
         didSet { 
-            if creationLineId != nil { 
+            if creationRouteId != nil { 
                 showPanel(.inspector) 
             }
         }
@@ -201,15 +202,15 @@ final class AppState: ObservableObject {
     
     // Schedule Preview State
     @Published var schedulePreviewTrains: [RailwayTrain]? = nil
-    @Published var schedulePreviewLine: RailwayLine? = nil
+    @Published var schedulePreviewRoute: TrainRoute? = nil
     @Published var schedulePreviewMode: ScheduleMode = .single
     var schedulePreviewSelectedModel: TrainModel? = nil
-    var schedulePreviewOptimizeVehicles: Bool = false
-    var schedulePreviewMinTurnaroundTime: Int = 15
+    @Published var schedulePreviewOptimizeVehicles: Bool = true
+    @Published var schedulePreviewMinTurnaroundTime: Int = 15
     
     // Optimized Times Preview State (Step 1 of two-step preview)
     struct OptimizedTimesPreviewData {
-        let line: RailwayLine
+        let route: TrainRoute
         let mode: ScheduleMode
         let currentOutboundTime: Date
         let currentReturnTime: Date?
@@ -238,9 +239,9 @@ final class AppState: ObservableObject {
         if isCreatingTrack { return false }
         
         // Now supports multi-selection scenarios
-        return selectedLineId != nil || selectedNodeId != nil || 
-               selectedEdgeId != nil || selectedFerroviaId != nil || !selectedTrainIds.isEmpty ||
-               isInspectorEditingMode // Keep open if editing
+        return selectedRouteId != nil || selectedNodeId != nil || 
+               selectedEdgeId != nil || selectedInfraLineId != nil || !selectedTrainIds.isEmpty ||
+               isInspectorEditingMode
     }
     
     private func shouldHideInspectorForSelection() -> Bool {
@@ -260,25 +261,29 @@ final class AppState: ObservableObject {
         // Show colored lines when:
         // 1. Sidebar is on "Lines" or "Trains" section, OR
         // 2. A specific line is selected
-        if sidebarSelection == .lines || sidebarSelection == .trains || selectedLineId != nil {
+        if sidebarSelection == .lines || sidebarSelection == .trains || selectedRouteId != nil {
             mapVisualizationMode = .scheduler
         } else {
             mapVisualizationMode = .schematic
         }
     }
     
-    func startTrainCreation(lineId: String) {
-        self.creationLineId = lineId
-        self.selectedLineId = lineId 
+    func startTrainCreation(routeId: String) {
+        self.creationRouteId = routeId
+        self.selectedRouteId = routeId 
         self.selectedTrainIds = []
         self.selectedNodeId = nil
         self.selectedEdgeId = nil
         self.showPanel(.inspector)
     }
     
-    var selectedLine: RailwayLine? {
-        railroad.lines.lines.first { $0.id == selectedLineId }
+    /// The currently selected service route (TrainRoute), i.e. the "Linea" in the scheduler sidebar.
+    var selectedRoute: TrainRoute? {
+        railroad.lines.routes.first { $0.id == selectedRouteId }
     }
+    
+    /// Legacy alias kept for call-site compat during migration — prefer `selectedRoute`.
+    var selectedLine: TrainRoute? { selectedRoute }
     
     var selectedNode: RailwayNode? {
         railroad.network.nodes.first { $0.id == selectedNodeId }
@@ -297,17 +302,15 @@ final class AppState: ObservableObject {
         // creationLineId = nil  // COMMENTED OUT
     }
     
-    func selectLine(_ line: RailwayLine) {
-        selectedLineId = line.id
+    func selectLine(_ route: TrainRoute) {
+        selectedRouteId = route.id
         selectedNodeId = nil
         selectedEdgeId = nil
         selectedTrainIds = []
-        // Don't close schedule creation when selecting a line
-        // creationLineId = nil  // COMMENTED OUT
     }
     
     func clearSelection() {
-        selectedLineId = nil
+        selectedRouteId = nil
         selectedNodeId = nil
         selectedEdgeId = nil
         // Don't clear selectedTrainIds - keep train inspector open
@@ -318,7 +321,7 @@ final class AppState: ObservableObject {
         // creationLineId = nil  // COMMENTED OUT - this was causing the inspector to close during schedule generation
         isShowingSettings = false
         // Don't close inspector if we're creating a line, generating schedules, viewing trains, or viewing vehicles
-        if activePanel == .inspector && !isCreatingLine && creationLineId == nil && selectedTrainIds.isEmpty && selectedVehicleId == nil {
+        if activePanel == .inspector && !isCreatingLine && creationRouteId == nil && selectedTrainIds.isEmpty && selectedVehicleId == nil {
             activePanel = .none
         }
     }
@@ -330,12 +333,12 @@ final class AppState: ObservableObject {
     }
     
     var isSomethingSelected: Bool {
-        selectedLineId != nil || selectedNodeId != nil || selectedEdgeId != nil || !selectedTrainIds.isEmpty
+        selectedRouteId != nil || selectedNodeId != nil || selectedEdgeId != nil || !selectedTrainIds.isEmpty
     }
     
     var isWidePanelVisible: Bool {
         // Wide panel active ONLY as an extension when managing a specific line's schedule
-        if sidebarSelection == .lines && lineInspectorMode == .schedule && selectedLineId != nil {
+        if sidebarSelection == .lines && lineInspectorMode == .schedule && selectedRouteId != nil {
             return true
         }
         return false
@@ -548,17 +551,18 @@ final class AppState: ObservableObject {
 }
 
 enum SidebarItem: String, CaseIterable, Identifiable {
-    case stations = "stazioni"
-    case tracks = "binari"
-    case ferrovie = "ferrovie"
-    case lines = "lines"
-    case vehicles = "materiale_rotabile"
-    case trains = "trains"
-    case timetable = "tabella_oraria"
-    case diagram = "grafico_orario"
-    case ai = "railway_ai"
-    case io = "io"
-    case settings = "settings"
+    case stations   = "stazioni"
+    case tracks     = "binari"
+    case infraLines = "ferrovie"     // physical infrastructure lines (ex ferrovie)
+    case routes     = "routes"       // service route templates (ex lines)
+    case lines      = "lines"        // kept for backward compat (legacy sidebar state)
+    case vehicles   = "materiale_rotabile"
+    case trains     = "trains"
+    case timetable  = "tabella_oraria"
+    case diagram    = "grafico_orario"
+    case ai         = "railway_ai"
+    case io         = "io"
+    case settings   = "settings"
     case simulation = "simulation"
     
     var id: String { rawValue }
@@ -569,24 +573,25 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     
     var icon: String {
         switch self {
-        case .stations: return "building.2"
-        case .tracks: return "tram"
-        case .ferrovie: return "map.fill"
-        case .lines: return "point.topleft.down.to.point.bottomright.curvepath"
-        case .vehicles: return "tram.fill"
-        case .trains: return "train.side.front.car"
-        case .timetable: return "tablecells"
-        case .diagram: return "chart.xyaxis.line"
-        case .ai: return "sparkles"
-        case .io: return "doc.badge.arrow.up"
+        case .stations:   return "building.2"
+        case .tracks:     return "tram"
+        case .infraLines: return "map.fill"
+        case .routes:     return "signpost.right.and.left"
+        case .lines:      return "point.topleft.down.to.point.bottomright.curvepath"
+        case .vehicles:   return "tram.fill"
+        case .trains:     return "train.side.front.car"
+        case .timetable:  return "tablecells"
+        case .diagram:    return "chart.xyaxis.line"
+        case .ai:         return "sparkles"
+        case .io:         return "doc.badge.arrow.up"
         case .simulation: return "play.desktopcomputer"
-        case .settings: return "gear"
+        case .settings:   return "gear"
         }
     }
 
     var isNetworkCategory: Bool {
         switch self {
-        case .stations, .tracks, .ferrovie:
+        case .stations, .tracks, .infraLines:
             return true
         default:
             return false

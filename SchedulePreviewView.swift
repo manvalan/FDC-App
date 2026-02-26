@@ -3,7 +3,7 @@ import SwiftUI
 /// Vista per mostrare l'anteprima dei risultati della generazione orario prima della conferma
 struct SchedulePreviewView: View {
     let trains: [Train]
-    let line: RailwayLine
+    let line: TrainRoute
     let mode: ScheduleMode
     let onAccept: () -> Void
     let onReject: () -> Void
@@ -142,7 +142,7 @@ struct SchedulePreviewView: View {
               let last = train.stops.last?.stationId else {
             return false
         }
-        return first == line.destinationId && last == line.originId
+        return first == line.destinationStationId && last == line.originStationId
     }
     
     private func calculateAverageInterval() -> String {

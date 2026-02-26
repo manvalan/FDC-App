@@ -27,7 +27,7 @@ struct LiteStop: Codable, Equatable {
 struct LiteTrain: Codable, Equatable, Identifiable {
     let id: UUID
     let name: String
-    let lineId: String?
+    let routeId: String?
     var departureTime: Double
     var stops: [LiteStop]
     let maxSpeed: Double

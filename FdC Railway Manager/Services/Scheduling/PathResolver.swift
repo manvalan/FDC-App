@@ -9,9 +9,9 @@ final class PathResolver {
     }
     
     /// Risolve la sequenza di stazioni tra partenza e arrivo su una data linea.
-    func resolveStationSequence(line: RailwayLine, startId: String, endId: String) -> [String] {
+    func resolveStationSequence(route: TrainRoute, startId: String, endId: String) -> [String] {
         guard !startId.isEmpty, !endId.isEmpty else { return [] }
-        let lineStations = line.stations
+        let lineStations = route.stationIds
         guard let sIdx = lineStations.firstIndex(of: startId),
               let eIdx = lineStations.firstIndex(of: endId) else { return [] }
         

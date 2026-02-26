@@ -46,13 +46,13 @@ enum NumberParity: String, CaseIterable, Identifiable {
 final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: Dependencies (weak to avoid retain cycles with EnvironmentObjects)
-    private weak var network: RailwayNetwork?
-    private weak var manager: TrainManager?
+    private weak var network: NetworkModel?
+    private weak var manager: LinesManager?
     private weak var appState: AppState?
     /// Strong references ai placeholder creati dal convenience init.
     /// Evitano la dealloc prematura finché `injectDependencies()` non li sostituisce.
     private var placeholderRetain: [AnyObject] = []
-    let line: RailwayLine
+    let line: TrainRoute
 
     // MARK: - Specialized Services (Modularization)
     private var kinematicCalculator: KinematicCalculator
@@ -96,8 +96,8 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     // MARK: - AI / status
     @Published var aiStatus: String? = nil
-    @Published var lineAnalysis: RailwayAIService.LineAnalysis? = nil
-    @Published var isAnalyzingLine: Bool = false
+    @Published var routeAnalysis: RailwayAIService.RouteAnalysis? = nil
+    @Published var isAnalyzingRoute: Bool = false
 
     // MARK: - Preview / results
     @Published var previewCount: Int = 0
@@ -142,18 +142,18 @@ final class ScheduleCreationViewModel: ObservableObject {
     // MARK: - Init
 
     /// Inizializzatore completo con tutte le dipendenze reali.
-    init(line: RailwayLine,
+    init(route: TrainRoute,
          initialMode: ScheduleMode = .single,
-         network: RailwayNetwork,
-         manager: TrainManager,
+         network: NetworkModel,
+         manager: LinesManager,
          appState: AppState) {
-        self.line = line
+        self.line = route
         self.mode = initialMode
         self.network = network
         self.manager = manager
         self.appState = appState
-        self.startStationId = line.originId
-        self.endStationId = line.destinationId
+        self.startStationId = line.originStationId
+        self.endStationId   = line.destinationStationId
         
         self.kinematicCalculator = KinematicCalculator(network: network)
         self.taktEngine = TaktEngine(network: network, kinematicCalculator: kinematicCalculator)
@@ -164,15 +164,14 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     /// Inizializzatore di comodo usato dalla View prima che gli EnvironmentObject siano disponibili.
     /// Chiamare `injectDependencies` in `onAppear` per fornire gli oggetti reali.
-    convenience init(line: RailwayLine, initialMode: ScheduleMode = .single) {
+    convenience init(line: TrainRoute, initialMode: ScheduleMode = .single) {
         let placeholderNetworkModel = NetworkModel()
         let placeholderNetwork = RailwayNetwork()
         let placeholderManager = TrainManager(network: placeholderNetworkModel)
-        self.init(line: line, initialMode: initialMode,
+        self.init(route: line, initialMode: initialMode,
                   network: placeholderNetwork,
                   manager: placeholderManager,
                   appState: AppState.shared)
-        // Mantieni strong refs ai placeholder per evitare dealloc delle weak var
         self.placeholderRetain = [placeholderNetwork, placeholderManager]
     }
 
@@ -221,9 +220,9 @@ final class ScheduleCreationViewModel: ObservableObject {
     /// Se ci sono orari ottimizzati confermati, li applica e genera l'orario.
     func handleOnAppear() {
         print("📍 [ScheduleCreationViewModel] handleOnAppear for line: \(line.name)")
-        startStationId = line.originId
-        endStationId   = line.destinationId
-        stationSequence = line.stations
+        startStationId  = line.originStationId
+        endStationId    = line.destinationStationId
+        stationSequence = line.stationIds
         isInitializing = false
 
         updatePathCalculations()
@@ -244,7 +243,8 @@ final class ScheduleCreationViewModel: ObservableObject {
         syncStartNumbers()
         updatePreview()
 
-        if state.useCloudAI { triggerLineAnalysis() }
+        // AI analysis disabled for now
+        // if state.useCloudAI { triggerLineAnalysis() }
         updatePathCalculations()
     }
 
@@ -253,7 +253,7 @@ final class ScheduleCreationViewModel: ObservableObject {
     /// Aggiorna la sequenza stazioni in base alla selezione di partenza/arrivo.
     /// Gestisce anche il caso in cui l'ordine sia invertito.
     func updateStationSequenceFromSelection() {
-        stationSequence = pathResolver.resolveStationSequence(line: line, startId: startStationId, endId: endStationId)
+        stationSequence = pathResolver.resolveStationSequence(route: line, startId: startStationId, endId: endStationId)
         cachedAltitudeCharacteristics = nil
         presetTaktHub()
     }
@@ -351,19 +351,18 @@ final class ScheduleCreationViewModel: ObservableObject {
     // MARK: - AI Analysis
 
     /// Avvia l'analisi AI della linea (se il cloud AI è attivo).
-    func triggerLineAnalysis() {
+    func triggerRouteAnalysis() {
+        guard let net = network else { return }
         Task {
-            isAnalyzingLine = true
+            isAnalyzingRoute = true
             do {
-                let tempLine = RailwayLine(id: line.id, name: line.name,
-                                           stops: stationSequence.map { RelationStop(stationId: $0) })
-                lineAnalysis = try await RailwayAIService.shared.analyzeLine(
+                routeAnalysis = try await RailwayAIService.shared.analyzeRoute(
                     name: line.name,
                     stationIds: stationSequence,
                     nodes: net.nodes,
                     edges: net.edges)
-            } catch { print("⚠️ AI line analysis failed: \(error)") }
-            isAnalyzingLine = false
+            } catch { print("⚠️ AI route analysis failed: \(error)") }
+            isAnalyzingRoute = false
         }
     }
 
@@ -375,8 +374,10 @@ final class ScheduleCreationViewModel: ObservableObject {
         optimizationStartTime = Date()
         Task {
             let seq = isReturn ? stationSequence.reversed() : Array(stationSequence)
-            let tempLine = RailwayLine(id: line.id, name: line.name,
-                                       stops: seq.map { RelationStop(stationId: $0) })
+            let tempLine = TrainRoute(id: line.id, name: line.name,
+                                      originStationId: seq.first ?? "",
+                                      destinationStationId: seq.last ?? "",
+                                      stationIds: seq)
             let offset = await cadenceOptimizer.proposeIdealWindow(
                 for: tempLine,
                 frequency: Double(intervalMinutes),
@@ -437,7 +438,7 @@ final class ScheduleCreationViewModel: ObservableObject {
         // per evitare cicli di rendering multipli
         let s = state
         s.schedulePreviewTrains             = trains
-        s.schedulePreviewLine               = line
+        s.schedulePreviewRoute              = line
         s.schedulePreviewMode               = mode
         s.schedulePreviewSelectedModel       = selectedModel
         s.schedulePreviewOptimizeVehicles     = optimizeVehicleRotation
@@ -464,10 +465,10 @@ final class ScheduleCreationViewModel: ObservableObject {
         return num
     }
 
-    /// Cerca la linea di ritorno (origine/destinazione invertite), o usa la linea corrente.
-    private func findReturnLine() -> RailwayLine {
-        mgr.lines.first(where: {
-            $0.originId == line.destinationId && $0.destinationId == line.originId
+    /// Cerca la relazione di ritorno (origine/destinazione invertite), o usa la relazione corrente.
+    private func findReturnLine() -> TrainRoute {
+        mgr.routes.first(where: {
+            $0.originStationId == line.destinationStationId && $0.destinationStationId == line.originStationId
         }) ?? line
     }
 
@@ -492,17 +493,17 @@ final class ScheduleCreationViewModel: ObservableObject {
         mgr.validateSchedules()
 
         state.schedulePreviewTrains = nil
-        state.schedulePreviewLine   = nil
-        state.selectedLineId        = line.id
-        state.sidebarSelection      = .lines
+        state.schedulePreviewRoute  = nil
+        state.selectedRouteId       = line.id
+        state.sidebarSelection      = .routes
         generatedTrains = nil
-        state.creationLineId = nil
+        state.creationRouteId = nil
     }
 
     /// Rifiuta l'orario generato e pulisce lo stato di anteprima.
     func rejectSchedule() {
         state.schedulePreviewTrains = nil
-        state.schedulePreviewLine   = nil
+        state.schedulePreviewRoute  = nil
         generatedTrains = nil
     }
 
@@ -571,7 +572,7 @@ final class ScheduleCreationViewModel: ObservableObject {
 
     /// Trova la categoria di treno più frequente su questa linea, se esistono treni.
     private func mostCommonTrainType() -> TrainCategory? {
-        let lineTrains = mgr.trains.filter { $0.lineId == line.id }
+        let lineTrains = mgr.trains.filter { $0.routeId == line.id }
         guard !lineTrains.isEmpty else { return nil }
 
         var counts: [String: Int] = [:]
@@ -695,7 +696,7 @@ final class ScheduleCreationViewModel: ObservableObject {
     /// Sincronizza i numeri iniziali in base ai treni già esistenti sulla linea.
     /// Trova il numero più alto usato e assegna il successivo rispettando la parità.
     private func syncStartNumbers() {
-        let lineTrains = mgr.trains.filter { $0.lineId == line.id }
+        let lineTrains = mgr.trains.filter { $0.routeId == line.id }
         let prefix = line.numberPrefix ?? 0
         let used = lineTrains.compactMap { t -> Int? in
             guard let num = t.number else { return nil }

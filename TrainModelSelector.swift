@@ -50,8 +50,8 @@ struct TrainModel: Codable, Identifiable {
             deceleration: fisica.frenatura_servizio_m_s2,
             mass: specifiche.massa_tonnellate,
             power: Double(specifiche.potenza_kw),
-            imageName: asset_name,
-            isElectric: isElectric
+            isElectric: isElectric,
+            imageName: asset_name
         )
     }
 }

@@ -67,7 +67,7 @@ class FDCImportViewModel: ObservableObject {
                 appState?.simulator.schedules = railroad.lines.generateSchedulesPreview()
             }
             
-            let summary = "Importati \(railroad.network.nodes.count) stazioni, \(railroad.network.edges.count) binari, \(railroad.lines.lines.count) linee, \(railroad.lines.trains.count) treni"
+            let summary = "Importati \(railroad.network.nodes.count) stazioni, \(railroad.network.edges.count) binari, \(railroad.lines.routes.count) relazioni, \(railroad.lines.trains.count) treni"
             status = .success(summary: summary)
         } catch {
             status = .failure(error: error.localizedDescription)

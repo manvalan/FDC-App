@@ -139,7 +139,7 @@ struct MapGeometryEngine {
                                  lines: LinesManager, 
                                  size: CGSize, 
                                  bounds: SchematicRailwayView.MapBounds, 
-                                 selectedLine: RailwayLine?, 
+                                 selectedRouteId: String?, 
                                  selectedEdgeId: String?, 
                                  hiddenLineIds: Set<String>) -> MapRenderData {
         
@@ -150,7 +150,7 @@ struct MapGeometryEngine {
         let edgeGeometries = calculateEdgeGeometries(network: network, nodePositions: nodePositions, size: size, bounds: bounds)
         
         // 3. Linee Commerciali (Bundle)
-        let commercialLines = calculateCommercialLines(lines: lines, hiddenLineIds: hiddenLineIds, selectedLine: selectedLine)
+        let commercialLines = calculateCommercialLines(lines: lines, hiddenLineIds: hiddenLineIds, selectedRouteId: selectedRouteId)
         
         // 4. Hubs
         let hubGeometries = calculateHubGeometries(network: network, nodePositions: nodePositions)
@@ -314,14 +314,14 @@ struct MapGeometryEngine {
     /// Calcola i dati per il rendering delle linee commerciali (bundle).
     private static func calculateCommercialLines(lines: LinesManager, 
                                                hiddenLineIds: Set<String>, 
-                                               selectedLine: RailwayLine?) -> [SegmentKey: [MapRenderData.PrecomputedLine]] {
-        var segmentLines: [SegmentKey: [(line: RailwayLine, color: Color, isSelected: Bool)]] = [:]
+                                               selectedRouteId: String?) -> [SegmentKey: [MapRenderData.PrecomputedLine]] {
+        var segmentLines: [SegmentKey: [(line: TrainRoute, color: Color, isSelected: Bool)]] = [:]
         for line in lines.lines {
-            if hiddenLineIds.contains(line.id) || line.stations.count < 2 { continue }
-            for i in 0..<(line.stations.count - 1) {
-                let key = SegmentKey(line.stations[i], line.stations[i+1])
+            if hiddenLineIds.contains(line.id) || line.stationIds.count < 2 { continue }
+            for i in 0..<(line.stationIds.count - 1) {
+                let key = SegmentKey(line.stationIds[i], line.stationIds[i+1])
                 let color = Color(hex: line.color ?? "#000000") ?? .black
-                let isSelected = line.id == selectedLine?.id
+                let isSelected = line.id == selectedRouteId
                 segmentLines[key, default: []].append((line, color, isSelected))
             }
         }

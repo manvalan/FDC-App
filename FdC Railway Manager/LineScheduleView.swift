@@ -3,7 +3,7 @@ import SwiftUI
 struct LineScheduleView: View {
     @EnvironmentObject var network: RailwayNetwork
     @EnvironmentObject var manager: TrainManager
-    let line: RailwayLine
+    let line: TrainRoute
     
     // View Mode
     enum ScheduleMode: String, CaseIterable, Identifiable {
@@ -103,7 +103,7 @@ struct LineScheduleView: View {
     
     private func exportPDF() {
         let pdfView = LinePDFExportView(
-            line: line,
+            route: line,
             orderedStations: orderedStations,
             trains: manager.trains,
             network: network
@@ -124,7 +124,7 @@ struct LineScheduleView: View {
         var distances: [Double] = []
         var currentDist: Double = 0
         
-        let stationIds = line.stations
+        let stationIds = line.stationIds
         
         guard !stationIds.isEmpty else { return }
         

@@ -38,21 +38,11 @@ struct EditorInspectorContent: View {
                         },
                         onBack: nil
                     )
-                } else if let ferroviaId = appState.selectedFerroviaId,
-                           let index = appState.railroad.network.ferrovie.firstIndex(where: { $0.id == ferroviaId }) {
-                    FerroviaInspectorView(
-                        ferrovia: Binding(
-                            get: { appState.railroad.network.ferrovie[index] },
-                            set: { appState.railroad.network.ferrovie[index] = $0 }
-                        ),
-                        onDelete: {
-                            appState.railroad.network.ferrovie.remove(at: index)
-                            appState.selectedFerroviaId = nil
-                        },
-                        onBack: nil
-                    )
+                } else if let routeId = appState.selectedRouteId,
+                           let route = appState.railroad.lines.routes.first(where: { $0.id == routeId }) {
+                    routeEditor(route: route)
                 } else {
-                    Text("Seleziona una stazione, binario o ferrovia per modificare le proprietà fisiche.")
+                    Text("Seleziona una stazione, binario o rotta per modificare le proprietà.")
                         .multilineTextAlignment(.center)
                         .foregroundColor(.secondary)
                         .padding()
@@ -62,14 +52,14 @@ struct EditorInspectorContent: View {
         }
     }
     
-    private func addStationToLine(node: RailwayNode, line: RailwayLine) {
+    private func addStationToRoute(node: RailwayNode, route: TrainRoute) {
         appState.railroad.network.createCheckpoint()
-        var updatedLine = line
-        let newStop = RelationStop(stationId: node.id, minDwellTime: 1, track: "1")
-        updatedLine.stops.append(newStop)
-        
-        if let idx = appState.railroad.lines.lines.firstIndex(where: { $0.id == line.id }) {
-            appState.railroad.lines.lines[idx] = updatedLine
+        var updatedRoute = route
+        if !updatedRoute.stationIds.contains(node.id) {
+            updatedRoute.stationIds.append(node.id)
+        }
+        if let idx = appState.railroad.lines.routes.firstIndex(where: { $0.id == route.id }) {
+            appState.railroad.lines.routes[idx] = updatedRoute
         }
     }
 
@@ -77,35 +67,31 @@ struct EditorInspectorContent: View {
 
     
     @ViewBuilder
-    private func lineEditor(line: RailwayLine) -> some View {
+    private func routeEditor(route: TrainRoute) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Linea: \(line.name)")
+                Text("Relazione: \(route.name)")
                     .font(.headline)
                 Spacer()
-                
-                Button(action: { editingLineId = line.id }) {
+                Button(action: { editingLineId = route.id }) {
                     Image(systemName: "pencil.circle")
                         .foregroundColor(.blue)
                 }
                 .buttonStyle(.plain)
                 .help("Modifica Percorso e Dettagli")
-                
                 Button(role: .destructive) {
-                    appState.railroad.lines.lines.removeAll(where: { $0.id == line.id })
-                    appState.selectedLineId = nil
+                    appState.railroad.lines.routes.removeAll(where: { $0.id == route.id })
+                    appState.selectedRouteId = nil
                 } label: {
-                    Image(systemName: "trash")
-                        .foregroundColor(.red)
+                    Image(systemName: "trash").foregroundColor(.red)
                 }
                 .buttonStyle(.plain)
             }
-            
             Divider()
             
-            ForEach(0..<line.stops.count, id: \.self) { i in
-                let stop = line.stops[i]
-                if let node = appState.railroad.network.nodes.first(where: { $0.id == stop.stationId }) {
+            ForEach(0..<route.stationIds.count, id: \.self) { i in
+                let sid = route.stationIds[i]
+                if let node = appState.railroad.network.nodes.first(where: { $0.id == sid }) {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Image(systemName: "circle.fill")
@@ -125,9 +111,9 @@ struct EditorInspectorContent: View {
                         }
                         
                         // Edge to next
-                        if i < line.stops.count - 1 {
-                            let nextStop = line.stops[i+1]
-                            if let nextNode = appState.railroad.network.nodes.first(where: { $0.id == nextStop.stationId }) {
+                        if i < route.stationIds.count - 1 {
+                            let nextSid = route.stationIds[i+1]
+                            if let nextNode = appState.railroad.network.nodes.first(where: { $0.id == nextSid }) {
                                 let edge = appState.railroad.network.findEdge(from: node.id, to: nextNode.id)
                                 let dist = edge?.distance ?? {
                                     let l1 = CLLocation(latitude: node.latitude ?? 0, longitude: node.longitude ?? 0)
