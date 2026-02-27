@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		05104C7CB9A6FBFE4E71477E /* TimetableChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 644A4D55976338B7CDE50DA1 /* TimetableChart.swift */; };
+		068B48A0B3DFD275113BD0B6 /* Italian.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A364CB38D148999DB961FF1 /* Italian.swift */; };
 		0C264A718802B3265905ED2A /* LinesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9DE4A1ABAADAC85895A2810 /* LinesManager.swift */; };
 		12974A94B63224BC25547969 /* StationRoutingConstraintsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4134ADF99C92A8CE89CFD92 /* StationRoutingConstraintsView.swift */; };
 		142F4E04984A1AAC42DE0D81 /* Switch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1042998EACDB9B0B43F1AC /* Switch.swift */; };
@@ -98,6 +99,7 @@
 		B31E468FBF3860600409B9B6 /* StationQuickStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C9F426898C80BC304B31082 /* StationQuickStats.swift */; };
 		B6984F2F827BEC0194DB8A9E /* CoordinateGridShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D984135BF3FA33A54D13164 /* CoordinateGridShape.swift */; };
 		B8AA403AB0954D858A6FF2DF /* LinePropertyEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38A4D539DBECE3372632790 /* LinePropertyEditor.swift */; };
+		BC69452C81B8563340B66B90 /* English.swift in Sources */ = {isa = PBXBuildFile; fileRef = 743348239AC59AD9D8193F57 /* English.swift */; };
 		BED0465893857F81D9035FF2 /* LineInfrastructureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DB447359D5DD4897C0B8BBA /* LineInfrastructureView.swift */; };
 		C0564B35BF95428DC59ED0FB /* ScheduleChangeModifiersB2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ECB4213945B412B625B7C79 /* ScheduleChangeModifiersB2.swift */; };
 		C0614AAE96D6AB514B1AE591 /* VehicleEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78E84A57B41719640C387C05 /* VehicleEditSheet.swift */; };
@@ -211,6 +213,7 @@
 		6E214EFF893DB281538D08D7 /* SchedulerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SchedulerView.swift; path = "FdC Railway Manager/UI/Views/Scheduler/SchedulerView.swift"; sourceTree = SOURCE_ROOT; };
 		73654F998955E039A4D1123A /* ScheduleChangeModifiersA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ScheduleChangeModifiersA.swift; path = "FdC Railway Manager/UI/Views/ScheduleCreation/ScheduleChangeModifiersA.swift"; sourceTree = SOURCE_ROOT; };
 		7407469CA2A2F729AAF9F9CC /* RailwayAIService+WebSocket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "RailwayAIService+WebSocket.swift"; path = "FdC Railway Manager/RailwayAIService/RailwayAIService+WebSocket.swift"; sourceTree = SOURCE_ROOT; };
+		743348239AC59AD9D8193F57 /* English.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = English.swift; path = "FdC Railway Manager/Localization/English.swift"; sourceTree = SOURCE_ROOT; };
 		76E144D79B3B4EC99FCD1191 /* IOManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = IOManagementView.swift; path = "FdC Railway Manager/UI/Views/IOManagement/IOManagementView.swift"; sourceTree = SOURCE_ROOT; };
 		78E84A57B41719640C387C05 /* VehicleEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = VehicleEditSheet.swift; path = "FdC Railway Manager/VehicleComponents/VehicleEditSheet.swift"; sourceTree = SOURCE_ROOT; };
 		822D4902AD3050EF133950D9 /* TrainSelectionPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TrainSelectionPicker.swift; path = "FdC Railway Manager/VehicleComponents/TrainSelectionPicker.swift"; sourceTree = SOURCE_ROOT; };
@@ -219,6 +222,7 @@
 		8B5E40DCA7FC76689AE7EF42 /* StationNodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StationNodeView.swift; path = "FdC Railway Manager/UI/Views/RailwayMap/StationNodeView.swift"; sourceTree = SOURCE_ROOT; };
 		8B6440FD87209E3AB4AA318B /* ScheduleChangeModifiersB.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ScheduleChangeModifiersB.swift; path = "FdC Railway Manager/UI/Views/ScheduleCreation/ScheduleChangeModifiersB.swift"; sourceTree = SOURCE_ROOT; };
 		8BD84F7F9F6F33BC302FAE94 /* Signal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Signal.swift; path = "FdC Railway Manager/Models/Signal.swift"; sourceTree = SOURCE_ROOT; };
+		9A364CB38D148999DB961FF1 /* Italian.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Italian.swift; path = "FdC Railway Manager/Localization/Italian.swift"; sourceTree = SOURCE_ROOT; };
 		9AA747CB8BFE133CAE73D7BD /* RailwayMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RailwayMapView.swift; path = "FdC Railway Manager/UI/Views/RailwayMap/RailwayMapView.swift"; sourceTree = SOURCE_ROOT; };
 		9BAC4C879304BE83F1E1C6CC /* FloatingModeBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FloatingModeBar.swift; path = "FdC Railway Manager/UI/Panels/Floating/FloatingModeBar.swift"; sourceTree = SOURCE_ROOT; };
 		9C9F426898C80BC304B31082 /* StationQuickStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StationQuickStats.swift; path = "FdC Railway Manager/UI/Panels/Floating/StationQuickStats.swift"; sourceTree = SOURCE_ROOT; };
@@ -401,6 +405,8 @@
 				C25C496089A129C938A775A8 /* AppState+Enums.swift */,
 				28D8497E8D7302792FF6E017 /* AppState+Theme.swift */,
 				C0EF4146B5ABDE8DF8C84CF4 /* AppState+Compatibility.swift */,
+				9A364CB38D148999DB961FF1 /* Italian.swift */,
+				743348239AC59AD9D8193F57 /* English.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -611,6 +617,8 @@
 				61754BD39E8DA81741D3DFE0 /* AppState+Enums.swift in Sources */,
 				7E28469BBBF7F1ED517DFC80 /* AppState+Theme.swift in Sources */,
 				76324F6BBD32BFC27805C458 /* AppState+Compatibility.swift in Sources */,
+				068B48A0B3DFD275113BD0B6 /* Italian.swift in Sources */,
+				BC69452C81B8563340B66B90 /* English.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
