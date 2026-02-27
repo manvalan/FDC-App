@@ -6,7 +6,6 @@ extension ContentView {
         ZStack {
             if appState.currentMode == .design || appState.currentMode == .editor {
                 EditorModeView()
-                    .ignoresSafeArea()
             } else {
                 mainAreaContent
             }

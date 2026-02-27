@@ -17,25 +17,29 @@ struct EditorModeView: View {
     }
 
     var body: some View {
-        EditorPrimaryContent(viewModel: viewModel, lockedNodeIds: $lockedNodeIds)
-            .overlay(alignment: .top) {
-                EditorSubModePicker()
-                    .padding(.top, 16)
-            }
-            .overlay(alignment: .bottom) {
-                bottomOverlays
-            }
-            .overlay(alignment: .bottomLeading) {
-                // Spostiamo la barra a sinistra come richiesto
-                EditorToolboxView(viewModel: viewModel)
-                    .padding(.leading, 16)
-                    .padding(.bottom, 60)
-            }
-            .onAppear {
-                // Re-sync viewModel with the actual environment appState if necessary
-                viewModel.appState = appState
-                appState.currentMode = .editor
-            }
+        ZStack {
+            EditorPrimaryContent(viewModel: viewModel, lockedNodeIds: $lockedNodeIds)
+                .ignoresSafeArea()
+            
+            Color.clear
+                .overlay(alignment: .top) {
+                    EditorSubModePicker()
+                        .padding(.top, 8)
+                }
+                .overlay(alignment: .bottom) {
+                    bottomOverlays
+                }
+                .overlay(alignment: .bottomLeading) {
+                    EditorToolboxView(viewModel: viewModel)
+                        .padding(.leading, 16)
+                        .padding(.bottom, 60)
+                }
+        }
+        .onAppear {
+            // Re-sync viewModel with the actual environment appState if necessary
+            viewModel.appState = appState
+            appState.currentMode = .editor
+        }
     }
     
     @ViewBuilder
