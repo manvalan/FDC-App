@@ -90,4 +90,74 @@ class EditorModeViewModel: ObservableObject {
             appState.selectedNodeIdsOrder.removeAll()
         }
     }
+    
+    func relaxNetworkLayout() {
+        let network = appState.railroad.network
+        guard network.nodes.count > 1 else { return }
+        
+        network.createCheckpoint()
+        
+        let iterationCount = 15
+        let springStrength = 0.5
+        // Obiettivo: una distanza molto indicativa in gradi (molto approssimativa)
+        let targetDistanceDeg = 0.05
+        
+        var nodePositions = network.nodes.reduce(into: [String: (lat: Double, lon: Double)]()) { dict, node in
+            dict[node.id] = (node.latitude ?? 0, node.longitude ?? 0)
+        }
+        
+        // Calcola l'elenco dei vicini per ogni nodo
+        var adjacencyList: [String: [String]] = [:]
+        for edge in network.edges {
+            adjacencyList[edge.from, default: []].append(edge.to)
+            adjacencyList[edge.to, default: []].append(edge.from)
+        }
+        
+        for _ in 0..<iterationCount {
+            var newPositions = nodePositions
+            
+            for node in network.nodes {
+                let neighbors = adjacencyList[node.id] ?? []
+                guard !neighbors.isEmpty else { continue }
+                
+                var forceLat = 0.0
+                var forceLon = 0.0
+                
+                let currentPos = nodePositions[node.id]!
+                
+                for neighborId in neighbors {
+                    guard let targetPos = nodePositions[neighborId] else { continue }
+                    
+                    let dx = targetPos.lon - currentPos.lon
+                    let dy = targetPos.lat - currentPos.lat
+                    let dist = sqrt(dx*dx + dy*dy)
+                    
+                    if dist > 0.0001 { // Evita divisione per zero e sovrapposizioni perfette
+                        let displacement = dist - targetDistanceDeg
+                        let force = springStrength * displacement
+                        
+                        forceLat += force * (dy / dist)
+                        forceLon += force * (dx / dist)
+                    } else {
+                        // Piccola forza repulsiva se sono nello stesso punto
+                        forceLat += Double.random(in: -0.01...0.01)
+                        forceLon += Double.random(in: -0.01...0.01)
+                    }
+                }
+                
+                // Limita lo spostamento per iterazione
+                forceLat = max(min(forceLat, 0.1), -0.1)
+                forceLon = max(min(forceLon, 0.1), -0.1)
+                
+                newPositions[node.id] = (currentPos.lat + forceLat * 0.1, currentPos.lon + forceLon * 0.1)
+            }
+            nodePositions = newPositions
+        }
+        
+        // Applica le posizioni calcolate
+        for (id, pos) in nodePositions {
+            network.updateNode(id, lat: pos.lat, lon: pos.lon, alt: nil)
+        }
+        appState.objectWillChange.send()
+    }
 }

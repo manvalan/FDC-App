@@ -38,29 +38,21 @@ struct EditorModeView: View {
             EditorPrimaryContent(viewModel: viewModel, lockedNodeIds: $lockedNodeIds)
                 .frame(width: proxy.size.width, height: proxy.size.height)
             
-            // 2. Overlays
-            VStack(spacing: 0) {
-                // Top Bar
-                HStack {
-                    Spacer()
-                    EditorSubModePicker()
-                        .padding(.top, proxy.safeAreaInsets.top + 8)
-                        .padding(.trailing, 16)
-                }
-                
-                Spacer()
-                
-                // Bottom Area (Profile or Inspector)
-                bottomOverlays
-            }
+            // 2. Top Bar Picker
+            EditorSubModePicker()
+                .padding(.top, proxy.safeAreaInsets.top + 8)
+                .padding(.trailing, 16)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             
-            // 3. Right Toolbox
-            HStack {
-                Spacer()
-                EditorToolboxView(viewModel: viewModel)
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 100) // Avoid bottom panel overlap
-            }
+            // 3. Bottom Overlays
+            bottomOverlays
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            
+            // 4. Right Toolbox
+            EditorToolboxView(viewModel: viewModel)
+                .padding(.trailing, 16)
+                .padding(.bottom, 280) // Spostato sopra i controlli della mappa (zoom/export)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         }
     }
     

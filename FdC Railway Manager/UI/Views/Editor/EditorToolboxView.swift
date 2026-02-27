@@ -40,6 +40,12 @@ struct EditorToolboxView: View {
                 
                 divider
                 
+                toolIcon(icon: "arrow.up.and.down.and.sparkles", help: "Rilassa Layout (Molle)") {
+                    viewModel.relaxNetworkLayout()
+                }
+                
+                divider
+                
                 undoRedoControls
             }
         }
