@@ -21,19 +21,29 @@ struct EditorModeView: View {
             EditorPrimaryContent(viewModel: viewModel, lockedNodeIds: $lockedNodeIds)
                 .ignoresSafeArea()
             
-            Color.clear
-                .overlay(alignment: .top) {
+            // Overlays Sicuri
+            VStack {
+                HStack {
+                    Spacer()
                     EditorSubModePicker()
-                        .padding(.top, 8)
+                        .padding(.top, Layout.topEdgeHeight + 10) // Sicuramente fuori da EdgeGesture
+                        .padding(.trailing, Layout.rightEdgeWidth + 10)
                 }
-                .overlay(alignment: .bottom) {
-                    bottomOverlays
-                }
-                .overlay(alignment: .bottomLeading) {
+                
+                Spacer()
+                
+                bottomOverlays
+            }
+            
+            VStack {
+                Spacer()
+                HStack {
                     EditorToolboxView(viewModel: viewModel)
-                        .padding(.leading, 16)
+                        .padding(.leading, Layout.leftEdgeWidth + 10)
                         .padding(.bottom, 60)
+                    Spacer()
                 }
+            }
         }
         .onAppear {
             // Re-sync viewModel with the actual environment appState if necessary

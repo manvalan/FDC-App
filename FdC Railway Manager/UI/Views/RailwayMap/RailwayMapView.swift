@@ -83,6 +83,7 @@ struct RailwayMapView: View {
         // Mode Selector - Swipe from top
         .overlay(alignment: .top) {
             modeSelectorBar
+                .padding(.top, Layout.topEdgeHeight + 5)
         }
         .overlay(alignment: .center) {
             if isExporting {

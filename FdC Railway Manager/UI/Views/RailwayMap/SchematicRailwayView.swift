@@ -119,6 +119,8 @@ struct SchematicRailwayView: View {
                     onExport: onExport,
                     onPrint: onPrint
                 )
+                .padding(.trailing, 60) // Evita `rightEdgeGesture`!
+                .padding(.bottom, 30)
             }
     }
 
