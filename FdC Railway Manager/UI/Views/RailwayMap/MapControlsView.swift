@@ -13,8 +13,7 @@ struct MapControlsView: View {
     private var network: NetworkModel { appState.railroad.network }
     
     @Binding var isEditToolbarVisible: Bool
-    @Binding var editMode: SchematicRailwayView.EditMode
-    @Binding var isMoveModeEnabled: Bool
+    @Binding var editMode: MapEditMode
     @Binding var zoomLevel: CGFloat
     
     var onExport: (RailwayMapView.ExportFormat) -> Void
@@ -29,7 +28,6 @@ struct MapControlsView: View {
                     isEditToolbarVisible.toggle()
                     if !isEditToolbarVisible {
                         editMode = .explore
-                        isMoveModeEnabled = false
                     }
                 }
             }) {
@@ -47,12 +45,9 @@ struct MapControlsView: View {
                 VStack(spacing: 8) {
                     Button(action: {
                         editMode = .addStation
-                        // No specific AppState flag for station adding yet, but map handles tap
                     }) {
                         RailwayInteractionIcon(systemName: "building.2.fill", isActive: editMode == .addStation, activeColor: .green)
                     }
-                    .help("Aggiungi Stazione")
-                    // Use plain style to avoid conflicts
                     .buttonStyle(.plain)
                     
                     Button(action: {
@@ -62,13 +57,7 @@ struct MapControlsView: View {
                     }) {
                         RailwayInteractionIcon(systemName: "point.topleft.down.curvedto.point.bottomright.up", isActive: editMode == .addTrack, activeColor: .orange)
                     }
-                    .help("Crea Binari")
                     .buttonStyle(.plain)
-                    
-                    Button(action: { withAnimation { isMoveModeEnabled.toggle() } }) {
-                        RailwayInteractionIcon(systemName: isMoveModeEnabled ? "hand.draw.fill" : "hand.draw", isActive: isMoveModeEnabled, activeColor: .blue)
-                    }
-                    .help("Sposta Stazioni")
                     
                     Divider().background(Color.white.opacity(0.3)).frame(width: 30)
                     
@@ -94,7 +83,7 @@ struct MapControlsView: View {
             
             Spacer()
             
-            // Middle: Export Tools (New!)
+            // Middle: Export Tools
             VStack(spacing: 8) {
                 Button(action: { onExport(.jpeg) }) {
                     RailwayInteractionIcon(systemName: "photo", isActive: false, color: .primary)

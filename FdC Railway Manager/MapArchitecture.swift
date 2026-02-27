@@ -52,7 +52,7 @@ enum MapInteractionState: Equatable {
 /// Questo oggetto contiene tutto il necessario per il disegno, pre-calcolato.
 struct MapRenderData {
     let size: CGSize
-    let bounds: SchematicRailwayView.MapBounds
+    let bounds: MapBounds
     let nodePositions: [String: CGPoint]
     let edgeGeometries: [String: [CGPoint]] // Chiave: canonicalKey degli edge
     let hubGeometries: [String: [CGPoint]] // Chiave: hubId

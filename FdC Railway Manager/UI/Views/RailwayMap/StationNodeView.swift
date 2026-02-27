@@ -16,12 +16,12 @@ struct StationNodeView: View {
     var isSelected: Bool
     var snapToGrid: Bool
     var gridUnit: Double
-    var bounds: SchematicRailwayView.MapBounds
+    var bounds: MapBounds
     var onTap: () -> Void
-    @Binding var isMoveModeEnabled: Bool
     var onDragStarted: (() -> Void)? = nil
     private let renderer = RailwayRenderer()
     @State private var dragOffset: CGSize = .zero
+    @State private var isInternalMoveEnabled: Bool = false
     
     var body: some View {
         renderNodeIconWithInteraction
@@ -30,51 +30,61 @@ struct StationNodeView: View {
             .background(Circle().fill(Color.white).opacity(0.001))
             .overlay(selectionOverlay)
             .overlay(alignment: .top) { labelOverlay }
-            .onLongPressGesture(minimumDuration: 0.5) { 
+            .onLongPressGesture(minimumDuration: 0.5, pressing: { isPressing in
+                 if isPressing {
+                     #if canImport(UIKit)
+                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                     #endif
+                 }
+            }) { 
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                    isMoveModeEnabled.toggle()
+                    isInternalMoveEnabled = true
                 }
                 #if os(macOS)
                 NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
-                #elseif canImport(UIKit)
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 #endif
             }
             .onTapGesture { onTap() }
             .gesture(
-                isMoveModeEnabled ?
+                isInternalMoveEnabled ?
                     DragGesture(minimumDistance: 1)
                         .onChanged { val in
                             if dragOffset == .zero { onDragStarted?() }
                             dragOffset = val.translation
                         }
                         .onEnded { val in
-                            // Commit changes using the final drag offset
-                            let drawWidth = max(canvasSize.width - 100, 1) 
-                            let drawHeight = max(canvasSize.height - 100, 1)
-                            
-                            let dLon = (val.translation.width / drawWidth) * bounds.xRange
-                            let dLat = -(val.translation.height / drawHeight) * bounds.yRange 
-                            
-                            var newNode = node
-                            let lat = (newNode.latitude ?? 0) + dLat
-                            let lon = (newNode.longitude ?? 0) + dLon
-                            
-                            if snapToGrid {
-                                let unit = gridUnit
-                                newNode.latitude = round(lat / unit) * unit
-                                newNode.longitude = round(lon / unit) * unit
-                            } else {
-                                newNode.latitude = lat
-                                newNode.longitude = lon
-                            }
-                            
-                            node = newNode 
-                            dragOffset = .zero
+                            finalizeDrag(translation: val.translation)
                         }
                 : nil
             )
             .offset(dragOffset)
+    }
+
+    private func finalizeDrag(translation: CGSize) {
+        let drawWidth = max(canvasSize.width - 100, 1) 
+        let drawHeight = max(canvasSize.height - 100, 1)
+        
+        let dLon = (translation.width / drawWidth) * bounds.xRange
+        let dLat = -(translation.height / drawHeight) * bounds.yRange 
+        
+        var newNode = node
+        let lat = (newNode.latitude ?? 0) + dLat
+        let lon = (newNode.longitude ?? 0) + dLon
+        
+        if snapToGrid {
+            let unit = gridUnit
+            newNode.latitude = round(lat / unit) * unit
+            newNode.longitude = round(lon / unit) * unit
+        } else {
+            newNode.latitude = lat
+            newNode.longitude = lon
+        }
+        
+        withAnimation {
+            node = newNode 
+            dragOffset = .zero
+            isInternalMoveEnabled = false
+        }
     }
 
     @ViewBuilder
@@ -98,7 +108,7 @@ struct StationNodeView: View {
             if isSelected {
                 Circle().stroke(Color.blue, lineWidth: 2).scaleEffect(1.4)
             }
-            if isMoveModeEnabled {
+            if isInternalMoveEnabled {
                 Circle().stroke(Color.blue.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [4, 2])).scaleEffect(1.3)
             }
         }

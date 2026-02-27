@@ -14,7 +14,6 @@ final class UISettings: ObservableObject {
     }
     
     @Published var showGrid: Bool = false
-    @Published var isMoveModeEnabled: Bool = false
     
     init() {
         let storedWidth = UserDefaults.standard.double(forKey: "global_line_width")

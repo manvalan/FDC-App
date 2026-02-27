@@ -19,11 +19,6 @@ extension AppState {
         set { uiSettings.showGrid = newValue }
     }
     
-    var isMoveModeEnabled: Bool {
-        get { uiSettings.isMoveModeEnabled }
-        set { uiSettings.isMoveModeEnabled = newValue }
-    }
-    
     var trackWidthSingle: Double {
         get { trackSettings.widthSingle }
         set { trackSettings.widthSingle = newValue }

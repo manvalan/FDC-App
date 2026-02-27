@@ -17,7 +17,6 @@ struct EditorInspectorContent: View {
                             get: { appState.railroad.network.nodes[index] },
                             set: { appState.railroad.network.nodes[index] = $0 }
                         ),
-                        isMoveModeEnabled: .constant(false),
                         onDelete: {
                             appState.railroad.network.removeNode(node.id)
                             appState.selectedNodeId = nil

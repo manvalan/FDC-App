@@ -4,7 +4,6 @@ struct LineDetailView: View {
     @Binding var line: TrainRoute
     @EnvironmentObject var network: NetworkModel
     @EnvironmentObject var appState: AppState
-    @Binding var isMoveModeEnabled: Bool
     @Binding var selectedNode: Node?
     @Binding var selectedEdgeId: String?
     
@@ -86,7 +85,6 @@ struct LineDetailView: View {
                     VerticalTrackDiagramView(
                         line: $line,
                         network: network,
-                        isMoveModeEnabled: $isMoveModeEnabled,
                         externalSelectedStationID: Binding(
                             get: { selectedNode?.id },
                             set: { id in

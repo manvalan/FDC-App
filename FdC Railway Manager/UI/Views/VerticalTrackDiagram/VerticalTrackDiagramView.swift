@@ -5,7 +5,6 @@ struct VerticalTrackDiagramView: View {
     @EnvironmentObject var appState: AppState
     @Binding var line: TrainRoute
     @ObservedObject var network: RailwayNetwork
-    @Binding var isMoveModeEnabled: Bool
     
     @Binding var externalSelectedStationID: String?
     @Binding var externalSelectedEdgeID: String?
@@ -292,7 +291,7 @@ struct VerticalTrackDiagramView: View {
     @ViewBuilder
     private func stationSheetContent(for id: String) -> some View {
         if let index = network.nodes.firstIndex(where: { $0.id == id }) {
-            StationEditView(station: $network.nodes[index], isMoveModeEnabled: $isMoveModeEnabled)
+            StationEditView(station: $network.nodes[index])
         }
     }
     

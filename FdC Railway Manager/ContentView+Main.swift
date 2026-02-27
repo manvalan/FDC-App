@@ -64,7 +64,6 @@ extension ContentView {
             selectedLine: Binding(get: { appState.selectedInfraLine }, set: { appState.selectedInfraLineId = $0?.id }),
             selectedEdgeId: $appState.selectedEdgeId,
             showGrid: $appState.showGrid,
-            isMoveModeEnabled: $appState.isMoveModeEnabled,
             highlightedConflictLocation: $highlightedConflictLocation,
             mode: $appState.mapVisualizationMode
         )

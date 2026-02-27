@@ -16,10 +16,9 @@ struct StationMarkersView: View {
     @Binding var selectedLine: RailwayLine?
     @Binding var selectedEdgeId: String?
     let canvasSize: CGSize
-    let bounds: SchematicRailwayView.MapBounds
+    let bounds: MapBounds
     let showGrid: Bool
     let coordinateGridStep: Double
-    @Binding var isMoveModeEnabled: Bool
     let onTap: (RailwayNode) -> Void
     
     var body: some View {
@@ -35,6 +34,7 @@ struct StationMarkersView: View {
                 set: { newNode in
                     if let index = network.nodes.firstIndex(where: { $0.id == node.id }) {
                         network.nodes[index] = newNode
+                        network.recalculateDistances(for: newNode.id)
                     }
                 }
             )
@@ -47,7 +47,6 @@ struct StationMarkersView: View {
                 gridUnit: coordinateGridStep,
                 bounds: bounds,
                 onTap: { onTap(node) },
-                isMoveModeEnabled: $isMoveModeEnabled,
                 onDragStarted: { network.createCheckpoint() }
             )
             .position(MapGeometryEngine.finalPosition(for: node, in: canvasSize, bounds: bounds, network: network))

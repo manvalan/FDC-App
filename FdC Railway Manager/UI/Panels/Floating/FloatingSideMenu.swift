@@ -37,9 +37,9 @@ struct FloatingSideMenu: View {
                             appState.showPanel(.none)
                         }
                         
-                        MenuRow(title: "Rete", icon: "building.2.fill", isSelected: appState.sidebarSelection == .stations && appState.activePanel == .inspector) {
+                        MenuRow(title: "Rete", icon: "building.2.fill", isSelected: (appState.sidebarSelection == .stations || appState.sidebarSelection == .tracks) && appState.activePanel == .inspector) {
                             appState.sidebarSelection = .stations
-                            appState.currentMode = .design
+                            appState.currentMode = .editor
                             appState.clearSelection()
                             appState.showPanel(.inspector)
                         }

@@ -54,6 +54,7 @@ final class AppState: ObservableObject {
     
     // New Minimalist Navigation State
     @Published var currentMode: AppMode = .design
+    @Published var designSubMode: DesignSubMode = .infrastructure
     @Published var mapVisualizationMode: RailwayMapView.MapVisualizationMode = .schematic
     
     // Selection State (Global)

@@ -150,7 +150,6 @@ extension ContentView {
                     get: { network.nodes[index] },
                     set: { network.nodes[index] = $0 }
                 ),
-                isMoveModeEnabled: $appState.isMoveModeEnabled,
                 onDelete: {
                     withAnimation {
                         network.removeNode(node.id)

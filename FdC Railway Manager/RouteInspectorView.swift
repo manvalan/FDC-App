@@ -66,7 +66,6 @@ struct RouteInspectorView: View {
                             }
                         ),
                         network: network,
-                        isMoveModeEnabled: .constant(false),
                         externalSelectedStationID: $appState.selectedNodeId,
                         externalSelectedEdgeID: $appState.selectedEdgeId,
                         isSidebarEditMode: $appState.isLineEditing

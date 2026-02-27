@@ -9,7 +9,7 @@ import AppKit
 #endif
 
 struct CoordinateGridShape: Shape {
-    var bounds: SchematicRailwayView.MapBounds
+    var bounds: MapBounds
     var unit: Double
     var size: CGSize
     

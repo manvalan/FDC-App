@@ -134,6 +134,3 @@ struct InfraLinesInspectorList: View {
     }
 }
 
-// MARK: - Backward compat typealiases (remove after full migration of call sites)
-typealias FerrovieListPopover    = InfraLinesListPopover
-typealias FerrovieInspectorList  = InfraLinesInspectorList

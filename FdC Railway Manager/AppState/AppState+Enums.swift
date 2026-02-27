@@ -62,3 +62,14 @@ enum AppMode: String, CaseIterable, Identifiable {
         }
     }
 }
+enum DesignSubMode: String, CaseIterable, Identifiable {
+    case infrastructure, services
+    var id: String { rawValue }
+    
+    var title: String {
+        switch self {
+        case .infrastructure: return "Mappa"
+        case .services: return "Linee & Profilo"
+        }
+    }
+}

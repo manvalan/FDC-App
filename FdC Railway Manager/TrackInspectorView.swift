@@ -35,8 +35,6 @@ struct TrackInspectorView: View {
                 }
             }
         ) {
-            EditingModeBanner(isEditingEnabled: $isEditingEnabled)
-            
             stationsSection
             trackTypeSection
             parametersSection
@@ -44,10 +42,6 @@ struct TrackInspectorView: View {
             if onDelete != nil {
                 InspectorDeleteButton(label: "delete_track".localized, onDelete: onDelete ?? {})
             }
-        }
-        .disabled(!isEditingEnabled)
-        .onLongPressGesture(minimumDuration: 1.0) {
-            isEditingEnabled.toggle()
         }
         .onAppear {
             isEditingEnabled = true

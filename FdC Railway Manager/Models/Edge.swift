@@ -78,5 +78,6 @@ public struct Edge: Identifiable, Codable, Hashable {
         capacity = try container.decodeIfPresent(Int.self, forKey: .capacity)
         segments = try container.decodeIfPresent([TrackSegment].self, forKey: .segments) ?? []
         electrification = try container.decodeIfPresent(ElectrificationType.self, forKey: .electrification) ?? .dc3kv
+        hasManualDistance = try container.decodeIfPresent(Bool.self, forKey: .hasManualDistance) ?? false
     }
 }

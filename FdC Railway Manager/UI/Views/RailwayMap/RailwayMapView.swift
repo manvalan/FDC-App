@@ -57,7 +57,6 @@ struct RailwayMapView: View {
     @Binding var selectedLine: RailwayLine?
     @Binding var selectedEdgeId: String?
     @Binding var showGrid: Bool
-    @Binding var isMoveModeEnabled: Bool
     @Binding var highlightedConflictLocation: String?
     @Binding var mode: MapVisualizationMode
     
@@ -69,9 +68,6 @@ struct RailwayMapView: View {
     
     @State private var isExporting = false
 
-    struct MapBounds: Sendable {
-        let minLat, maxLat, minLon, maxLon, xRange, yRange: Double
-    }
 
     var body: some View {
         ZStack {
@@ -80,7 +76,6 @@ struct RailwayMapView: View {
                 selectedLine: $selectedLine,
                 selectedEdgeId: $selectedEdgeId,
                 showGrid: $showGrid,
-                isMoveModeEnabled: $isMoveModeEnabled,
                 highlightedConflictLocation: $highlightedConflictLocation,
                 mode: mode,
                 onExport: { exportMap(as: $0) },

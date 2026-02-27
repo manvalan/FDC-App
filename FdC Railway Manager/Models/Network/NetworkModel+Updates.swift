@@ -37,13 +37,15 @@ extension NetworkModel {
 
     private func updateEdgeDistance(at index: Int) {
         let edge = edges[index]
+        // Se la distanza è stata impostata manualmente, non ricalcolarla in base alle coordinate
+        guard !edge.hasManualDistance else { return }
+        
         guard let n1 = findNode(id: edge.from),
               let n2 = findNode(id: edge.to) else { return }
         
         let newDist = calculateDistance(from: n1, to: n2)
         var updatedEdge = edge
         updatedEdge.distance = newDist
-        // If the node moved, we align the distance to coordinates
         edges[index] = updatedEdge
     }
 

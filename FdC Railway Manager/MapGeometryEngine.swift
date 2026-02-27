@@ -5,7 +5,7 @@ import SwiftUI
 struct MapGeometryEngine {
     
     /// Trasforma coordinate geografiche in punti vista (Canvas).
-    static func schematicPoint(for node: RailwayNode, in size: CGSize, bounds: SchematicRailwayView.MapBounds) -> CGPoint {
+    static func schematicPoint(for node: RailwayNode, in size: CGSize, bounds: MapBounds) -> CGPoint {
         let lon = node.longitude ?? 0; let lat = node.latitude ?? 0
         let x = (lon - bounds.minLon) / bounds.xRange * (size.width - MapConstants.canvasPadding * 2) + MapConstants.canvasPadding
         let y = (1.0 - (lat - bounds.minLat) / bounds.yRange) * (size.height - MapConstants.canvasPadding * 2) + MapConstants.canvasPadding
@@ -13,7 +13,7 @@ struct MapGeometryEngine {
     }
     
     /// Calcola la posizione finale di un nodo, considerando gli offset dei Hub.
-    static func finalPosition(for node: RailwayNode, in size: CGSize, bounds: SchematicRailwayView.MapBounds, network: NetworkModel) -> CGPoint {
+    static func finalPosition(for node: RailwayNode, in size: CGSize, bounds: MapBounds, network: NetworkModel) -> CGPoint {
         if let parentId = node.parentHubId, let parent = network.nodes.first(where: { $0.id == parentId }) {
             let pPos = schematicPoint(for: parent, in: size, bounds: bounds)
             let offset: CGFloat = 25.0 // Offset fisso per chiarezza visiva nei hub
@@ -100,7 +100,7 @@ struct MapGeometryEngine {
     }
     
     /// Calcola la posizione attuale di un treno.
-    static func currentSchematicTrainPos(for schedule: TrainSchedule, in size: CGSize, now: Date, bounds: SchematicRailwayView.MapBounds, network: NetworkModel) -> CGPoint? {
+    static func currentSchematicTrainPos(for schedule: TrainSchedule, in size: CGSize, now: Date, bounds: MapBounds, network: NetworkModel) -> CGPoint? {
         guard schedule.stops.count >= 2 else { return nil }
         for i in 0..<(schedule.stops.count - 1) {
             let s1 = schedule.stops[i]; let s2 = schedule.stops[i+1]
@@ -133,12 +133,34 @@ struct MapGeometryEngine {
         return nil
     }
 
+    /// Calcola i MapBounds in base ai nodi della rete
+    static func calculateBounds(nodes: [RailwayNode]) -> MapBounds {
+        let lats = nodes.compactMap { $0.latitude }
+        let lons = nodes.compactMap { $0.longitude }
+        let minLat = lats.min() ?? 38.0
+        let maxLat = lats.max() ?? 48.0
+        let minLon = lons.min() ?? 7.0
+        let maxLon = lons.max() ?? 19.0
+        let xr = maxLon - minLon
+        let yr = maxLat - minLat
+        let padX = xr == 0 ? 0.5 : xr * 0.1
+        let padY = yr == 0 ? 0.5 : yr * 0.1
+        return MapBounds(
+            minLat: minLat - padY, 
+            maxLat: maxLat + padY, 
+            minLon: minLon - padX, 
+            maxLon: maxLon + padX, 
+            xRange: xr + 2 * padX, 
+            yRange: yr + 2 * padY
+        )
+    }
+
     /// Pre-calcola tutti i dati necessari per il rendering di un frame della mappa.
     /// Questa è la "Query" del CQS che estrae la logica dal body della View.
     static func generateRenderData(network: NetworkModel, 
                                  lines: LinesManager, 
                                  size: CGSize, 
-                                 bounds: SchematicRailwayView.MapBounds, 
+                                 bounds: MapBounds, 
                                  selectedRouteId: String?, 
                                  selectedEdgeId: String?, 
                                  hiddenLineIds: Set<String>) -> MapRenderData {
@@ -168,7 +190,7 @@ struct MapGeometryEngine {
     // MARK: - Private Extraction Methods
 
     /// Calcola le posizioni di tutti i nodi nella rete.
-    private static func calculateNodePositions(network: NetworkModel, size: CGSize, bounds: SchematicRailwayView.MapBounds) -> [String: CGPoint] {
+    private static func calculateNodePositions(network: NetworkModel, size: CGSize, bounds: MapBounds) -> [String: CGPoint] {
         var positions: [String: CGPoint] = [:]
         for node in network.nodes {
             positions[node.id] = finalPosition(for: node, in: size, bounds: bounds, network: network)
@@ -180,7 +202,7 @@ struct MapGeometryEngine {
     private static func calculateEdgeGeometries(network: NetworkModel, 
                                               nodePositions: [String: CGPoint], 
                                               size: CGSize, 
-                                              bounds: SchematicRailwayView.MapBounds) -> [String: [CGPoint]] {
+                                              bounds: MapBounds) -> [String: [CGPoint]] {
         var geometries: [String: [CGPoint]] = [:]
         
         let nodeNeighbors = buildNodeNeighbors(network: network)
@@ -217,7 +239,7 @@ struct MapGeometryEngine {
                                       nodePositions: [String: CGPoint], 
                                       nodeNeighbors: [String: Set<String>], 
                                       size: CGSize, 
-                                      bounds: SchematicRailwayView.MapBounds, 
+                                      bounds: MapBounds, 
                                       results: inout [String: [CGPoint]]) {
         guard let firstEdge = edges.first,
               let p1 = nodePositions[firstEdge.from],
@@ -240,7 +262,7 @@ struct MapGeometryEngine {
                                     nPosStart: [CGPoint], 
                                     nPosEnd: [CGPoint], 
                                     size: CGSize, 
-                                    bounds: SchematicRailwayView.MapBounds) -> [CGPoint] {
+                                    bounds: MapBounds) -> [CGPoint] {
         if let customPoints = edge.geometryPoints, !customPoints.isEmpty {
             var points: [CGPoint] = [p1]
             for gp in customPoints {
@@ -254,7 +276,7 @@ struct MapGeometryEngine {
     }
 
     /// Converte coordinate geo in punti canvas.
-    private static func toCanvasCoords(lat: Double, lon: Double, size: CGSize, bounds: SchematicRailwayView.MapBounds) -> CGPoint {
+    private static func toCanvasCoords(lat: Double, lon: Double, size: CGSize, bounds: MapBounds) -> CGPoint {
         let x = (lon - bounds.minLon) / bounds.xRange * (size.width - MapConstants.canvasPadding * 2) + MapConstants.canvasPadding
         let y = (1.0 - (lat - bounds.minLat) / bounds.yRange) * (size.height - MapConstants.canvasPadding * 2) + MapConstants.canvasPadding
         return CGPoint(x: x, y: y)

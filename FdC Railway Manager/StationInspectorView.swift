@@ -3,7 +3,6 @@ import SwiftUI
 // MARK: - Station Inspector
 struct StationInspectorView: View {
     @Binding var station: RailwayNode
-    @Binding var isMoveModeEnabled: Bool
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var loader: AppLoaderService
     
@@ -30,8 +29,6 @@ struct StationInspectorView: View {
                 }
             }
         ) {
-            EditingModeBanner(isEditingEnabled: $isEditingEnabled)
-            
             basicInfoSection
             
             // Taktfahrplan section for all stations - crucial for network sync
@@ -45,10 +42,6 @@ struct StationInspectorView: View {
             if onDelete != nil {
                 InspectorDeleteButton(label: "delete_station".localized, onDelete: onDelete ?? {})
             }
-        }
-        .disabled(!isEditingEnabled)
-        .onLongPressGesture(minimumDuration: 1.0) {
-            isEditingEnabled.toggle()
         }
         .onAppear {
             isEditingEnabled = true

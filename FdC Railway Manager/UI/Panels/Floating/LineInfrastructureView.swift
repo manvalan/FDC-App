@@ -23,7 +23,6 @@ struct LineInfrastructureView: View {
                         }
                     ),
                     network: appState.railroad.network,
-                    isMoveModeEnabled: .constant(false),
                     externalSelectedStationID: $appState.selectedNodeId,
                     externalSelectedEdgeID: $appState.selectedEdgeId,
                     isSidebarEditMode: $appState.isLineEditing

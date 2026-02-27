@@ -12,7 +12,7 @@ struct TrainOverlayCanvas: View {
     @EnvironmentObject var appState: AppState
     private var network: NetworkModel { appState.railroad.network }
     
-    let bounds: SchematicRailwayView.MapBounds
+    let bounds: MapBounds
     let canvasSize: CGSize
     let totalZoom: CGFloat
     
