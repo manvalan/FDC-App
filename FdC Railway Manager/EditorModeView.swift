@@ -17,43 +17,25 @@ struct EditorModeView: View {
     }
 
     var body: some View {
-        ZStack {
-            Color.white.ignoresSafeArea()
-            
-            GeometryReader { proxy in
-                mainLayout(proxy: proxy)
+        EditorPrimaryContent(viewModel: viewModel, lockedNodeIds: $lockedNodeIds)
+            .background(Color.white.ignoresSafeArea())
+            .overlay(alignment: .topTrailing) {
+                EditorSubModePicker()
+                    .padding()
             }
-        }
-        .onAppear {
-            // Re-sync viewModel with the actual environment appState if necessary
-            viewModel.appState = appState
-            appState.currentMode = .editor
-        }
-    }
-    
-    @ViewBuilder
-    private func mainLayout(proxy: GeometryProxy) -> some View {
-        ZStack {
-            // 1. Primary Content
-            EditorPrimaryContent(viewModel: viewModel, lockedNodeIds: $lockedNodeIds)
-                .frame(width: proxy.size.width, height: proxy.size.height)
-            
-            // 2. Top Bar Picker
-            EditorSubModePicker()
-                .padding(.top, proxy.safeAreaInsets.top + 8)
-                .padding(.trailing, 16)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-            
-            // 3. Bottom Overlays
-            bottomOverlays
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            
-            // 4. Right Toolbox
-            EditorToolboxView(viewModel: viewModel)
-                .padding(.trailing, 16)
-                .padding(.bottom, 280) // Spostato sopra i controlli della mappa (zoom/export)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-        }
+            .overlay(alignment: .bottom) {
+                bottomOverlays
+            }
+            .overlay(alignment: .bottomTrailing) {
+                EditorToolboxView(viewModel: viewModel)
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 320) // Spostato più in su per evitare i controlli della mappa e FloatingMenu
+            }
+            .onAppear {
+                // Re-sync viewModel with the actual environment appState if necessary
+                viewModel.appState = appState
+                appState.currentMode = .editor
+            }
     }
     
     @ViewBuilder
