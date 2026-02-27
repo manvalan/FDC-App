@@ -97,18 +97,20 @@ struct SchematicRailwayView: View {
             StationPickingIndicator()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             
-            TrackCreationOverlay(
-                editMode: $editMode,
-                newTrackFrom: $newTrackFrom,
-                newTrackTo: $newTrackTo,
-                newTrackDistance: $newTrackDistance,
-                newTrackType: $newTrackType,
-                onCreate: { 
-                    if let from = newTrackFrom, let to = newTrackTo {
-                        interactionVM.createTrack(from: from, to: to, distance: newTrackDistance, type: newTrackType) 
+            if editMode == .addTrack {
+                TrackCreationOverlay(
+                    editMode: $editMode,
+                    newTrackFrom: $newTrackFrom,
+                    newTrackTo: $newTrackTo,
+                    newTrackDistance: $newTrackDistance,
+                    newTrackType: $newTrackType,
+                    onCreate: { 
+                        if let from = newTrackFrom, let to = newTrackTo {
+                            interactionVM.createTrack(from: from, to: to, distance: newTrackDistance, type: newTrackType) 
+                        }
                     }
-                }
-            )
+                )
+            }
             
             MapControlsView(
                 isEditToolbarVisible: $isEditToolbarVisible,
