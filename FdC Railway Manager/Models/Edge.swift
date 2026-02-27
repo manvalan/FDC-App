@@ -35,6 +35,7 @@ public struct Edge: Identifiable, Codable, Hashable {
     public var trackType: TrackType
     public var maxSpeed: Int
     public var capacity: Int?
+    public var hasManualDistance: Bool = false
     public var segments: [TrackSegment] = [] // Segmenti fisici (blocchi) del binario
     public var geometryPoints: [GeometryPoint]? // Punti intermedi personalizzati per controllare la geometria del binario
     public var electrification: ElectrificationType = .dc3kv
@@ -51,10 +52,10 @@ public struct Edge: Identifiable, Codable, Hashable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, from, to, distance, trackType, maxSpeed, capacity, segments, geometryPoints, electrification
+        case id, from, to, distance, trackType, maxSpeed, capacity, segments, geometryPoints, electrification, hasManualDistance
     }
 
-    public init(id: UUID = UUID(), from: String, to: String, distance: Double, trackType: TrackType, maxSpeed: Int, capacity: Int? = nil, electrification: ElectrificationType = .dc3kv) {
+    public init(id: UUID = UUID(), from: String, to: String, distance: Double, trackType: TrackType, maxSpeed: Int, capacity: Int? = nil, electrification: ElectrificationType = .dc3kv, hasManualDistance: Bool = false) {
         self.id = id
         self.from = from
         self.to = to
@@ -63,6 +64,7 @@ public struct Edge: Identifiable, Codable, Hashable {
         self.maxSpeed = maxSpeed
         self.capacity = capacity
         self.electrification = electrification
+        self.hasManualDistance = hasManualDistance
     }
     
     public init(from decoder: Decoder) throws {
