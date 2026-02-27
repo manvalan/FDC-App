@@ -70,26 +70,21 @@ struct RailwayMapView: View {
 
 
     var body: some View {
-        ZStack {
-            SchematicRailwayView(
-                selectedNode: $selectedNode,
-                selectedLine: $selectedLine,
-                selectedEdgeId: $selectedEdgeId,
-                showGrid: $showGrid,
-                highlightedConflictLocation: $highlightedConflictLocation,
-                mode: mode,
-                onExport: { exportMap(as: $0) },
-                onPrint: { printMap() }
-            )
-            
-            // Internal Simulation Controls removed - now handled by Floating shelf in ContentView
-            
-            // Mode Selector - Swipe from top
-            VStack {
-                modeSelectorBar
-                Spacer()
-            }
-            
+        SchematicRailwayView(
+            selectedNode: $selectedNode,
+            selectedLine: $selectedLine,
+            selectedEdgeId: $selectedEdgeId,
+            showGrid: $showGrid,
+            highlightedConflictLocation: $highlightedConflictLocation,
+            mode: mode,
+            onExport: { exportMap(as: $0) },
+            onPrint: { printMap() }
+        )
+        // Mode Selector - Swipe from top
+        .overlay(alignment: .top) {
+            modeSelectorBar
+        }
+        .overlay(alignment: .center) {
             if isExporting {
                 Color.black.opacity(0.3)
                     .ignoresSafeArea()

@@ -18,18 +18,18 @@ struct EditorModeView: View {
 
     var body: some View {
         EditorPrimaryContent(viewModel: viewModel, lockedNodeIds: $lockedNodeIds)
-            .background(Color.white.ignoresSafeArea())
-            .overlay(alignment: .topTrailing) {
+            .overlay(alignment: .top) {
                 EditorSubModePicker()
-                    .padding()
+                    .padding(.top, 16)
             }
             .overlay(alignment: .bottom) {
                 bottomOverlays
             }
-            .overlay(alignment: .bottomTrailing) {
+            .overlay(alignment: .bottomLeading) {
+                // Spostiamo la barra a sinistra come richiesto
                 EditorToolboxView(viewModel: viewModel)
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 320) // Spostato più in su per evitare i controlli della mappa e FloatingMenu
+                    .padding(.leading, 16)
+                    .padding(.bottom, 60)
             }
             .onAppear {
                 // Re-sync viewModel with the actual environment appState if necessary

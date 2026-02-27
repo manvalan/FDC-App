@@ -91,36 +91,35 @@ struct SchematicRailwayView: View {
     }
 
     private func mainViewContainer(size: CGSize, bounds: MapBounds, renderData: MapRenderData) -> some View {
-        ZStack {
-            scrollViewLayer(size: size, bounds: bounds, renderData: renderData)
-            
-            StationPickingIndicator()
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            
-            if editMode == .addTrack {
-                TrackCreationOverlay(
-                    editMode: $editMode,
-                    newTrackFrom: $newTrackFrom,
-                    newTrackTo: $newTrackTo,
-                    newTrackDistance: $newTrackDistance,
-                    newTrackType: $newTrackType,
-                    onCreate: { 
-                        if let from = newTrackFrom, let to = newTrackTo {
-                            interactionVM.createTrack(from: from, to: to, distance: newTrackDistance, type: newTrackType) 
+        scrollViewLayer(size: size, bounds: bounds, renderData: renderData)
+            .overlay(alignment: .top) {
+                StationPickingIndicator()
+            }
+            .overlay(alignment: .center) {
+                if editMode == .addTrack {
+                    TrackCreationOverlay(
+                        editMode: $editMode,
+                        newTrackFrom: $newTrackFrom,
+                        newTrackTo: $newTrackTo,
+                        newTrackDistance: $newTrackDistance,
+                        newTrackType: $newTrackType,
+                        onCreate: { 
+                            if let from = newTrackFrom, let to = newTrackTo {
+                                interactionVM.createTrack(from: from, to: to, distance: newTrackDistance, type: newTrackType) 
+                            }
                         }
-                    }
+                    )
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                MapControlsView(
+                    isEditToolbarVisible: $isEditToolbarVisible,
+                    editMode: $editMode,
+                    zoomLevel: $zoomLevel,
+                    onExport: onExport,
+                    onPrint: onPrint
                 )
             }
-            
-            MapControlsView(
-                isEditToolbarVisible: $isEditToolbarVisible,
-                editMode: $editMode,
-                zoomLevel: $zoomLevel,
-                onExport: onExport,
-                onPrint: onPrint
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-        }
     }
 
     private func scrollViewLayer(size: CGSize, bounds: MapBounds, renderData: MapRenderData) -> some View {
