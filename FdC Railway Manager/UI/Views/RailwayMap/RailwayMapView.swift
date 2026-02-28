@@ -10,13 +10,11 @@ import AppKit
 
 struct RailwayMapView: View {
     enum MapVisualizationMode: String, CaseIterable {
-        case schematic   // Visualizzazione schematica tradizionale
         case infrastructure  // Infrastruttura dettagliata con segmenti e segnali
-        case scheduler   // Modalità Train Director/Scheduler
+        case scheduler       // Modalità Train Director/Scheduler
         
         var displayName: String {
             switch self {
-            case .schematic: return "Schematica"
             case .infrastructure: return "Infrastruttura"
             case .scheduler: return "Train Director"
             }
@@ -24,7 +22,6 @@ struct RailwayMapView: View {
         
         var icon: String {
             switch self {
-            case .schematic: return "map"
             case .infrastructure: return "road.lanes"
             case .scheduler: return "clock.arrow.circlepath"
             }
@@ -32,15 +29,10 @@ struct RailwayMapView: View {
         
         var description: String {
             switch self {
-            case .schematic: return "Vista schematica della rete"
             case .infrastructure: return "Dettagli tecnici: segmenti e segnali"
             case .scheduler: return "Gestione orari e conflitti"
             }
         }
-        
-        // Legacy compatibility
-        static var network: MapVisualizationMode { .schematic }
-        static var lines: MapVisualizationMode { .scheduler }
         
         var isInfrastructureMode: Bool {
             self == .infrastructure
@@ -52,7 +44,6 @@ struct RailwayMapView: View {
     }
 
     @EnvironmentObject var appState: AppState
-    @State private var position: MapCameraPosition = .automatic
     @Binding var selectedNode: Node?
     @Binding var selectedLine: RailwayLine?
     @Binding var selectedEdgeId: String?
@@ -60,7 +51,22 @@ struct RailwayMapView: View {
     @Binding var highlightedConflictLocation: String?
     @Binding var mode: MapVisualizationMode
     
+    @StateObject private var internalEditorVM: EditorModeViewModel
     @State private var showModeSelector = false
+    
+    init(selectedNode: Binding<Node?>, selectedLine: Binding<RailwayLine?>, selectedEdgeId: Binding<String?>,
+         showGrid: Binding<Bool>, highlightedConflictLocation: Binding<String?>, mode: Binding<MapVisualizationMode>,
+         appState: AppState) {
+        self._selectedNode = selectedNode
+        self._selectedLine = selectedLine
+        self._selectedEdgeId = selectedEdgeId
+        self._showGrid = showGrid
+        self._highlightedConflictLocation = highlightedConflictLocation
+        self._mode = mode
+        self._internalEditorVM = StateObject(wrappedValue: EditorModeViewModel(appState: appState))
+    }
+    
+    var editorViewModel: EditorModeViewModel { internalEditorVM }
     
     private var railroad: RailroadNetwork { appState.railroad }
     private var network: NetworkModel { railroad.network }
@@ -77,31 +83,80 @@ struct RailwayMapView: View {
             showGrid: $showGrid,
             highlightedConflictLocation: $highlightedConflictLocation,
             mode: mode,
+            zoomLevel: $appState.mapZoomLevel,
             onExport: { exportMap(as: $0) },
-            onPrint: { printMap() }
+            onPrint: { printMap() },
+            appState: appState,
+            editorViewModel: internalEditorVM
         )
-        // Mode Selector - Swipe from top
-        .overlay(alignment: .top) {
-            modeSelectorBar
-                .padding(.top, Layout.topEdgeHeight + 5)
+        .ignoresSafeArea()
+        
+        // --- UI Overlays (strictly localized) ---
+        
+        // 1. Menu Toggle (Top Left)
+        .overlay(alignment: .topLeading) {
+            Button(action: { appState.showPanel(.sidebar) }) {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Color.accentColor)
+                    .clipShape(Circle())
+                    .shadow(radius: 5)
+            }
+            .padding(24)
         }
+        
+        // 2. Sub-mode Picker (Top Right)
+        .overlay(alignment: .topTrailing) {
+            if appState.currentMode == .design {
+                EditorSubModePicker()
+                    .padding(24)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+
+        // 3. Editable Toolbox (Bottom Left)
+        .overlay(alignment: .bottomLeading) {
+            if appState.currentMode == .design && appState.designSubMode == .infrastructure {
+                EditorToolboxView(viewModel: internalEditorVM)
+                    .padding(24)
+                    .padding(.bottom, 60)
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+            }
+        }
+        
+        // 4. Map Control Group (Bottom Right)
+        .overlay(alignment: .bottomTrailing) {
+            MapControlsView(
+                isEditToolbarVisible: .constant(false),
+                editMode: .constant(appState.mapEditMode),
+                onExport: { exportMap(as: $0) },
+                onPrint: { printMap() }
+            )
+            .padding(24)
+            .padding(.bottom, 60)
+        }
+
+        // 5. Instructions Banner (Top Center)
+        .overlay(alignment: .top) {
+            if appState.currentMode == .design && appState.designSubMode == .infrastructure && appState.mapEditMode != .explore {
+                instructionsBanner
+                    .padding(.top, 100)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        
+        // 6. Mode Selector (Bottom Center)
+        .overlay(alignment: .bottom) {
+            modeSelectorBar
+                .padding(.bottom, 12)
+        }
+        
+        // 7. Modals (Blocking)
         .overlay(alignment: .center) {
             if isExporting {
-                Color.black.opacity(0.3)
-                    .ignoresSafeArea()
-                
-                VStack(spacing: 15) {
-                    ProgressView()
-                        .scaleEffect(1.5)
-                    Text("generating_map".localized)
-                        .font(.headline)
-                    Text("generation_desc".localized)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(30)
-                .background(RoundedRectangle(cornerRadius: 15).fill(Color(.systemBackground)))
-                .shadow(radius: 10)
+                exportingModal
             }
         }
         .navigationTitle("network_schema".localized)
@@ -122,6 +177,20 @@ struct RailwayMapView: View {
                     Image(systemName: "square.and.arrow.up")
                 }
             }
+        }
+    }
+    
+    private var exportingModal: some View {
+        ZStack {
+            Color.black.opacity(0.3).ignoresSafeArea()
+            VStack(spacing: 15) {
+                ProgressView().scaleEffect(1.5)
+                Text("generating_map".localized).font(.headline)
+                Text("generation_desc".localized).font(.caption).foregroundColor(.secondary)
+            }
+            .padding(30)
+            .background(RoundedRectangle(cornerRadius: 15).fill(Color(.systemBackground)))
+            .shadow(radius: 10)
         }
     }
     
@@ -151,7 +220,7 @@ struct RailwayMapView: View {
                     .padding(.horizontal)
                     .padding(.bottom, 16)
                 }
-                .transition(.move(edge: .top).combined(with: .opacity))
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             } else {
                 // Compact indicator showing current mode
                 HStack(spacing: 8) {
@@ -162,21 +231,22 @@ struct RailwayMapView: View {
                         .fontWeight(.medium)
                 }
                 .padding(.vertical, 12)
-                .transition(.move(edge: .top).combined(with: .opacity))
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(width: 320) // Definizione larghezza per evitare che blocchi tutta la riga orizzontale
+        .padding(.horizontal, 12)
         .background(.ultraThinMaterial)
-        .cornerRadius(16, corners: [.bottomLeft, .bottomRight])
+        .cornerRadius(16, corners: [.topLeft, .topRight])
         .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
         .gesture(
             DragGesture()
                 .onEnded { gesture in
-                    if gesture.translation.height > 50 {
+                    if gesture.translation.height < -50 {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             showModeSelector = true
                         }
-                    } else if gesture.translation.height < -50 {
+                    } else if gesture.translation.height > 50 {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             showModeSelector = false
                         }
@@ -190,6 +260,38 @@ struct RailwayMapView: View {
         }
     }
     
+    @ViewBuilder
+    private var instructionsBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: appState.mapEditMode == .addStation ? "hand.tap.fill" : "point.topleft.down.curvedto.point.bottomright.up")
+                .font(.title3)
+            
+            Text(appState.mapEditMode == .addStation ? 
+                 "Premi a lungo sulla mappa per posizionare la stazione" : 
+                 "Seleziona due stazioni sulla mappa per collegarle")
+                .fontWeight(.bold)
+            
+            Button {
+                withAnimation {
+                    appState.mapEditMode = .explore
+                    appState.isCreatingTrack = false
+                }
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary)
+                    .font(.title3)
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, 8)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(Color.white.opacity(0.3), lineWidth: 0.5))
+        .shadow(radius: 10)
+    }
+
     @ViewBuilder
     private func modeButton(for vizMode: MapVisualizationMode) -> some View {
         VStack(spacing: 8) {
@@ -241,12 +343,10 @@ struct RailwayMapView: View {
         let schs = appState.simulator.schedules
         
         Task {
-            // 1. Prepare data in background
-            let snapshotData = await Task.detached(priority: .userInitiated) {
-                return MapSnapshotData.prepare(nodes: nodes, edges: edges, lines: lns, schedules: schs, mode: m, globalFontSize: gSize, globalLineWidth: gWidth)
-            }.value
+            // Prepare data on main thread (required due to actor isolation of models)
+            let snapshotData = MapSnapshotData.prepare(nodes: nodes, edges: edges, lines: lns, schedules: schs, mode: m, globalFontSize: gSize, globalLineWidth: gWidth)
             
-            // 2. Render on main thread
+            // Render on main thread
             await MainActor.run {
                 let snapshot = RailwayMapSnapshot(data: snapshotData)
                     .environmentObject(appState)
@@ -297,9 +397,7 @@ struct RailwayMapView: View {
         let schs = appState.simulator.schedules
         
         Task {
-            let snapshotData = await Task.detached(priority: .userInitiated) {
-                return MapSnapshotData.prepare(nodes: nodes, edges: edges, lines: lns, schedules: schs, mode: m, globalFontSize: gSize, globalLineWidth: gWidth)
-            }.value
+            let snapshotData = MapSnapshotData.prepare(nodes: nodes, edges: edges, lines: lns, schedules: schs, mode: m, globalFontSize: gSize, globalLineWidth: gWidth)
             
             await MainActor.run {
                 let snapshot = RailwayMapSnapshot(data: snapshotData)
@@ -662,7 +760,7 @@ struct RailwayMapView: View {
                     ),
                     canvasSize: size,
                     zoomLevel: 1.0,
-                    mode: data.mode == .infrastructure ? .infrastructure : .schematic
+                    mode: data.mode == .infrastructure ? .infrastructure : .scheduler
                 )
 
                 // 1. Draw Edges
@@ -705,6 +803,7 @@ struct RailwayMapView: View {
                         label: group.label,
                         center: group.center,
                         fontSize: data.globalFontSize,
+                        zoomLevel: 1.0,
                         in: context
                     )
                 }

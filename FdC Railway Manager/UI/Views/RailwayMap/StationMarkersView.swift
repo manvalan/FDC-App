@@ -15,15 +15,15 @@ struct StationMarkersView: View {
     @Binding var selectedNode: Node?
     @Binding var selectedLine: RailwayLine?
     @Binding var selectedEdgeId: String?
+    let renderData: MapRenderData
     let canvasSize: CGSize
     let bounds: MapBounds
     let showGrid: Bool
     let coordinateGridStep: Double
-    let onTap: (RailwayNode) -> Void
+    let onTap: (RailwayNode, CGPoint) -> Void
     
     var body: some View {
         ForEach(network.nodes) { node in
-            // Safe binding creation to avoid Index out of range
             let nodeBinding = Binding<RailwayNode>(
                 get: {
                     if let index = network.nodes.firstIndex(where: { $0.id == node.id }) {
@@ -35,22 +35,28 @@ struct StationMarkersView: View {
                     if let index = network.nodes.firstIndex(where: { $0.id == node.id }) {
                         network.nodes[index] = newNode
                         network.recalculateDistances(for: newNode.id)
+                        // Trigger topology update to refresh Canvas links/positions
+                        appState.railroad.forceUpdateTopology()
                     }
                 }
             )
             
+            let isDraggingCurrent = appState.isDraggingNode && appState.selectedNodeId == node.id
+            
+            let pos = renderData.nodePositions[node.id] ?? .zero
+            
             StationNodeView(
                 node: nodeBinding,
                 canvasSize: canvasSize,
-                isSelected: selectedNode?.id == node.id || appState.selectedNodeIds.contains(node.id),
+                isSelected: appState.selectedNodeId == node.id || appState.selectedNodeIds.contains(node.id),
                 snapToGrid: showGrid,
                 gridUnit: coordinateGridStep,
                 bounds: bounds,
-                onTap: { onTap(node) },
-                onDragStarted: { network.createCheckpoint() }
+                nodePosition: pos,
+                onTapAtLocation: { loc in onTap(node, loc) }
             )
-            .position(MapGeometryEngine.finalPosition(for: node, in: canvasSize, bounds: bounds, network: network))
-            .id("node-\(node.id)")
+            .position(pos)
+            .id("node-interaction-\(node.id)")
         }
          
     }

@@ -4,16 +4,25 @@ struct EdgeGestureDetectors: View {
     @EnvironmentObject var appState: AppState
     
     var body: some View {
-        VStack(spacing: 0) {
-            topEdgeGesture
-            
-            HStack(spacing: 0) {
+        GeometryReader { geo in
+            ZStack {
+                // Top Detector (Solo al centro)
+                topEdgeGesture
+                    .frame(width: geo.size.width * 0.4, height: Layout.topEdgeHeight + 20)
+                    .position(x: geo.size.width / 2, y: (Layout.topEdgeHeight + 20) / 2)
+                
+                // Left Detector (Solo al centro verticale)
                 leftEdgeGesture
-                Spacer()
+                    .frame(width: Layout.leftEdgeWidth, height: geo.size.height * 0.4)
+                    .position(x: Layout.leftEdgeWidth / 2, y: geo.size.height / 2)
+                
+                // Right Detector (Solo al centro verticale)
                 rightEdgeGesture
+                    .frame(width: Layout.rightEdgeWidth, height: geo.size.height * 0.4)
+                    .position(x: geo.size.width - Layout.rightEdgeWidth / 2, y: geo.size.height / 2)
             }
-            .frame(maxHeight: .infinity)
         }
+        .allowsHitTesting(true)
         .edgesIgnoringSafeArea(.all)
     }
     
@@ -27,7 +36,6 @@ struct EdgeGestureDetectors: View {
             Color.clear
                 .frame(height: Layout.topEdgeHeight)
         }
-        .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
         .highPriorityGesture(
             DragGesture(minimumDistance: 0, coordinateSpace: .global)

@@ -6,9 +6,24 @@ import CoreLocation
 class EditorModeViewModel: ObservableObject {
     @Published var appState: AppState
     
-    init(appState: AppState = AppState.shared) {
+    private var cancellables = Set<AnyCancellable>()
+    
+    init(appState: AppState) {
         self.appState = appState
+        setupBindings()
     }
+    
+    private func setupBindings() {
+        appState.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+    }
+    
+    var isWaitingForStationPlacement: Bool {
+        appState.mapEditMode == .addStation
+    }
+    private var placementTimer: AnyCancellable?
     
     var hasSelection: Bool {
         !appState.selectedNodeIds.isEmpty || 
@@ -24,22 +39,60 @@ class EditorModeViewModel: ObservableObject {
     }
     
     func createStation() {
+        // Entra in modalità "Attesa posizionamento"
+        withAnimation {
+            appState.designSubMode = .infrastructure
+            appState.clearSelection()
+            appState.mapEditMode = .addStation
+        }
+        
+        // Timer di 20 secondi: se non posizioni la stazione, annulla tutto
+        placementTimer?.cancel()
+        placementTimer = Just(())
+            .delay(for: .seconds(20), scheduler: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                if self.appState.mapEditMode == .addStation {
+                    withAnimation {
+                        self.appState.mapEditMode = .explore
+                    }
+                }
+            }
+    }
+
+    func placeStation(at location: CGPoint, in size: CGSize, bounds: MapBounds) {
+        guard appState.mapEditMode == .addStation else { return }
+        
+        placementTimer?.cancel()
+        withAnimation {
+            appState.mapEditMode = .explore
+        }
+        
+        // Conversione coordinate (logica simile a MapInteractionViewModel)
+        let drawWidth = max(size.width - 100, 1)
+        let drawHeight = max(size.height - 100, 1)
+        
+        let lon = bounds.minLon + ((location.x - 50) / drawWidth) * bounds.xRange
+        let lat = bounds.minLat + (1.0 - (location.y - 50) / drawHeight) * bounds.yRange
+        
         let id = "ST-\(Int.random(in: 1000...9999))"
-        let latOffset = Double.random(in: -0.02...0.02)
-        let lonOffset = Double.random(in: -0.02...0.02)
+        let name = "Stazione Nuova"
         
         let newStation = RailwayNode(
             id: id,
-            name: "Stazione Nuova",
+            name: name,
             type: .station,
-            latitude: 45.4642 + latOffset,
-            longitude: 9.1900 + lonOffset,
+            latitude: lat,
+            longitude: lon,
             altitude: 100,
             platforms: 2
         )
         
         appState.railroad.network.createCheckpoint()
         appState.railroad.network.addNode(newStation)
+        
+        // Seleziona la nuova stazione
+        appState.selectedNodeId = id
     }
     
     func createNewRailwayLine() {

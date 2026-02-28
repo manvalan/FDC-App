@@ -41,6 +41,10 @@ public struct Edge: Identifiable, Codable, Hashable {
     public var electrification: ElectrificationType = .dc3kv
 
     public var canonicalKey: String {
+        Edge.canonicalKey(from: from, to: to)
+    }
+    
+    public static func canonicalKey(from: String, to: String) -> String {
         let sorted = [from, to].sorted()
         return "\(sorted[0])-\(sorted[1])"
     }

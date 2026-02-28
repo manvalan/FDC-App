@@ -94,13 +94,15 @@ struct MapGeometryEngine {
     }
     
     private static func distanceToSegment(_ p: CGPoint, _ v: CGPoint, _ w: CGPoint) -> CGFloat {
-        let l2 = (v.x-w.x)*(v.x-w.x)+(v.y-w.y)*(v.y-w.y); if l2 == 0 { return hypot(p.x-v.x, p.y-v.y) }
-        var t = ((p.x-v.x)*(w.x-v.x)+(p.y-v.y)*(w.y-v.y))/l2; t = max(0, min(1, t))
+        let l2 = (v.x-w.x)*(v.x-w.x)+(v.y-w.y)*(v.y-w.y)
+        if l2 == 0 { return hypot(p.x-v.x, p.y-v.y) }
+        var t = ((p.x-v.x)*(w.x-v.x)+(p.y-v.y)*(w.y-v.y))/l2
+        t = max(0, min(1, t))
         return hypot(p.x-(v.x+t*(w.x-v.x)), p.y-(v.y+t*(w.y-v.y)))
     }
     
-    /// Calcola la posizione attuale di un treno.
-    static func currentSchematicTrainPos(for schedule: TrainSchedule, in size: CGSize, now: Date, bounds: MapBounds, network: NetworkModel) -> CGPoint? {
+    /// Calcola la posizione attuale di un treno usando i dati pre-calcolati.
+    static func currentTrainPos(for schedule: TrainSchedule, in renderData: MapRenderData, now: Date, network: NetworkModel) -> CGPoint? {
         guard schedule.stops.count >= 2 else { return nil }
         for i in 0..<(schedule.stops.count - 1) {
             let s1 = schedule.stops[i]; let s2 = schedule.stops[i+1]
@@ -108,16 +110,23 @@ struct MapGeometryEngine {
             if now >= d1 && now <= a2 {
                 let duration = a2.timeIntervalSince(d1); let elapsed = now.timeIntervalSince(d1)
                 let progress = duration > 0 ? elapsed / duration : 0.0
-                guard let n1 = network.nodes.first(where: { $0.id == s1.stationId }),
-                      let n2 = network.nodes.first(where: { $0.id == s2.stationId }) else { return nil }
-                let p1 = finalPosition(for: n1, in: size, bounds: bounds, network: network)
-                let p2 = finalPosition(for: n2, in: size, bounds: bounds, network: network)
-                let points = generateSchematicPoints(from: p1, to: p2)
+                
+                // Get pre-calculated points for this segment
+                let edgeKey = RailwayEdge.canonicalKey(from: s1.stationId, to: s2.stationId)
+                // We need to find the edge that matches this key to get its geometries
+                guard let edge = network.edges.first(where: { $0.canonicalKey == edgeKey }),
+                      let points = renderData.edgeGeometries[edge.id.uuidString] else {
+                    // Fallback to direct calculation if not in cache (shouldn't happen often)
+                    guard let p1 = renderData.nodePositions[s1.stationId],
+                          let p2 = renderData.nodePositions[s2.stationId] else { return nil }
+                    return CGPoint(x: p1.x + (p2.x - p1.x) * CGFloat(progress), y: p1.y + (p2.y - p1.y) * CGFloat(progress))
+                }
+                
                 var totalLen: CGFloat = 0; var segmentLens: [CGFloat] = []
                 for j in 0..<(points.count - 1) {
                     let d = hypot(points[j+1].x-points[j].x, points[j+1].y-points[j].y); totalLen += d; segmentLens.append(d)
                 }
-                if totalLen == 0 { return p1 }
+                if totalLen == 0 { return points.first }
                 let targetDist = totalLen * CGFloat(progress); var currentDist: CGFloat = 0
                 for j in 0..<(points.count - 1) {
                     let sl = segmentLens[j]
@@ -161,8 +170,6 @@ struct MapGeometryEngine {
                                  lines: LinesManager, 
                                  size: CGSize, 
                                  bounds: MapBounds, 
-                                 selectedRouteId: String?, 
-                                 selectedEdgeId: String?, 
                                  hiddenLineIds: Set<String>) -> MapRenderData {
         
         // 1. Posizioni Nodi
@@ -171,11 +178,14 @@ struct MapGeometryEngine {
         // 2. Geometrie Edge (Binari paralleli)
         let edgeGeometries = calculateEdgeGeometries(network: network, nodePositions: nodePositions, size: size, bounds: bounds)
         
-        // 3. Linee Commerciali (Bundle)
-        let commercialLines = calculateCommercialLines(lines: lines, hiddenLineIds: hiddenLineIds, selectedRouteId: selectedRouteId)
+        // 3. Linee Commerciali (Bundle) - Selection agnostic
+        let commercialLines = calculateCommercialLines(lines: lines, hiddenLineIds: hiddenLineIds)
         
         // 4. Hubs
         let hubGeometries = calculateHubGeometries(network: network, nodePositions: nodePositions)
+        
+        // 5. Selection Index (The "Index" for fast click handling)
+        let selectionIndex = buildSelectionIndex(nodePositions: nodePositions, edgeGeometries: edgeGeometries)
         
         return MapRenderData(
             size: size,
@@ -183,7 +193,8 @@ struct MapGeometryEngine {
             nodePositions: nodePositions,
             edgeGeometries: edgeGeometries,
             hubGeometries: hubGeometries,
-            commercialLines: commercialLines
+            commercialLines: commercialLines,
+            selectionIndex: selectionIndex
         )
     }
 
@@ -335,16 +346,14 @@ struct MapGeometryEngine {
 
     /// Calcola i dati per il rendering delle linee commerciali (bundle).
     private static func calculateCommercialLines(lines: LinesManager, 
-                                               hiddenLineIds: Set<String>, 
-                                               selectedRouteId: String?) -> [SegmentKey: [MapRenderData.PrecomputedLine]] {
-        var segmentLines: [SegmentKey: [(line: TrainRoute, color: Color, isSelected: Bool)]] = [:]
+                                               hiddenLineIds: Set<String>) -> [SegmentKey: [MapRenderData.PrecomputedLine]] {
+        var segmentLines: [SegmentKey: [(line: TrainRoute, color: Color)]] = [:]
         for line in lines.lines {
             if hiddenLineIds.contains(line.id) || line.stationIds.count < 2 { continue }
             for i in 0..<(line.stationIds.count - 1) {
                 let key = SegmentKey(line.stationIds[i], line.stationIds[i+1])
                 let color = Color(hex: line.color ?? "#000000") ?? .black
-                let isSelected = line.id == selectedRouteId
-                segmentLines[key, default: []].append((line, color, isSelected))
+                segmentLines[key, default: []].append((line, color))
             }
         }
         
@@ -352,7 +361,7 @@ struct MapGeometryEngine {
         for (key, linesOnSegment) in segmentLines {
             let bundleSize = linesOnSegment.count
             commercialLines[key] = linesOnSegment.map { item in
-                MapRenderData.PrecomputedLine(line: item.line, color: item.color, isSelected: item.isSelected, bundleSize: bundleSize)
+                MapRenderData.PrecomputedLine(line: item.line, color: item.color, bundleSize: bundleSize)
             }
         }
         return commercialLines
@@ -371,6 +380,32 @@ struct MapGeometryEngine {
             geometries[hubId] = nodes.map { nodePositions[$0.id] ?? .zero }
         }
         return geometries
+    }
+
+    /// Costruisce l'indice di selezione veloce.
+    private static func buildSelectionIndex(nodePositions: [String: CGPoint], edgeGeometries: [String: [CGPoint]]) -> [MapRenderData.HitTarget] {
+        var index: [MapRenderData.HitTarget] = []
+        
+        let nodeThreshold: CGFloat = 25.0
+        let edgeThreshold: CGFloat = 20.0
+        
+        for (id, pos) in nodePositions {
+            let rect = CGRect(x: pos.x - nodeThreshold, y: pos.y - nodeThreshold, width: nodeThreshold * 2, height: nodeThreshold * 2)
+            index.append(MapRenderData.HitTarget(id: id, type: .node, bounds: rect, center: pos, points: nil))
+        }
+        
+        for (id, points) in edgeGeometries {
+            guard !points.isEmpty else { continue }
+            let minX = points.map { $0.x }.min() ?? 0
+            let maxX = points.map { $0.x }.max() ?? 0
+            let minY = points.map { $0.y }.min() ?? 0
+            let maxY = points.map { $0.y }.max() ?? 0
+            
+            let rect = CGRect(x: minX - edgeThreshold, y: minY - edgeThreshold, width: (maxX - minX) + edgeThreshold * 2, height: (maxY - minY) + edgeThreshold * 2)
+            index.append(MapRenderData.HitTarget(id: id, type: .edge, bounds: rect, center: nil, points: points))
+        }
+        
+        return index
     }
 }
 

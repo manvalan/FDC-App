@@ -43,9 +43,12 @@ struct FdCBottomPanel<Content: View>: View {
                     .contentShape(Rectangle())
                     .cornerRadius(14, corners: [.topLeft, .topRight])
                     .shadow(color: .black.opacity(0.15), radius: 10, y: -5)
+                    .allowsHitTesting(true) // Re-enable for the panel itself
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
+                .allowsHitTesting(false) // Passthrough for empty space
             }
+            .allowsHitTesting(false) // Passthrough for the GeometryReader wrapper too
         }
     }
     

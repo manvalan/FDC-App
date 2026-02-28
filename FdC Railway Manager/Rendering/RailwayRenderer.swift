@@ -32,16 +32,16 @@ final class RailwayRenderer {
     func renderNodeIcon(_ node: Node, style: NodeStyle) -> some View {
         ZStack {
             if node.type == .junction {
-                // Junction simple representation
+                // Junction: small and subtle
                 Circle()
-                    .fill(Color.black)
+                    .fill(Color.gray.opacity(0.5))
                     .frame(width: style.size * 0.4, height: style.size * 0.4)
-                    .shadow(color: .white.opacity(0.8), radius: 1)
             } else if node.type == .interchange {
-                // Interchange style
+                // Interchange style: target-like icon
                 ZStack {
-                    Circle().fill(Color.white).frame(width: style.size, height: style.size)
-                    Circle().stroke(Color.red, lineWidth: style.size * 0.3).frame(width: style.size, height: style.size)
+                    Circle().stroke(Color.gray, lineWidth: 1).frame(width: style.size, height: style.size)
+                    Circle().fill(Color.white).frame(width: style.size * 0.8, height: style.size * 0.8)
+                    Circle().fill(style.fillColor).frame(width: style.size * 0.4, height: style.size * 0.4)
                 }
             } else {
                 // Standard station
@@ -57,17 +57,18 @@ final class RailwayRenderer {
     
     @ViewBuilder
     private func symbolView(type: Node.StationVisualType, color: Color) -> some View {
+        let size: CGFloat = 22 // Base size for SwiftUI Image
         switch type {
         case .filledSquare:
-            Image(systemName: "square.fill").symbolRenderingMode(.palette).foregroundStyle(color)
+            Image(systemName: "square.fill").font(.system(size: size)).foregroundColor(color)
         case .emptySquare:
-            Image(systemName: "square").symbolRenderingMode(.palette).foregroundStyle(color).fontWeight(.bold)
+            Image(systemName: "square").font(.system(size: size, weight: .bold)).foregroundColor(color)
         case .filledCircle:
-            Image(systemName: "circle.fill").symbolRenderingMode(.palette).foregroundStyle(color)
+            Image(systemName: "circle.fill").font(.system(size: size)).foregroundColor(color)
         case .emptyCircle:
-            Image(systemName: "circle").symbolRenderingMode(.palette).foregroundStyle(color).fontWeight(.bold)
+            Image(systemName: "circle").font(.system(size: size, weight: .bold)).foregroundColor(color)
         case .filledStar:
-            Image(systemName: "star.fill").symbolRenderingMode(.palette).foregroundStyle(color)
+            Image(systemName: "star.fill").font(.system(size: size)).foregroundColor(color)
         }
     }
     
@@ -171,37 +172,74 @@ final class RailwayRenderer {
     
     // MARK: - Disegno su Canvas (GraphicsContext)
     
-    /// Disegna un nodo in un GraphicsContext (per Canvas o ImageRenderer)
-    func drawNode(_ node: Node, in context: GraphicsContext, renderingContext: RenderingContext, style: NodeStyle) {
-        let point = toCanvasCoordinates(lat: node.latitude ?? 0, lon: node.longitude ?? 0, context: renderingContext)
+    func drawNode(_ node: Node, at point: CGPoint, in context: GraphicsContext, zoomLevel: CGFloat, style: NodeStyle) {
         
         if node.type == .interchange {
-            // Draw Hub style
-            let rect = CGRect(x: point.x - style.size/2, y: point.y - style.size/2, width: style.size, height: style.size)
-            context.fill(Path(ellipseIn: rect.insetBy(dx: -2, dy: -2)), with: .color(.white))
-            context.stroke(Path(ellipseIn: rect.insetBy(dx: -3, dy: -3)), with: .color(.red), lineWidth: 5)
+            // Ripristino stile HUB originale costante: Un unico anello rosso grande e molto SPESSO
+            let ringSize: CGFloat = 24
+            let rect = CGRect(x: point.x - ringSize/2, y: point.y - ringSize/2, width: ringSize, height: ringSize)
+            
+            context.fill(Path(ellipseIn: rect), with: .color(.white))
+            context.stroke(Path(ellipseIn: rect), with: .color(.red), lineWidth: 6)
         } else {
-            // Draw Regular Node
+            // Nodi standard: Icona basata su VisualType
             let rect = CGRect(x: point.x - style.size/2, y: point.y - style.size/2, width: style.size, height: style.size)
             context.fill(Path(ellipseIn: rect), with: .color(.white))
             
-            // Draw symbol
             let visualType = node.visualType ?? node.defaultVisualType
             let symbolName = symbolSystemName(for: visualType)
-            let symbol = context.resolve(Text(Image(systemName: symbolName)).font(.system(size: style.size, weight: .bold)).foregroundColor(style.fillColor))
+            let symbolSize = style.size * 1.0 // Più grandi
+            let symbol = context.resolve(Text(Image(systemName: symbolName)).font(.system(size: symbolSize, weight: .black)).foregroundColor(style.fillColor))
             context.draw(symbol, at: point)
+        }
+        
+        // Disegno etichetta (SE consentito dalla LoD in InfrastruttureCanvas)
+        if style.showLabel && !node.name.isEmpty {
+            // Selezionati: Blu | Altri: Neri
+            let labelColor = style.isSelected ? Color.blue : Color.black
             
-            // Draw Label
-            if style.showLabel && !node.name.isEmpty && node.parentHubId == nil {
-                let label = context.resolve(Text(node.name).font(.system(size: style.size * 1.2, weight: .black)).foregroundColor(.black))
-                context.draw(label, at: CGPoint(x: point.x, y: point.y + style.size * 1.8))
+            // Per gli Hub (.interchange), il nome viene gestito dall'etichetta di gruppo (drawHubGroup)
+            // Per evitare doppioni nel disegno, qui disegniamo il nome solo per stazioni normali o se selezionate
+            let isParentHub = node.type == .interchange 
+            
+            if (!isParentHub && node.parentHubId == nil) || style.isSelected {
+                let isCaposaldo = (node.visualType ?? node.defaultVisualType) == .filledSquare || (node.visualType ?? node.defaultVisualType) == .filledStar
+                
+                let labelFontSize = isCaposaldo ? max(12, style.size * 0.7) : max(10, style.size * 0.55)
+                let fontWeight: Font.Weight = (isCaposaldo || style.isSelected) ? .black : .bold
+                
+                drawReadableText(
+                    node.name, 
+                    at: CGPoint(x: point.x, y: point.y + style.size * 1.5), 
+                    size: labelFontSize, 
+                    weight: fontWeight, 
+                    color: labelColor, 
+                    in: context
+                )
             }
         }
         
         if style.isSelected {
-            let selectRect = CGRect(x: point.x - style.size, y: point.y - style.size, width: style.size * 2, height: style.size * 2)
-            context.stroke(Path(ellipseIn: selectRect), with: .color(.blue), lineWidth: 2)
+            let selectRadius = style.size * 1.6
+            let selectRect = CGRect(x: point.x - selectRadius/2, y: point.y - selectRadius/2, width: selectRadius, height: selectRadius)
+            context.stroke(Path(ellipseIn: selectRect), with: .color(.blue), lineWidth: 3)
         }
+    }
+    
+    /// Helper per disegnare testo leggibile con "alone" di contrasto
+    private func drawReadableText(_ text: String, at point: CGPoint, size: CGFloat, weight: Font.Weight, color: Color, in context: GraphicsContext) {
+        let textObj = Text(text).font(.system(size: size, weight: weight))
+        
+        // Doppio contorno per massima leggibilità (Glow effect più marcato)
+        let resolvedShadow = context.resolve(textObj.foregroundColor(.white))
+        for ox in [-1.5, 0, 1.5] {
+            for oy in [-1.5, 0, 1.5] {
+                if ox == 0 && oy == 0 { continue }
+                context.draw(resolvedShadow, at: CGPoint(x: point.x + ox, y: point.y + oy))
+            }
+        }
+        
+        context.draw(context.resolve(textObj.foregroundColor(color)), at: point)
     }
     
     /// Disegna un binario in un GraphicsContext
@@ -277,20 +315,54 @@ final class RailwayRenderer {
     }
     
     /// Disegna un gruppo di hub
-    func drawHubGroup(positions: [CGPoint], label: String, center: CGPoint, fontSize: CGFloat, in context: GraphicsContext) {
+    func drawHubGroup(positions: [CGPoint], label: String, center: CGPoint, fontSize: CGFloat, zoomLevel: CGFloat, in context: GraphicsContext) {
         for i in 0..<positions.count {
             for j in (i+1)..<positions.count {
-                let path = Path { p in p.move(to: positions[i]); p.addLine(to: positions[j]) }
-                context.stroke(path, with: .color(.red), style: StrokeStyle(lineWidth: 22, lineCap: .round))
-                context.stroke(path, with: .color(.white), style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                let p1 = positions[i]
+                let p2 = positions[j]
+                
+                let dx = p2.x - p1.x
+                let dy = p2.y - p1.y
+                let dist = hypot(dx, dy)
+                
+                if dist > 30 { // Solo se i nodi sono abbastanza distanti
+                    let nx = -dy / dist
+                    let ny = dx / dist
+                    
+                    // Direzione normalizzata
+                    let ux = dx / dist
+                    let uy = dy / dist
+                    
+                    // RAGGIO DI TAGLIO: 12px (metà del cerchio/quadrato da 24px)
+                    let trim: CGFloat = 12
+                    
+                    let startPoint = CGPoint(x: p1.x + ux * trim, y: p1.y + uy * trim)
+                    let endPoint = CGPoint(x: p2.x - ux * trim, y: p2.y - uy * trim)
+                    
+                    // Disegno di DUE linee parallele rosse
+                    let offset: CGFloat = 7
+                    
+                    var path1 = Path()
+                    path1.move(to: CGPoint(x: startPoint.x + nx * offset, y: startPoint.y + ny * offset))
+                    path1.addLine(to: CGPoint(x: endPoint.x + nx * offset, y: endPoint.y + ny * offset))
+                    
+                    var path2 = Path()
+                    path2.move(to: CGPoint(x: startPoint.x - nx * offset, y: startPoint.y - ny * offset))
+                    path2.addLine(to: CGPoint(x: endPoint.x - nx * offset, y: endPoint.y - ny * offset))
+                    
+                    let lineWidth: CGFloat = zoomLevel > 4.0 ? 3 : 4
+                    context.stroke(path1, with: .color(.red.opacity(0.8)), lineWidth: lineWidth)
+                    context.stroke(path2, with: .color(.red.opacity(0.8)), lineWidth: lineWidth)
+                }
             }
         }
         
-        // Draw group label
-        let text = context.resolve(Text(label).font(.system(size: fontSize, weight: .bold)).foregroundColor(.red))
+        // Etichetta HUB in NERO come richiesto
+        let adaptiveFontSize = zoomLevel > 4.0 ? fontSize * 0.85 : fontSize
+        let text = context.resolve(Text(label).font(.system(size: adaptiveFontSize, weight: .black)).foregroundColor(.black))
         let sz = text.measure(in: CGSize(width: 400, height: 100))
         let bgRect = CGRect(x: center.x - sz.width/2 - 4, y: center.y - sz.height/2 - 2, width: sz.width + 8, height: sz.height + 4)
-        context.fill(Path(roundedRect: bgRect, cornerRadius: 4), with: .color(.white.opacity(0.8)))
+        context.fill(Path(roundedRect: bgRect, cornerRadius: 4), with: .color(.white.opacity(0.85)))
         context.draw(text, at: center)
     }
     

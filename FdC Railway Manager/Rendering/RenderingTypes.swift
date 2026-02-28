@@ -136,12 +136,12 @@ struct HubStyle {
 
 /// Style for rendering edges
 struct EdgeStyle {
-    let strokeColor: Color
-    let strokeWidth: CGFloat
-    let lineStyle: LineStyle
-    let showDirection: Bool
-    let showSegments: Bool
-    let isHighlighted: Bool
+    var strokeColor: Color
+    var strokeWidth: CGFloat
+    var lineStyle: LineStyle
+    var showDirection: Bool
+    var showSegments: Bool
+    var isHighlighted: Bool
     
     enum LineStyle {
         case solid, dashed, dotted

@@ -8,32 +8,29 @@ struct TrackCreationOverlay: View {
     @Binding var newTrackDistance: Double
     @Binding var newTrackType: RailwayEdge.TrackType
     var onCreate: () -> Void
-    
     var body: some View {
-        VStack {
-            Spacer()
-            VStack(spacing: 12) {
-                Text("new_track".localized).font(.headline)
-                
-                HStack {
-                    stationInfo(label: "from_label".localized, node: newTrackFrom)
-                    Image(systemName: "arrow.right")
-                    stationInfo(label: "to_label".localized, node: newTrackTo, trailing: true)
-                }
-                .padding(.horizontal)
-                
-                distanceInput
-                trackTypeSelector
-                actionButtons
+        VStack(spacing: 12) {
+            Text("new_track".localized).font(.headline)
+            
+            HStack {
+                stationInfo(label: "from_label".localized, node: newTrackFrom)
+                Image(systemName: "arrow.right")
+                stationInfo(label: "to_label".localized, node: newTrackTo, trailing: true)
             }
-            .padding()
-            .background(.ultraThinMaterial)
-            .cornerRadius(12)
-            .shadow(radius: 10)
-            .padding()
-            .frame(maxWidth: 400)
+            .padding(.horizontal)
+            
+            distanceInput
+            trackTypeSelector
+            actionButtons
         }
-        .transition(.move(edge: .bottom))
+        .padding()
+        .background(.ultraThinMaterial)
+        .cornerRadius(12)
+        .shadow(radius: 10)
+        .padding(.horizontal)
+        .frame(maxWidth: 400)
+        .padding(.bottom, 100) // Spazio dal bordo inferiore
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
     
     private func stationInfo(label: String, node: Node?, trailing: Bool = false) -> some View {
@@ -117,7 +114,8 @@ struct StationPickingIndicator: View {
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
             .background(.ultraThinMaterial).clipShape(Capsule())
-            .shadow(radius: 8).padding(.top, 40)
+            .shadow(radius: 8)
+            .padding(.top, 40)
             .transition(.move(edge: .top).combined(with: .opacity))
         }
     }

@@ -55,7 +55,14 @@ final class AppState: ObservableObject {
     // New Minimalist Navigation State
     @Published var currentMode: AppMode = .design
     @Published var designSubMode: DesignSubMode = .infrastructure
-    @Published var mapVisualizationMode: RailwayMapView.MapVisualizationMode = .schematic
+    @Published var mapVisualizationMode: RailwayMapView.MapVisualizationMode = .infrastructure
+    @Published var isDraggingNode: Bool = false {
+        didSet {
+            updateInspectorVisibilityForSelection()
+        }
+    }
+    
+    @Published var mapZoomLevel: CGFloat = 1.0
     
     // Selection State (Global)
     @Published var selectedRouteId: String? = nil { 
@@ -134,7 +141,22 @@ final class AppState: ObservableObject {
     @Published var isLineEditing: Bool = false
     @Published var isScheduleGeneratorVisible: Bool = false
     @Published var isVehicleManagementVisible: Bool = false
-    @Published var isCreatingTrack: Bool = false
+    @Published var mapEditMode: MapEditMode = .explore {
+        didSet {
+            updateInspectorVisibilityForSelection()
+        }
+    }
+    
+    // Derived state for compatibility
+    var isCreatingTrack: Bool {
+        get { mapEditMode == .addTrack }
+        set { mapEditMode = newValue ? .addTrack : .explore }
+    }
+    
+    var isWaitingForStationPlacement: Bool {
+        get { mapEditMode == .addStation }
+        set { mapEditMode = newValue ? .addStation : .explore }
+    }
     
     // Import/Export State (persisted across view recreation)
     enum IOImportMode {
@@ -198,8 +220,10 @@ final class AppState: ObservableObject {
     }
     
     private func shouldShowInspectorForSelection() -> Bool {
-        // Don't show the generic inspector if we are in track creation mode
-        if isCreatingTrack { return false }
+        // Don't show the generic inspector if we are in track creation mode or dragging
+        if isDraggingNode { return false }
+        if mapEditMode == .addTrack { return false }
+        if mapEditMode == .addStation { return false }
         
         // Now supports multi-selection scenarios
         return selectedRouteId != nil || selectedNodeId != nil || 
@@ -214,21 +238,8 @@ final class AppState: ObservableObject {
     }
     
     private func updateMapVisualizationMode() {
-        // In Editor mode, we ALWAYS want to see the physical infrastructure (schematic)
-        // and NEVER the logical service lines (scheduler).
-        if currentMode == .editor {
-            mapVisualizationMode = .schematic
-            return
-        }
-        
-        // Show colored lines when:
-        // 1. Sidebar is on "Lines" or "Trains" section, OR
-        // 2. A specific line is selected
-        if sidebarSelection == .lines || sidebarSelection == .trains || selectedRouteId != nil {
-            mapVisualizationMode = .scheduler
-        } else {
-            mapVisualizationMode = .schematic
-        }
+        // Modalità automatica rimossa per stabilità come richiesto.
+        // L'utente cambia visualizzazione solo esplicitamente dal picker o menu.
     }
     
     func startTrainCreation(routeId: String) {

@@ -11,6 +11,7 @@ final class RailroadNetwork: ObservableObject {
     
     /// Network: Tutto quello che si riferisce alla rete fisica (Stazioni, Binari, ecc.)
     @Published var network: NetworkModel
+    @Published var topologyId: Int = 0
     
     /// Linee: Le linee di servizio percorse dai treni (Lines, Trains)
     @Published var lines: LinesManager
@@ -48,6 +49,14 @@ final class RailroadNetwork: ObservableObject {
         self.network.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
         self.lines.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
         self.settings.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
+        
+        // Auto-refresh topology when technical data changes (coords, etc)
+        // We use debounce to avoid flooding during multi-edits
+        self.network.$nodes
+            .dropFirst()
+            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
+            .sink { [weak self] _ in self?.forceUpdateTopology() }
+            .store(in: &cancellables)
     }
     
     // MARK: - Global Undo/Redo System
@@ -80,6 +89,7 @@ final class RailroadNetwork: ObservableObject {
             undoStack.append(snapshot)
             if undoStack.count > 50 { undoStack.removeFirst() }
             redoStack.removeAll()
+            topologyId += 1
         }
     }
     
@@ -119,6 +129,11 @@ final class RailroadNetwork: ObservableObject {
         lines.trains = snapshot.trains
         lines.vehicles = snapshot.vehicles
         lines.validateSchedules()
+        topologyId += 1
         objectWillChange.send()
+    }
+    
+    func forceUpdateTopology() {
+        topologyId += 1
     }
 }

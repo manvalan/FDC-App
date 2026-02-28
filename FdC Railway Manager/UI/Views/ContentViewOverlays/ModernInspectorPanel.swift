@@ -215,12 +215,16 @@ struct ModernInspectorPanel: View {
                     } else if let lineId = appState.creationRouteId, let line = appState.railroad.lines.routes.first(where: { $0.id == lineId }) {
                         ScheduleCreationView(route: line)
                             .id("create-schedule-\(lineId)")
-                    } else if let node = appState.selectedNode, let index = appState.railroad.network.nodes.firstIndex(where: { $0.id == node.id }) {
+                    } else if let node = appState.selectedNode {
                         ScrollView {
                             StationInspectorView(
                                 station: Binding(
-                                    get: { appState.railroad.network.nodes[index] },
-                                    set: { appState.railroad.network.nodes[index] = $0 }
+                                    get: { appState.railroad.network.nodes.first(where: { $0.id == node.id }) ?? node },
+                                    set: { newNode in
+                                        if let idx = appState.railroad.network.nodes.firstIndex(where: { $0.id == node.id }) {
+                                            appState.railroad.network.nodes[idx] = newNode
+                                        }
+                                    }
                                 ),
                                 onDelete: {
                                     appState.railroad.network.removeNode(node.id)
@@ -261,36 +265,52 @@ struct ModernInspectorPanel: View {
                                 LineVehiclesView(lineId: line.id)
                             }
                         }
-                    } else if let edgeId = appState.selectedEdgeId,
-                              let index = appState.railroad.network.edges.firstIndex(where: { $0.id.uuidString == edgeId }) {
+                    } else if let edgeId = appState.selectedEdgeId {
                         ScrollView {
                             TrackInspectorView(
                                 edge: Binding(
-                                    get: { appState.railroad.network.edges[index] },
-                                    set: { appState.railroad.network.edges[index] = $0 }
+                                    get: { 
+                                        appState.railroad.network.edges.first(where: { $0.id.uuidString == edgeId }) ?? 
+                                        RailwayEdge(from: "", to: "", distance: 0, trackType: .regional, maxSpeed: 100) // Fallback
+                                    },
+                                    set: { newEdge in
+                                        if let idx = appState.railroad.network.edges.firstIndex(where: { $0.id.uuidString == edgeId }) {
+                                            appState.railroad.network.edges[idx] = newEdge
+                                        }
+                                    }
                                 ),
                                 onDelete: {
-                                    let edge = appState.railroad.network.edges[index]
-                                    appState.railroad.network.removeEdge(from: edge.from, to: edge.to)
-                                    appState.selectedEdgeId = nil
+                                    if let index = appState.railroad.network.edges.firstIndex(where: { $0.id.uuidString == edgeId }) {
+                                        let edge = appState.railroad.network.edges[index]
+                                        appState.railroad.network.removeEdge(from: edge.from, to: edge.to)
+                                        appState.selectedEdgeId = nil
+                                    }
                                 },
                                 onBack: nil
                             )
                             .padding(16)
                         }
-                        } else if let ferroviaId = appState.selectedInfraLineId,
-                                  let index = appState.railroad.network.lines.firstIndex(where: { $0.id == ferroviaId }) {
+                    } else if let ferroviaId = appState.selectedInfraLineId {
                         ScrollView {
                             FerroviaInspectorView(
                                 ferrovia: Binding(
-                                    get: { appState.railroad.network.lines[index] },
-                                    set: { appState.railroad.network.lines[index] = $0 }
+                                    get: { 
+                                        appState.railroad.network.lines.first(where: { $0.id == ferroviaId }) ?? 
+                                        RailwayLine(name: "", color: "#000000", nodeIds: [], electrification: .dc3kv) // Fallback
+                                    },
+                                    set: { newLine in
+                                        if let idx = appState.railroad.network.lines.firstIndex(where: { $0.id == ferroviaId }) {
+                                            appState.railroad.network.lines[idx] = newLine
+                                        }
+                                    }
                                 ),
                                 onDelete: {
-                                    appState.railroad.network.lines.remove(at: index)
-                                    appState.selectedInfraLineId = nil
-                                    appState.selectedNodeIds.removeAll()
-                                    appState.selectedNodeIdsOrder.removeAll()
+                                    if let index = appState.railroad.network.lines.firstIndex(where: { $0.id == ferroviaId }) {
+                                        appState.railroad.network.lines.remove(at: index)
+                                        appState.selectedInfraLineId = nil
+                                        appState.selectedNodeIds.removeAll()
+                                        appState.selectedNodeIdsOrder.removeAll()
+                                    }
                                 },
                                 onBack: nil
                             )
@@ -365,34 +385,50 @@ struct ModernInspectorPanel: View {
                                     LineVehiclesView(lineId: line.id)
                                 }
                             }
-                        } else if let edgeId = appState.selectedEdgeId,
-                                  let index = appState.railroad.network.edges.firstIndex(where: { $0.id.uuidString == edgeId }) {
+                        } else if let edgeId = appState.selectedEdgeId {
                             TrackInspectorView(
                                 edge: Binding(
-                                    get: { appState.railroad.network.edges[index] },
-                                    set: { appState.railroad.network.edges[index] = $0 }
+                                    get: { 
+                                        appState.railroad.network.edges.first(where: { $0.id.uuidString == edgeId }) ?? 
+                                        RailwayEdge(from: "", to: "", distance: 0, trackType: .regional, maxSpeed: 100) // Fallback
+                                    },
+                                    set: { newEdge in
+                                        if let idx = appState.railroad.network.edges.firstIndex(where: { $0.id.uuidString == edgeId }) {
+                                            appState.railroad.network.edges[idx] = newEdge
+                                        }
+                                    }
                                 ),
                                 onDelete: {
-                                    let edge = appState.railroad.network.edges[index]
-                                    appState.railroad.network.removeEdge(from: edge.from, to: edge.to)
-                                    appState.selectedEdgeId = nil
+                                    if let index = appState.railroad.network.edges.firstIndex(where: { $0.id.uuidString == edgeId }) {
+                                        let edge = appState.railroad.network.edges[index]
+                                        appState.railroad.network.removeEdge(from: edge.from, to: edge.to)
+                                        appState.selectedEdgeId = nil
+                                    }
                                 },
                                 onBack: nil
                             )
                         } else if !appState.selectedTrainIds.isEmpty, let trainId = appState.selectedTrainIds.first, let train = linesManager.trains.first(where: { $0.id == trainId }) {
                             TrainDetailView(train: train)
-                        } else if let ferroviaId = appState.selectedInfraLineId,
-                                  let index = appState.railroad.network.lines.firstIndex(where: { $0.id == ferroviaId }) {
+                        } else if let ferroviaId = appState.selectedInfraLineId {
                             FerroviaInspectorView(
                                 ferrovia: Binding(
-                                    get: { appState.railroad.network.lines[index] },
-                                    set: { appState.railroad.network.lines[index] = $0 }
+                                    get: { 
+                                        appState.railroad.network.lines.first(where: { $0.id == ferroviaId }) ?? 
+                                        RailwayLine(name: "", color: "#000000", nodeIds: [], electrification: .dc3kv) // Fallback
+                                    },
+                                    set: { newLine in
+                                        if let idx = appState.railroad.network.lines.firstIndex(where: { $0.id == ferroviaId }) {
+                                            appState.railroad.network.lines[idx] = newLine
+                                        }
+                                    }
                                 ),
                                 onDelete: {
-                                    appState.railroad.network.lines.remove(at: index)
-                                    appState.selectedInfraLineId = nil
-                                    appState.selectedNodeIds.removeAll()
-                                    appState.selectedNodeIdsOrder.removeAll()
+                                    if let index = appState.railroad.network.lines.firstIndex(where: { $0.id == ferroviaId }) {
+                                        appState.railroad.network.lines.remove(at: index)
+                                        appState.selectedInfraLineId = nil
+                                        appState.selectedNodeIds.removeAll()
+                                        appState.selectedNodeIdsOrder.removeAll()
+                                    }
                                 },
                                 onBack: nil
                             )

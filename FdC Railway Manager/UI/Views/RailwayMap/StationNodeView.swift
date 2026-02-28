@@ -17,47 +17,96 @@ struct StationNodeView: View {
     var snapToGrid: Bool
     var gridUnit: Double
     var bounds: MapBounds
-    var onTap: () -> Void
+    var nodePosition: CGPoint // Posizione centrale del nodo sul canvas
+    var onTapAtLocation: (CGPoint) -> Void
     var onDragStarted: (() -> Void)? = nil
     private let renderer = RailwayRenderer()
     @State private var dragOffset: CGSize = .zero
     @State private var isInternalMoveEnabled: Bool = false
-    
     var body: some View {
-        renderNodeIconWithInteraction
-            .frame(width: 44, height: 44)
-            .contentShape(Circle())
-            .background(Circle().fill(Color.white).opacity(0.001))
-            .overlay(selectionOverlay)
-            .overlay(alignment: .top) { labelOverlay }
-            .onLongPressGesture(minimumDuration: 0.5, pressing: { isPressing in
-                 if isPressing {
-                     #if canImport(UIKit)
-                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                     #endif
-                 }
-            }) { 
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                    isInternalMoveEnabled = true
+        ZStack {
+            // 1. AREA DI INTERAZIONE (Ridotta per non bloccare i binari)
+            Color.white.opacity(0.001)
+                .frame(width: 44, height: 44) 
+                .contentShape(Rectangle())
+                .onTapGesture { localPos in
+                    // Converti location locale in canvas-global
+                    // Dato che siamo posizionati con .position(nodePosition),
+                    // il top-left della nostra area 44x44 è nodePosition - (22, 22)
+                    let globalX = nodePosition.x - 22 + localPos.x
+                    let globalY = nodePosition.y - 22 + localPos.y
+                    onTapAtLocation(CGPoint(x: globalX, y: globalY))
                 }
-                #if os(macOS)
-                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
-                #endif
+            
+            // 2. FEEDBACK VISIVO (Selezione / Trascinamento)
+            if isSelected || isInternalMoveEnabled {
+                Circle()
+                    .stroke(Color.blue, lineWidth: 3)
+                    .frame(width: isInternalMoveEnabled ? 90 : 66, height: isInternalMoveEnabled ? 90 : 66)
+                    .scaleEffect(isInternalMoveEnabled ? 1.1 : 1.0)
+                
+                if isInternalMoveEnabled {
+                    renderDraggingIcon
+                        .transition(.scale.combined(with: .opacity))
+                }
             }
-            .onTapGesture { onTap() }
-            .gesture(
-                isInternalMoveEnabled ?
-                    DragGesture(minimumDistance: 1)
-                        .onChanged { val in
-                            if dragOffset == .zero { onDragStarted?() }
-                            dragOffset = val.translation
+            
+            labelOverlay
+        }
+        .offset(dragOffset)
+        // Usiamo un gesto sequenziale per il trascinamento
+        .gesture(
+            LongPressGesture(minimumDuration: 0.35)
+                .onEnded { _ in
+                    startDragging()
+                }
+                .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
+                .onChanged { value in
+                    switch value {
+                    case .second(true, let drag):
+                        if let drag = drag {
+                            withAnimation(.interactiveSpring()) {
+                                dragOffset = drag.translation
+                            }
                         }
-                        .onEnded { val in
-                            finalizeDrag(translation: val.translation)
+                    default: break
+                    }
+                }
+                .onEnded { value in
+                    switch value {
+                    case .second(true, let drag):
+                        if let drag = drag {
+                            finalizeDrag(translation: drag.translation)
+                        } else {
+                            cleanupDrag()
                         }
-                : nil
-            )
-            .offset(dragOffset)
+                    default:
+                        cleanupDrag()
+                    }
+                }
+        )
+    }
+
+    private func startDragging() {
+        #if canImport(UIKit)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        #endif
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            isInternalMoveEnabled = true
+            appState.isDraggingNode = true
+            appState.selectedNodeId = node.id
+            if let network = appState.railroad.network as? NetworkModel {
+                 network.createCheckpoint()
+            }
+        }
+    }
+
+    private func cleanupDrag() {
+        withAnimation {
+            dragOffset = .zero
+            isInternalMoveEnabled = false
+            appState.isDraggingNode = false
+        }
     }
 
     private func finalizeDrag(translation: CGSize) {
@@ -80,26 +129,33 @@ struct StationNodeView: View {
             newNode.longitude = lon
         }
         
-        withAnimation {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             node = newNode 
             dragOffset = .zero
             isInternalMoveEnabled = false
+            appState.isDraggingNode = false
         }
     }
 
     @ViewBuilder
-    private var renderNodeIconWithInteraction: some View {
+    private var renderDraggingIcon: some View {
         let style = NodeStyle(
             fillColor: Color(hex: node.customColor ?? node.defaultColor) ?? .black,
             strokeColor: .blue,
             strokeWidth: 2,
-            size: node.type == .junction ? 10 : 24,
+            size: node.type == .junction ? 10 : 30, // Più grande mentre trascini
             showLabel: false,
             isHighlighted: false,
-            isSelected: isSelected
+            isSelected: true
         )
         
-        renderer.renderNodeIcon(node, style: style)
+        ZStack {
+            renderer.renderNodeIcon(node, style: style)
+            Circle()
+                .stroke(Color.blue.opacity(0.5), style: StrokeStyle(lineWidth: 2, dash: [5, 3]))
+                .frame(width: 45, height: 45)
+                .scaleEffect(1.2)
+        }
     }
 
     @ViewBuilder
@@ -116,17 +172,8 @@ struct StationNodeView: View {
 
     @ViewBuilder
     private var labelOverlay: some View {
-        // Don't show labels for junctions
-        if node.type == .junction {
-            EmptyView()
-        }
-        // For hub stations: only show label for the main station (parentHubId == nil)
-        else if node.parentHubId != nil {
-            // This is a secondary hub station, don't show label
-            EmptyView()
-        }
-        // Show label for main stations, interchanges, and depots
-        else {
+        // Only show label if actively dragging (the real label is in the Canvas)
+        if isInternalMoveEnabled && node.type != .junction && node.parentHubId == nil {
             Text(node.name)
                 .font(.system(size: appState.globalFontSize, weight: .black))
                 .fixedSize()

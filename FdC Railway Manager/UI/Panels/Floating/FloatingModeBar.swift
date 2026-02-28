@@ -48,7 +48,6 @@ struct FloatingModeBar: View {
         case .design: return "pencil.and.outline"
         case .schedule: return "calendar.badge.clock"
         case .live: return "play.fill"
-        case .editor: return "pencil"
         }
     }
 }

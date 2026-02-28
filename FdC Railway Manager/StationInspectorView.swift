@@ -153,12 +153,15 @@ struct StationInspectorView: View {
     
     private var visualStyleSection: some View {
         InspectorSection(title: "visual_style".localized, icon: "paintbrush.fill", iconColor: .orange) {
-            Picker("type".localized, selection: $station.visualType) {
-                ForEach(RailwayNode.StationVisualType.allCases) { type in
-                    symbolImage(for: type).tag(RailwayNode.StationVisualType?.some(type))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("type".localized).font(.caption).foregroundColor(.secondary)
+                Picker("type".localized, selection: $station.visualType) {
+                    ForEach(RailwayNode.StationVisualType.allCases) { type in
+                        symbolImage(for: type).tag(RailwayNode.StationVisualType?.some(type))
+                    }
                 }
+                .pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
             
             HStack {
                 Text("custom_color".localized)
@@ -255,7 +258,7 @@ struct StationInspectorView: View {
     
     // MARK: - Helper di Visualizzazione
     
-    private func symbolImage(for type: RailwayNode.StationVisualType) -> some View {
+    private func symbolImage(for type: RailwayNode.StationVisualType) -> Image {
         switch type {
         case .filledStar: return Image(systemName: "star.fill")
         case .filledSquare: return Image(systemName: "square.fill")

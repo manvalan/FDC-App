@@ -3,13 +3,7 @@ import SwiftUI
 extension ContentView {
     @ViewBuilder
     var detailContent: some View {
-        ZStack {
-            if appState.currentMode == .design || appState.currentMode == .editor {
-                EditorModeView()
-            } else {
-                mainAreaContent
-            }
-        }
+        mainAreaContent
     }
 
     @ViewBuilder
@@ -64,7 +58,8 @@ extension ContentView {
             selectedEdgeId: $appState.selectedEdgeId,
             showGrid: $appState.showGrid,
             highlightedConflictLocation: $highlightedConflictLocation,
-            mode: $appState.mapVisualizationMode
+            mode: $appState.mapVisualizationMode,
+            appState: appState
         )
         .ignoresSafeArea()
     }

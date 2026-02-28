@@ -6,8 +6,18 @@ import CoreLocation
 class MapInteractionViewModel: ObservableObject {
     @Published var appState: AppState
     
-    init(appState: AppState = AppState.shared) {
+    private var cancellables = Set<AnyCancellable>()
+    
+    init(appState: AppState) {
         self.appState = appState
+        setupBindings()
+    }
+    
+    private func setupBindings() {
+        appState.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
     }
     
     private var network: NetworkModel { appState.railroad.network }
@@ -19,7 +29,7 @@ class MapInteractionViewModel: ObservableObject {
             return
         }
         
-        if editMode.wrappedValue == .addTrack {
+        if appState.mapEditMode == .addTrack {
             handleTrackDrafting(node, newTrackFrom: newTrackFrom, newTrackTo: newTrackTo, newTrackDistance: newTrackDistance)
         } else {
             selectNode(node)
@@ -50,9 +60,15 @@ class MapInteractionViewModel: ObservableObject {
             appState.selectedRouteId = nil
             appState.selectedEdgeId = nil
             
-            if appState.currentMode == .editor {
+            // Se selezioniamo un nodo, usciamo dalle modalità di creazione per vedere l'ispettore
+            if appState.mapEditMode != .explore {
+                appState.mapEditMode = .explore
+            }
+            
+            if appState.currentMode == .design {
                 appState.isInspectorEditingMode = true
             }
+            appState.activePanel = .inspector
         }
     }
 
@@ -91,6 +107,7 @@ class MapInteractionViewModel: ObservableObject {
             appState.selectedEdgeId = newEdge.id.uuidString
             appState.selectedNodeId = nil
             appState.selectedRouteId = nil
+            appState.activePanel = .inspector
         }
     }
 }

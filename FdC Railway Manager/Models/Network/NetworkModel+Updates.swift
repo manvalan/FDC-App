@@ -51,15 +51,21 @@ extension NetworkModel {
 
     /// Calculate distance in km between two nodes based on coordinates
     func calculateDistance(from n1: Node, to n2: Node) -> Double {
-        let lat1 = n1.latitude ?? 0; let lon1 = n1.longitude ?? 0
-        let lat2 = n2.latitude ?? 0; let lon2 = n2.longitude ?? 0
+        // Se un nodo appartiene a un Hub, usa le coordinate del genitore per il calcolo logico della distanza
+        let eff1Lat = if let pid = n1.parentHubId, let parent = nodes.first(where: { $0.id == pid }) { parent.latitude ?? 0 } else { n1.latitude ?? 0 }
+        let eff1Lon = if let pid = n1.parentHubId, let parent = nodes.first(where: { $0.id == pid }) { parent.longitude ?? 0 } else { n1.longitude ?? 0 }
         
-        let dLat = lat1 - lat2
-        let dLon = lon1 - lon2
+        let eff2Lat = if let pid = n2.parentHubId, let parent = nodes.first(where: { $0.id == pid }) { parent.latitude ?? 0 } else { n2.latitude ?? 0 }
+        let eff2Lon = if let pid = n2.parentHubId, let parent = nodes.first(where: { $0.id == pid }) { parent.longitude ?? 0 } else { n2.longitude ?? 0 }
+
+        let dLat = eff1Lat - eff2Lat
+        let dLon = eff1Lon - eff2Lon
         
-        // Using common constant from RailwayConstants or local default
+        // Se i nodi sono nello stesso hub (stesse coordinate logiche), la distanza è 0
+        if dLat == 0 && dLon == 0 { return 0.0 }
+        
         let dist = sqrt(dLat * dLat + dLon * dLon) * 111.0 
-        return max(0.1, round(dist * 10) / 10.0) // Round to 1 decimal place, min 100m
+        return max(0.1, round(dist * 10) / 10.0) // Arrotonda a 100m
     }
 
     func updateEdge(_ id: UUID, distance: Double? = nil, speed: Int? = nil, manual: Bool? = nil) {

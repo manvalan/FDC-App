@@ -50,7 +50,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 }
 
 enum AppMode: String, CaseIterable, Identifiable {
-    case design, schedule, live, editor
+    case design, schedule, live
     var id: String { rawValue }
     
     var title: String {
@@ -58,7 +58,6 @@ enum AppMode: String, CaseIterable, Identifiable {
         case .design: return "Progetto"
         case .schedule: return "Programmazione"
         case .live: return "Esercizio"
-        case .editor: return "Modifica"
         }
     }
 }

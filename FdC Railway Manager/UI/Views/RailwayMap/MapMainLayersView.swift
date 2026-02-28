@@ -9,10 +9,10 @@ struct MapMainLayersView: View {
     let totalZoom: CGFloat
     let coordinateGridStep: Double
     let showGrid: Bool
-    var onStationTap: (RailwayNode) -> Void
+    var onStationTap: (RailwayNode, CGPoint) -> Void
     
     var body: some View {
-        ZStack {
+        ZStack(alignment: .topLeading) {
             InfrastructureCanvas(
                 mode: mode,
                 renderData: renderData,
@@ -21,7 +21,7 @@ struct MapMainLayersView: View {
             .allowsHitTesting(false)
             
             if !appState.simulator.schedules.isEmpty && mode.isSchedulerMode {
-                TrainOverlayCanvas(bounds: bounds, canvasSize: size, totalZoom: totalZoom)
+                TrainOverlayCanvas(renderData: renderData, canvasSize: size, totalZoom: totalZoom)
                     .allowsHitTesting(false)
             }
             
@@ -29,6 +29,7 @@ struct MapMainLayersView: View {
                 selectedNode: .constant(nil), // Handled by AppState
                 selectedLine: .constant(nil),
                 selectedEdgeId: .constant(nil),
+                renderData: renderData,
                 canvasSize: size,
                 bounds: bounds,
                 showGrid: showGrid,
@@ -36,5 +37,6 @@ struct MapMainLayersView: View {
                 onTap: onStationTap
             )
         }
+        .frame(width: renderData.size.width, height: renderData.size.height)
     }
 }

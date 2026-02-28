@@ -29,7 +29,7 @@ struct InfrastructureCanvas: View {
                 ),
                 canvasSize: size,
                 zoomLevel: totalZoom,
-                mode: mode == .infrastructure ? .infrastructure : .schematic
+                mode: mode == .scheduler ? .scheduler : .infrastructure
             )
 
             // 1. Disegno Archi (Infrastruttura Fisica)
@@ -51,12 +51,16 @@ struct InfrastructureCanvas: View {
                     if isPartOfFerrovia {
                         let fColor = Color(hex: selectedInfraLine.color ?? "#000000") ?? .blue
                         let path = Path { p in p.move(to: points[0]); for i in 1..<points.count { p.addLine(to: points[i]) } }
-                        context.stroke(path, with: .color(fColor.opacity(0.4)), style: StrokeStyle(lineWidth: 18, lineCap: .round))
+                        // Much thinner and subtle highlight (6px instead of 18px)
+                        context.stroke(path, with: .color(fColor.opacity(0.3)), style: StrokeStyle(lineWidth: 6, lineCap: .round))
                     }
                 }
                 
                 let isSelected = !mode.isSchedulerMode && appState.selectedEdgeId == edge.id.uuidString
-                let style = EdgeStyle.forTrackType(edge.trackType)
+                var style = EdgeStyle.forTrackType(edge.trackType)
+                if totalZoom > 4.0 {
+                    style.strokeWidth *= 0.8 // Leggermente più sottili in visualizzazione dettagliata
+                }
                 
                 renderer.drawEdge(
                     points: points,
@@ -68,7 +72,54 @@ struct InfrastructureCanvas: View {
                 )
             }
 
-            // 2. Visualizzazione Hub
+            // 2. Disegno NODI (Stazioni, Bivi, Hub) - MOVING TO CANVAS FOR SPEED
+            for node in appState.railroad.network.nodes {
+                if appState.isDraggingNode && appState.selectedNodeId == node.id {
+                    continue
+                }
+                
+                let isSelected = appState.selectedNodeId == node.id || appState.selectedNodeIds.contains(node.id)
+                guard let point = renderData.nodePositions[node.id] else { continue }
+                
+                // Adaptive sizing: Keep it extremely light to avoid "pallettoni"
+                // Overview (zoom 1.0) -> Junctions: 1px, Stations: 5px
+                let isJunction = node.type == .junction
+                let baseIconSize: CGFloat = isJunction ? 1.5 : 8
+                var adaptiveSize = baseIconSize + (1.8 * totalZoom)
+                // Rimossa la riduzione per lo zoom alto, lo user le vuole più grandi
+                
+                // --- LOGICA RICHIESTA: CAPISALDI SEMPRE VISIBILI ---
+                let vType = node.visualType ?? node.defaultVisualType
+                let isCaposaldo = isSelected || vType == .filledSquare || vType == .filledStar || node.type == .interchange
+                
+                var showLabel = isCaposaldo
+                
+                // Comparsa progressiva SOLO per le stazioni minori (cerchi)
+                if !showLabel {
+                    let hashVal = abs(node.id.hashValue % 100)
+                    if totalZoom > 2.8 {
+                        showLabel = true
+                    } else if totalZoom > 1.8 {
+                        showLabel = hashVal < 60
+                    } else if totalZoom > 1.2 {
+                        showLabel = hashVal < 20
+                    }
+                }
+                
+                let style = NodeStyle(
+                    fillColor: Color(hex: node.customColor ?? node.defaultColor) ?? .black,
+                    strokeColor: isSelected ? .blue : (isJunction ? .clear : .black.opacity(0.2)),
+                    strokeWidth: isSelected ? 2.5 : 0.5,
+                    size: adaptiveSize,
+                    showLabel: showLabel,
+                    isHighlighted: false,
+                    isSelected: isSelected
+                )
+                
+                renderer.drawNode(node, at: point, in: context, zoomLevel: totalZoom, style: style)
+            }
+
+            // 3. Visualizzazione Hub
             for (hubId, positions) in renderData.hubGeometries {
                 let parentNode = appState.railroad.network.nodes.first(where: { $0.id == hubId }) ?? appState.railroad.network.nodes.first
                 let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
@@ -79,6 +130,7 @@ struct InfrastructureCanvas: View {
                     label: parentNode?.name ?? "",
                     center: CGPoint(x: centerX, y: maxY + 35),
                     fontSize: appState.globalFontSize,
+                    zoomLevel: totalZoom,
                     in: context
                 )
             }
@@ -93,7 +145,7 @@ struct InfrastructureCanvas: View {
                           let points = renderData.edgeGeometries[edge.id.uuidString] else { continue }
                     
                     let colors = precomputedLines.map { $0.color }
-                    let isSelected = precomputedLines.contains { $0.isSelected }
+                    let isSelected = precomputedLines.contains { $0.line.id == appState.selectedRouteId }
                     
                     renderer.drawCommercialBundle(
                         points: points,

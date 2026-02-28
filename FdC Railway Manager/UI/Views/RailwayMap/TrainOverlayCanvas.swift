@@ -12,7 +12,7 @@ struct TrainOverlayCanvas: View {
     @EnvironmentObject var appState: AppState
     private var network: NetworkModel { appState.railroad.network }
     
-    let bounds: MapBounds
+    let renderData: MapRenderData
     let canvasSize: CGSize
     let totalZoom: CGFloat
     
@@ -23,7 +23,7 @@ struct TrainOverlayCanvas: View {
             Canvas { context, size in
                 let now = appState.liveSim.currentSimTime
                 for schedule in appState.simulator.schedules {
-                    if let pos = MapGeometryEngine.currentSchematicTrainPos(for: schedule, in: size, now: now, bounds: bounds, network: network) {
+                    if let pos = MapGeometryEngine.currentTrainPos(for: schedule, in: renderData, now: now, network: network) {
                         let isSelected = appState.selectedTrainIds.contains(schedule.trainId)
                         renderer.drawTrain(
                             position: pos,

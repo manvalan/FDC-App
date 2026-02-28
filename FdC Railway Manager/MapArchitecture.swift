@@ -58,10 +58,21 @@ struct MapRenderData {
     let hubGeometries: [String: [CGPoint]] // Chiave: hubId
     let commercialLines: [SegmentKey: [PrecomputedLine]]
     
+    // Hit-test Index (Pre-calculated for instant interaction)
+    let selectionIndex: [HitTarget]
+    
+    struct HitTarget {
+        enum TargetType { case node, edge }
+        let id: String
+        let type: TargetType
+        let bounds: CGRect // Bounding box with threshold for fast rejection
+        let center: CGPoint? // For node distance
+        let points: [CGPoint]? // For edge precise distance
+    }
+    
     struct PrecomputedLine {
         let line: TrainRoute
         let color: Color
-        let isSelected: Bool
         let bundleSize: Int  // Number of parallel lines on this segment
     }
 }
