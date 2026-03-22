@@ -318,7 +318,7 @@ struct SchedulerView: View {
         }
     }
 
-    private func mapConflict(_ c: SimConflict) -> ScheduleConflict {
+    private func mapConflict(_ c: Conflict) -> ScheduleConflict {
         ScheduleConflict(
             trainAId: c.trainIds.first ?? UUID(),
             trainBId: c.trainIds.last ?? UUID(),
