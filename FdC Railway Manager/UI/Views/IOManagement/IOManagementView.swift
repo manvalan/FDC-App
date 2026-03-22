@@ -11,6 +11,8 @@ struct IOManagementView: View {
     @State private var showExporter = false
     @State private var showInfrastructureExporter = false
     @State private var importError: String? = nil
+    @State private var bundledImportMessage: String? = nil
+    @State private var bundledImportIsError = false
     @State private var stationJsonInput = ""
     @State private var stationImportMessage: String? = nil
     @State private var stationImportIsError = false
@@ -229,6 +231,23 @@ struct IOManagementView: View {
             ) {
                 Task { await loader.saveCurrentState() }
             }
+
+            actionRow(
+                title: "Carica fdc2.fdc",
+                subtitle: "Carica il file di esempio incluso nell'app",
+                icon: "shippingbox",
+                iconColor: .purple
+            ) {
+                loadBundledFDC()
+            }
+
+            if let message = bundledImportMessage {
+                InspectorInfoBanner(
+                    type: bundledImportIsError ? .error : .success,
+                    title: bundledImportIsError ? "import_error_title".localized : nil,
+                    message: message
+                )
+            }
         }
     }
 
@@ -338,6 +357,27 @@ struct IOManagementView: View {
                     )
                 }
             }
+        }
+    }
+
+    private func loadBundledFDC() {
+        guard let url = Bundle.main.url(forResource: "fdc2", withExtension: "fdc") else {
+            bundledImportIsError = true
+            bundledImportMessage = "File fdc2.fdc non trovato nel bundle dell'app"
+            return
+        }
+        do {
+            let data = try Data(contentsOf: url)
+            appState.railroad.createCheckpoint()
+            try appState.railroad.io.importFromFDC(data: data)
+            appState.sidebarSelection = .stations
+            bundledImportIsError = false
+            let n = appState.railroad.network.nodes.count
+            let e = appState.railroad.network.edges.count
+            bundledImportMessage = "Importati \(n) stazioni e \(e) binari"
+        } catch {
+            bundledImportIsError = true
+            bundledImportMessage = error.localizedDescription
         }
     }
 
