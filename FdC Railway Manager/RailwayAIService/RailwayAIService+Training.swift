@@ -13,7 +13,7 @@ extension RailwayAIService {
         var request = URLRequest(url: baseURL.appendingPathComponent("scenario/generate"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        AuthenticationManager.shared.attachAuthHeaders(to: &request)
+        authManager.attachAuthHeaders(to: &request)
         
         let body = ScenarioGenerateRequest(area: area)
         do {
@@ -45,7 +45,7 @@ extension RailwayAIService {
         var request = URLRequest(url: baseURL.appendingPathComponent("train"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        AuthenticationManager.shared.attachAuthHeaders(to: &request)
+        authManager.attachAuthHeaders(to: &request)
         
         let body = TrainRequest(scenario_path: scenarioPath)
         do {

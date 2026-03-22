@@ -72,7 +72,7 @@ extension RailwayAIService {
         request.timeoutInterval = 7.0
         
         // Use central AuthManager to ensure Header Unico
-        AuthenticationManager.shared.attachAuthHeaders(to: &request)
+        authManager.attachAuthHeaders(to: &request)
         
         URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else { return }

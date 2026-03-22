@@ -12,7 +12,7 @@ extension RailwayAIService {
         
         var request = URLRequest(url: baseURL.appendingPathComponent("admin/users"))
         request.httpMethod = "GET"
-        AuthenticationManager.shared.attachAuthHeaders(to: &request)
+        authManager.attachAuthHeaders(to: &request)
         
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { output in
@@ -38,7 +38,7 @@ extension RailwayAIService {
         var request = URLRequest(url: baseURL.appendingPathComponent("admin/users"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        AuthenticationManager.shared.attachAuthHeaders(to: &request)
+        authManager.attachAuthHeaders(to: &request)
         
         let body = AddUserRequest(username: username, password: password)
         do {
@@ -78,7 +78,7 @@ extension RailwayAIService {
         
         var request = URLRequest(url: baseURL.appendingPathComponent("admin/users").appendingPathComponent(username))
         request.httpMethod = "DELETE"
-        AuthenticationManager.shared.attachAuthHeaders(to: &request)
+        authManager.attachAuthHeaders(to: &request)
         
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { output in

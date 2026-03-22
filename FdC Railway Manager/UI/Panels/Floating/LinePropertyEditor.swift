@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import Combine
 
 struct LinePropertyEditor: View {
     let line: TrainRoute
@@ -69,8 +70,9 @@ struct LinePropertyEditor: View {
             set: { newName in
                 if let idx = linesManager.routes.firstIndex(where: { $0.id == line.id }) {
                     linesManager.routes[idx].name = newName
-                    // Force UI update
-                    appState.selectedRouteId = line.id
+                    linesManager.validateSchedules()
+                    // Force UI and Map update
+                    appState.objectWillChange.send()
                 }
             }
         )
@@ -84,8 +86,9 @@ struct LinePropertyEditor: View {
             set: { newPrefix in
                 if let idx = linesManager.routes.firstIndex(where: { $0.id == line.id }) {
                     linesManager.routes[idx].serviceCodePrefix = newPrefix.isEmpty ? nil : newPrefix
-                    // Force UI update
-                    appState.selectedRouteId = line.id
+                    linesManager.validateSchedules()
+                    // Force UI and Map update
+                    appState.objectWillChange.send()
                 }
             }
         )
@@ -99,8 +102,9 @@ struct LinePropertyEditor: View {
             set: { newCode in
                 if let idx = linesManager.routes.firstIndex(where: { $0.id == line.id }) {
                     linesManager.routes[idx].numberPrefix = newCode == 0 ? nil : newCode
-                    // Force UI update
-                    appState.selectedRouteId = line.id
+                    linesManager.validateSchedules()
+                    // Force UI and Map update
+                    appState.objectWillChange.send()
                 }
             }
         )
@@ -116,8 +120,9 @@ struct LinePropertyEditor: View {
                 if let idx = linesManager.routes.firstIndex(where: { $0.id == line.id }),
                    let hex = newColor.toHex() {
                     linesManager.routes[idx].color = hex
-                    // Force UI update
-                    appState.selectedRouteId = line.id
+                    linesManager.validateSchedules()
+                    // Force UI and Map update
+                    appState.objectWillChange.send()
                 }
             }
         )

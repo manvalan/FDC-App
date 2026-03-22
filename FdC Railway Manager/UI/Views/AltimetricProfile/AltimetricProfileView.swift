@@ -635,15 +635,15 @@ struct AltimetricProfileView: View {
         for oldEdge in edgesForward {
             let edgeAJ = RailwayEdge(from: nodeId1, to: junctionNode.id, distance: distFromNode1, trackType: oldEdge.trackType, maxSpeed: oldEdge.maxSpeed)
             let edgeJB = RailwayEdge(from: junctionNode.id, to: nodeId2, distance: distFromNode2, trackType: oldEdge.trackType, maxSpeed: oldEdge.maxSpeed)
-            appState.railroad.network.addEdge(edgeAJ)
-            appState.railroad.network.addEdge(edgeJB)
+            appState.railroad.addEdge(edgeAJ)
+            appState.railroad.addEdge(edgeJB)
         }
         
         for oldEdge in edgesBackward {
             let edgeBJ = RailwayEdge(from: nodeId2, to: junctionNode.id, distance: distFromNode2, trackType: oldEdge.trackType, maxSpeed: oldEdge.maxSpeed)
             let edgeJA = RailwayEdge(from: junctionNode.id, to: nodeId1, distance: distFromNode1, trackType: oldEdge.trackType, maxSpeed: oldEdge.maxSpeed)
-            appState.railroad.network.addEdge(edgeBJ)
-            appState.railroad.network.addEdge(edgeJA)
+            appState.railroad.addEdge(edgeBJ)
+            appState.railroad.addEdge(edgeJA)
         }
         
         appState.objectWillChange.send()

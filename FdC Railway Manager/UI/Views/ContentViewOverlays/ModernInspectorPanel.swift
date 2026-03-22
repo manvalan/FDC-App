@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct ModernInspectorPanel: View {
     @EnvironmentObject var appState: AppState
@@ -234,35 +235,39 @@ struct ModernInspectorPanel: View {
                             .padding(16)
                         }
                     } else if let line = appState.selectedLine {
-                        VStack(spacing: 0) {
-                            LineQuickStats(line: line)
-                                .padding(16)
-                            
-                            Divider()
-                                .background(appState.theme.line.opacity(0.1))
-                                .padding(.horizontal, 16)
-                            
-                            switch appState.lineInspectorMode {
-                            case .infrastructure:
-                                VerticalTrackDiagramView(
-                                    line: Binding(
-                                        get: { appState.selectedRoute ?? line },
-                                        set: { newLine in
-                                            if let idx = linesManager.routes.firstIndex(where: { $0.id == line.id }) {
-                                                linesManager.routes[idx] = newLine
-                                            }
-                                        }
-                                    ),
-                                    network: appState.railroad.network,
-                                    externalSelectedStationID: $appState.selectedNodeId,
-                                    externalSelectedEdgeID: $appState.selectedEdgeId,
-                                    isSidebarEditMode: $appState.isLineEditing
-                                )
-                            case .schedule:
-                                LineScheduleSummaryView(line: line)
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                LineQuickStats(line: line)
                                     .padding(16)
-                            case .vehicles:
-                                LineVehiclesView(lineId: line.id)
+                                
+                                Divider()
+                                    .background(appState.theme.line.opacity(0.1))
+                                    .padding(.horizontal, 16)
+                                
+                                switch appState.lineInspectorMode {
+                                case .infrastructure:
+                                    VerticalTrackDiagramView(
+                                        line: Binding(
+                                            get: { appState.selectedRoute ?? line },
+                                            set: { newLine in
+                                                if let idx = linesManager.routes.firstIndex(where: { $0.id == line.id }) {
+                                                    linesManager.routes[idx] = newLine
+                                                    linesManager.validateSchedules()
+                                                    appState.objectWillChange.send()
+                                                }
+                                            }
+                                        ),
+                                        network: appState.railroad.network,
+                                        externalSelectedStationID: $appState.selectedNodeId,
+                                        externalSelectedEdgeID: $appState.selectedEdgeId,
+                                        isSidebarEditMode: $appState.isLineEditing
+                                    )
+                                case .schedule:
+                                    LineScheduleSummaryView(line: line)
+                                        .padding(16)
+                                case .vehicles:
+                                    LineVehiclesView(lineId: line.id)
+                                }
                             }
                         }
                     } else if let edgeId = appState.selectedEdgeId {
@@ -301,6 +306,7 @@ struct ModernInspectorPanel: View {
                                     set: { newLine in
                                         if let idx = appState.railroad.network.lines.firstIndex(where: { $0.id == ferroviaId }) {
                                             appState.railroad.network.lines[idx] = newLine
+                                            appState.objectWillChange.send()
                                         }
                                     }
                                 ),

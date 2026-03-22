@@ -24,29 +24,17 @@ struct StationMarkersView: View {
     
     var body: some View {
         ForEach(network.nodes) { node in
-            let nodeBinding = Binding<RailwayNode>(
-                get: {
-                    if let index = network.nodes.firstIndex(where: { $0.id == node.id }) {
-                        return network.nodes[index]
-                    }
-                    return node
-                },
-                set: { newNode in
-                    if let index = network.nodes.firstIndex(where: { $0.id == node.id }) {
-                        network.nodes[index] = newNode
-                        network.recalculateDistances(for: newNode.id)
-                        // Trigger topology update to refresh Canvas links/positions
-                        appState.railroad.forceUpdateTopology()
-                    }
-                }
-            )
-            
-            let isDraggingCurrent = appState.isDraggingNode && appState.selectedNodeId == node.id
-            
             let pos = renderData.nodePositions[node.id] ?? .zero
             
             StationNodeView(
-                node: nodeBinding,
+                node: Binding(
+                    get: { node },
+                    set: { newNode in
+                        if let index = network.nodes.firstIndex(where: { $0.id == node.id }) {
+                            network.nodes[index] = newNode
+                        }
+                    }
+                ),
                 canvasSize: canvasSize,
                 isSelected: appState.selectedNodeId == node.id || appState.selectedNodeIds.contains(node.id),
                 snapToGrid: showGrid,

@@ -1,8 +1,0 @@
-# test for "do script" statement
-
-OnEnter:
-    print Train.name
-    print "entered station"
-    print Track.station
-end
-

@@ -4,16 +4,29 @@ struct EditorSubModePicker: View {
     @EnvironmentObject var appState: AppState
     
     var body: some View {
-        Picker("Modalità", selection: $appState.designSubMode) {
+        HStack(spacing: 0) {
             ForEach(DesignSubMode.allCases) { mode in
-                Text(mode.title).tag(mode)
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        appState.designSubMode = mode
+                    }
+                } label: {
+                    Text(mode.title)
+                        .font(.subheadline)
+                        .fontWeight(appState.designSubMode == mode ? .bold : .medium)
+                        .foregroundColor(appState.designSubMode == mode ? .white : .primary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 36)
+                        .background(appState.designSubMode == mode ? Color.accentColor : Color.clear)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
             }
         }
-        .pickerStyle(.segmented)
-        .frame(width: 240)
-        .padding(6)
+        .padding(4)
+        .frame(width: 260)
         .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
+        .clipShape(Capsule())
+        .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
     }
 }

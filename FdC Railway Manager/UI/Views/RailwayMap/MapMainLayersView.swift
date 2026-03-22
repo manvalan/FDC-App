@@ -2,7 +2,7 @@ import SwiftUI
 
 struct MapMainLayersView: View {
     @EnvironmentObject var appState: AppState
-    let mode: RailwayMapView.MapVisualizationMode
+    let mode: MapVisualizationMode
     let renderData: MapRenderData
     let bounds: MapBounds
     let size: CGSize

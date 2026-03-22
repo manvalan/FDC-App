@@ -25,7 +25,7 @@ extension RailwayAIService {
         urlRequest.setValue("application/json", forHTTPHeaderField: "accept")
         
         // Use central AuthManager to ensure Header Unico and prioritize API Key
-        AuthenticationManager.shared.attachAuthHeaders(to: &urlRequest)
+        authManager.attachAuthHeaders(to: &urlRequest)
         
         do {
             let encoder = JSONEncoder()
@@ -215,7 +215,7 @@ extension RailwayAIService {
             var request = URLRequest(url: URL(string: analysisURL)!)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            AuthenticationManager.shared.attachAuthHeaders(to: &request)
+            authManager.attachAuthHeaders(to: &request)
             request.httpBody = jsonData
             
             URLSession.shared.dataTask(with: request) { data, response, error in
@@ -311,7 +311,7 @@ extension RailwayAIService {
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue("application/json", forHTTPHeaderField: "accept")
         
-        AuthenticationManager.shared.attachAuthHeaders(to: &urlRequest)
+        authManager.attachAuthHeaders(to: &urlRequest)
         
         urlRequest.httpBody = jsonString.data(using: .utf8)
         self.lastRequestJSON = jsonString
@@ -356,7 +356,7 @@ extension RailwayAIService {
         urlRequest.timeoutInterval = 180.0 // PIGNOLO PROTOCOL: Augmented timeout for complex scenarios
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        AuthenticationManager.shared.attachAuthHeaders(to: &urlRequest)
+        authManager.attachAuthHeaders(to: &urlRequest)
         
         let request = OptimizeRequestWithScenario(scenario_path: scenarioPath)
         

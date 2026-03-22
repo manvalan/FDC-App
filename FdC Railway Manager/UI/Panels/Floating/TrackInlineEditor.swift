@@ -83,7 +83,7 @@ struct TrackInlineEditor: View {
                                 .stroke(appState.theme.line.opacity(0.1), lineWidth: 1)
                         )
                     }
-                    .disabled(!appState.isInspectorEditingMode)
+                    .disabled(!appState.isInspectorEditingMode && appState.currentMode != .design)
                 }
                 
                 // Parametri Fisici
@@ -102,7 +102,7 @@ struct TrackInlineEditor: View {
                                 .multilineTextAlignment(.trailing)
                                 .keyboardType(.decimalPad)
                                 .frame(width: 80)
-                                .disabled(!appState.isInspectorEditingMode)
+                                .disabled(!appState.isInspectorEditingMode && appState.currentMode != .design)
                             Text("km").foregroundColor(appState.theme.medium).font(.caption)
                         }
                         Divider()
@@ -114,7 +114,7 @@ struct TrackInlineEditor: View {
                                 .multilineTextAlignment(.trailing)
                                 .keyboardType(.numberPad)
                                 .frame(width: 80)
-                                .disabled(!appState.isInspectorEditingMode)
+                                .disabled(!appState.isInspectorEditingMode && appState.currentMode != .design)
                             Text("km/h").foregroundColor(appState.theme.medium).font(.caption)
                         }
                         Divider()
@@ -126,7 +126,7 @@ struct TrackInlineEditor: View {
                                 .multilineTextAlignment(.trailing)
                                 .keyboardType(.numberPad)
                                 .frame(width: 80)
-                                .disabled(!appState.isInspectorEditingMode)
+                                .disabled(!appState.isInspectorEditingMode && appState.currentMode != .design)
                             Text("t/h").foregroundColor(appState.theme.medium).font(.caption)
                         }
                     }
@@ -145,7 +145,7 @@ struct TrackInlineEditor: View {
                         
                         Spacer()
                         
-                        if appState.isInspectorEditingMode {
+                        if appState.isInspectorEditingMode || appState.currentMode == .design {
                             Button(action: addGeometryPoint) {
                                 Label("Aggiungi", systemImage: "plus.circle.fill")
                                     .font(.caption)
@@ -172,7 +172,7 @@ struct TrackInlineEditor: View {
                                     
                                     Spacer()
                                     
-                                    if appState.isInspectorEditingMode {
+                                    if appState.isInspectorEditingMode || appState.currentMode == .design {
                                         Button(action: { removeGeometryPoint(at: index) }) {
                                             Image(systemName: "trash")
                                                 .font(.caption)
@@ -200,8 +200,8 @@ struct TrackInlineEditor: View {
                 .background(appState.theme.backgroundSecondary)
                 .cornerRadius(12)
                 
-                // Danger Zone (solo in modalità edit)
-                if appState.isInspectorEditingMode {
+                // Danger Zone (solo in modalità edit o design)
+                if appState.isInspectorEditingMode || appState.currentMode == .design {
                     Button(action: { showDeleteConfirmation = true }) {
                         HStack {
                             Spacer()
@@ -219,10 +219,10 @@ struct TrackInlineEditor: View {
             }
             
             // Edit mode indicator
-            if appState.isInspectorEditingMode {
+            if appState.isInspectorEditingMode || appState.currentMode == .design {
                 HStack {
                     Spacer()
-                    Text("Modalità Modifica Attiva")
+                    Text(appState.currentMode == .design ? "Editing Infrastruttura Attivo" : "Modalità Modifica Attiva")
                         .font(.caption2)
                         .foregroundColor(.orange)
                     Spacer()

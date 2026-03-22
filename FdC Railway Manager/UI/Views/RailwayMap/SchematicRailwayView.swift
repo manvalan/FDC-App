@@ -13,8 +13,8 @@ struct SchematicRailwayView: View {
     @Binding var selectedEdgeId: String?
     @Binding var showGrid: Bool
     @Binding var highlightedConflictLocation: String?
-    var mode: RailwayMapView.MapVisualizationMode
-    var onExport: (RailwayMapView.ExportFormat) -> Void
+    var mode: MapVisualizationMode
+    var onExport: (AppExportFormat) -> Void
     var onPrint: () -> Void
 
     // Local State
@@ -39,6 +39,9 @@ struct SchematicRailwayView: View {
     @State private var lastSize: CGSize = .zero
     @State private var lastZoom: CGFloat = 0
     
+    // Gesture state to coordinate nav vs brush
+    @GestureState private var isNavigating = false
+    
     private func updateRenderDataIfNeeded(size: CGSize, zoom: CGFloat) {
         let topologyId = appState.railroad.topologyId // Assume this exists or use network count/hash
         if cachedRenderData == nil || topologyId != lastTopologyId || size != lastSize || zoom != lastZoom {
@@ -56,9 +59,9 @@ struct SchematicRailwayView: View {
     }
     
     init(selectedNode: Binding<Node?>, selectedLine: Binding<RailwayLine?>, selectedEdgeId: Binding<String?>,
-         showGrid: Binding<Bool>, highlightedConflictLocation: Binding<String?>, mode: RailwayMapView.MapVisualizationMode,
+         showGrid: Binding<Bool>, highlightedConflictLocation: Binding<String?>, mode: MapVisualizationMode,
          zoomLevel: Binding<CGFloat>,
-         onExport: @escaping (RailwayMapView.ExportFormat) -> Void, onPrint: @escaping () -> Void,
+         onExport: @escaping (AppExportFormat) -> Void, onPrint: @escaping () -> Void,
          appState: AppState,
          editorViewModel: EditorModeViewModel? = nil) {
         self._selectedNode = selectedNode
@@ -139,6 +142,8 @@ struct SchematicRailwayView: View {
                     }
                 }
                 .padding()
+                
+                brushStrokeOverlay(size: size)
             }
                 .onAppear {
                     // Initialize first render
@@ -212,12 +217,33 @@ struct SchematicRailwayView: View {
                             handleMapTap(at: location, renderData: renderData)
                         }
                     )
+                    
+                    brushStrokeOverlay(size: size)
                 }
                 .frame(width: size.width, height: size.height)
                 .contentShape(Rectangle())
                 .onTapGesture { location in
                     handleMapTap(at: location, renderData: renderData)
                 }
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                        .onChanged { value in
+                            // Ignoriamo la pennellata se stiamo navigando (2 dita)
+                            guard !isNavigating else { return }
+                            
+                            if appState.mapEditMode == .brushPath || appState.mapEditMode == .erasePath {
+                                appState.brushStrokePoints.append(value.location)
+                                detectBrushHit(at: value.location, renderData: renderData)
+                            }
+                        }
+                        .onEnded { _ in
+                            if !appState.brushStrokePoints.isEmpty {
+                                withAnimation(.easeOut(duration: 0.5)) {
+                                    appState.brushStrokePoints.removeAll()
+                                }
+                            }
+                        }
+                )
                 .gesture(
                     LongPressGesture(minimumDuration: 0.5)
                         .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
@@ -335,11 +361,62 @@ struct SchematicRailwayView: View {
         return dx*dx + dy*dy
     }
 
+    private func detectBrushHit(at location: CGPoint, renderData: MapRenderData) {
+        let nodeThresholdSq: CGFloat = 625.0 // 25px per il pennello (leggermente meno del tap per precisione)
+        
+        for target in renderData.selectionIndex {
+            guard target.type == .node, let center = target.center else { continue }
+            guard target.bounds.contains(location) else { continue }
+            
+            let dx = location.x - center.x
+            let dy = location.y - center.y
+            let dSq = dx*dx + dy*dy
+            
+            if dSq < nodeThresholdSq {
+                if let node = appState.railroad.network.nodes.first(where: { $0.id == target.id }) {
+                    // Evitiamo di chiamare continuamente la logica se il nodo è già nello stato desiderato
+                    let isAlreadySelected = appState.isCreatingLine ? appState.lineDraftStations.contains(node.id) : appState.selectedNodeIds.contains(node.id)
+                    
+                    if (appState.mapEditMode == .brushPath && !isAlreadySelected) || 
+                       (appState.mapEditMode == .erasePath && isAlreadySelected) {
+                        interactionVM.handleStationTap(node, editMode: editModeBinding, newTrackFrom: $newTrackFrom, newTrackTo: $newTrackTo, newTrackDistance: $newTrackDistance)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func brushStrokeOverlay(size: CGSize) -> some View {
+        if !appState.brushStrokePoints.isEmpty {
+            Canvas { context, size in
+                var path = Path()
+                if let first = appState.brushStrokePoints.first {
+                    path.move(to: first)
+                    for point in appState.brushStrokePoints.dropFirst() {
+                        path.addLine(to: point)
+                    }
+                }
+                
+                let color: Color = appState.mapEditMode == .erasePath ? .red : .orange
+                context.stroke(path, with: .color(color.opacity(0.4)), style: StrokeStyle(lineWidth: 25, lineCap: .round, lineJoin: .round))
+            }
+            .frame(width: size.width, height: size.height)
+            .allowsHitTesting(false)
+        }
+    }
+
     private var zoomGesture: some Gesture {
         MagnificationGesture()
-            .onChanged { magnification = $0 }
+            .simultaneously(with: RotationGesture())
+            .updating($isNavigating) { _, state, _ in
+                state = true
+            }
+            .onChanged { value in
+                magnification = value.first ?? 1.0
+            }
             .onEnded { value in
-                zoomLevel *= value
+                zoomLevel *= (value.first ?? 1.0)
                 magnification = 1.0
             }
     }

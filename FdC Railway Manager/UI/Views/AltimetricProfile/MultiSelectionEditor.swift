@@ -207,7 +207,7 @@ struct MultiSelectionEditor: View {
             // Check if edge exists (findEdge is bidirectional-aware)
             if appState.railroad.network.findEdge(from: n1.id, to: n2.id) == nil {
                 let edge = Edge(from: n1.id, to: n2.id, distance: distKm, trackType: .double, maxSpeed: 160)
-                appState.railroad.network.addEdge(edge)
+                appState.railroad.addEdge(edge)
             }
         }
     }

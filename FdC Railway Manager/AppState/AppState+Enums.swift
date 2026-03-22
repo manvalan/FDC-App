@@ -1,5 +1,25 @@
 import SwiftUI
 
+// MARK: - Navigation enums (top-level so NavigationState can own them)
+
+enum ActivePanel {
+    case none, sidebar, inspector, modeBar
+}
+
+enum LineInspectorMode: String, CaseIterable, Identifiable {
+    case infrastructure = "Infrastruttura"
+    case schedule       = "Orario"
+    case vehicles       = "Mezzi"
+    var id: String { rawValue }
+}
+
+enum IOImportMode {
+    case project
+    case infrastructure
+}
+
+// MARK: -
+
 enum SidebarItem: String, CaseIterable, Identifiable {
     case stations   = "stazioni"
     case tracks     = "binari"

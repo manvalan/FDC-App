@@ -10,11 +10,7 @@ extension NetworkModel {
     
     func addEdge(_ edge: Edge) {
         createCheckpoint()
-        var newEdge = edge
-        if newEdge.segments.isEmpty {
-            InfrastructureManager.shared.processNetwork(self)
-        }
-        edges.append(newEdge)
+        edges.append(edge)
     }
     
     func removeNode(_ id: String) {

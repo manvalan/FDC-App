@@ -15,7 +15,7 @@ struct MapControlsView: View {
     @Binding var isEditToolbarVisible: Bool
     @Binding var editMode: MapEditMode
     
-    var onExport: (RailwayMapView.ExportFormat) -> Void
+    var onExport: (AppExportFormat) -> Void
     var onPrint: () -> Void
     
     var body: some View {

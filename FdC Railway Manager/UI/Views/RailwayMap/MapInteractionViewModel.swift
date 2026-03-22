@@ -14,16 +14,68 @@ class MapInteractionViewModel: ObservableObject {
     }
     
     private func setupBindings() {
-        appState.objectWillChange
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.objectWillChange.send() }
-            .store(in: &cancellables)
+        // Rimosso il sink aggressivo per evitare loop di aggiornamento e lag
     }
     
     private var network: NetworkModel { appState.railroad.network }
     private var lines: LinesManager { appState.railroad.lines }
 
     func handleStationTap(_ node: RailwayNode, editMode: Binding<MapEditMode>, newTrackFrom: Binding<Node?>, newTrackTo: Binding<Node?>, newTrackDistance: Binding<Double>) {
+        if appState.mapEditMode == .brushPath || appState.mapEditMode == .erasePath {
+            let isBrush = appState.mapEditMode == .brushPath
+            
+            withAnimation(.spring(response: 0.3)) {
+                let lastId = appState.isCreatingLine ? appState.lineDraftStations.last : appState.selectedNodeIdsOrder.last
+                
+                var nodesToProcess: [String] = []
+                
+                // Se abbiamo un'ultima stazione e non è quella attuale, cerchiamo il percorso (Smart Tool)
+                if let last = lastId, last != node.id {
+                    if let (path, _) = network.findShortestPath(from: last, to: node.id, ignoreDirection: true) {
+                        for nodeId in path {
+                            if let n = network.nodes.first(where: { $0.id == nodeId }), (n.type == .station || n.type == .interchange) {
+                                nodesToProcess.append(nodeId)
+                            }
+                        }
+                    }
+                }
+                
+                // Includiamo sempre il nodo attuale
+                if (node.type == .station || node.type == .interchange) && !nodesToProcess.contains(node.id) {
+                    nodesToProcess.append(node.id)
+                }
+                
+                // Applichiamo l'operazione (Aggiunta o Rimozione)
+                for nid in nodesToProcess {
+                    if let callback = appState.stationPickingCallback {
+                        callback(nid)
+                    } else if appState.isCreatingLine {
+                        if isBrush {
+                            if !appState.lineDraftStations.contains(nid) {
+                                appState.lineDraftStations.append(nid)
+                            }
+                        } else {
+                            appState.lineDraftStations.removeAll(where: { $0 == nid })
+                        }
+                    } else {
+                        if isBrush {
+                            if !appState.selectedNodeIds.contains(nid) {
+                                appState.selectedNodeIds.insert(nid)
+                                appState.selectedNodeIdsOrder.append(nid)
+                            }
+                        } else {
+                            if appState.selectedNodeIds.contains(nid) {
+                                appState.selectedNodeIds.remove(nid)
+                                appState.selectedNodeIdsOrder.removeAll(where: { $0 == nid })
+                                if appState.selectedNodeId == nid { appState.selectedNodeId = nil }
+                            }
+                        }
+                    }
+                }
+            }
+            return
+        }
+
         if let pickingCallback = appState.stationPickingCallback {
             pickingCallback(node.id)
             return
@@ -35,7 +87,7 @@ class MapInteractionViewModel: ObservableObject {
             selectNode(node)
         }
     }
-    
+
     private func handleTrackDrafting(_ node: RailwayNode, newTrackFrom: Binding<Node?>, newTrackTo: Binding<Node?>, newTrackDistance: Binding<Double>) {
         if appState.trackDraftFromId == nil {
             appState.trackDraftFromId = node.id
@@ -60,8 +112,8 @@ class MapInteractionViewModel: ObservableObject {
             appState.selectedRouteId = nil
             appState.selectedEdgeId = nil
             
-            // Se selezioniamo un nodo, usciamo dalle modalità di creazione per vedere l'ispettore
-            if appState.mapEditMode != .explore {
+            // Esci dalle modalità di creazione solo se sono modalità infrastruttura "singole"
+            if appState.mapEditMode == .addTrack || appState.mapEditMode == .addStation {
                 appState.mapEditMode = .explore
             }
             
@@ -100,8 +152,7 @@ class MapInteractionViewModel: ObservableObject {
         }()
         
         let newEdge = RailwayEdge(from: from.id, to: to.id, distance: distance, trackType: type, maxSpeed: speed, capacity: 10)
-        network.createCheckpoint()
-        network.addEdge(newEdge)
+        appState.railroad.addEdge(newEdge)
         
         withAnimation {
             appState.selectedEdgeId = newEdge.id.uuidString

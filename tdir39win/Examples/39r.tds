@@ -1,7 +1,0 @@
-# user clicked on the signal
-
-OnCross:
-    call testReturn
-    call alertSignal
-end
-

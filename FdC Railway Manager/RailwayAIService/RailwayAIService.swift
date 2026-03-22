@@ -4,7 +4,13 @@ import Combine
 @MainActor
 class RailwayAIService: ObservableObject {
     static let shared = RailwayAIService()
-    
+
+    let authManager: AuthenticationManager
+
+    init(authManager: AuthenticationManager = AuthenticationManager.shared) {
+        self.authManager = authManager
+    }
+
     struct RouteAnalysis: Codable {
         let maxFrequency: String?
         let recommendedFrequency: String?
@@ -73,14 +79,14 @@ class RailwayAIService: ObservableObject {
             // Update AuthManager with the base server URL (stripping /api/v1 if present)
             var baseServer = cleanEndpoint.replacingOccurrences(of: "/api/v1", with: "")
             if baseServer.hasSuffix("/") { baseServer.removeLast() }
-            AuthenticationManager.shared.updateBaseURL(baseServer)
+            authManager.updateBaseURL(baseServer)
         }
-        
+
         // Use API Key exactly as provided - only trim whitespace
         let cleanKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         self.apiKey = cleanKey.isEmpty ? nil : cleanKey
-        
-        // If a new token is provided, use it (temporary session). 
+
+        // If a new token is provided, use it (temporary session).
         // Otherwise, if we are syncing without a token, ensure it's cleared.
         if let t = token, !t.isEmpty {
             self.token = t
@@ -90,10 +96,10 @@ class RailwayAIService: ObservableObject {
             // If called as syncCredentials(..., token: nil), we clear.
             self.token = nil
         }
-        
+
         // Update AuthManager as well
-        if let key = self.apiKey { AuthenticationManager.shared.setAPIKey(key) }
-        if let t = self.token { AuthenticationManager.shared.setToken(t) } else { AuthenticationManager.shared.setToken("") }
+        if let key = self.apiKey { authManager.setAPIKey(key) }
+        if let t = self.token { authManager.setToken(t) } else { authManager.setToken("") }
         
         RailwayAILogger.shared.log("Sync Complete. Endpoint: \(self.baseURL)", type: .info)
         RailwayAILogger.shared.log("API Key: \(self.apiKey != nil ? "Presente" : "Assente"), Token: \(self.token != nil ? "Presente" : "Assente")", type: .info)

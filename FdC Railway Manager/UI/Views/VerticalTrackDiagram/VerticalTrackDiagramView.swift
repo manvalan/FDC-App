@@ -20,7 +20,7 @@ struct VerticalTrackDiagramView: View {
     
     // Export State
     @State private var isExporting: Bool = false
-    @State private var exportFormat: ExportFormat = .jpeg
+    @State private var exportFormat: AppExportFormat = .jpeg
     
     // For auto-scrolling
     @State private var scrollProxy: ScrollViewProxy? = nil
@@ -216,7 +216,7 @@ struct VerticalTrackDiagramView: View {
     // MARK: - Export Logic
     
     @MainActor
-    private func exportDiagram(as format: ExportFormat) {
+    private func exportDiagram(as format: AppExportFormat) {
         let snapshot = diagramSnapshot.environmentObject(appState).environmentObject(network).padding(40).background(Color.white)
         let renderer = ImageRenderer(content: snapshot)
         renderer.scale = 3.0

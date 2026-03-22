@@ -55,8 +55,8 @@ struct StationInlineEditor: View {
             .background(appState.theme.light.opacity(0.3))
             .cornerRadius(10)
             
-            // Edit mode toggle hint
-            if !appState.isInspectorEditingMode {
+            // Edit mode toggle hint - Solo se NON siamo in modalità Design
+            if !appState.isInspectorEditingMode && appState.currentMode != .design {
                 HStack {
                     Image(systemName: "hand.tap.fill")
                         .foregroundColor(appState.theme.accent)
@@ -286,8 +286,8 @@ struct StationInlineEditor: View {
                         .foregroundColor(appState.theme.medium)
                 }
             }
-            .disabled(!appState.isInspectorEditingMode)
-            .opacity(appState.isInspectorEditingMode ? 1 : 0.5)
+            .disabled(!appState.isInspectorEditingMode && appState.currentMode != .design)
+            .opacity((appState.isInspectorEditingMode || appState.currentMode == .design) ? 1 : 0.5)
         }
         .onAppear {
             localPlatforms = node.platforms ?? 2

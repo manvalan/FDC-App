@@ -21,7 +21,7 @@ final class RailwayScheduleOptimizer {
     static let shared = RailwayScheduleOptimizer()
     
     let conflictManager = ConflictManager()
-    let aiService = RailwayAIService.shared
+    var aiService: RailwayAIService = .shared
     let geneticOptimizer = GeneticOptimizer() // Assumendo che sia adattabile o stateless
     let returnStartNumber = 1
     

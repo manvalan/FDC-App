@@ -227,19 +227,15 @@ final class RailwayRenderer {
     }
     
     /// Helper per disegnare testo leggibile con "alone" di contrasto
+    /// Helper per disegnare testo leggibile con "alone" di contrasto
     private func drawReadableText(_ text: String, at point: CGPoint, size: CGFloat, weight: Font.Weight, color: Color, in context: GraphicsContext) {
-        let textObj = Text(text).font(.system(size: size, weight: weight))
+        let textObj = Text(text).font(.system(size: size, weight: weight)).foregroundColor(color)
+        let resolved = context.resolve(textObj)
         
-        // Doppio contorno per massima leggibilità (Glow effect più marcato)
-        let resolvedShadow = context.resolve(textObj.foregroundColor(.white))
-        for ox in [-1.5, 0, 1.5] {
-            for oy in [-1.5, 0, 1.5] {
-                if ox == 0 && oy == 0 { continue }
-                context.draw(resolvedShadow, at: CGPoint(x: point.x + ox, y: point.y + oy))
-            }
-        }
-        
-        context.draw(context.resolve(textObj.foregroundColor(color)), at: point)
+        // Un solo disegno con ombra (glow) bianca è molto più rapido di 8 disegni spostati
+        var glowContext = context
+        glowContext.addFilter(.shadow(color: .white, radius: 2.5, x: 0, y: 0))
+        glowContext.draw(resolved, at: point)
     }
     
     /// Disegna un binario in un GraphicsContext

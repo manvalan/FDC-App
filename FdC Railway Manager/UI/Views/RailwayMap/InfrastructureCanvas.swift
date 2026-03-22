@@ -1,16 +1,10 @@
 import SwiftUI
 import Combine
 import MapKit
-#if canImport(UIKit)
-import UIKit
-#endif
-#if canImport(AppKit)
-import AppKit
-#endif
 
 struct InfrastructureCanvas: View {
     @EnvironmentObject var appState: AppState
-    let mode: RailwayMapView.MapVisualizationMode
+    let mode: MapVisualizationMode
     let renderData: MapRenderData
     let totalZoom: CGFloat
     
@@ -36,30 +30,10 @@ struct InfrastructureCanvas: View {
             for edge in appState.railroad.network.edges {
                 guard let points = renderData.edgeGeometries[edge.id.uuidString] else { continue }
                 
-                // Highlight Ferrovia (Back)
-                if let selectedInfraLine = appState.selectedInfraLine {
-                    let nodeIds = selectedInfraLine.nodeIds
-                    var isPartOfFerrovia = false
-                    for i in 0..<(nodeIds.count - 1) {
-                        let s1 = nodeIds[i]
-                        let s2 = nodeIds[i+1]
-                        if (edge.from == s1 && edge.to == s2) || (edge.from == s2 && edge.to == s1) {
-                            isPartOfFerrovia = true
-                            break
-                        }
-                    }
-                    if isPartOfFerrovia {
-                        let fColor = Color(hex: selectedInfraLine.color ?? "#000000") ?? .blue
-                        let path = Path { p in p.move(to: points[0]); for i in 1..<points.count { p.addLine(to: points[i]) } }
-                        // Much thinner and subtle highlight (6px instead of 18px)
-                        context.stroke(path, with: .color(fColor.opacity(0.3)), style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                    }
-                }
-                
                 let isSelected = !mode.isSchedulerMode && appState.selectedEdgeId == edge.id.uuidString
                 var style = EdgeStyle.forTrackType(edge.trackType)
                 if totalZoom > 4.0 {
-                    style.strokeWidth *= 0.8 // Leggermente più sottili in visualizzazione dettagliata
+                    style.strokeWidth *= 0.8
                 }
                 
                 renderer.drawEdge(
@@ -72,38 +46,24 @@ struct InfrastructureCanvas: View {
                 )
             }
 
-            // 2. Disegno NODI (Stazioni, Bivi, Hub) - MOVING TO CANVAS FOR SPEED
+            // 2. Disegno NODI (Stazioni, Bivi, Hub)
             for node in appState.railroad.network.nodes {
-                if appState.isDraggingNode && appState.selectedNodeId == node.id {
-                    continue
-                }
-                
+                if appState.isDraggingNode && appState.selectedNodeId == node.id { continue }
                 let isSelected = appState.selectedNodeId == node.id || appState.selectedNodeIds.contains(node.id)
                 guard let point = renderData.nodePositions[node.id] else { continue }
                 
-                // Adaptive sizing: Keep it extremely light to avoid "pallettoni"
-                // Overview (zoom 1.0) -> Junctions: 1px, Stations: 5px
                 let isJunction = node.type == .junction
                 let baseIconSize: CGFloat = isJunction ? 1.5 : 8
-                var adaptiveSize = baseIconSize + (1.8 * totalZoom)
-                // Rimossa la riduzione per lo zoom alto, lo user le vuole più grandi
+                let adaptiveSize = baseIconSize + (1.8 * totalZoom)
                 
-                // --- LOGICA RICHIESTA: CAPISALDI SEMPRE VISIBILI ---
                 let vType = node.visualType ?? node.defaultVisualType
                 let isCaposaldo = isSelected || vType == .filledSquare || vType == .filledStar || node.type == .interchange
-                
                 var showLabel = isCaposaldo
-                
-                // Comparsa progressiva SOLO per le stazioni minori (cerchi)
                 if !showLabel {
                     let hashVal = abs(node.id.hashValue % 100)
-                    if totalZoom > 2.8 {
-                        showLabel = true
-                    } else if totalZoom > 1.8 {
-                        showLabel = hashVal < 60
-                    } else if totalZoom > 1.2 {
-                        showLabel = hashVal < 20
-                    }
+                    if totalZoom > 2.8 { showLabel = true } 
+                    else if totalZoom > 1.8 { showLabel = hashVal < 60 } 
+                    else if totalZoom > 1.2 { showLabel = hashVal < 20 }
                 }
                 
                 let style = NodeStyle(
@@ -115,11 +75,10 @@ struct InfrastructureCanvas: View {
                     isHighlighted: false,
                     isSelected: isSelected
                 )
-                
                 renderer.drawNode(node, at: point, in: context, zoomLevel: totalZoom, style: style)
             }
 
-            // 3. Visualizzazione Hub
+            // 3. Hubs
             for (hubId, positions) in renderData.hubGeometries {
                 let parentNode = appState.railroad.network.nodes.first(where: { $0.id == hubId }) ?? appState.railroad.network.nodes.first
                 let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
@@ -135,22 +94,18 @@ struct InfrastructureCanvas: View {
                 )
             }
             
-            // 3. Linee Commerciali
+            // 4. Linee Commerciali (Ottimizzate: niente più ricerche O(N))
             if mode.isSchedulerMode {
-                for (key, precomputedLines) in renderData.commercialLines {
-                    let matchingEdge = appState.railroad.network.edges.first { edge in
-                        (edge.from == key.from && edge.to == key.to) || (edge.from == key.to && edge.to == key.from)
-                    }
-                    guard let edge = matchingEdge,
-                          let points = renderData.edgeGeometries[edge.id.uuidString] else { continue }
-                    
+                for (_, precomputedLines) in renderData.commercialLines {
+                    guard let firstLine = precomputedLines.first else { continue }
+                    let points = firstLine.points
                     let colors = precomputedLines.map { $0.color }
-                    let isSelected = precomputedLines.contains { $0.line.id == appState.selectedRouteId }
+                    let isBundleSelected = precomputedLines.contains { $0.line.id == appState.selectedRouteId }
                     
                     renderer.drawCommercialBundle(
                         points: points,
                         colors: colors,
-                        isSelected: isSelected,
+                        isSelected: isBundleSelected,
                         globalLineWidth: appState.globalLineWidth,
                         bundleOffsetBase: MapConstants.lineOffsetBase,
                         in: context

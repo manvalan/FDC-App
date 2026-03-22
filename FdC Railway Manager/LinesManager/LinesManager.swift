@@ -255,7 +255,7 @@ public final class LinesManager: ObservableObject {
         #endif
         
         refreshSchedules()
-        conflictManager.detectConflicts(nodes: network.nodes, edges: network.edges, trains: trains, pathCache: pathCache)
+        conflictManager.refreshConflicts(nodes: network.nodes, edges: network.edges, trains: trains, pathCache: pathCache)
         onSchedulesChanged?()
         isValidating = false
         objectWillChange.send()
