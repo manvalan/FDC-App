@@ -84,7 +84,7 @@ struct EditorToolboxView: View {
             Image(systemName: icon)
                 .font(.system(size: 20, weight: .bold))
                 .frame(width: 44, height: 44)
-                .background(active ? Color.blue : (isDestructive ? Color.red.opacity(0.1) : Color.white.opacity(0.1)))
+                .background(active ? Color.blue : (isDestructive ? Color.red.opacity(0.1) : Color.primary.opacity(0.08)))
                 .foregroundColor(active ? .white : (isDestructive ? .red : .primary))
                 .cornerRadius(10)
         }

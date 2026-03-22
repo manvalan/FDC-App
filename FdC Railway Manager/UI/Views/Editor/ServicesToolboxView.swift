@@ -105,7 +105,7 @@ struct ServicesToolboxView: View {
             Image(systemName: icon)
                 .font(.system(size: 20, weight: .bold))
                 .frame(width: 44, height: 44)
-                .background(active ? Color.orange : (isDestructive ? Color.red.opacity(0.1) : Color.white.opacity(0.1)))
+                .background(active ? Color.orange : (isDestructive ? Color.red.opacity(0.1) : Color.primary.opacity(0.08)))
                 .foregroundColor(active ? .white : (isDestructive ? .red : (disabled ? .secondary.opacity(0.3) : .primary)))
                 .cornerRadius(10)
         }

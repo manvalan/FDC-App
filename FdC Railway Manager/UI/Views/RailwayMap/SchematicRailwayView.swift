@@ -265,6 +265,7 @@ struct SchematicRailwayView: View {
                         }
                 )
             }
+            .scrollDisabled(editMode == .addStation)
         }
     }
 
