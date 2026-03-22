@@ -25,6 +25,7 @@ struct SchematicRailwayView: View {
     }
     @State private var isEditToolbarVisible = false
     @State private var hiddenLineIds: Set<String> = []
+    @State private var stationPlacementLocation: CGPoint = .zero
     var editorViewModel: EditorModeViewModel? = nil
     
     // Track Creation State
@@ -228,9 +229,10 @@ struct SchematicRailwayView: View {
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 0, coordinateSpace: .local)
                         .onChanged { value in
+                            stationPlacementLocation = value.location
                             // Ignoriamo la pennellata se stiamo navigando (2 dita)
                             guard !isNavigating else { return }
-                            
+
                             if appState.mapEditMode == .brushPath || appState.mapEditMode == .erasePath {
                                 appState.brushStrokePoints.append(value.location)
                                 detectBrushHit(at: value.location, renderData: renderData)
@@ -244,26 +246,16 @@ struct SchematicRailwayView: View {
                             }
                         }
                 )
-                .gesture(
-                    LongPressGesture(minimumDuration: 0.5)
-                        .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
-                        .onEnded { value in
-                            switch value {
-                            case .second(true, let drag):
-                                if let location = drag?.location {
-                                    if editMode == .addStation {
-                                        if let editorVM = editorViewModel {
-                                            editorVM.placeStation(at: location, in: size, bounds: bounds)
-                                        } else {
-                                            _ = interactionVM.createStation(at: location, in: size, bounds: bounds)
-                                            appState.mapEditMode = .explore
-                                        }
-                                    }
-                                }
-                            default: break
-                            }
-                        }
-                )
+                .onLongPressGesture(minimumDuration: 0.5, maximumDistance: 20) {
+                    guard editMode == .addStation else { return }
+                    let location = stationPlacementLocation
+                    if let editorVM = editorViewModel {
+                        editorVM.placeStation(at: location, in: size, bounds: bounds)
+                    } else {
+                        _ = interactionVM.createStation(at: location, in: size, bounds: bounds)
+                        appState.mapEditMode = .explore
+                    }
+                }
             }
             .scrollDisabled(editMode == .addStation)
         }
