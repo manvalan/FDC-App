@@ -14,6 +14,7 @@ struct TrackInspectorView: View {
     var onBack: (() -> Void)?
     
     @State private var isEditingEnabled = false
+    @State private var showProfileSheet = false
     
     private var fromStation: RailwayNode? {
         network.nodes.first { $0.id == edge.from }
@@ -38,10 +39,14 @@ struct TrackInspectorView: View {
             stationsSection
             trackTypeSection
             parametersSection
-            
+            altimetricProfileSection
+
             if onDelete != nil {
                 InspectorDeleteButton(label: "delete_track".localized, onDelete: onDelete ?? {})
             }
+        }
+        .sheet(isPresented: $showProfileSheet) {
+            TrackProfileSheet(edge: $edge)
         }
         .onAppear {
             isEditingEnabled = true
@@ -198,6 +203,43 @@ struct TrackInspectorView: View {
         return nil
     }
     
+    // MARK: - Profilo altimetrico
+
+    private var altimetricProfileSection: some View {
+        InspectorSection(
+            title: "Profilo altimetrico",
+            icon: "chart.xyaxis.line",
+            iconColor: .teal
+        ) {
+            VStack(spacing: 12) {
+                HStack(spacing: 24) {
+                    altitudeStat("Quota Da", altitude: fromStation?.altitude)
+                    altitudeStat("Quota A",  altitude: toStation?.altitude)
+                    altitudeStat("Pendenza", text: averageSlopeText)
+                }
+                Button("Modifica profilo...") { showProfileSheet = true }
+                    .font(.subheadline)
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.bordered)
+            }
+        }
+    }
+
+    private func altitudeStat(_ label: String, altitude: Double? = nil, text: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text(text ?? (altitude.map { "\(Int($0)) m" } ?? "— m"))
+                .font(.subheadline.bold())
+        }
+    }
+
+    private var averageSlopeText: String {
+        let dAlt = (toStation?.altitude ?? 0) - (fromStation?.altitude ?? 0)
+        let distM = edge.distance * 1000.0
+        guard distM > 0 else { return "—" }
+        return String(format: "%.1f ‰", (dAlt / distM) * 1000.0)
+    }
+
     // MARK: - Metodi di Supporto
     
     private var trackTypeIcon: String {
