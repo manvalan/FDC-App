@@ -52,11 +52,6 @@ final class EditorModeState: ObservableObject {
     // MARK: - Internal helpers
 
     private func syncMapVisualization() {
-        if currentMode == .schedule
-            || (currentMode == .design && designSubMode == .services) {
-            mapVisualizationMode = .scheduler
-        } else {
-            mapVisualizationMode = .infrastructure
-        }
+        mapVisualizationMode = currentMode == .schedule ? .scheduler : .infrastructure
     }
 }

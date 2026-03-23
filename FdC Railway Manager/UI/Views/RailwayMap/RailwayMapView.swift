@@ -55,15 +55,8 @@ struct RailwayMapView: View {
             .overlay(alignment: .topLeading) { 
                 sidebarToggleButton.padding(24) 
             }
-            .overlay(alignment: .topTrailing) { 
-                if appState.currentMode == .design {
-                    EditorSubModePicker()
-                        .padding(24)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-            }
             .overlay(alignment: .top) {
-                if appState.currentMode == .design && appState.designSubMode == .infrastructure && appState.mapEditMode != .explore {
+                if appState.currentMode == .design && appState.mapEditMode != .explore {
                     instructionsBanner
                         .padding(.top, 20)
                         .transition(.move(edge: .top).combined(with: .opacity))
@@ -106,11 +99,7 @@ struct RailwayMapView: View {
     private var toolboxOverlay: some View {
         if appState.currentMode == .design {
             Group {
-                if appState.designSubMode == .infrastructure {
-                    EditorToolboxView(viewModel: internalEditorVM)
-                } else if appState.designSubMode == .services {
-                    ServicesToolboxView()
-                }
+                EditorToolboxView(viewModel: internalEditorVM)
             }
             .transition(.move(edge: .leading).combined(with: .opacity))
         }
@@ -128,21 +117,7 @@ struct RailwayMapView: View {
     
     @ViewBuilder
     private var profileOrModeBarOverlay: some View {
-        Group {
-            if appState.isProfileViewVisible && (appState.designSubMode == .services || appState.selectedNodeIds.count > 1) {
-                AltimetricProfileView(lockedNodeIds: Binding.constant([]))
-                    .frame(height: 250)
-                    .background(Color.white)
-                    .cornerRadius(16, corners: [.topLeft, .topRight])
-                    .shadow(radius: 10)
-                    .padding(.horizontal, 80) // Aumentato per non coprire toolbox/comandi
-                    .padding(.bottom, 80)
-                    .transition(.move(edge: .bottom))
-            } else {
-                modeSelectorBar
-                    .padding(.bottom, 24)
-            }
-        }
+        modeSelectorBar.padding(.bottom, 24)
     }
     
     @ViewBuilder

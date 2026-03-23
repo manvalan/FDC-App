@@ -39,7 +39,6 @@ final class AppState: ObservableObject {
     @Published var selectedNodeIdsOrder: [String] = []
     @Published var brushStrokePoints: [CGPoint] = []
     @Published var isEraserActive: Bool = false
-    @Published var isProfileViewVisible: Bool = false
     @Published var selectedEdgeId: String? = nil {
         didSet { updateInspectorVisibilityForSelection() }
     }

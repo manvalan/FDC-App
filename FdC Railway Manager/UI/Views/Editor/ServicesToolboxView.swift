@@ -50,13 +50,7 @@ struct ServicesToolboxView: View {
                 }
                 
                 Divider().frame(width: 30)
-                
-                toolIcon(icon: "chart.xyaxis.line", help: "Altimetria", active: appState.isProfileViewVisible) {
-                    withAnimation {
-                        appState.isProfileViewVisible.toggle()
-                    }
-                }
-                
+
                 toolIcon(icon: "list.bullet", help: "Elenco Linee", active: appState.sidebarSelection == .infraLines && appState.isInspectorVisible) {
                     withAnimation {
                         if appState.sidebarSelection == .infraLines && appState.isInspectorVisible {
