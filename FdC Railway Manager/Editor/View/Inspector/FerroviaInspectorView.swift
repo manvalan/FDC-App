@@ -25,6 +25,7 @@ struct FerroviaInspectorView: View {
             
             basicInfoSection
             routeSection
+            altimetricProfileSection
             actionsSection
             
             if onDelete != nil {
@@ -109,6 +110,54 @@ struct FerroviaInspectorView: View {
         }
     }
     
+    // MARK: - Profilo altimetrico (read-only)
+
+    private var altimetricProfileSection: some View {
+        let pts = ferroviaProfilePoints
+        return InspectorSection(
+            title: "Profilo altimetrico",
+            icon: "chart.xyaxis.line",
+            iconColor: .teal
+        ) {
+            if pts.count >= 2 {
+                TrackAltitudeChart(profilePoints: pts)
+                    .frame(height: 80)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+                Text("Modifica le quote nei singoli inspector di binario.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text("Aggiungi almeno due stazioni con quota per visualizzare il profilo.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// Concatenates the altitude profile of all edges along the ferrovia path.
+    private var ferroviaProfilePoints: [(distance: Double, altitude: Double)] {
+        let nodeIds = ferrovia.nodeIds
+        guard nodeIds.count >= 2 else { return [] }
+        var pts: [(Double, Double)] = []
+        var cumulativeDistance: Double = 0
+
+        for i in 0 ..< nodeIds.count - 1 {
+            let fromId = nodeIds[i]
+            let toId   = nodeIds[i + 1]
+            guard let fromNode = network.nodes.first(where: { $0.id == fromId }),
+                  let edge = network.edges.first(where: {
+                      ($0.from == fromId && $0.to == toId) ||
+                      ($0.from == toId   && $0.to == fromId)
+                  })
+            else { continue }
+
+            if pts.isEmpty { pts.append((0, fromNode.altitude ?? 0)) }
+            cumulativeDistance += edge.distance
+            let toNode = network.nodes.first { $0.id == toId }
+            pts.append((cumulativeDistance, toNode?.altitude ?? 0))
+        }
+        return pts
+    }
+
     private var actionsSection: some View {
         InspectorSection(title: "actions".localized, icon: "bolt.fill", iconColor: .yellow) {
             VStack(spacing: 10) {
