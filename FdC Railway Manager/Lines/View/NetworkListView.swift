@@ -10,6 +10,7 @@ struct NetworkListView: View {
     let initialMode: NetworkListMode?
     @State private var mode: NetworkListMode = .stations
     @State private var showDeleteAllConfirmation = false
+    @State private var showNodes: Bool = false
     
     // ViewModels
     private var stationVM: StationListViewModel {
@@ -69,32 +70,53 @@ struct NetworkListView: View {
     }
     
     private var stationsListView: some View {
-        FdCEntityList(
-            title: String(format: "stations_count".localized, stationVM.items.count),
-            items: stationVM.items,
-            selectedItemId: Binding(
-                get: { selectedNode?.id },
-                set: { _ in }
-            ),
-            rowContent: { node in
-                HStack {
-                    NetworkSymbols.stationSymbol(for: node, size: 12)
-                    Text(node.name ?? node.id)
-                        .font(.subheadline)
-                    Spacer()
-                    if let platforms = node.platforms, platforms > 0 {
-                        Text("\(platforms) bin.")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+        let visibleItems = stationVM.items.filter {
+            showNodes || $0.type != .junction
+        }
+        return VStack(spacing: 0) {
+            FdCEntityList(
+                title: String(format: "stations_count".localized, visibleItems.count),
+                items: visibleItems,
+                selectedItemId: Binding(
+                    get: { selectedNode?.id },
+                    set: { _ in }
+                ),
+                rowContent: { node in
+                    HStack {
+                        NetworkSymbols.stationSymbol(for: node, size: 12)
+                        Text(node.name ?? node.id)
+                            .font(.subheadline)
+                        Spacer()
+                        if let platforms = node.platforms, platforms > 0 {
+                            Text("\(platforms) bin.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
                     }
-                }
-            },
-            searchText: stationVM.searchText,
-            onSelect: stationVM.onSelect,
-            onAdd: stationVM.onAdd,
-            onDelete: stationVM.onDelete,
-            onDeleteAll: stationVM.onDeleteAll
-        )
+                },
+                searchText: stationVM.searchText,
+                onSelect: stationVM.onSelect,
+                onAdd: stationVM.onAdd,
+                onDelete: stationVM.onDelete,
+                onDeleteAll: stationVM.onDeleteAll
+            )
+
+            Divider()
+
+            Button {
+                showNodes.toggle()
+            } label: {
+                Label(
+                    showNodes ? "Nascondi Nodi" : "Mostra Nodi",
+                    systemImage: showNodes ? "eye.slash" : "eye"
+                )
+                .font(.caption)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+            }
+            .buttonStyle(.borderless)
+            .foregroundColor(.secondary)
+        }
     }
     
     private var tracksListView: some View {
