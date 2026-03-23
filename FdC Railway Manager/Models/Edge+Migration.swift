@@ -1,8 +1,7 @@
 import Foundation
 
 extension Edge {
-    /// Converts each undirected `.highSpeed` edge (with `pairedEdgeId == nil`)
-    /// **or** any legacy edge flagged with `needsPairedMigration`
+    /// Converts each legacy edge flagged with `needsPairedMigration`
     /// into two oriented edges (A→B and B→A) with `pairedEdgeId`
     /// cross-referenced between them.
     ///
@@ -20,7 +19,7 @@ extension Edge {
         var convertedCount = 0
         for edge in edges {
             guard edge.pairedEdgeId == nil,
-                  edge.trackType == .highSpeed || edge.needsPairedMigration
+                  edge.needsPairedMigration
             else {
                 result.append(edge)
                 continue
