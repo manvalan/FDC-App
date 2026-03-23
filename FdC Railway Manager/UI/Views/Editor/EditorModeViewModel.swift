@@ -41,7 +41,6 @@ class EditorModeViewModel: ObservableObject {
     func createStation() {
         // Entra in modalità "Attesa posizionamento"
         withAnimation {
-            appState.designSubMode = .infrastructure
             appState.clearSelection()
             appState.mapEditMode = .addStation
         }

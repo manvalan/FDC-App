@@ -15,7 +15,6 @@ struct EditorToolboxView: View {
                     withAnimation {
                         appState.isCreatingTrack.toggle()
                         if appState.isCreatingTrack {
-                            appState.designSubMode = .infrastructure
                             appState.trackDraftFromId = nil
                             appState.trackDraftToId = nil
                             viewModel.clearSelection()

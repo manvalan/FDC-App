@@ -81,8 +81,3 @@ enum AppMode: String, CaseIterable, Identifiable {
         }
     }
 }
-enum DesignSubMode: String, CaseIterable, Identifiable {
-    case infrastructure
-    var id: String { rawValue }
-    var title: String { "Mappa" }
-}

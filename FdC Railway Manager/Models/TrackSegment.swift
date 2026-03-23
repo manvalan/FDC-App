@@ -13,13 +13,10 @@ public struct TrackSegment: Identifiable, Codable, Hashable {
     public var signal: Signal?
     
     // Physical Properties
-    /// Altitude in metres. Retained for legacy file compatibility until
-    /// AltimetricProfileView is migrated to Edge.controlPoints in Phase 3c.
-    public var altitude: Double?
     public var speedLimit: Int?
 
     enum CodingKeys: String, CodingKey {
-        case id, order, length, isOccupied, signal, altitude, speedLimit
+        case id, order, length, isOccupied, signal, speedLimit
     }
 
     public init(
@@ -28,7 +25,6 @@ public struct TrackSegment: Identifiable, Codable, Hashable {
         length: Double,
         isOccupied: Bool = false,
         signal: Signal? = nil,
-        altitude: Double? = nil,
         speedLimit: Int? = nil
     ) {
         self.id = id
@@ -36,7 +32,6 @@ public struct TrackSegment: Identifiable, Codable, Hashable {
         self.length = length
         self.isOccupied = isOccupied
         self.signal = signal
-        self.altitude = altitude
         self.speedLimit = speedLimit
     }
 }

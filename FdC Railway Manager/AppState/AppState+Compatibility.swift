@@ -195,11 +195,6 @@ extension AppState {
         set { editorMode.currentMode = newValue }
     }
 
-    var designSubMode: DesignSubMode {
-        get { editorMode.designSubMode }
-        set { editorMode.designSubMode = newValue }
-    }
-
     var mapVisualizationMode: MapVisualizationMode {
         get { editorMode.mapVisualizationMode }
         set { editorMode.mapVisualizationMode = newValue }

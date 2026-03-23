@@ -12,9 +12,6 @@ final class EditorModeState: ObservableObject {
     @Published var currentMode: AppMode = .design {
         didSet { syncMapVisualization() }
     }
-    @Published var designSubMode: DesignSubMode = .infrastructure {
-        didSet { syncMapVisualization() }
-    }
     @Published var mapVisualizationMode: MapVisualizationMode = .infrastructure
 
     // MARK: - Map interaction
