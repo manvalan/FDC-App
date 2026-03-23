@@ -215,12 +215,21 @@ struct SchematicRailwayView: View {
                         totalZoom: totalZoom,
                         coordinateGridStep: coordinateGridStep,
                         showGrid: showGrid,
-                        onStationTap: { _, location in 
+                        onStationTap: { _, location in
                             handleMapTap(at: location, renderData: renderData)
                         }
                     )
-                    
+
                     brushStrokeOverlay(size: size)
+
+                    // Anchor invisibile al centroide geografico della rete.
+                    // Usato da proxy.scrollTo dopo ogni zoom per centrare
+                    // la vista sulla distribuzione effettiva dei nodi,
+                    // non sul corner top-left del canvas espanso.
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .id("networkCentroid")
+                        .position(centroidPoint(in: size, bounds: bounds))
                 }
                 .frame(width: size.width, height: size.height)
                 .contentShape(Rectangle())
@@ -264,7 +273,30 @@ struct SchematicRailwayView: View {
                 }
             }
             .scrollDisabled(editMode == .addStation)
+            .onChange(of: zoomLevel) { _ in
+                proxy.scrollTo("networkCentroid", anchor: .center)
+            }
         }
+    }
+
+    /// Centroide geografico della rete: media di lat/lon di tutti i nodi
+    /// con coordinate valide, convertita in coordinate canvas.
+    /// Diverso dal centro geometrico del canvas — su reti asimmetriche
+    /// segue la distribuzione dei nodi, non i limiti del bounding box.
+    private func centroidPoint(in size: CGSize, bounds: MapBounds) -> CGPoint {
+        let coords = appState.railroad.network.nodes.compactMap { n -> (Double, Double)? in
+            guard let lat = n.latitude, let lon = n.longitude else { return nil }
+            return (lat, lon)
+        }
+        guard !coords.isEmpty else {
+            return CGPoint(x: size.width / 2, y: size.height / 2)
+        }
+        let meanLat = coords.map { $0.0 }.reduce(0, +) / Double(coords.count)
+        let meanLon = coords.map { $0.1 }.reduce(0, +) / Double(coords.count)
+        let pad = MapConstants.canvasPadding
+        let x = (meanLon - bounds.minLon) / bounds.xRange * (size.width  - pad * 2) + pad
+        let y = (1.0 - (meanLat - bounds.minLat) / bounds.yRange) * (size.height - pad * 2) + pad
+        return CGPoint(x: x, y: y)
     }
 
     private func mapBasement(size: CGSize, bounds: MapBounds, renderData: MapRenderData) -> some View {
@@ -415,7 +447,7 @@ struct SchematicRailwayView: View {
             }
             .onEnded { value in
                 zoomLevel = max(0.5, min(5.0, zoomLevel * value))
-                magnification = 1.0
+                withAnimation(.none) { magnification = 1.0 }
             }
     }
 }
