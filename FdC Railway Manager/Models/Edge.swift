@@ -89,7 +89,16 @@ public struct Edge: Identifiable, Codable, Hashable {
         capacity = try container.decodeIfPresent(Int.self, forKey: .capacity)
         segments = try container.decodeIfPresent([TrackSegment].self, forKey: .segments) ?? []
         geometryPoints = try container.decodeIfPresent([GeometryPoint].self, forKey: .geometryPoints)
-        controlPoints = try container.decodeIfPresent([TrackControlPoint].self, forKey: .controlPoints) ?? []
+        let decoded = try container.decodeIfPresent([TrackControlPoint].self, forKey: .controlPoints) ?? []
+        if decoded.isEmpty, let legacy = geometryPoints, !legacy.isEmpty {
+            // Migrate pre-existing GeometryPoints to TrackControlPoints.
+            // Altitude is unknown from legacy data → nil (linear interpolation).
+            controlPoints = legacy.map {
+                TrackControlPoint(id: $0.id, latitude: $0.latitude, longitude: $0.longitude)
+            }
+        } else {
+            controlPoints = decoded
+        }
         electrification = try container.decodeIfPresent(ElectrificationType.self, forKey: .electrification) ?? .dc3kv
         hasManualDistance = try container.decodeIfPresent(Bool.self, forKey: .hasManualDistance) ?? false
     }
