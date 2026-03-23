@@ -87,16 +87,31 @@ struct TrackEditView: View {
                                 Button(action: { updateTrackType(.single) }) {
                                     Label("Binario Singolo", systemImage: "1.circle")
                                 }
+                                if edge.pairedEdgeId == nil {
+                                    Button(action: {
+                                        appState.railroad.addPairedEdge(to: edge.id)
+                                    }) {
+                                        Label("Doppio Binario", systemImage: "2.circle")
+                                    }
+                                }
                                 Button(action: { updateTrackType(.highSpeed) }) {
                                     Label("Alta Velocità", systemImage: "bolt.fill")
+                                }
+                                if edge.pairedEdgeId == nil {
+                                    Button(action: {
+                                        updateTrackType(.highSpeed)
+                                        appState.railroad.addPairedEdge(to: edge.id)
+                                    }) {
+                                        Label("Alta Velocità (doppio)", systemImage: "bolt.circle")
+                                    }
                                 }
                                 Button(action: { updateTrackType(.regional) }) {
                                     Label("Linea Regionale", systemImage: "tram")
                                 }
                             } label: {
                                 HStack {
-                                    trackIcon(for: edge.trackType)
-                                    Text(trackLabel(for: edge.trackType))
+                                    trackIcon(for: edge.trackType, isPaired: edge.pairedEdgeId != nil)
+                                    Text(trackLabel(for: edge.trackType, isPaired: edge.pairedEdgeId != nil))
                                         .foregroundColor(appState.theme.dark)
                                     Spacer()
                                     Image(systemName: "chevron.up.chevron.down")
@@ -212,19 +227,23 @@ struct TrackEditView: View {
         }
     }
 
-    private func trackLabel(for type: Edge.TrackType) -> String {
-        switch type {
-        case .single: return "Binario Singolo"
-        case .highSpeed: return "Alta Velocità"
-        case .regional: return "Linea Regionale"
+    private func trackLabel(for type: Edge.TrackType, isPaired: Bool = false) -> String {
+        switch (type, isPaired) {
+        case (.single, true): return "Doppio Binario"
+        case (.highSpeed, true): return "Alta Velocità (doppio)"
+        case (.single, _): return "Binario Singolo"
+        case (.highSpeed, _): return "Alta Velocità"
+        case (.regional, _): return "Linea Regionale"
         }
     }
 
-    private func trackIcon(for type: Edge.TrackType) -> Image {
-        switch type {
-        case .single: return Image(systemName: "1.circle")
-        case .highSpeed: return Image(systemName: "bolt.fill")
-        case .regional: return Image(systemName: "tram")
+    private func trackIcon(for type: Edge.TrackType, isPaired: Bool = false) -> Image {
+        switch (type, isPaired) {
+        case (.single, true): return Image(systemName: "2.circle")
+        case (.highSpeed, true): return Image(systemName: "bolt.circle")
+        case (.single, _): return Image(systemName: "1.circle")
+        case (.highSpeed, _): return Image(systemName: "bolt.fill")
+        case (.regional, _): return Image(systemName: "tram")
         }
     }
 }

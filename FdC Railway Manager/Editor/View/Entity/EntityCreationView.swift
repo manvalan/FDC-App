@@ -393,10 +393,11 @@ struct TrackCreationDetailsView: View {
     let toStationId: String
     
     @State private var trackType: Edge.TrackType = .single
+    @State private var isPaired: Bool = false
     @State private var distance: Double = 0.0
     @State private var maxSpeed: Int = 120
     @State private var capacity: Int = 6
-    
+
     var body: some View {
         Form {
             Section(header: Text("track_properties".localized)) {
@@ -404,6 +405,9 @@ struct TrackCreationDetailsView: View {
                     Label("single_track".localized, systemImage: "1.circle").tag(Edge.TrackType.single)
                     Label("high_speed_track".localized, systemImage: "bolt.fill").tag(Edge.TrackType.highSpeed)
                     Label("regional_track".localized, systemImage: "tram").tag(Edge.TrackType.regional)
+                }
+                if trackType != .regional {
+                    Toggle("Doppio Binario", isOn: $isPaired)
                 }
                 
                 HStack {
@@ -480,17 +484,12 @@ struct TrackCreationDetailsView: View {
     }
     
     private func saveTrack() {
-        let newEdge = Edge(
-            id: UUID(),
-            from: fromStationId,
-            to: toStationId,
-            distance: distance,
-            trackType: trackType,
-            maxSpeed: maxSpeed,
-            capacity: capacity
+        appState.railroad.addEdge(
+            from: fromStationId, to: toStationId,
+            distance: distance, trackType: trackType,
+            maxSpeed: maxSpeed, capacity: capacity,
+            isPaired: isPaired
         )
-        
-        network.edges.append(newEdge)
         appState.isCreatingTrack = false
     }
 }

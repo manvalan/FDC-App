@@ -141,7 +141,13 @@ class MapInteractionViewModel: ObservableObject {
         return newNode
     }
     
-    func createTrack(from: Node, to: Node, distance: Double, type: RailwayEdge.TrackType) {
+    func createTrack(
+        from: Node,
+        to: Node,
+        distance: Double,
+        type: RailwayEdge.TrackType,
+        isPaired: Bool = false
+    ) {
         let speed: Int = {
             switch type {
             case .single: return Int(appState.singleTrackMaxSpeed)
@@ -149,12 +155,19 @@ class MapInteractionViewModel: ObservableObject {
             case .highSpeed: return Int(appState.highSpeedTrackMaxSpeed)
             }
         }()
-        
-        let newEdge = RailwayEdge(from: from.id, to: to.id, distance: distance, trackType: type, maxSpeed: speed, capacity: 10)
-        appState.railroad.addEdge(newEdge)
-        
+        let countBefore = appState.railroad.network.edges.count
+        appState.railroad.addEdge(
+            from: from.id, to: to.id,
+            distance: distance, trackType: type,
+            maxSpeed: speed, capacity: 10,
+            isPaired: isPaired
+        )
+        let edges = appState.railroad.network.edges
+        let selectIndex = isPaired ? edges.count - 2 : edges.count - 1
+        let selectedId = selectIndex >= countBefore
+            ? edges[selectIndex].id.uuidString : nil
         withAnimation {
-            appState.selectedEdgeId = newEdge.id.uuidString
+            appState.selectedEdgeId = selectedId
             appState.selectedNodeId = nil
             appState.selectedRouteId = nil
             appState.activePanel = .inspector

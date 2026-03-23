@@ -58,6 +58,10 @@ public struct Edge: Identifiable, Codable, Hashable {
     /// Migrated from the legacy `geometryPoints` field at load time.
     public var controlPoints: [TrackControlPoint] = []
     public var electrification: ElectrificationType = .dc3kv
+    /// Transient: set when a legacy JSON `"double"` edge is decoded.
+    /// Triggers pairing in migrateDoubleTracksToSingleOriented(_:).
+    /// Not in CodingKeys — never serialized.
+    public var needsPairedMigration: Bool = false
 
     public var canonicalKey: String {
         Edge.canonicalKey(from: from, to: to)
@@ -110,7 +114,14 @@ public struct Edge: Identifiable, Codable, Hashable {
         from = try container.decode(String.self, forKey: .from)
         to = try container.decode(String.self, forKey: .to)
         distance = try container.decodeIfPresent(Double.self, forKey: .distance) ?? 1.0
-        trackType = try container.decodeIfPresent(TrackType.self, forKey: .trackType) ?? .regional
+        let rawTrackType = try container.decodeIfPresent(
+            String.self, forKey: .trackType) ?? "regional"
+        if rawTrackType == "double" {
+            trackType = .single
+            needsPairedMigration = true
+        } else {
+            trackType = TrackType(rawValue: rawTrackType) ?? .regional
+        }
         maxSpeed = try container.decodeIfPresent(Int.self, forKey: .maxSpeed) ?? 120
         capacity = try container.decodeIfPresent(Int.self, forKey: .capacity)
         segments = try container.decodeIfPresent([TrackSegment].self, forKey: .segments) ?? []

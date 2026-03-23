@@ -12,6 +12,7 @@ struct TrackCreationView: View {
     @State private var maxSpeed: Int = 120
     @State private var capacity: Int = 6
     @State private var isDistanceManuallySet: Bool = false
+    @State private var isPaired: Bool = false
     
     var onBack: () -> Void
     var onCreate: () -> Void
@@ -199,19 +200,25 @@ struct TrackCreationView: View {
                         
                         HStack {
                             Menu {
-                                Button(action: { updateTrackType(.single) }) {
+                                Button(action: { updateTrackType(.single); isPaired = false }) {
                                     Label("Binario Singolo", systemImage: "1.circle")
                                 }
-                                Button(action: { updateTrackType(.highSpeed) }) {
+                                Button(action: { updateTrackType(.single); isPaired = true }) {
+                                    Label("Doppio Binario", systemImage: "2.circle")
+                                }
+                                Button(action: { updateTrackType(.highSpeed); isPaired = false }) {
                                     Label("Alta Velocità", systemImage: "bolt.fill")
                                 }
-                                Button(action: { updateTrackType(.regional) }) {
+                                Button(action: { updateTrackType(.highSpeed); isPaired = true }) {
+                                    Label("Alta Velocità (doppio)", systemImage: "bolt.circle")
+                                }
+                                Button(action: { updateTrackType(.regional); isPaired = false }) {
                                     Label("Linea Regionale", systemImage: "tram")
                                 }
                             } label: {
                                 HStack {
-                                    trackIcon(for: trackType)
-                                    Text(trackLabel(for: trackType))
+                                    trackIcon(for: trackType, isPaired: isPaired)
+                                    Text(trackLabel(for: trackType, isPaired: isPaired))
                                         .foregroundColor(appState.theme.dark)
                                     Spacer()
                                     Image(systemName: "chevron.up.chevron.down")
@@ -362,19 +369,23 @@ struct TrackCreationView: View {
         }
     }
 
-    private func trackLabel(for type: Edge.TrackType) -> String {
-        switch type {
-        case .single: return "Binario Singolo"
-        case .highSpeed: return "Alta Velocità"
-        case .regional: return "Linea Regionale"
+    private func trackLabel(for type: Edge.TrackType, isPaired: Bool = false) -> String {
+        switch (type, isPaired) {
+        case (.single, true): return "Doppio Binario"
+        case (.highSpeed, true): return "Alta Velocità (doppio)"
+        case (.single, _): return "Binario Singolo"
+        case (.highSpeed, _): return "Alta Velocità"
+        case (.regional, _): return "Linea Regionale"
         }
     }
 
-    private func trackIcon(for type: Edge.TrackType) -> Image {
-        switch type {
-        case .single: return Image(systemName: "1.circle")
-        case .highSpeed: return Image(systemName: "bolt.fill")
-        case .regional: return Image(systemName: "tram")
+    private func trackIcon(for type: Edge.TrackType, isPaired: Bool = false) -> Image {
+        switch (type, isPaired) {
+        case (.single, true): return Image(systemName: "2.circle")
+        case (.highSpeed, true): return Image(systemName: "bolt.circle")
+        case (.single, _): return Image(systemName: "1.circle")
+        case (.highSpeed, _): return Image(systemName: "bolt.fill")
+        case (.regional, _): return Image(systemName: "tram")
         }
     }
     
@@ -394,19 +405,23 @@ struct TrackCreationView: View {
     
     private func createTrack() {
         guard canCreate else { return }
-        
-        let newEdge = Edge(
-            id: UUID(),
+        let countBefore = network.edges.count
+        appState.railroad.addEdge(
             from: fromStationId,
             to: toStationId,
             distance: distance,
             trackType: trackType,
             maxSpeed: maxSpeed,
-            capacity: capacity
+            capacity: capacity,
+            isPaired: isPaired
         )
-        
-        network.edges.append(newEdge)
-        appState.selectedEdgeId = newEdge.id.uuidString
+        // Paired appends [fwd, bwd]; select fwd (second-to-last).
+        let selectIndex = isPaired
+            ? network.edges.count - 2
+            : network.edges.count - 1
+        if selectIndex >= countBefore {
+            appState.selectedEdgeId = network.edges[selectIndex].id.uuidString
+        }
         onCreate()
     }
 }

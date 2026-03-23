@@ -151,6 +151,84 @@ final class RailroadNetwork: ObservableObject {
         InfrastructureManager.shared.processNetwork(network)
     }
 
+    /// Atomically adds one edge (or a paired A→B / B→A pair) with a
+    /// single undo checkpoint. Use this instead of `addEdge(_:)` when
+    /// creating edges from the UI, so that paired creation is undone in
+    /// one step.
+    func addEdge(
+        from: String,
+        to: String,
+        distance: Double,
+        trackType: Edge.TrackType,
+        maxSpeed: Int,
+        capacity: Int?,
+        isPaired: Bool
+    ) {
+        createCheckpoint()
+        if isPaired {
+            let fwdId = UUID()
+            let bwdId = UUID()
+            let fwd = Edge(
+                id: fwdId, from: from, to: to,
+                distance: distance, trackType: trackType,
+                maxSpeed: maxSpeed, capacity: capacity,
+                pairedEdgeId: bwdId)
+            let bwd = Edge(
+                id: bwdId, from: to, to: from,
+                distance: distance, trackType: trackType,
+                maxSpeed: maxSpeed, capacity: capacity,
+                pairedEdgeId: fwdId)
+            network.edges.append(contentsOf: [fwd, bwd])
+        } else {
+            network.edges.append(Edge(
+                from: from, to: to,
+                distance: distance, trackType: trackType,
+                maxSpeed: maxSpeed, capacity: capacity))
+        }
+        InfrastructureManager.shared.processNetwork(network)
+    }
+
+    /// Removes an edge (and optionally its paired counterpart) under a single
+    /// undo checkpoint.
+    func removeEdge(_ id: UUID, includingPaired: Bool) {
+        createCheckpoint()
+        if includingPaired, let paired = network.edges.first(where: { $0.id == id })?.pairedEdgeId {
+            network.edges.removeAll { $0.id == id || $0.id == paired }
+        } else {
+            // When removing one side only, clear the paired reference on the other.
+            if let paired = network.edges.first(where: { $0.id == id })?.pairedEdgeId,
+               let idx = network.edges.firstIndex(where: { $0.id == paired }) {
+                network.edges[idx].pairedEdgeId = nil
+            }
+            network.edges.removeAll { $0.id == id }
+        }
+        InfrastructureManager.shared.processNetwork(network)
+    }
+
+    /// Creates a reverse paired edge for an existing single (non-paired) edge
+    /// and cross-links both edges' `pairedEdgeId`.
+    /// No-op if the edge is already paired or not found.
+    func addPairedEdge(to edgeId: UUID) {
+        guard let original = network.edges.first(where: { $0.id == edgeId }),
+              original.pairedEdgeId == nil else { return }
+        createCheckpoint()
+        let pairedId = UUID()
+        let reverse = Edge(
+            id: pairedId,
+            from: original.to, to: original.from,
+            distance: original.distance,
+            trackType: original.trackType,
+            maxSpeed: original.maxSpeed,
+            capacity: original.capacity,
+            pairedEdgeId: original.id
+        )
+        if let idx = network.edges.firstIndex(where: { $0.id == edgeId }) {
+            network.edges[idx].pairedEdgeId = pairedId
+        }
+        network.edges.append(reverse)
+        InfrastructureManager.shared.processNetwork(network)
+    }
+
     // MARK: - Node Removal (cascade-aware)
 
     /// Removes a node and all dependent data: connected edges, any

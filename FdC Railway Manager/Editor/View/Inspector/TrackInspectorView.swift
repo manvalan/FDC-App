@@ -15,6 +15,7 @@ struct TrackInspectorView: View {
     
     @State private var isEditingEnabled = false
     @State private var showProfileSheet = false
+    @State private var showPairedDeleteConfirmation = false
     
     private var fromStation: RailwayNode? {
         network.nodes.first { $0.id == edge.from }
@@ -42,11 +43,35 @@ struct TrackInspectorView: View {
             altimetricProfileSection
 
             if onDelete != nil {
-                InspectorDeleteButton(label: "delete_track".localized, onDelete: onDelete ?? {})
+                if edge.pairedEdgeId != nil {
+                    InspectorDeleteButton(
+                        label: "delete_track".localized,
+                        onDelete: { showPairedDeleteConfirmation = true }
+                    )
+                } else {
+                    InspectorDeleteButton(label: "delete_track".localized, onDelete: onDelete ?? {})
+                }
             }
         }
         .sheet(isPresented: $showProfileSheet) {
             TrackProfileSheet(edge: $edge)
+        }
+        .confirmationDialog(
+            "Binario in doppio tracciato",
+            isPresented: $showPairedDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Elimina entrambi i binari", role: .destructive) {
+                appState.railroad.removeEdge(edge.id, includingPaired: true)
+                onDelete?()
+            }
+            Button("Elimina solo questo", role: .destructive) {
+                appState.railroad.removeEdge(edge.id, includingPaired: false)
+                onDelete?()
+            }
+            Button("Annulla", role: .cancel) { }
+        } message: {
+            Text("Questo binario fa parte di un doppio tracciato. Vuoi eliminare entrambe le direzioni?")
         }
         .onAppear {
             isEditingEnabled = true
@@ -117,7 +142,22 @@ struct TrackInspectorView: View {
             .onChange(of: edge.trackType) { oldValue, newValue in
                 updateParametersForTrackType(newValue)
             }
-            
+
+            if edge.pairedEdgeId == nil && edge.trackType != .regional {
+                Button {
+                    appState.railroad.addPairedEdge(to: edge.id)
+                } label: {
+                    Label("Converti in Doppio Binario", systemImage: "2.circle")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
+                .foregroundColor(.purple)
+            } else if edge.pairedEdgeId != nil {
+                Label("Doppio Binario", systemImage: "2.circle")
+                    .font(.caption)
+                    .foregroundColor(.purple)
+            }
+
             HStack {
                 Image(systemName: trackTypeIcon)
                     .foregroundColor(trackTypeColor)

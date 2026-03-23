@@ -2,12 +2,12 @@ import Foundation
 
 extension Edge {
     /// Converts each undirected `.highSpeed` edge (with `pairedEdgeId == nil`)
+    /// **or** any legacy edge flagged with `needsPairedMigration`
     /// into two oriented edges (A→B and B→A) with `pairedEdgeId`
     /// cross-referenced between them.
     ///
-    /// `.double` was removed in Fase 3f. Legacy JSON files containing
-    /// `"double"` are decoded as `.single` (see `TrackType.init(from:)`)
-    /// and pass through this function unchanged (no pairedEdgeId).
+    /// `needsPairedMigration` is set by `Edge.init(from:)` when the raw
+    /// JSON value is `"double"` (written by the app before Fase 3f).
     ///
     /// Idempotent: edges that already have `pairedEdgeId != nil` are passed
     /// through unchanged. Call this once after deserialisation.
@@ -20,7 +20,7 @@ extension Edge {
         var convertedCount = 0
         for edge in edges {
             guard edge.pairedEdgeId == nil,
-                  edge.trackType == .highSpeed
+                  edge.trackType == .highSpeed || edge.needsPairedMigration
             else {
                 result.append(edge)
                 continue
