@@ -86,7 +86,7 @@ struct SchematicRailwayView: View {
         )
     }
 
-    private var totalZoom: CGFloat { zoomLevel * magnification }
+    private var totalZoom: CGFloat { zoomLevel }
     private var coordinateGridStep: Double {
         let zoom = totalZoom
         if zoom < 1.5 { return 10.0 }
@@ -113,6 +113,7 @@ struct SchematicRailwayView: View {
             
             ZStack {
                 mainViewContainer(size: size, bounds: bounds, renderData: currentRenderData)
+                    .scaleEffect(magnification)
                 
                 // Overlay fissi rispetto al viewport (NON all'area della mappa)
                 VStack {
@@ -244,7 +245,12 @@ struct SchematicRailwayView: View {
                                     appState.brushStrokePoints.removeAll()
                                 }
                             }
-                        }
+                        },
+                    // Only intercept drag events in modes that need it.
+                    // In .explore / .addTrack, let the ScrollView handle panning.
+                    including: (editMode == .brushPath
+                             || editMode == .erasePath
+                             || editMode == .addStation) ? .all : .none
                 )
                 .onLongPressGesture(minimumDuration: 0.5, maximumDistance: 20) {
                     guard editMode == .addStation else { return }
@@ -401,15 +407,14 @@ struct SchematicRailwayView: View {
 
     private var zoomGesture: some Gesture {
         MagnificationGesture()
-            .simultaneously(with: RotationGesture())
             .updating($isNavigating) { _, state, _ in
                 state = true
             }
             .onChanged { value in
-                magnification = value.first ?? 1.0
+                magnification = value
             }
             .onEnded { value in
-                zoomLevel *= (value.first ?? 1.0)
+                zoomLevel = max(0.5, min(5.0, zoomLevel * value))
                 magnification = 1.0
             }
     }
