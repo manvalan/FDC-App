@@ -37,7 +37,7 @@ struct InspectorListViews: View {
             }
             .onDelete { indexSet in
                 for index in indexSet {
-                    appState.railroad.network.removeNode(sortedNodes[index].id)
+                    appState.railroad.removeNode(sortedNodes[index].id)
                 }
             }
         }

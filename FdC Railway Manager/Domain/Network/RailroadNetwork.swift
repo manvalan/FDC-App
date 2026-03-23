@@ -143,4 +143,36 @@ final class RailroadNetwork: ObservableObject {
         network.addEdge(edge)
         InfrastructureManager.shared.processNetwork(network)
     }
+
+    // MARK: - Node Removal (cascade-aware)
+
+    /// Removes a node and all dependent data: connected edges, any
+    /// RailwayLine or TrainRoute that referenced the deleted node.
+    /// Single checkpoint wraps the whole operation for atomic undo.
+    func removeNode(_ id: String) {
+        createCheckpoint()
+        network.nodes.removeAll { $0.id == id }
+        network.edges.removeAll { $0.from == id || $0.to == id }
+        pruneLines(removingNodeId: id)
+        pruneRoutes(removingStationId: id)
+    }
+
+    private func pruneLines(removingNodeId id: String) {
+        network.lines = network.lines.compactMap { line in
+            var updated = line
+            updated.nodeIds = updated.nodeIds.filter { $0 != id }
+            return updated.nodeIds.count >= 2 ? updated : nil
+        }
+    }
+
+    private func pruneRoutes(removingStationId id: String) {
+        lines.routes = lines.routes.compactMap { route in
+            var updated = route
+            updated.stationIds = updated.stationIds.filter { $0 != id }
+            guard updated.stationIds.count >= 2 else { return nil }
+            updated.originStationId = updated.stationIds[0]
+            updated.destinationStationId = updated.stationIds[updated.stationIds.count - 1]
+            return updated
+        }
+    }
 }

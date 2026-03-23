@@ -118,13 +118,13 @@ class EditorModeViewModel: ObservableObject {
         
         if !appState.selectedNodeIds.isEmpty {
             for nodeId in appState.selectedNodeIds {
-                appState.railroad.network.removeNode(nodeId)
+                appState.railroad.removeNode(nodeId)
             }
             appState.selectedNodeIds.removeAll()
         }
-        
+
         if let nodeId = appState.selectedNodeId {
-            appState.railroad.network.removeNode(nodeId)
+            appState.railroad.removeNode(nodeId)
             appState.selectedNodeId = nil
         }
         

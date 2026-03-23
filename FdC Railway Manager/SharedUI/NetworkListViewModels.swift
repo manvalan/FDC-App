@@ -37,11 +37,10 @@ struct StationListViewModel {
     }
 
     func onDelete(_ node: Node) {
-        network.removeNode(node.id)
+        appState.railroad.removeNode(node.id)
         if selectedNode?.id == node.id {
             selectedNode = nil
         }
-        network.createCheckpoint()
     }
 
     func onDeleteAll() {

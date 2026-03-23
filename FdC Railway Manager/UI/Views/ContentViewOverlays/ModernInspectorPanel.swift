@@ -228,7 +228,7 @@ struct ModernInspectorPanel: View {
                                     }
                                 ),
                                 onDelete: {
-                                    appState.railroad.network.removeNode(node.id)
+                                    appState.railroad.removeNode(node.id)
                                     appState.selectedNodeId = nil
                                 }
                             )
@@ -518,9 +518,9 @@ struct ModernInspectorPanel: View {
                 .onDelete { indexSet in
                     for index in indexSet {
                         let node = sortedNodes[index]
-                        appState.railroad.network.removeNode(node.id)
-                        if appState.selectedNodeId == node.id { 
-                            appState.selectedNodeId = nil 
+                        appState.railroad.removeNode(node.id)
+                        if appState.selectedNodeId == node.id {
+                            appState.selectedNodeId = nil
                         }
                     }
                 }

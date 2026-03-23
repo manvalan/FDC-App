@@ -18,7 +18,7 @@ struct EditorInspectorContent: View {
                             set: { appState.railroad.network.nodes[index] = $0 }
                         ),
                         onDelete: {
-                            appState.railroad.network.removeNode(node.id)
+                            appState.railroad.removeNode(node.id)
                             appState.selectedNodeId = nil
                             appState.selectedNodeIds.remove(node.id)
                         }

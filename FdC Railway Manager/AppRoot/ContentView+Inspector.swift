@@ -152,7 +152,7 @@ extension ContentView {
                 ),
                 onDelete: {
                     withAnimation {
-                        network.removeNode(node.id)
+                        railroad.removeNode(node.id)
                         appState.selectedNodeId = nil
                     }
                 }
