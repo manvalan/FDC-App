@@ -48,10 +48,16 @@ struct TrackProfileSheet: View {
     }
 
     private var chartSection: some View {
-        TrackAltitudeChart(profilePoints: profilePoints)
-            .frame(height: 100)
-            .background(Color(.systemGray6))
-            .cornerRadius(8)
+        InteractiveAltitudeChart(
+            controlPoints: $edge.controlPoints,
+            fromAltitude: fromNode?.altitude ?? 0,
+            toAltitude:   toNode?.altitude   ?? 0,
+            totalDistance: edge.distance,
+            onBeginEdit: { appState.railroad.network.createCheckpoint() }
+        )
+        .frame(height: 160)
+        .background(Color(.systemGray6))
+        .cornerRadius(8)
     }
 
     private var controlPointsList: some View {
@@ -90,24 +96,6 @@ struct TrackProfileSheet: View {
         let distM = edge.distance * 1000.0
         guard distM > 0 else { return "—" }
         return String(format: "%.1f ‰", (dAlt / distM) * 1000.0)
-    }
-
-    /// Profile points: (cumulative distance km, altitude m).
-    /// Control points are distributed evenly by index (approximation).
-    var profilePoints: [(distance: Double, altitude: Double)] {
-        let fromAlt = fromNode?.altitude ?? 0
-        let toAlt   = toNode?.altitude   ?? 0
-        let total   = max(edge.distance, 0.001)
-        let count   = edge.controlPoints.count
-
-        var pts: [(Double, Double)] = [(0, fromAlt)]
-        for (i, cp) in edge.controlPoints.enumerated() {
-            let t   = Double(i + 1) / Double(count + 1)
-            let alt = cp.altitude ?? (fromAlt + (toAlt - fromAlt) * t)
-            pts.append((t * total, alt))
-        }
-        pts.append((total, toAlt))
-        return pts
     }
 
     // MARK: - Actions
