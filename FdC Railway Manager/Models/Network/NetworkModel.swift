@@ -10,8 +10,6 @@ final class NetworkModel: ObservableObject {
     @Published var edges: [Edge] = []
     /// Physical infrastructure lines (ex `ferrovie`).
     @Published var lines: [RailwayLine] = []
-    /// Service-route templates used for schedule creation (ex `lines`).
-    @Published var routes: [TrainRoute] = []
     
     /// Global system owner
     weak var owner: RailroadNetwork?
@@ -30,10 +28,6 @@ final class NetworkModel: ObservableObject {
     
     var sortedLines: [RailwayLine] {
         lines.sorted { $0.name < $1.name }
-    }
-    
-    var sortedRoutes: [TrainRoute] {
-        routes.sorted { $0.name < $1.name }
     }
     
     init(nodes: [Node] = [], edges: [Edge] = []) {

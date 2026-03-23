@@ -31,7 +31,6 @@ extension NetworkModel {
         self.name = dto.name ?? "Network"
         self.nodes = dto.nodes
         self.edges = dto.edges
-        self.lines  = dto.lines  ?? []
-        self.routes = dto.routes ?? []
+        self.lines = dto.lines ?? []
     }
 }
