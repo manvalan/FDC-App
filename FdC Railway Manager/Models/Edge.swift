@@ -37,11 +37,8 @@ public struct Edge: Identifiable, Codable, Hashable {
     public var capacity: Int?
     public var hasManualDistance: Bool = false
     public var segments: [TrackSegment] = [] // Segmenti fisici (blocchi) del binario
-    public var geometryPoints: [GeometryPoint]? // Punti intermedi personalizzati per controllare la geometria del binario
     /// Unified waypoints: map curve geometry + optional altitude per point.
-    /// Replaces `geometryPoints` (no altitude) and the lat/lon/altitude fields
-    /// of `TrackSegment` (simulation concern). Migration from legacy data runs
-    /// in `init(from:)` at load time.
+    /// Migrated from the legacy `geometryPoints` field at load time.
     public var controlPoints: [TrackControlPoint] = []
     public var electrification: ElectrificationType = .dc3kv
 
@@ -88,12 +85,12 @@ public struct Edge: Identifiable, Codable, Hashable {
         maxSpeed = try container.decodeIfPresent(Int.self, forKey: .maxSpeed) ?? 120
         capacity = try container.decodeIfPresent(Int.self, forKey: .capacity)
         segments = try container.decodeIfPresent([TrackSegment].self, forKey: .segments) ?? []
-        geometryPoints = try container.decodeIfPresent([GeometryPoint].self, forKey: .geometryPoints)
+        // Migration: populate controlPoints from legacy geometryPoints when
+        // loading files saved before TrackControlPoint was introduced.
+        let legacyPoints = try container.decodeIfPresent([GeometryPoint].self, forKey: .geometryPoints) ?? []
         let decoded = try container.decodeIfPresent([TrackControlPoint].self, forKey: .controlPoints) ?? []
-        if decoded.isEmpty, let legacy = geometryPoints, !legacy.isEmpty {
-            // Migrate pre-existing GeometryPoints to TrackControlPoints.
-            // Altitude is unknown from legacy data → nil (linear interpolation).
-            controlPoints = legacy.map {
+        if decoded.isEmpty && !legacyPoints.isEmpty {
+            controlPoints = legacyPoints.map {
                 TrackControlPoint(id: $0.id, latitude: $0.latitude, longitude: $0.longitude)
             }
         } else {
@@ -101,5 +98,22 @@ public struct Edge: Identifiable, Codable, Hashable {
         }
         electrification = try container.decodeIfPresent(ElectrificationType.self, forKey: .electrification) ?? .dc3kv
         hasManualDistance = try container.decodeIfPresent(Bool.self, forKey: .hasManualDistance) ?? false
+    }
+
+    /// Custom encoder: `geometryPoints` stays in CodingKeys for legacy
+    /// decoding only and must not be re-written to new files.
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(from, forKey: .from)
+        try container.encode(to, forKey: .to)
+        try container.encode(distance, forKey: .distance)
+        try container.encode(trackType, forKey: .trackType)
+        try container.encode(maxSpeed, forKey: .maxSpeed)
+        try container.encodeIfPresent(capacity, forKey: .capacity)
+        try container.encode(segments, forKey: .segments)
+        try container.encode(controlPoints, forKey: .controlPoints)
+        try container.encode(electrification, forKey: .electrification)
+        try container.encode(hasManualDistance, forKey: .hasManualDistance)
     }
 }

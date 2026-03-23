@@ -293,10 +293,10 @@ struct MapGeometryEngine {
     }
 
     private static func getBasePoints(for edge: RailwayEdge, from p1: CGPoint, to p2: CGPoint, avoid: [CGPoint], nPosStart: [CGPoint], nPosEnd: [CGPoint], size: CGSize, bounds: MapBounds) -> [CGPoint] {
-        if let customPoints = edge.geometryPoints, !customPoints.isEmpty {
+        if !edge.controlPoints.isEmpty {
             var points: [CGPoint] = [p1]
-            for gp in customPoints {
-                points.append(toCanvasCoords(lat: gp.latitude, lon: gp.longitude, size: size, bounds: bounds))
+            for cp in edge.controlPoints {
+                points.append(toCanvasCoords(lat: cp.latitude, lon: cp.longitude, size: size, bounds: bounds))
             }
             points.append(p2); return points
         }

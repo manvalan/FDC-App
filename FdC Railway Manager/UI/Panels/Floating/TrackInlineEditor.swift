@@ -154,13 +154,13 @@ struct TrackInlineEditor: View {
                         }
                     }
                     
-                    if let points = edge.geometryPoints, !points.isEmpty {
+                    if !edge.controlPoints.isEmpty {
                         VStack(spacing: 8) {
-                            ForEach(Array(points.enumerated()), id: \.element.id) { index, point in
+                            ForEach(Array(edge.controlPoints.enumerated()), id: \.element.id) { index, point in
                                 HStack(spacing: 12) {
                                     Image(systemName: "mappin.circle.fill")
                                         .foregroundColor(appState.theme.accent)
-                                    
+
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("Punto \(index + 1)")
                                             .font(.caption.bold())
@@ -169,11 +169,11 @@ struct TrackInlineEditor: View {
                                             .font(.system(size: 10))
                                             .foregroundColor(appState.theme.medium)
                                     }
-                                    
+
                                     Spacer()
-                                    
+
                                     if appState.isInspectorEditingMode || appState.currentMode == .design {
-                                        Button(action: { removeGeometryPoint(at: index) }) {
+                                        Button(action: { removeControlPoint(at: index) }) {
                                             Image(systemName: "trash")
                                                 .font(.caption)
                                                 .foregroundColor(.red)
@@ -298,26 +298,15 @@ struct TrackInlineEditor: View {
     }
     
     private func addGeometryPoint() {
-        // Calculate a midpoint between from and to stations as default
         guard let fromNode = fromStation, let toNode = toStation,
               let fromLat = fromNode.latitude, let fromLon = fromNode.longitude,
               let toLat = toNode.latitude, let toLon = toNode.longitude else { return }
-        
         let midLat = (fromLat + toLat) / 2.0
         let midLon = (fromLon + toLon) / 2.0
-        
-        let newPoint = Edge.GeometryPoint(latitude: midLat, longitude: midLon)
-        
-        if edge.geometryPoints == nil {
-            edge.geometryPoints = []
-        }
-        edge.geometryPoints?.append(newPoint)
+        edge.controlPoints.append(TrackControlPoint(latitude: midLat, longitude: midLon))
     }
-    
-    private func removeGeometryPoint(at index: Int) {
-        edge.geometryPoints?.remove(at: index)
-        if edge.geometryPoints?.isEmpty == true {
-            edge.geometryPoints = nil
-        }
+
+    private func removeControlPoint(at index: Int) {
+        edge.controlPoints.remove(at: index)
     }
 }
