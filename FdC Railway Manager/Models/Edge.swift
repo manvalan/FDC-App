@@ -29,8 +29,11 @@ public struct Edge: Identifiable, Codable, Hashable {
         }
     }
     public var id: UUID = UUID()
-    public var from: String // id nodo di partenza
-    public var to: String   // id nodo di arrivo
+    public var from: String     // id nodo di partenza
+    public var to: String       // id nodo di arrivo
+    /// Non-nil when this edge is one of two oriented edges that together
+    /// represent a double track. Points to the UUID of the reverse edge.
+    public var pairedEdgeId: UUID? = nil
     public var distance: Double
     public var trackType: TrackType
     public var maxSpeed: Int
@@ -60,10 +63,21 @@ public struct Edge: Identifiable, Codable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id, from, to, distance, trackType, maxSpeed, capacity
         case segments, geometryPoints, controlPoints
-        case electrification, hasManualDistance
+        case electrification, hasManualDistance, pairedEdgeId
     }
 
-    public init(id: UUID = UUID(), from: String, to: String, distance: Double, trackType: TrackType, maxSpeed: Int, capacity: Int? = nil, electrification: ElectrificationType = .dc3kv, hasManualDistance: Bool = false) {
+    public init(
+        id: UUID = UUID(),
+        from: String,
+        to: String,
+        distance: Double,
+        trackType: TrackType,
+        maxSpeed: Int,
+        capacity: Int? = nil,
+        electrification: ElectrificationType = .dc3kv,
+        hasManualDistance: Bool = false,
+        pairedEdgeId: UUID? = nil
+    ) {
         self.id = id
         self.from = from
         self.to = to
@@ -73,6 +87,7 @@ public struct Edge: Identifiable, Codable, Hashable {
         self.capacity = capacity
         self.electrification = electrification
         self.hasManualDistance = hasManualDistance
+        self.pairedEdgeId = pairedEdgeId
     }
     
     public init(from decoder: Decoder) throws {
@@ -98,6 +113,7 @@ public struct Edge: Identifiable, Codable, Hashable {
         }
         electrification = try container.decodeIfPresent(ElectrificationType.self, forKey: .electrification) ?? .dc3kv
         hasManualDistance = try container.decodeIfPresent(Bool.self, forKey: .hasManualDistance) ?? false
+        pairedEdgeId = try container.decodeIfPresent(UUID.self, forKey: .pairedEdgeId)
     }
 
     /// Custom encoder: `geometryPoints` stays in CodingKeys for legacy
@@ -115,5 +131,6 @@ public struct Edge: Identifiable, Codable, Hashable {
         try container.encode(controlPoints, forKey: .controlPoints)
         try container.encode(electrification, forKey: .electrification)
         try container.encode(hasManualDistance, forKey: .hasManualDistance)
+        try container.encodeIfPresent(pairedEdgeId, forKey: .pairedEdgeId)
     }
 }
