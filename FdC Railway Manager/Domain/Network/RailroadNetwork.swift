@@ -75,6 +75,13 @@ final class RailroadNetwork: ObservableObject {
     
     var canUndo: Bool { !undoStack.isEmpty }
     var canRedo: Bool { !redoStack.isEmpty }
+
+    /// Empties the undo/redo stacks. Call after any bulk load so the user
+    /// cannot undo past the freshly-loaded state.
+    func clearUndoHistory() {
+        undoStack.removeAll()
+        redoStack.removeAll()
+    }
     
     func createCheckpoint() {
         let snapshot = RailroadSnapshot(

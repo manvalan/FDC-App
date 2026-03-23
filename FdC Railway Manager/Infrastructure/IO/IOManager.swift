@@ -55,7 +55,8 @@ final class IOManager: ObservableObject {
         railroad.lines.routes = dto.routes ?? []
         railroad.lines.trains = dto.trains ?? []
         railroad.lines.vehicles = dto.vehicles ?? []
-        
+        railroad.migrateDoubleTracksToSingle()
+        railroad.clearUndoHistory()
         InfrastructureManager.shared.processNetwork(railroad.network)
     }
     
@@ -71,7 +72,8 @@ final class IOManager: ObservableObject {
         applyFDCSchedules(to: &tCopy, rawSchedules: parsed.rawSchedules)
         
         railroad.lines.trains = tCopy
-        
+        railroad.migrateDoubleTracksToSingle()
+        railroad.clearUndoHistory()
         railroad.lines.validateSchedules()
         InfrastructureManager.shared.processNetwork(railroad.network)
     }
