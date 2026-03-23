@@ -336,7 +336,6 @@ struct LineSegmentMetadataView: View {
                 let trackTypeLabel: String = {
                     switch edge.trackType {
                     case .single: return "track_single".localized.uppercased()
-                    case .double: return "track_double".localized.uppercased()
                     case .regional: return "track_regional".localized.uppercased()
                     case .highSpeed: return "track_highspeed".localized.uppercased()
                     }

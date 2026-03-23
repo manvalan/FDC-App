@@ -3,22 +3,18 @@ import XCTest
 
 final class EdgeMigrationTests: XCTestCase {
 
-    // MARK: - Case 1: .double only
+    // MARK: - Case 1: multiple .highSpeed edges (all converted)
 
-    func test_migrate_doubleOnly_producesTwoPairedSingleEdges() {
-        let original = Edge(from: "A", to: "B", distance: 10,
-                            trackType: .double, maxSpeed: 120)
+    func test_migrate_multipleHighSpeedEdges_allConverted() {
+        let edge1 = Edge(from: "A", to: "B", distance: 10,
+                         trackType: .highSpeed, maxSpeed: 300)
+        let edge2 = Edge(from: "B", to: "C", distance: 20,
+                         trackType: .highSpeed, maxSpeed: 300)
 
-        let (result, count) = Edge.migrateDoubleTracksToSingleOriented([original])
+        let (result, count) = Edge.migrateDoubleTracksToSingleOriented([edge1, edge2])
 
-        XCTAssertEqual(count, 1)
-        XCTAssertEqual(result.count, 2)
-        let fwd = result.first { $0.from == "A" && $0.to == "B" }
-        let bwd = result.first { $0.from == "B" && $0.to == "A" }
-        XCTAssertEqual(fwd?.trackType, .single)
-        XCTAssertEqual(bwd?.trackType, .single)
-        XCTAssertEqual(fwd?.pairedEdgeId, bwd?.id)
-        XCTAssertEqual(bwd?.pairedEdgeId, fwd?.id)
+        XCTAssertEqual(count, 2)
+        XCTAssertEqual(result.count, 4)
     }
 
     // MARK: - Case 2: .highSpeed only
@@ -39,15 +35,15 @@ final class EdgeMigrationTests: XCTestCase {
         XCTAssertEqual(bwd?.pairedEdgeId, fwd?.id)
     }
 
-    // MARK: - Case 3: mixed .single + .double
+    // MARK: - Case 3: mixed .single + .highSpeed
 
-    func test_migrate_mixed_onlyDoubleIsConverted() {
+    func test_migrate_mixed_onlyHighSpeedIsConverted() {
         let single = Edge(from: "A", to: "B", distance: 5,
                           trackType: .single, maxSpeed: 80)
-        let double = Edge(from: "B", to: "C", distance: 10,
-                          trackType: .double, maxSpeed: 120)
+        let highSpeed = Edge(from: "B", to: "C", distance: 10,
+                             trackType: .highSpeed, maxSpeed: 300)
 
-        let (result, count) = Edge.migrateDoubleTracksToSingleOriented([single, double])
+        let (result, count) = Edge.migrateDoubleTracksToSingleOriented([single, highSpeed])
 
         XCTAssertEqual(count, 1)
         XCTAssertEqual(result.count, 3)
@@ -80,7 +76,7 @@ final class EdgeMigrationTests: XCTestCase {
         let cp2 = TrackControlPoint(latitude: 2, longitude: 2, altitude: 200)
         let cp3 = TrackControlPoint(latitude: 3, longitude: 3, altitude: 150)
         var original = Edge(from: "A", to: "B", distance: 10,
-                            trackType: .double, maxSpeed: 120)
+                            trackType: .highSpeed, maxSpeed: 300)
         original.controlPoints = [cp1, cp2, cp3]
 
         let (result, _) = Edge.migrateDoubleTracksToSingleOriented([original])

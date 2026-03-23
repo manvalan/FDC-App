@@ -87,9 +87,6 @@ struct TrackEditView: View {
                                 Button(action: { updateTrackType(.single) }) {
                                     Label("Binario Singolo", systemImage: "1.circle")
                                 }
-                                Button(action: { updateTrackType(.double) }) {
-                                    Label("Doppio Binario", systemImage: "2.circle")
-                                }
                                 Button(action: { updateTrackType(.highSpeed) }) {
                                     Label("Alta Velocità", systemImage: "bolt.fill")
                                 }
@@ -204,33 +201,28 @@ struct TrackEditView: View {
     private func updateCapacity(for type: Edge.TrackType) {
         switch type {
         case .single: edge.capacity = 6
-        case .double: edge.capacity = 24
         case .highSpeed: edge.capacity = 15
-        case .regional: edge.capacity = 6 // Slightly higher capacity usually? Kept as per old logic
+        case .regional: edge.capacity = 6
         }
-        
-        // Also update speed limits based on global settings if available
+
         switch type {
         case .single: edge.maxSpeed = Int(appState.singleTrackMaxSpeed)
-        case .double: edge.maxSpeed = Int(appState.doubleTrackMaxSpeed)
         case .highSpeed: edge.maxSpeed = Int(appState.highSpeedTrackMaxSpeed)
         case .regional: edge.maxSpeed = Int(appState.regionalTrackMaxSpeed)
         }
     }
-    
+
     private func trackLabel(for type: Edge.TrackType) -> String {
         switch type {
         case .single: return "Binario Singolo"
-        case .double: return "Doppio Binario"
         case .highSpeed: return "Alta Velocità"
         case .regional: return "Linea Regionale"
         }
     }
-    
+
     private func trackIcon(for type: Edge.TrackType) -> Image {
         switch type {
         case .single: return Image(systemName: "1.circle")
-        case .double: return Image(systemName: "2.circle")
         case .highSpeed: return Image(systemName: "bolt.fill")
         case .regional: return Image(systemName: "tram")
         }

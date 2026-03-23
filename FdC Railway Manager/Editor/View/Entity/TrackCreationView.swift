@@ -202,9 +202,6 @@ struct TrackCreationView: View {
                                 Button(action: { updateTrackType(.single) }) {
                                     Label("Binario Singolo", systemImage: "1.circle")
                                 }
-                                Button(action: { updateTrackType(.double) }) {
-                                    Label("Doppio Binario", systemImage: "2.circle")
-                                }
                                 Button(action: { updateTrackType(.highSpeed) }) {
                                     Label("Alta Velocità", systemImage: "bolt.fill")
                                 }
@@ -354,33 +351,28 @@ struct TrackCreationView: View {
         // Update capacity based on type
         switch type {
         case .single: capacity = 6
-        case .double: capacity = 24
         case .highSpeed: capacity = 15
         case .regional: capacity = 6
         }
-        
-        // Update speed limits based on global settings
+
         switch type {
         case .single: maxSpeed = Int(appState.singleTrackMaxSpeed)
-        case .double: maxSpeed = Int(appState.doubleTrackMaxSpeed)
         case .highSpeed: maxSpeed = Int(appState.highSpeedTrackMaxSpeed)
         case .regional: maxSpeed = Int(appState.regionalTrackMaxSpeed)
         }
     }
-    
+
     private func trackLabel(for type: Edge.TrackType) -> String {
         switch type {
         case .single: return "Binario Singolo"
-        case .double: return "Doppio Binario"
         case .highSpeed: return "Alta Velocità"
         case .regional: return "Linea Regionale"
         }
     }
-    
+
     private func trackIcon(for type: Edge.TrackType) -> Image {
         switch type {
         case .single: return Image(systemName: "1.circle")
-        case .double: return Image(systemName: "2.circle")
         case .highSpeed: return Image(systemName: "bolt.fill")
         case .regional: return Image(systemName: "tram")
         }

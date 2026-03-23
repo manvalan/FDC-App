@@ -18,11 +18,6 @@ struct TrackGraphicView: View {
                     .stroke(Color.white.opacity(0.7), style: StrokeStyle(lineWidth: width / 2, lineCap: .round, dash: [width, width]))
                     .frame(width: width)
                     
-            } else if trackType == .double {
-                HStack(spacing: width/4) {
-                    Rectangle().fill(color).frame(width: max(1, width / 2.5))
-                    Rectangle().fill(color).frame(width: max(1, width / 2.5))
-                }
             } else if trackType == .regional {
                 Rectangle()
                     .fill(color)

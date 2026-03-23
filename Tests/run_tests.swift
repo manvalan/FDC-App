@@ -16,7 +16,7 @@ struct Node: Codable, Hashable {
 
 struct Edge: Codable, Hashable {
     enum TrackType: String, Codable {
-        case highSpeed, regional, single, double
+        case highSpeed, regional, single
     }
     var id: UUID = UUID()
     var from: String

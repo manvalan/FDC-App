@@ -97,7 +97,7 @@ final class IOManager: ObservableObject {
                 switch fdc.trackType?.lowercased() {
                 case "highspeed", "high_speed": return .highSpeed
                 case "single": return .single
-                case "double": return .double
+                case "double": return .single  // legacy — migrated to paired singles at load
                 default: return .regional
                 }
             }()

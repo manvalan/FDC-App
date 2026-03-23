@@ -402,7 +402,6 @@ struct TrackCreationDetailsView: View {
             Section(header: Text("track_properties".localized)) {
                 Picker("track_type".localized, selection: $trackType) {
                     Label("single_track".localized, systemImage: "1.circle").tag(Edge.TrackType.single)
-                    Label("double_track".localized, systemImage: "2.circle").tag(Edge.TrackType.double)
                     Label("high_speed_track".localized, systemImage: "bolt.fill").tag(Edge.TrackType.highSpeed)
                     Label("regional_track".localized, systemImage: "tram").tag(Edge.TrackType.regional)
                 }
@@ -471,9 +470,6 @@ struct TrackCreationDetailsView: View {
         case .single:
             capacity = 6
             maxSpeed = Int(appState.singleTrackMaxSpeed)
-        case .double:
-            capacity = 24
-            maxSpeed = Int(appState.doubleTrackMaxSpeed)
         case .highSpeed:
             capacity = 15
             maxSpeed = Int(appState.highSpeedTrackMaxSpeed)

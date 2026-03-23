@@ -7,7 +7,9 @@ import SwiftUI
 final class NetworkModel: ObservableObject {
     @Published var name: String = "My Network"
     @Published var nodes: [Node] = []
-    @Published var edges: [Edge] = []
+    @Published var edges: [Edge] = [] {
+        didSet { syncPairedControlPoints(changedFrom: oldValue) }
+    }
     /// Physical infrastructure lines (ex `ferrovie`).
     @Published var lines: [RailwayLine] = []
     
@@ -102,6 +104,33 @@ final class NetworkModel: ObservableObject {
     func calculatePathDistance(path: [String]) -> Double {
         return NetworkModel.calculatePathDistance(path: path, edges: edges)
     }
-    
 
+    // MARK: - Paired Control-Point Sync
+
+    /// Mirrors controlPoints onto the partner of any paired oriented edge
+    /// whose controlPoints just changed (B→A gets the reversed A→B sequence).
+    ///
+    /// Uses `oldValue` to identify which edge changed — this prevents the
+    /// symmetric iteration from overwriting the source with stale data.
+    /// Terminates in at most two didSet calls: one to apply, one to confirm.
+    private func syncPairedControlPoints(changedFrom old: [Edge]) {
+        var oldById = [UUID: Edge]()
+        for e in old { oldById[e.id] = e }
+        var indexById = [UUID: Int]()
+        for (i, e) in edges.enumerated() { indexById[e.id] = i }
+        var copy = edges
+        var didChange = false
+        for edge in edges {
+            guard let pairedId = edge.pairedEdgeId,
+                  let j = indexById[pairedId],
+                  let oldEdge = oldById[edge.id],
+                  edge.controlPoints != oldEdge.controlPoints
+            else { continue }
+            let expected = Array(edge.controlPoints.reversed())
+            guard copy[j].controlPoints != expected else { continue }
+            copy[j].controlPoints = expected
+            didChange = true
+        }
+        if didChange { edges = copy }
+    }
 }

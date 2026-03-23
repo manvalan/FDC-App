@@ -145,7 +145,6 @@ class MapInteractionViewModel: ObservableObject {
         let speed: Int = {
             switch type {
             case .single: return Int(appState.singleTrackMaxSpeed)
-            case .double: return Int(appState.doubleTrackMaxSpeed)
             case .regional: return Int(appState.regionalTrackMaxSpeed)
             case .highSpeed: return Int(appState.highSpeedTrackMaxSpeed)
             }

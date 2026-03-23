@@ -651,7 +651,7 @@ struct IOManagementView: View {
     private func mapTrackType(_ rawType: String?) -> Edge.TrackType {
         switch rawType?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "highspeed", "av": return .highSpeed
-        case "double", "doppio": return .double
+        case "double", "doppio": return .single  // legacy — migrated to paired singles
         case "single", "singolo": return .single
         default: return .regional
         }

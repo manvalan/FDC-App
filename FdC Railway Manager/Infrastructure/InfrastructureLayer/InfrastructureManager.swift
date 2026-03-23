@@ -24,7 +24,6 @@ class InfrastructureManager {
         let blockLength: Double = {
             switch edge.trackType {
             case .highSpeed: return blockLengthAV
-            case .double: return blockLengthDouble
             case .single, .regional: return blockLengthSingle
             }
         }()

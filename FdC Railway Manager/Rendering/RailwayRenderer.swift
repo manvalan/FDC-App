@@ -247,11 +247,6 @@ final class RailwayRenderer {
             context.stroke(path, with: .color(.red), style: StrokeStyle(lineWidth: style.strokeWidth, lineCap: .round))
             context.stroke(path, with: .color(.white.opacity(0.8)), style: StrokeStyle(lineWidth: style.strokeWidth * 0.4, lineCap: .round, dash: [3, 3]))
             
-        case .double:
-            context.stroke(path, with: .color(.black.opacity(0.7)), style: StrokeStyle(lineWidth: style.strokeWidth, lineCap: .round))
-            context.stroke(path, with: .color(.gray.opacity(0.5)), style: StrokeStyle(lineWidth: style.strokeWidth - 1.5, lineCap: .round))
-            context.stroke(path, with: .color(.black.opacity(0.9)), style: StrokeStyle(lineWidth: style.strokeWidth * 0.23, lineCap: .round))
-            
         case .regional:
             context.stroke(path, with: .color(.blue.opacity(0.6)), style: StrokeStyle(lineWidth: style.strokeWidth, lineCap: .round))
             

@@ -108,15 +108,18 @@ extension NetworkModel {
     private static nonisolated func buildAdjacencyList(edges: [Edge], isReverse: Bool, ignoreDirection: Bool) -> [String: [Edge]] {
         var adj = [String: [Edge]]()
         for edge in edges {
+            // Post-migration, paired single edges are directed (pairedEdgeId != nil).
+            // Only original unpaired single-track edges remain undirected.
+            let isUndirected = edge.trackType == .single && edge.pairedEdgeId == nil
             if ignoreDirection {
                 adj[edge.from, default: []].append(edge)
                 adj[edge.to, default: []].append(edge)
             } else if isReverse {
                 adj[edge.to, default: []].append(edge)
-                if edge.trackType == .single { adj[edge.from, default: []].append(edge) }
+                if isUndirected { adj[edge.from, default: []].append(edge) }
             } else {
                 adj[edge.from, default: []].append(edge)
-                if edge.trackType == .single { adj[edge.to, default: []].append(edge) }
+                if isUndirected { adj[edge.to, default: []].append(edge) }
             }
         }
         return adj

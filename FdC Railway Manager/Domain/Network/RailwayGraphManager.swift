@@ -138,8 +138,9 @@ class RailwayGraphManager {
              // - Basic logic: 1 pair (A->B, B->A) = 1 Physical Track.
              // - 2 pairs (2x A->B, 2x B->A) = 2 Physical Tracks.
              
-             // Determine base capacity from track type
-             let isDual = firstEdge.trackType == .double || firstEdge.trackType == .highSpeed
+             // Determine base capacity: post-migration duality is expressed
+             // by pairedEdgeId, not by a .double trackType.
+             let isDual = firstEdge.pairedEdgeId != nil
              var baseCapacity = isDual ? 2 : 1
              
              // If we have more than 2 edges for the same segment, it implies parallel tracks
@@ -194,7 +195,7 @@ class RailwayGraphManager {
              if processedIds.contains(tId) { continue }
              processedIds.insert(tId)
              
-             var baseCapacity = (firstEdge.trackType == .double) ? 2 : 1
+             var baseCapacity = (firstEdge.pairedEdgeId != nil) ? 2 : 1
              if edges.count > 2 { baseCapacity = max(baseCapacity, edges.count / 2) }
              if let explicitCap = firstEdge.capacity, explicitCap > 0 { baseCapacity = explicitCap }
              
@@ -308,7 +309,7 @@ class RailwayGraphManager {
             if processedIds.contains(tId) { continue }
             processedIds.insert(tId)
             
-            var baseCapacity = (firstEdge.trackType == .double) ? 2 : 1
+            var baseCapacity = (firstEdge.pairedEdgeId != nil) ? 2 : 1
             if edges.count > 2 { baseCapacity = max(baseCapacity, edges.count / 2) }
             if let explicitCap = firstEdge.capacity, explicitCap > 0 { baseCapacity = explicitCap }
             

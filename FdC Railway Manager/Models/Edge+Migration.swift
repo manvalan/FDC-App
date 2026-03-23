@@ -1,13 +1,16 @@
 import Foundation
 
 extension Edge {
-    /// Converts each undirected bidirectional edge (`.double` or `.highSpeed`
-    /// with `pairedEdgeId == nil`) into two oriented single edges (A→B and B→A)
-    /// with `pairedEdgeId` cross-referenced between them.
+    /// Converts each undirected `.highSpeed` edge (with `pairedEdgeId == nil`)
+    /// into two oriented edges (A→B and B→A) with `pairedEdgeId`
+    /// cross-referenced between them.
+    ///
+    /// `.double` was removed in Fase 3f. Legacy JSON files containing
+    /// `"double"` are decoded as `.single` (see `TrackType.init(from:)`)
+    /// and pass through this function unchanged (no pairedEdgeId).
     ///
     /// Idempotent: edges that already have `pairedEdgeId != nil` are passed
-    /// through unchanged. Call this once after deserialisation, before exposing
-    /// the network to the rest of the system.
+    /// through unchanged. Call this once after deserialisation.
     ///
     /// - Returns: The migrated edge list and the number of edges converted.
     static func migrateDoubleTracksToSingleOriented(
@@ -17,7 +20,7 @@ extension Edge {
         var convertedCount = 0
         for edge in edges {
             guard edge.pairedEdgeId == nil,
-                  edge.trackType == .double || edge.trackType == .highSpeed
+                  edge.trackType == .highSpeed
             else {
                 result.append(edge)
                 continue

@@ -17,8 +17,8 @@ final class SchedulingServicesTests: XCTestCase {
         
         network.nodes = [nodeA, nodeB, nodeC]
         network.edges = [
-            RailwayEdge(from: "A", to: "B", distance: 10.0, trackType: .double, maxSpeed: 120),
-            RailwayEdge(from: "B", to: "C", distance: 10.0, trackType: .double, maxSpeed: 100)
+            RailwayEdge(from: "A", to: "B", distance: 10.0, trackType: .single, maxSpeed: 120),
+            RailwayEdge(from: "B", to: "C", distance: 10.0, trackType: .single, maxSpeed: 100)
         ]
         
         trainManager = TrainManager(network: networkModel)

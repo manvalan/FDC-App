@@ -73,7 +73,7 @@ struct TrackCreationOverlay: View {
     
     private func trackIcon(type: RailwayEdge.TrackType) -> some View {
         ZStack {
-            if type == .double || type == .highSpeed {
+            if type == .highSpeed {
                 HStack(spacing: 2) {
                     Capsule().fill(type.color).frame(width: 3, height: 16)
                     Capsule().fill(type.color).frame(width: 3, height: 16)

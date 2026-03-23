@@ -174,9 +174,6 @@ struct EdgeStyle {
         case .highSpeed:
             color = .red
             width = 4
-        case .double:
-            color = .blue
-            width = 3
         case .single, .regional:
             color = .gray
             width = 2

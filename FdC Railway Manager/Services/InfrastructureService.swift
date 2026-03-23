@@ -310,7 +310,6 @@ final class InfrastructureService {
         let blockLength: Double = {
             switch edge.trackType {
             case .highSpeed: return 2.7
-            case .double: return 1.35
             case .single, .regional: return 5.0
             }
         }()

@@ -194,17 +194,6 @@ struct NetworkSymbols {
             Rectangle()
                 .fill(Color.gray)
                 .frame(width: width, height: 2)
-        case .double:
-            // Double track - two parallel lines
-            VStack(spacing: 4) {
-                Rectangle()
-                    .fill(Color.gray)
-                    .frame(width: width, height: 2)
-                Rectangle()
-                    .fill(Color.gray)
-                    .frame(width: width, height: 2)
-            }
-            .frame(height: height)
         case .regional:
             // Regional track - medium line with dots
             HStack(spacing: 0) {

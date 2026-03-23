@@ -80,35 +80,21 @@ class ConflictManager: ObservableObject {
             let bwdEdges = edges.filter { $0.to == s1 }
             
             let capFwd = fwdEdges.reduce(0) { sum, edge in
-                let slots: Int
-                if let c = edge.capacity, c > 0 {
-                    slots = c
-                } else {
-                    switch edge.trackType {
-                    case .single, .regional: slots = 1
-                    case .double, .highSpeed: slots = 2
-                    }
-                }
+                let slots = (edge.capacity.flatMap { $0 > 0 ? $0 : nil }) ?? 1
                 return sum + slots
             }
-            
+
             let capBwd = bwdEdges.reduce(0) { sum, edge in
-                let slots: Int
-                if let c = edge.capacity, c > 0 {
-                    slots = c
-                } else {
-                    switch edge.trackType {
-                    case .single, .regional: slots = 1
-                    case .double, .highSpeed: slots = 2
-                    }
-                }
+                let slots = (edge.capacity.flatMap { $0 > 0 ? $0 : nil }) ?? 1
                 return sum + slots
             }
-            
-            // PIGNOLO FIX: For shared segments, capacity is the maximum number of tracks 
-            // available across both directions, not the sum. 
-            // This ensures "binario unico" (single track) correctly limits to 1 train.
-            var totalCap = max(capFwd, capBwd)
+
+            // Post-migration, a double track is expressed as two paired oriented edges.
+            // Their capacities must be summed (two independent tracks).
+            // An unpaired segment — single-track or asymmetric — uses max, not sum.
+            let isPairedDouble = fwdEdges.contains { $0.pairedEdgeId != nil }
+                              && bwdEdges.contains { $0.pairedEdgeId != nil }
+            var totalCap = isPairedDouble ? (capFwd + capBwd) : max(capFwd, capBwd)
             if totalCap == 0 { totalCap = 1 }
             
             capacities["SEGMENT::\(key)"] = totalCap

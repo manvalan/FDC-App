@@ -7,24 +7,38 @@ import MapKit
 
 public struct Edge: Identifiable, Codable, Hashable {
     public enum TrackType: String, Codable, CaseIterable, Identifiable {
-        case highSpeed, regional, single, double
+        case highSpeed, regional, single
         public var id: String { rawValue }
-        
+
+        /// Legacy decoder: files saved before Fase 3f may contain the
+        /// raw value "double". Map it to .single so that
+        /// migrateDoubleTracksToSingle() can skip it (it has no
+        /// pairedEdgeId) and pathfinding treats it as undirected.
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            let raw = try container.decode(String.self)
+            if raw == "double" { self = .single; return }
+            guard let value = TrackType(rawValue: raw) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Unknown TrackType: \(raw)")
+            }
+            self = value
+        }
+
         public var displayName: String {
             switch self {
             case .highSpeed: return "AV"
             case .regional: return "Reg"
             case .single: return "Sing"
-            case .double: return "Dop"
             }
         }
-        
+
         public var color: Color {
             switch self {
             case .highSpeed: return .red
             case .regional: return .blue
             case .single: return .gray
-            case .double: return .gray
             }
         }
     }

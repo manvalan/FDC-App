@@ -31,7 +31,7 @@ struct SchematicRailwayView: View {
     // Track Creation State
     @State private var newTrackFrom: Node?
     @State private var newTrackTo: Node?
-    @State private var newTrackType: RailwayEdge.TrackType = .double
+    @State private var newTrackType: RailwayEdge.TrackType = .single
     @State private var newTrackDistance: Double = 1.0
     
     // Performance Cache

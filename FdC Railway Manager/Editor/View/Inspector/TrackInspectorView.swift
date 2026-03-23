@@ -110,7 +110,6 @@ struct TrackInspectorView: View {
         InspectorSection(title: "track_type".localized, icon: "signpost.right.fill", iconColor: .purple) {
             Picker("type".localized, selection: $edge.trackType) {
                 Label("single_track".localized, systemImage: "1.circle").tag(RailwayEdge.TrackType.single)
-                Label("double_track".localized, systemImage: "2.circle").tag(RailwayEdge.TrackType.double)
                 Label("high_speed_track".localized, systemImage: "bolt.fill").tag(RailwayEdge.TrackType.highSpeed)
                 Label("regional_track".localized, systemImage: "tram").tag(RailwayEdge.TrackType.regional)
             }
@@ -245,38 +244,32 @@ struct TrackInspectorView: View {
     private var trackTypeIcon: String {
         switch edge.trackType {
         case .single: return "1.circle"
-        case .double: return "2.circle"
         case .highSpeed: return "bolt.fill"
         case .regional: return "tram"
         }
     }
-    
+
     private var trackTypeLabel: String {
         switch edge.trackType {
         case .single: return "single_track".localized
-        case .double: return "double_track".localized
         case .highSpeed: return "high_speed_track".localized
         case .regional: return "regional_track".localized
         }
     }
-    
+
     private var trackTypeColor: Color {
         switch edge.trackType {
         case .single: return .blue
-        case .double: return .green
         case .highSpeed: return .purple
         case .regional: return .orange
         }
     }
-    
+
     private func updateParametersForTrackType(_ type: RailwayEdge.TrackType) {
         switch type {
         case .single:
             edge.capacity = 6
             edge.maxSpeed = Int(appState.singleTrackMaxSpeed)
-        case .double:
-            edge.capacity = 24
-            edge.maxSpeed = Int(appState.doubleTrackMaxSpeed)
         case .highSpeed:
             edge.capacity = 15
             edge.maxSpeed = Int(appState.highSpeedTrackMaxSpeed)
