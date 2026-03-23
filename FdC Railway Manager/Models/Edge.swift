@@ -38,6 +38,11 @@ public struct Edge: Identifiable, Codable, Hashable {
     public var hasManualDistance: Bool = false
     public var segments: [TrackSegment] = [] // Segmenti fisici (blocchi) del binario
     public var geometryPoints: [GeometryPoint]? // Punti intermedi personalizzati per controllare la geometria del binario
+    /// Unified waypoints: map curve geometry + optional altitude per point.
+    /// Replaces `geometryPoints` (no altitude) and the lat/lon/altitude fields
+    /// of `TrackSegment` (simulation concern). Migration from legacy data runs
+    /// in `init(from:)` at load time.
+    public var controlPoints: [TrackControlPoint] = []
     public var electrification: ElectrificationType = .dc3kv
 
     public var canonicalKey: String {
@@ -56,7 +61,9 @@ public struct Edge: Identifiable, Codable, Hashable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, from, to, distance, trackType, maxSpeed, capacity, segments, geometryPoints, electrification, hasManualDistance
+        case id, from, to, distance, trackType, maxSpeed, capacity
+        case segments, geometryPoints, controlPoints
+        case electrification, hasManualDistance
     }
 
     public init(id: UUID = UUID(), from: String, to: String, distance: Double, trackType: TrackType, maxSpeed: Int, capacity: Int? = nil, electrification: ElectrificationType = .dc3kv, hasManualDistance: Bool = false) {
@@ -81,6 +88,8 @@ public struct Edge: Identifiable, Codable, Hashable {
         maxSpeed = try container.decodeIfPresent(Int.self, forKey: .maxSpeed) ?? 120
         capacity = try container.decodeIfPresent(Int.self, forKey: .capacity)
         segments = try container.decodeIfPresent([TrackSegment].self, forKey: .segments) ?? []
+        geometryPoints = try container.decodeIfPresent([GeometryPoint].self, forKey: .geometryPoints)
+        controlPoints = try container.decodeIfPresent([TrackControlPoint].self, forKey: .controlPoints) ?? []
         electrification = try container.decodeIfPresent(ElectrificationType.self, forKey: .electrification) ?? .dc3kv
         hasManualDistance = try container.decodeIfPresent(Bool.self, forKey: .hasManualDistance) ?? false
     }
