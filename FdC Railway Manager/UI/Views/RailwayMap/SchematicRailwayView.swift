@@ -42,6 +42,8 @@ struct SchematicRailwayView: View {
     
     // Gesture state to coordinate nav vs brush
     @GestureState private var isNavigating = false
+    // Triggers scrollTo only after pinch-zoom ends, not on toolbar slider changes.
+    @State private var shouldScrollToCenter = false
     
     private func updateRenderDataIfNeeded(size: CGSize, zoom: CGFloat) {
         let topologyId = appState.railroad.topologyId // Assume this exists or use network count/hash
@@ -113,7 +115,6 @@ struct SchematicRailwayView: View {
             
             ZStack {
                 mainViewContainer(size: size, bounds: bounds, renderData: currentRenderData)
-                    .scaleEffect(magnification)
                 
                 // Overlay fissi rispetto al viewport (NON all'area della mappa)
                 VStack {
@@ -232,6 +233,7 @@ struct SchematicRailwayView: View {
                         .position(centroidPoint(in: size, bounds: bounds))
                 }
                 .frame(width: size.width, height: size.height)
+                .scaleEffect(magnification)
                 .contentShape(Rectangle())
                 .onTapGesture { location in
                     handleMapTap(at: location, renderData: renderData)
@@ -273,8 +275,10 @@ struct SchematicRailwayView: View {
                 }
             }
             .scrollDisabled(editMode == .addStation)
-            .onChange(of: zoomLevel) { _ in
+            .onChange(of: shouldScrollToCenter) { newValue in
+                guard newValue else { return }
                 proxy.scrollTo("networkCentroid", anchor: .center)
+                shouldScrollToCenter = false
             }
         }
     }
@@ -448,6 +452,7 @@ struct SchematicRailwayView: View {
             .onEnded { value in
                 zoomLevel = max(0.5, min(5.0, zoomLevel * value))
                 withAnimation(.none) { magnification = 1.0 }
+                shouldScrollToCenter = true
             }
     }
 }
