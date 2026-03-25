@@ -82,6 +82,15 @@ final class RailroadNetwork: ObservableObject {
         undoStack.removeAll()
         redoStack.removeAll()
     }
+
+    /// Removes the most recent checkpoint from the undo stack without
+    /// applying it. Use this to discard a "phantom" checkpoint created at
+    /// the start of a drag gesture when the user subsequently cancels the
+    /// operation (e.g., via an Alert) and the model was never modified.
+    func discardLastCheckpoint() {
+        guard !undoStack.isEmpty else { return }
+        undoStack.removeLast()
+    }
     
     func createCheckpoint() {
         let snapshot = RailroadSnapshot(

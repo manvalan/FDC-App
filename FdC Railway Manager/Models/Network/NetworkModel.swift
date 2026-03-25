@@ -59,10 +59,17 @@ final class NetworkModel: ObservableObject {
     func createCheckpoint() {
         owner?.createCheckpoint()
     }
-    
+
+    /// Removes the most recent checkpoint without applying it.
+    /// Call in the "Cancel" branch of an Alert when the model was never
+    /// modified — discards the phantom checkpoint created at drag start.
+    func discardLastCheckpoint() {
+        owner?.discardLastCheckpoint()
+    }
+
     var canUndo: Bool { owner?.canUndo ?? false }
     var canRedo: Bool { owner?.canRedo ?? false }
-    
+
     func undo() { owner?.undo() }
     func redo() { owner?.redo() }
     

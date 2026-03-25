@@ -26,6 +26,7 @@
 		31294B542F4259D900E80C34 /* LineColorAssigner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B532F4259D900E80C34 /* LineColorAssigner.swift */; };
 		31294B562F425FDB00E80C34 /* SettingsInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B552F425FDB00E80C34 /* SettingsInspectorView.swift */; };
 		31294B5A2F426D4200E80C34 /* TrainDatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B592F426D4200E80C34 /* TrainDatabaseModels.swift */; };
+		EB4B4375883E4827B5821D39 /* LineProfilePoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB5221C144C143D7A303CFDD /* LineProfilePoint.swift */; };
 		31294B5C2F426FEB00E80C34 /* VehicleRotationOptimizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B5B2F426FEB00E80C34 /* VehicleRotationOptimizer.swift */; };
 		31294B5E2F42EBFA00E80C34 /* SchedulePreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B5D2F42EBFA00E80C34 /* SchedulePreviewView.swift */; };
 		31294B602F42F00200E80C34 /* TrainModelSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B5F2F42F00200E80C34 /* TrainModelSelector.swift */; };
@@ -161,6 +162,7 @@
 		31294B532F4259D900E80C34 /* LineColorAssigner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LineColorAssigner.swift; path = "FdC Railway Manager/Lines/View/LineColorAssigner.swift"; sourceTree = SOURCE_ROOT; };
 		31294B552F425FDB00E80C34 /* SettingsInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SettingsInspectorView.swift; path = "FdC Railway Manager/Settings/SettingsInspectorView.swift"; sourceTree = SOURCE_ROOT; };
 		31294B592F426D4200E80C34 /* TrainDatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TrainDatabaseModels.swift; path = "FdC Railway Manager/Domain/Model/TrainDatabaseModels.swift"; sourceTree = SOURCE_ROOT; };
+		DB5221C144C143D7A303CFDD /* LineProfilePoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LineProfilePoint.swift; path = "FdC Railway Manager/Domain/Model/LineProfilePoint.swift"; sourceTree = SOURCE_ROOT; };
 		31294B5B2F426FEB00E80C34 /* VehicleRotationOptimizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = VehicleRotationOptimizer.swift; path = "FdC Railway Manager/Lines/ViewModel/VehicleRotationOptimizer.swift"; sourceTree = SOURCE_ROOT; };
 		31294B5D2F42EBFA00E80C34 /* SchedulePreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SchedulePreviewView.swift; path = "FdC Railway Manager/Scheduler/View/SchedulePreviewView.swift"; sourceTree = SOURCE_ROOT; };
 		31294B5F2F42F00200E80C34 /* TrainModelSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TrainModelSelector.swift; path = "FdC Railway Manager/Lines/View/TrainModelSelector.swift"; sourceTree = SOURCE_ROOT; };
@@ -279,6 +281,7 @@
 				31294B532F4259D900E80C34 /* LineColorAssigner.swift */,
 				31294B552F425FDB00E80C34 /* SettingsInspectorView.swift */,
 				31294B592F426D4200E80C34 /* TrainDatabaseModels.swift */,
+				DB5221C144C143D7A303CFDD /* LineProfilePoint.swift */,
 				31294B5B2F426FEB00E80C34 /* VehicleRotationOptimizer.swift */,
 				31294B5D2F42EBFA00E80C34 /* SchedulePreviewView.swift */,
 				31294B5F2F42F00200E80C34 /* TrainModelSelector.swift */,
@@ -485,6 +488,7 @@
 				31294B562F425FDB00E80C34 /* SettingsInspectorView.swift in Sources */,
 				31294B622F42F4B500E80C34 /* TrainPhysicsEngine.swift in Sources */,
 				31294B5A2F426D4200E80C34 /* TrainDatabaseModels.swift in Sources */,
+				EB4B4375883E4827B5821D39 /* LineProfilePoint.swift in Sources */,
 				31294B452F40AB6500E80C34 /* GenericEntityListView.swift in Sources */,
 				31294B662F42F81E00E80C34 /* SchedulePreviewInspectorView.swift in Sources */,
 				31294B682F432F6000E80C34 /* OptimizedTimesPreviewInspectorView.swift in Sources */,
