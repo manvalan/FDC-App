@@ -3,6 +3,13 @@ import Combine
 import MapKit
 import UniformTypeIdentifiers
 
+/// Legge la posizione del contenuto dello ScrollView nel suo
+/// coordinateSpace per ricavare l'offset di scorrimento corrente.
+private struct MapScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGPoint = .zero
+    static func reduce(value: inout CGPoint, nextValue: () -> CGPoint) {}
+}
+
 struct SchematicRailwayView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var interactionVM: MapInteractionViewModel
@@ -42,8 +49,13 @@ struct SchematicRailwayView: View {
     
     // Gesture state to coordinate nav vs brush
     @GestureState private var isNavigating = false
-    // Triggers scrollTo only after pinch-zoom ends, not on toolbar slider changes.
-    @State private var shouldScrollToCenter = false
+
+    // Zoom-center tracking: mantiene fisso il centro della viewport durante zoom.
+    @State private var scrollOffset: CGPoint = .zero
+    @State private var geoViewportSize: CGSize = .zero
+    @State private var previousZoomLevel: CGFloat = 1.0
+    @State private var zoomAnchorPosition: CGPoint = .zero
+    @State private var shouldScrollToAnchor = false
     
     private func updateRenderDataIfNeeded(size: CGSize, zoom: CGFloat) {
         let topologyId = appState.railroad.topologyId // Assume this exists or use network count/hash
@@ -149,14 +161,25 @@ struct SchematicRailwayView: View {
                 brushStrokeOverlay(size: size)
             }
                 .onAppear {
-                    // Initialize first render
+                    geoViewportSize = geo.size
+                    previousZoomLevel = zoomLevel
                     updateRenderData(size: size)
                 }
                 .onChange(of: appState.railroad.topologyId) { _ in
                     updateRenderData(size: size)
                 }
                 .onChange(of: totalZoom) { _ in
+                    let newZoom = totalZoom
+                    let oldZoom = previousZoomLevel
+                    geoViewportSize = geo.size
+                    previousZoomLevel = newZoom
                     updateRenderData(size: size)
+                    guard oldZoom > 0 else { return }
+                    let ratio = newZoom / oldZoom
+                    let cx = scrollOffset.x + geoViewportSize.width / 2
+                    let cy = scrollOffset.y + geoViewportSize.height / 2
+                    zoomAnchorPosition = CGPoint(x: cx * ratio, y: cy * ratio)
+                    shouldScrollToAnchor = true
                 }
         }
         .background(Color.white)
@@ -223,16 +246,24 @@ struct SchematicRailwayView: View {
 
                     brushStrokeOverlay(size: size)
 
-                    // Anchor invisibile al centroide geografico della rete.
-                    // Usato da proxy.scrollTo dopo ogni zoom per centrare
-                    // la vista sulla distribuzione effettiva dei nodi,
-                    // non sul corner top-left del canvas espanso.
+                    // Anchor mobile: posizionato al centro della viewport
+                    // nel canvas scalato. Aggiornato da onChange(of: totalZoom)
+                    // prima di ogni scrollTo, in modo che lo zoom mantenga
+                    // fisso il punto che era al centro della viewport.
                     Color.clear
                         .frame(width: 1, height: 1)
-                        .id("networkCentroid")
-                        .position(centroidPoint(in: size, bounds: bounds))
+                        .id("zoomAnchor")
+                        .position(zoomAnchorPosition)
                 }
                 .frame(width: size.width, height: size.height)
+                .background(GeometryReader { geo in
+                    // Legge la posizione del contenuto nel coordinateSpace
+                    // dello ScrollView: origin = -scrollOffset.
+                    Color.clear.preference(
+                        key: MapScrollOffsetKey.self,
+                        value: geo.frame(in: .named("mapScrollView")).origin
+                    )
+                })
                 .scaleEffect(magnification)
                 .contentShape(Rectangle())
                 .onTapGesture { location in
@@ -274,33 +305,19 @@ struct SchematicRailwayView: View {
                     }
                 }
             }
+            .coordinateSpace(name: "mapScrollView")
             .scrollDisabled(editMode == .addStation)
-            .onChange(of: shouldScrollToCenter) { newValue in
+            .onPreferenceChange(MapScrollOffsetKey.self) { origin in
+                scrollOffset = CGPoint(x: -origin.x, y: -origin.y)
+            }
+            .onChange(of: shouldScrollToAnchor) { newValue in
                 guard newValue else { return }
-                proxy.scrollTo("networkCentroid", anchor: .center)
-                shouldScrollToCenter = false
+                Task { @MainActor in
+                    proxy.scrollTo("zoomAnchor", anchor: .center)
+                    shouldScrollToAnchor = false
+                }
             }
         }
-    }
-
-    /// Centroide geografico della rete: media di lat/lon di tutti i nodi
-    /// con coordinate valide, convertita in coordinate canvas.
-    /// Diverso dal centro geometrico del canvas — su reti asimmetriche
-    /// segue la distribuzione dei nodi, non i limiti del bounding box.
-    private func centroidPoint(in size: CGSize, bounds: MapBounds) -> CGPoint {
-        let coords = appState.railroad.network.nodes.compactMap { n -> (Double, Double)? in
-            guard let lat = n.latitude, let lon = n.longitude else { return nil }
-            return (lat, lon)
-        }
-        guard !coords.isEmpty else {
-            return CGPoint(x: size.width / 2, y: size.height / 2)
-        }
-        let meanLat = coords.map { $0.0 }.reduce(0, +) / Double(coords.count)
-        let meanLon = coords.map { $0.1 }.reduce(0, +) / Double(coords.count)
-        let pad = MapConstants.canvasPadding
-        let x = (meanLon - bounds.minLon) / bounds.xRange * (size.width  - pad * 2) + pad
-        let y = (1.0 - (meanLat - bounds.minLat) / bounds.yRange) * (size.height - pad * 2) + pad
-        return CGPoint(x: x, y: y)
     }
 
     private func mapBasement(size: CGSize, bounds: MapBounds, renderData: MapRenderData) -> some View {
@@ -452,7 +469,6 @@ struct SchematicRailwayView: View {
             .onEnded { value in
                 zoomLevel = max(0.5, min(5.0, zoomLevel * value))
                 withAnimation(.none) { magnification = 1.0 }
-                shouldScrollToCenter = true
             }
     }
 }
