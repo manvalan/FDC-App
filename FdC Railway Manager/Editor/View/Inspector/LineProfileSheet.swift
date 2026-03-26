@@ -23,6 +23,8 @@ struct LineProfileSheet: View {
     @State private var profile: [LineProfilePoint] = []
     @State private var zoomX: CGFloat = 1.0
     @State private var availableWidth: CGFloat = 300
+    @State private var scrollOffset: CGFloat = 0
+    @State private var lastScale: CGFloat = 1.0
 
     // MARK: - Body
 
@@ -75,7 +77,30 @@ struct LineProfileSheet: View {
             }
             .frame(width: canvasWidth, height: canvasHeight)
             .background(Color(.systemBackground))
+            .background(scrollOffsetTracker)
         }
+        .coordinateSpace(name: "profileScroll")
+        .onPreferenceChange(ScrollOffsetKey.self) { scrollOffset = $0 }
+        .simultaneousGesture(pinchGesture)
+    }
+
+    private var scrollOffsetTracker: some View {
+        GeometryReader { geo in
+            Color.clear.preference(
+                key: ScrollOffsetKey.self,
+                value: -geo.frame(in: .named("profileScroll")).minX
+            )
+        }
+    }
+
+    private var pinchGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { scale in
+                let delta = scale / lastScale
+                lastScale = scale
+                zoomX = min(max(zoomX * delta, 1.0), 8.0)
+            }
+            .onEnded { _ in lastScale = 1.0 }
     }
 
     // MARK: - Canvas layers
@@ -245,7 +270,7 @@ struct LineProfileSheet: View {
     }
 
     private func makeMapping(canvasWidth: CGFloat) -> ProfileMapping {
-        let alts = profile.map(\.altitude)
+        let alts = viewportAltitudes(canvasWidth: canvasWidth)
         let lo   = alts.min() ?? 0
         let hi   = alts.max() ?? 100
         let pad  = max((hi - lo) * 0.15, 10)
@@ -255,6 +280,21 @@ struct LineProfileSheet: View {
             totalDist: totalDistanceKm,
             canvasSize: CGSize(width: canvasWidth, height: canvasHeight)
         )
+    }
+
+    /// Returns altitudes of points currently visible in the horizontal viewport.
+    /// Falls back to all points when viewport has no coverage (zoom 1 or empty).
+    private func viewportAltitudes(canvasWidth: CGFloat) -> [Double] {
+        guard canvasWidth > 0, !profile.isEmpty else {
+            return profile.map(\.altitude)
+        }
+        let ratio   = Double(canvasWidth) == 0 ? 0 : totalDistanceKm / Double(canvasWidth)
+        let startD  = Double(scrollOffset) * ratio
+        let endD    = Double(scrollOffset + availableWidth) * ratio
+        let visible = profile.filter {
+            $0.distanceFromStart >= startD && $0.distanceFromStart <= endD
+        }
+        return visible.isEmpty ? profile.map(\.altitude) : visible.map(\.altitude)
     }
 
     // MARK: - Profile builder
@@ -267,5 +307,14 @@ struct LineProfileSheet: View {
             edges: net.edges,
             allLines: net.lines
         )
+    }
+}
+
+// MARK: - PreferenceKey for scroll offset tracking
+
+private struct ScrollOffsetKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
