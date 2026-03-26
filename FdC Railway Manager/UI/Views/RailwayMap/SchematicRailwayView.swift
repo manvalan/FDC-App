@@ -48,6 +48,7 @@ struct SchematicRailwayView: View {
     
     // Gesture state to coordinate nav vs brush
     @GestureState private var isNavigating = false
+    @State private var committedZoom: CGFloat = 1.0
 
     @State private var scrollOffset: CGPoint = .zero
     @State private var geoViewportSize: CGSize = .zero
@@ -293,7 +294,7 @@ struct SchematicRailwayView: View {
             .onPreferenceChange(MapScrollOffsetKey.self) { origin in
                 scrollOffset = CGPoint(x: -origin.x, y: -origin.y)
             }
-            .onChange(of: zoomLevel) { _ in
+            .onAppear {
                 proxy.scrollTo("networkCentroid", anchor: .center)
             }
         }
@@ -442,8 +443,12 @@ struct SchematicRailwayView: View {
             .updating($isNavigating) { _, state, _ in
                 state = true
             }
+            .onChanged { value in
+                zoomLevel = max(0.5, min(5.0, committedZoom * value))
+            }
             .onEnded { value in
-                zoomLevel = max(0.5, min(5.0, zoomLevel * value))
+                committedZoom = max(0.5, min(5.0, committedZoom * value))
+                zoomLevel = committedZoom
             }
     }
 
