@@ -39,8 +39,9 @@ struct LineProfileSheet: View {
             }
             .navigationTitle(line.name)
             .navigationBarTitleDisplayMode(.inline)
+            .padding(.horizontal, 8)
         }
-        .presentationDetents([.fraction(0.75)])
+        .presentationDetents([.fraction(0.75), .large])
         .presentationDragIndicator(.visible)
         .onAppear { rebuildProfile() }
         .onChange(of: appState.railroad.network.edges) { _, _ in
@@ -211,7 +212,8 @@ struct LineProfileSheet: View {
     ) -> some View {
         let alt = effectiveAlt(for: point)
         let x   = mapping.screenX(d: point.distanceFromStart)
-        let y   = mapping.screenY(a: alt) + 16   // below handle centre
+        // Clamp so the label (rotated -90°, extends downward) stays in canvas.
+        let y   = min(mapping.screenY(a: alt) + 16, canvasHeight - 60)
         return Text(name)
             .font(.system(size: 8))
             .foregroundStyle(.secondary)
@@ -453,12 +455,25 @@ struct LineProfileSheet: View {
 
     private func makeMapping(canvasWidth: CGFloat) -> ProfileMapping {
         let alts = viewportAltitudes(canvasWidth: canvasWidth)
-        let lo   = alts.min() ?? 0
-        let hi   = alts.max() ?? 100
-        let pad  = max((hi - lo) * 0.15, 10)
+        let rawLo = alts.min() ?? 0
+        let rawHi = alts.max() ?? 100
+        // 2c: when all altitudes are equal (or nearly so), force a minimum
+        // 20 m visible range centred on the mean so Y labels are always shown.
+        let range = rawHi - rawLo
+        let lo: Double
+        let hi: Double
+        if range < 1 {
+            let mid = (rawLo + rawHi) / 2
+            lo = mid - 10
+            hi = mid + 10
+        } else {
+            lo = rawLo
+            hi = rawHi
+        }
+        let pad = max((hi - lo) * 0.15, 10)
         return ProfileMapping(
             minAlt: lo - pad,
-            altRange: max(hi - lo + 2 * pad, 1),
+            altRange: max(hi - lo + 2 * pad, 20),
             totalDist: totalDistanceKm,
             canvasSize: CGSize(width: canvasWidth, height: canvasHeight)
         )
