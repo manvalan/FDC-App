@@ -66,11 +66,114 @@ struct LineProfileSheet: View {
         )
     }
 
-    // 3a placeholder — replaced in 3b with actual canvases
     private func scrollableCanvas(mapping: ProfileMapping) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            Color(.systemGray5)
-                .frame(width: canvasWidth, height: canvasHeight)
+            ZStack(alignment: .topLeading) {
+                slopeBandsCanvas(mapping: mapping)
+                gridCanvas(mapping: mapping)
+                curveCanvas(mapping: mapping)
+            }
+            .frame(width: canvasWidth, height: canvasHeight)
+            .background(Color(.systemBackground))
+        }
+    }
+
+    // MARK: - Canvas layers
+
+    /// Red background bands where abs(slope) > electrification-based limit.
+    private func slopeBandsCanvas(mapping: ProfileMapping) -> some View {
+        let limit = slopeLimit(for: line.electrification)
+        let pts   = profile
+        return Canvas { ctx, _ in
+            for i in 0 ..< pts.count - 1 {
+                let p1 = pts[i], p2 = pts[i + 1]
+                let dDistM = (p2.distanceFromStart - p1.distanceFromStart) * 1000
+                guard dDistM > 0 else { continue }
+                let slope = abs((p2.altitude - p1.altitude) / dDistM * 1000)
+                guard slope > limit else { continue }
+                let x1 = mapping.screenX(d: p1.distanceFromStart)
+                let x2 = mapping.screenX(d: p2.distanceFromStart)
+                let r  = CGRect(x: x1, y: 0,
+                                width: x2 - x1, height: mapping.canvasSize.height)
+                ctx.fill(Path(r), with: .color(.red.opacity(0.15)))
+            }
+        }
+    }
+
+    /// Horizontal altitude grid lines + vertical km lines with labels.
+    private func gridCanvas(mapping: ProfileMapping) -> some View {
+        let altTicks = altitudeTicks(for: mapping)
+        let kmTicks  = self.kmTicks(for: mapping)
+        return Canvas { ctx, _ in
+            for alt in altTicks {
+                let y = mapping.screenY(a: Double(alt))
+                var p = Path()
+                p.move(to: CGPoint(x: 0, y: y))
+                p.addLine(to: CGPoint(x: mapping.canvasSize.width, y: y))
+                ctx.stroke(p, with: .color(.gray.opacity(0.25)), lineWidth: 0.5)
+            }
+            for km in kmTicks {
+                let x = mapping.screenX(d: km)
+                var p = Path()
+                p.move(to: CGPoint(x: x, y: 0))
+                p.addLine(to: CGPoint(x: x, y: mapping.canvasSize.height))
+                ctx.stroke(p, with: .color(.gray.opacity(0.2)), lineWidth: 0.5)
+                let label = Text("\(Int(km))km")
+                    .font(.system(size: 8))
+                    .foregroundStyle(Color.secondary)
+                ctx.draw(label, at: CGPoint(x: x + 2, y: 4), anchor: .topLeading)
+            }
+        }
+    }
+
+    /// Profile line + translucent fill in the line's colour.
+    private func curveCanvas(mapping: ProfileMapping) -> some View {
+        let pts       = profile
+        let curveColor = line.displayColor
+        return Canvas { ctx, _ in
+            guard pts.count >= 2 else { return }
+            var path = Path()
+            path.move(to: mapping.screen(d: pts[0].distanceFromStart,
+                                          a: pts[0].altitude))
+            for pt in pts.dropFirst() {
+                path.addLine(to: mapping.screen(d: pt.distanceFromStart,
+                                                 a: pt.altitude))
+            }
+            ctx.stroke(path, with: .color(curveColor), lineWidth: 2)
+            var fill = path
+            // JUSTIFY: .last! safe — guarded by count >= 2 above
+            fill.addLine(to: mapping.screen(d: pts.last!.distanceFromStart,
+                                             a: mapping.minAlt))
+            fill.addLine(to: mapping.screen(d: pts[0].distanceFromStart,
+                                             a: mapping.minAlt))
+            fill.closeSubpath()
+            ctx.fill(fill, with: .color(curveColor.opacity(0.12)))
+        }
+    }
+
+    // MARK: - Grid helpers
+
+    private func kmTicks(for mapping: ProfileMapping) -> [Double] {
+        let step: Double
+        switch zoomX {
+        case ..<1.5: step = 50
+        case ..<3.0: step = 20
+        case ..<6.0: step = 10
+        default:     step = 5
+        }
+        let count = Int(mapping.totalDist / step) + 1
+        return (0...count).map { Double($0) * step }
+            .filter { $0 <= mapping.totalDist }
+    }
+
+    // MARK: - Slope limit (Opzione B — derived from electrification)
+
+    private func slopeLimit(for e: ElectrificationType) -> Double {
+        switch e {
+        case .dc950v: return 35.0   // tramvie / FdC
+        case .dc3kv:  return 25.0   // rete ordinaria
+        case .ac25kv: return 20.0   // alta velocità
+        case .none:   return 30.0   // non elettrificato
         }
     }
 
