@@ -35,13 +35,11 @@ struct LineProfileSheet: View {
         NavigationStack {
             VStack(spacing: 0) {
                 chartRow
-                Spacer()
             }
             .navigationTitle(line.name)
             .navigationBarTitleDisplayMode(.inline)
-            .padding(.horizontal, 8)
         }
-        .presentationDetents([.fraction(0.75), .large])
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .onAppear { rebuildProfile() }
         .onChange(of: appState.railroad.network.edges) { _, _ in
@@ -405,8 +403,9 @@ struct LineProfileSheet: View {
     }
 
     private func altitudeTicks(for mapping: ProfileMapping) -> [Int] {
-        let lo = Int(ceil(mapping.minAlt / 100.0)) * 100
-        let hi = Int(mapping.minAlt + mapping.altRange)
+        let lo = Int(ceil(mapping.rawLo / 100.0)) * 100
+        let hi = Int(floor(mapping.rawHi / 100.0)) * 100
+        guard hi >= lo else { return [lo] }
         return stride(from: lo, through: hi, by: 100).map { $0 }
     }
 
@@ -430,6 +429,8 @@ struct LineProfileSheet: View {
     struct ProfileMapping {
         let minAlt: Double
         let altRange: Double
+        let rawLo: Double
+        let rawHi: Double
         let totalDist: Double
         let canvasSize: CGSize
 
@@ -474,6 +475,8 @@ struct LineProfileSheet: View {
         return ProfileMapping(
             minAlt: lo - pad,
             altRange: max(hi - lo + 2 * pad, 20),
+            rawLo: lo,
+            rawHi: hi,
             totalDist: totalDistanceKm,
             canvasSize: CGSize(width: canvasWidth, height: canvasHeight)
         )
