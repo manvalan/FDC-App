@@ -16,10 +16,11 @@ struct LineProfileSheet: View {
     // MARK: - Layout constants
 
     // canvasHeight is dynamic: updated by GeometryReader in body.
-    // 280 is the fallback before the first layout pass.
-    @State private var canvasHeight: CGFloat = 280
-    private let yAxisWidth:   CGFloat = 44
-    private let headerHeight: CGFloat = 60   // nav bar + km label row
+    // 220 is the fallback before the first layout pass.
+    @State private var canvasHeight: CGFloat = 220
+    private let yAxisWidth:    CGFloat = 44
+    // nav bar (~44) + drag indicator (~20) + legend row (~70) + padding (~16)
+    private let reservedHeight: CGFloat = 150
 
     // MARK: - State
 
@@ -36,19 +37,23 @@ struct LineProfileSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
+            VStack(spacing: 12) {
                 chartRow
+                legendRow
             }
             .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.vertical, 8)
             .background(
                 GeometryReader { geo in
                     Color.clear
                         .onAppear {
+                            // canvas ≈ 55% of available height, min 160pt
                             canvasHeight = max(
-                                geo.size.height - headerHeight, 100)
+                                (geo.size.height - reservedHeight) * 0.55, 160)
                         }
                         .onChange(of: geo.size.height) { _, h in
-                            canvasHeight = max(h - headerHeight, 100)
+                            canvasHeight = max(
+                                (h - reservedHeight) * 0.55, 160)
                         }
                 }
             )
@@ -112,6 +117,49 @@ struct LineProfileSheet: View {
         .coordinateSpace(name: "profileScroll")
         .onPreferenceChange(ScrollOffsetKey.self) { scrollOffset = $0 }
         .simultaneousGesture(pinchGesture)
+    }
+
+    // MARK: - Legend
+
+    private var legendRow: some View {
+        let limit = slopeLimit(for: line.electrification)
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("Pendenza limite: \(Int(limit))‰  (\(line.electrification.rawValue))")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            HStack(spacing: 16) {
+                legendItem(color: .red.opacity(0.35),
+                           symbol: "square.fill",
+                           label: "Zona > limite")
+                legendItem(color: .green,
+                           symbol: "circle.fill",
+                           label: "Inizio linea")
+                legendItem(color: .red,
+                           symbol: "circle.fill",
+                           label: "Fine linea")
+                legendItem(color: .blue,
+                           symbol: "circle.fill",
+                           label: "Stazione")
+                legendItem(color: .orange,
+                           symbol: "circle.fill",
+                           label: "Punto profilo")
+            }
+        }
+        .padding(.horizontal, yAxisWidth + 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func legendItem(
+        color: Color, symbol: String, label: String
+    ) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: symbol)
+                .font(.system(size: 9))
+                .foregroundStyle(color)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private var scrollOffsetTracker: some View {
@@ -408,6 +456,8 @@ struct LineProfileSheet: View {
                 Text("\(alt)m")
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
+                    .padding(.horizontal, 2)
+                    .background(Color(.systemBackground))
                     .position(
                         x: yAxisWidth / 2,
                         y: mapping.screenY(a: Double(alt))
@@ -419,10 +469,17 @@ struct LineProfileSheet: View {
     }
 
     private func altitudeTicks(for mapping: ProfileMapping) -> [Int] {
-        let lo = Int(ceil(mapping.rawLo / 100.0)) * 100
-        let hi = Int(floor(mapping.rawHi / 100.0)) * 100
+        let range = mapping.rawHi - mapping.rawLo
+        let step: Int
+        switch range {
+        case ..<100:  step = 20
+        case ..<500:  step = 50
+        default:      step = 100
+        }
+        let lo = Int(ceil(mapping.rawLo / Double(step))) * step
+        let hi = Int(floor(mapping.rawHi / Double(step))) * step
         guard hi >= lo else { return [lo] }
-        return stride(from: lo, through: hi, by: 100).map { $0 }
+        return stride(from: lo, through: hi, by: step).map { $0 }
     }
 
     // MARK: - Geometry
