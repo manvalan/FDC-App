@@ -81,6 +81,7 @@ public struct LineProfilePoint {
 
         var result: [LineProfilePoint] = []
         var cumDist: Double = 0
+        var appendedNodeIds: Set<String> = []
 
         for i in 0 ..< nodeIds.count - 1 {
             let fromId = nodeIds[i]
@@ -88,27 +89,22 @@ public struct LineProfilePoint {
             guard let fromNode = nodes.first(where: { $0.id == fromId }) else { continue }
             let toNode = nodes.first { $0.id == toId }
 
-            // The fromNode is appended only on the first segment.
-            // On subsequent segments it was already appended as toNode.
-            if i == 0 {
+            // Append fromNode if not yet in result (first segment, or after a gap).
+            if !appendedNodeIds.contains(fromId) {
+                let isFirst = result.isEmpty
                 result.append(
-                    nodePoint(fromNode, dist: 0, isEndpoint: true,
+                    nodePoint(fromNode, dist: cumDist, isEndpoint: isFirst,
                               edges: edges, allLines: allLines)
                 )
+                appendedNodeIds.insert(fromId)
             }
 
             // Find edge: prefer canonical A→B, fallback to reversed B→A.
             guard let (edge, isReversed) = resolveEdge(
                 from: fromId, to: toId, edges: edges
             ) else {
-                // Gap in the graph: skip control points but still append toNode.
-                if let toNode {
-                    let isLast = i == nodeIds.count - 2
-                    result.append(
-                        nodePoint(toNode, dist: cumDist, isEndpoint: isLast,
-                                  edges: edges, allLines: allLines)
-                    )
-                }
+                // Gap in the graph: skip toNode — it will be appended as
+                // fromNode of the next segment, preserving cumDist.
                 continue
             }
 
@@ -128,6 +124,7 @@ public struct LineProfilePoint {
                     nodePoint(toNode, dist: cumDist, isEndpoint: isLast,
                               edges: edges, allLines: allLines)
                 )
+                appendedNodeIds.insert(toId)
             }
         }
 
