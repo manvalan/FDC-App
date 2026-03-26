@@ -15,4 +15,33 @@ extension RailroadNetwork {
         network.edges = migrated
         print("🔄 [Migration] \(count) edge(s) converted to paired oriented single edges")
     }
+
+    /// Ensures every RailwayLine's nodeIds follows the actual graph topology,
+    /// inserting any intermediate junction nodes that Dijkstra finds between
+    /// consecutive entries.
+    ///
+    /// Idempotent: a line whose nodeIds already form a valid ordered path
+    /// produces the same output on repeated calls.
+    ///
+    /// Does NOT create a checkpoint — caller owns undo history.
+    func migrateLineNodeOrdering() {
+        let nodes = network.nodes
+        let edges = network.edges
+        var fixedCount = 0
+        network.lines = network.lines.map { line in
+            let ordered = NetworkModel.buildOrderedPath(
+                through: line.nodeIds,
+                nodes: nodes,
+                edges: edges
+            )
+            guard ordered != line.nodeIds else { return line }
+            fixedCount += 1
+            var updated = line
+            updated.nodeIds = ordered
+            return updated
+        }
+        if fixedCount > 0 {
+            print("🔄 [Migration] \(fixedCount) line(s) had node ordering fixed")
+        }
+    }
 }

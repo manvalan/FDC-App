@@ -192,4 +192,44 @@ extension NetworkModel {
         }
         return total
     }
+
+    /// Reconstructs an ordered, topologically valid node sequence for a line.
+    ///
+    /// Given an unordered or partially-ordered list of node IDs (e.g. the
+    /// user's tap-selection order), iterates consecutive pairs and fills in
+    /// the shortest path between each pair via Dijkstra, including any
+    /// intermediate junction nodes not present in the original list.
+    ///
+    /// Idempotent: calling it on an already-ordered sequence returns the
+    /// same sequence unchanged.
+    ///
+    /// Fallback: if no path exists between a pair, the destination node is
+    /// appended at the current position without advancing distance — same
+    /// semantics as the gap-case in `LineProfilePoint.buildProfile`.
+    ///
+    /// - Returns: Ordered node IDs with intermediate junctions inserted.
+    static nonisolated func buildOrderedPath(
+        through nodeIds: [String],
+        nodes: [Node],
+        edges: [Edge]
+    ) -> [String] {
+        guard nodeIds.count >= 2 else { return nodeIds }
+        var result: [String] = [nodeIds[0]]
+        for i in 0 ..< nodeIds.count - 1 {
+            let current = nodeIds[i]
+            let next    = nodeIds[i + 1]
+            guard let (segment, _) = findShortestPath(
+                from: current, to: next,
+                nodes: nodes, edges: edges
+            ) else {
+                // No path: append next directly (gap, distance unknown).
+                if result.last != next { result.append(next) }
+                continue
+            }
+            for nodeId in segment.dropFirst() {
+                if result.last != nodeId { result.append(nodeId) }
+            }
+        }
+        return result
+    }
 }

@@ -56,10 +56,11 @@ final class IOManager: ObservableObject {
         railroad.lines.trains = dto.trains ?? []
         railroad.lines.vehicles = dto.vehicles ?? []
         railroad.migrateDoubleTracksToSingle()
+        railroad.migrateLineNodeOrdering()
         railroad.clearUndoHistory()
         InfrastructureManager.shared.processNetwork(railroad.network)
     }
-    
+
     func importFromFDC(data: Data) throws {
         guard let railroad = railroad else { return }
         let parsed = try FDCParser.parse(data: data)
@@ -73,6 +74,7 @@ final class IOManager: ObservableObject {
         
         railroad.lines.trains = tCopy
         railroad.migrateDoubleTracksToSingle()
+        railroad.migrateLineNodeOrdering()
         railroad.clearUndoHistory()
         railroad.lines.validateSchedules()
         InfrastructureManager.shared.processNetwork(railroad.network)
