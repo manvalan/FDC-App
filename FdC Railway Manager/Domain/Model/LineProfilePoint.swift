@@ -137,6 +137,17 @@ public struct LineProfilePoint {
             }
         }
 
+        // DEBUG — remove before release
+        for pt in result {
+            let label: String
+            switch pt.source {
+            case .node(let id):
+                label = pt.stationName ?? id
+            case .controlPoint(let edgeId, let idx):
+                label = "cp[\(idx)]@\(edgeId.prefix(6))"
+            }
+            print("ProfilePoint: \(label) dist=\(pt.distanceFromStart)")
+        }
         return result
     }
 

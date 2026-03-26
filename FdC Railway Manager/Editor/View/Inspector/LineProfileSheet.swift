@@ -83,7 +83,7 @@ struct LineProfileSheet: View {
                 .frame(width: yAxisWidth, height: canvasHeight)
             scrollableCanvas(mapping: m)
         }
-        .frame(height: canvasHeight)
+        .frame(maxWidth: .infinity, minHeight: canvasHeight, maxHeight: canvasHeight)
         .background(
             GeometryReader { geo in
                 Color.clear
