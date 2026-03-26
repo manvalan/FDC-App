@@ -29,17 +29,18 @@ extension RailroadNetwork {
         let edges = network.edges
         var fixedCount = 0
         network.lines = network.lines.map { line in
-            let ordered = NetworkModel.buildOrderedPath(
-                through: line.nodeIds,
-                nodes: nodes,
-                edges: edges
-            )
             let duplicateCount = line.nodeIds.count
                 - Set(line.nodeIds).count
             if duplicateCount > 0 {
                 print("⚠️ [Migration] Line '\(line.name)' had" +
-                      " \(duplicateCount) duplicate node(s) removed")
+                      " \(duplicateCount) duplicate node(s) in saved data")
             }
+            let ordered = NetworkModel.buildOrderedPath(
+                through: line.nodeIds,
+                nodes: nodes,
+                edges: edges,
+                lineName: line.name
+            )
             guard ordered != line.nodeIds else { return line }
             fixedCount += 1
             var updated = line

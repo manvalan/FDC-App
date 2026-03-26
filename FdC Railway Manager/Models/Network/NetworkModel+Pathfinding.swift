@@ -193,27 +193,81 @@ extension NetworkModel {
         return total
     }
 
+    /// Identifies the two endpoint nodes of a railway line by computing
+    /// the degree of each node within the subgraph formed by the line's edges.
+    ///
+    /// Degree is counted as the number of **distinct neighbours** reachable
+    /// via edges whose both endpoints are in `nodeIds`. Paired directed edges
+    /// (A→B + B→A) collapse to a single neighbour entry because a `Set` is used.
+    ///
+    /// - Returns: `(capo1, capo2)` — the two nodes with degree == 1 —
+    ///   or `nil` if the line is circular, branching, or has fewer than 2 nodes.
+    static nonisolated func findLineEndpoints(
+        nodeIds: [String],
+        edges: [Edge]
+    ) -> (String, String)? {
+        let nodeSet = Set(nodeIds)
+        // Build neighbour sets restricted to nodes inside the line
+        var neighbors: [String: Set<String>] = [:]
+        for edge in edges
+        where nodeSet.contains(edge.from) && nodeSet.contains(edge.to) {
+            neighbors[edge.from, default: []].insert(edge.to)
+            neighbors[edge.to,   default: []].insert(edge.from)
+        }
+        let endpoints = nodeIds.filter { (neighbors[$0]?.count ?? 0) == 1 }
+        guard endpoints.count == 2 else { return nil }
+        return (endpoints[0], endpoints[1])
+    }
+
     /// Reconstructs an ordered, topologically valid node sequence for a line.
     ///
-    /// Given an unordered or partially-ordered list of node IDs (e.g. the
-    /// user's tap-selection order), iterates consecutive pairs and fills in
-    /// the shortest path between each pair via Dijkstra, including any
-    /// intermediate junction nodes not present in the original list.
+    /// Strategy (in order):
+    ///   1. Find the two endpoint nodes (degree-1 in the line subgraph).
+    ///   2. Run a single Dijkstra from capo1 to capo2.
+    ///   3. If the resulting path contains all original nodeIds, use it.
+    ///   4. Otherwise fall back to greedy pairwise Dijkstra for any
+    ///      missing nodes (rare: branching lines).
+    ///   5. If endpoints cannot be identified, fall back to greedy pairwise.
     ///
-    /// Idempotent: calling it on an already-ordered sequence returns the
-    /// same sequence unchanged.
-    ///
-    /// Fallback: if no path exists between a pair, the destination node is
-    /// appended at the current position without advancing distance — same
-    /// semantics as the gap-case in `LineProfilePoint.buildProfile`.
+    /// Idempotent: an already-ordered path returns the same path unchanged.
     ///
     /// - Returns: Ordered node IDs with intermediate junctions inserted.
     static nonisolated func buildOrderedPath(
         through nodeIds: [String],
         nodes: [Node],
-        edges: [Edge]
+        edges: [Edge],
+        lineName: String = ""           // used for debug logging only
     ) -> [String] {
         guard nodeIds.count >= 2 else { return nodeIds }
+
+        // -- Strategy 1: endpoint-to-endpoint Dijkstra --
+        if let (capo1, capo2) = findLineEndpoints(nodeIds: nodeIds, edges: edges) {
+            if !lineName.isEmpty {
+                print("🔍 [Migration] '\(lineName)' endpoints: \(capo1) → \(capo2)")
+            }
+            if let (path, _) = findShortestPath(
+                from: capo1, to: capo2, nodes: nodes, edges: edges
+            ) {
+                let nodeSet = Set(nodeIds)
+                if nodeSet.isSubset(of: Set(path)) {
+                    // All original nodes are on the path — done.
+                    if !lineName.isEmpty {
+                        print("🔄 [Migration] '\(lineName)' reordered via endpoints:" +
+                              " \(path.count) nodes")
+                    }
+                    return path
+                }
+                // Some nodes are missing from the backbone path:
+                // insert them via greedy pairwise.
+                let missing = nodeIds.filter { !Set(path).contains($0) }
+                if !lineName.isEmpty {
+                    print("⚠️ [Migration] '\(lineName)' missing \(missing.count)" +
+                          " node(s) from endpoint path — using greedy fallback")
+                }
+            }
+        }
+
+        // -- Strategy 2: greedy pairwise fallback --
         var result: [String] = [nodeIds[0]]
         for i in 0 ..< nodeIds.count - 1 {
             let current = nodeIds[i]
@@ -222,7 +276,6 @@ extension NetworkModel {
                 from: current, to: next,
                 nodes: nodes, edges: edges
             ) else {
-                // No path: append next directly (gap, distance unknown).
                 if result.last != next { result.append(next) }
                 continue
             }
@@ -230,9 +283,6 @@ extension NetworkModel {
                 if result.last != nodeId { result.append(nodeId) }
             }
         }
-        // Remove duplicates that arise from overlapping Dijkstra segments
-        // (e.g. A→C passes through B, then B→D backtracks over A or C).
-        // Keeps first occurrence; loops have no meaning on a railway line.
         var seen = Set<String>()
         return result.filter { seen.insert($0).inserted }
     }
