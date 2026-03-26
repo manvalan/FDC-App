@@ -36,6 +36,7 @@ struct LineProfileSheet: View {
             VStack(spacing: 0) {
                 chartRow
             }
+            .frame(maxHeight: .infinity, alignment: .top)
             .navigationTitle(line.name)
             .navigationBarTitleDisplayMode(.inline)
         }
