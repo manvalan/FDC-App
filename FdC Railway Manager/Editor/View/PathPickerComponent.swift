@@ -425,8 +425,13 @@ struct PathPickerComponent: View {
         func combineRecursive(segmentIdx: Int, currentPath: [String], currentDist: Double) {
             if segmentIdx == fullAlternatives.count {
                 if Set(currentPath).count == currentPath.count {
-                    let desc = (currentPath.first != nil && currentPath.last != nil) ? 
-                        "\(stationName(currentPath.first!)) → \(stationName(currentPath.last!))" : localize("multi_line_path")
+                    let desc: String
+                    if let first = currentPath.first,
+                       let last = currentPath.last {
+                        desc = "\(stationName(first)) → \(stationName(last))"
+                    } else {
+                        desc = localize("multi_line_path")
+                    }
                     combined.append((path: currentPath, distance: currentDist, description: desc))
                 }
                 return

@@ -21,7 +21,7 @@ extension NetworkModel {
         var node = nodes[index]
         if let lat = lat { node.latitude = lat }
         if let lon = lon { node.longitude = lon }
-        if let alt = alt { node.altitude = alt }
+        if let alt = alt { node.altitude = max(-500, min(8849, alt)) }
         nodes[index] = node
         
         // Spring Model: Recalculate distances for all connected edges

@@ -509,7 +509,7 @@ struct VerticalTrackDiagramView: View {
             }
         }
         
-        let edge = allMatches.first!
+        guard let edge = allMatches.first else { return nil }
         print("🟦 [EDGE] Using edge from '\(from)' to '\(to)': type=\(edge.trackType.rawValue), distance=\(edge.distance)km")
         return edge
     }

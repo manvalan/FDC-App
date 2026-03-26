@@ -148,7 +148,8 @@ private struct TrackControlPointRow: View {
     }
 
     private func commitAltitude() {
+        guard let val = Double(altitudeText) else { return }
         appState.railroad.network.createCheckpoint()
-        controlPoint.altitude = Double(altitudeText)
+        controlPoint.altitude = max(-500, min(8849, val))
     }
 }
