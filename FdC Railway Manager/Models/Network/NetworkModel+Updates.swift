@@ -4,6 +4,16 @@ import SwiftUI
 extension NetworkModel {
     // MARK: - Infrastructure Updates
     
+    /// Sets the altitude of a single TrackControlPoint on an edge.
+    /// Does not create a checkpoint — the caller must do so before the drag.
+    func updateControlPoint(edgeId: String, index: Int, altitude: Double) {
+        guard let uuid = UUID(uuidString: edgeId),
+              let idx = edges.firstIndex(where: { $0.id == uuid }),
+              index < edges[idx].controlPoints.count
+        else { return }
+        edges[idx].controlPoints[index].altitude = altitude
+    }
+
     func updateNode(_ id: String, lat: Double? = nil, lon: Double? = nil, alt: Double? = nil) {
         let (found, index) = findNodeIndex(id: id)
         guard found else { return }
