@@ -10,7 +10,7 @@ struct FerroviaInspectorView: View {
     var onBack: (() -> Void)?
     
     @State private var isEditingEnabled = true
-    @State private var isProfileExpanded = false
+    @State private var isShowingProfileSheet = false
     
     var body: some View {
         InspectorView(
@@ -121,7 +121,7 @@ struct FerroviaInspectorView: View {
             iconColor: .teal
         ) {
             if pts.count >= 2 {
-                profileChartContent
+                profileChart
             } else {
                 Text("Aggiungi almeno due stazioni con quota " +
                      "per visualizzare il profilo.")
@@ -130,47 +130,16 @@ struct FerroviaInspectorView: View {
         }
     }
 
-    private var profileChartContent: some View {
-        ZStack(alignment: .topTrailing) {
-            if isProfileExpanded {
-                expandedEditor
-            } else {
-                collapsedChart
-            }
-            if isProfileExpanded {
-                fineDismissButton
-            }
-        }
-        .animation(.easeInOut(duration: 0.25), value: isProfileExpanded)
-    }
-
-    private var expandedEditor: some View {
-        LineProfileEditorView(line: ferrovia)
-            .frame(height: 300)
-            .transition(.opacity)
-    }
-
-    private var collapsedChart: some View {
+    private var profileChart: some View {
         TrackAltitudeChart(profilePoints: ferroviaProfilePoints)
             .frame(height: 120)
             .background(Color(.systemGray6))
             .cornerRadius(8)
-            .transition(.opacity)
-            .onTapGesture {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    isProfileExpanded = true
-                }
+            .onTapGesture { isShowingProfileSheet = true }
+            .sheet(isPresented: $isShowingProfileSheet) {
+                LineProfileSheet(line: ferrovia)
+                    .environmentObject(appState)
             }
-    }
-
-    private var fineDismissButton: some View {
-        Button("Fine") {
-            withAnimation(.easeInOut(duration: 0.25)) {
-                isProfileExpanded = false
-            }
-        }
-        .font(.caption)
-        .padding(6)
     }
 
     /// Builds the altimetric profile via `LineProfilePoint.buildProfile`,
