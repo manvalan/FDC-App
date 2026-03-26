@@ -295,6 +295,7 @@ struct SchematicRailwayView: View {
                 scrollOffset = CGPoint(x: -origin.x, y: -origin.y)
             }
             .onAppear {
+                committedZoom = zoomLevel
                 proxy.scrollTo("networkCentroid", anchor: .center)
             }
         }
