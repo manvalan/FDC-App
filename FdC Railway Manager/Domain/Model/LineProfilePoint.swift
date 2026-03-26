@@ -103,8 +103,17 @@ public struct LineProfilePoint {
             guard let (edge, isReversed) = resolveEdge(
                 from: fromId, to: toId, edges: edges
             ) else {
-                // Gap in the graph: skip toNode — it will be appended as
-                // fromNode of the next segment, preserving cumDist.
+                // Gap in the graph: no edge found, distance unknown.
+                // Append toNode at current cumDist so it does not
+                // overlap the fromNode in the next iteration.
+                if !appendedNodeIds.contains(toId), let toNode {
+                    let isLast = i == nodeIds.count - 2
+                    result.append(
+                        nodePoint(toNode, dist: cumDist, isEndpoint: isLast,
+                                  edges: edges, allLines: allLines)
+                    )
+                    appendedNodeIds.insert(toId)
+                }
                 continue
             }
 
