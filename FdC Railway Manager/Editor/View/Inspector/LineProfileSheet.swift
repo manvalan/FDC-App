@@ -15,8 +15,11 @@ struct LineProfileSheet: View {
 
     // MARK: - Layout constants
 
-    private let canvasHeight: CGFloat = 280   // adjust after visual test
+    // canvasHeight is dynamic: updated by GeometryReader in body.
+    // 280 is the fallback before the first layout pass.
+    @State private var canvasHeight: CGFloat = 280
     private let yAxisWidth:   CGFloat = 44
+    private let headerHeight: CGFloat = 60   // nav bar + km label row
 
     // MARK: - State
 
@@ -37,6 +40,18 @@ struct LineProfileSheet: View {
                 chartRow
             }
             .frame(maxHeight: .infinity, alignment: .top)
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear {
+                            canvasHeight = max(
+                                geo.size.height - headerHeight, 100)
+                        }
+                        .onChange(of: geo.size.height) { _, h in
+                            canvasHeight = max(h - headerHeight, 100)
+                        }
+                }
+            )
             .navigationTitle(line.name)
             .navigationBarTitleDisplayMode(.inline)
         }
