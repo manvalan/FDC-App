@@ -10,6 +10,7 @@ struct FerroviaInspectorView: View {
     var onBack: (() -> Void)?
     
     @State private var isEditingEnabled = true
+    @State private var isProfileExpanded = false
     
     var body: some View {
         InspectorView(
@@ -110,7 +111,7 @@ struct FerroviaInspectorView: View {
         }
     }
     
-    // MARK: - Profilo altimetrico (read-only)
+    // MARK: - Profilo altimetrico
 
     private var altimetricProfileSection: some View {
         let pts = ferroviaProfilePoints
@@ -120,42 +121,69 @@ struct FerroviaInspectorView: View {
             iconColor: .teal
         ) {
             if pts.count >= 2 {
-                TrackAltitudeChart(profilePoints: pts)
-                    .frame(height: 80)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(8)
-                Text("Modifica le quote nei singoli inspector di binario.")
-                    .font(.caption).foregroundStyle(.secondary)
+                profileChartContent
             } else {
-                Text("Aggiungi almeno due stazioni con quota per visualizzare il profilo.")
+                Text("Aggiungi almeno due stazioni con quota " +
+                     "per visualizzare il profilo.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
     }
 
-    /// Concatenates the altitude profile of all edges along the ferrovia path.
-    private var ferroviaProfilePoints: [(distance: Double, altitude: Double)] {
-        let nodeIds = ferrovia.nodeIds
-        guard nodeIds.count >= 2 else { return [] }
-        var pts: [(Double, Double)] = []
-        var cumulativeDistance: Double = 0
-
-        for i in 0 ..< nodeIds.count - 1 {
-            let fromId = nodeIds[i]
-            let toId   = nodeIds[i + 1]
-            guard let fromNode = network.nodes.first(where: { $0.id == fromId }),
-                  let edge = network.edges.first(where: {
-                      ($0.from == fromId && $0.to == toId) ||
-                      ($0.from == toId   && $0.to == fromId)
-                  })
-            else { continue }
-
-            if pts.isEmpty { pts.append((0, fromNode.altitude ?? 0)) }
-            cumulativeDistance += edge.distance
-            let toNode = network.nodes.first { $0.id == toId }
-            pts.append((cumulativeDistance, toNode?.altitude ?? 0))
+    private var profileChartContent: some View {
+        ZStack(alignment: .topTrailing) {
+            if isProfileExpanded {
+                expandedEditor
+            } else {
+                collapsedChart
+            }
+            if isProfileExpanded {
+                fineDismissButton
+            }
         }
-        return pts
+        .animation(.easeInOut(duration: 0.25), value: isProfileExpanded)
+    }
+
+    private var expandedEditor: some View {
+        LineProfileEditorView(line: ferrovia)
+            .frame(height: 300)
+            .transition(.opacity)
+    }
+
+    private var collapsedChart: some View {
+        TrackAltitudeChart(profilePoints: ferroviaProfilePoints)
+            .frame(height: 120)
+            .background(Color(.systemGray6))
+            .cornerRadius(8)
+            .transition(.opacity)
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    isProfileExpanded = true
+                }
+            }
+    }
+
+    private var fineDismissButton: some View {
+        Button("Fine") {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                isProfileExpanded = false
+            }
+        }
+        .font(.caption)
+        .padding(6)
+    }
+
+    /// Builds the altimetric profile via `LineProfilePoint.buildProfile`,
+    /// including all TrackControlPoints — same source as the editable chart.
+    private var ferroviaProfilePoints: [(distance: Double, altitude: Double)] {
+        LineProfilePoint.buildProfile(
+            for: ferrovia,
+            nodes: network.nodes,
+            edges: network.edges,
+            allLines: network.lines
+        ).map { pt in
+            (distance: pt.distanceFromStart, altitude: pt.altitude)
+        }
     }
 
     private var actionsSection: some View {
