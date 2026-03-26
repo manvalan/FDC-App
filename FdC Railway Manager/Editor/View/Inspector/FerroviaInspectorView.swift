@@ -23,7 +23,7 @@ struct FerroviaInspectorView: View {
                 appState.showPanel(.none)
             }
         ) {
-            
+            duplicateNodesBanner
             basicInfoSection
             routeSection
             altimetricProfileSection
@@ -38,6 +38,25 @@ struct FerroviaInspectorView: View {
         }
     }
     
+    /// Safety-net banner: shown only when nodeIds still contains duplicates
+    /// (should never appear after migrateLineNodeOrdering runs at load time).
+    @ViewBuilder
+    private var duplicateNodesBanner: some View {
+        let duplicates = ferrovia.nodeIds.count - Set(ferrovia.nodeIds).count
+        if duplicates > 0 {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                Text("Percorso con \(duplicates) nodo/i duplicati — ricarica il file per correggere.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(10)
+            .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+            .padding(.horizontal)
+        }
+    }
+
     private var basicInfoSection: some View {
         InspectorSection(title: "basic_info".localized, icon: "info.circle.fill", iconColor: .blue) {
             VStack(alignment: .leading, spacing: 12) {

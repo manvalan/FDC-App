@@ -230,6 +230,10 @@ extension NetworkModel {
                 if result.last != nodeId { result.append(nodeId) }
             }
         }
-        return result
+        // Remove duplicates that arise from overlapping Dijkstra segments
+        // (e.g. A→C passes through B, then B→D backtracks over A or C).
+        // Keeps first occurrence; loops have no meaning on a railway line.
+        var seen = Set<String>()
+        return result.filter { seen.insert($0).inserted }
     }
 }

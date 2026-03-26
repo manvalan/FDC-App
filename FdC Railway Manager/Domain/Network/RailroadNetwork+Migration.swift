@@ -34,6 +34,12 @@ extension RailroadNetwork {
                 nodes: nodes,
                 edges: edges
             )
+            let duplicateCount = line.nodeIds.count
+                - Set(line.nodeIds).count
+            if duplicateCount > 0 {
+                print("⚠️ [Migration] Line '\(line.name)' had" +
+                      " \(duplicateCount) duplicate node(s) removed")
+            }
             guard ordered != line.nodeIds else { return line }
             fixedCount += 1
             var updated = line
