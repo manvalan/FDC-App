@@ -28,8 +28,6 @@ struct LineProfileSheet: View {
     @State private var dragActive = false
     @State private var pendingNodeAltitude: (nodeId: String, altitude: Double)?
     @State private var isShowingNodeAlert = false
-    @State private var pendingNodeName = ""
-    @State private var pendingConnectedCount = 0
 
     // MARK: - Body
 
@@ -56,10 +54,9 @@ struct LineProfileSheet: View {
     }
 
     private var nodeAlertMessage: some View {
-        Text("Stai modificando \(pendingNodeName). " +
-             "Questa stazione è collegata a " +
-             "\(pendingConnectedCount) binari. " +
-             "La modifica si applica a tutti.")
+        Text("Questa stazione è usata anche in altre linee. " +
+             "La modifica della quota si applicherà " +
+             "a tutte le linee che la includono.")
     }
 
     // MARK: - Chart layout
@@ -337,10 +334,14 @@ struct LineProfileSheet: View {
             if case .node(let id) = point.source { return id == nodeId }
             return false
         }) else { return }
-        pendingNodeAltitude   = (nodeId, altitude)
-        pendingNodeName       = pt.stationName ?? nodeId
-        pendingConnectedCount = pt.connectedEdgesCount
-        isShowingNodeAlert    = true
+        pendingNodeAltitude = (nodeId, altitude)
+        if pt.isShared {
+            isShowingNodeAlert = true
+        } else {
+            appState.railroad.network.updateNode(nodeId, alt: altitude)
+            pendingNodeAltitude = nil
+            rebuildProfile()
+        }
     }
 
     private func commitNodeAltitude() {
