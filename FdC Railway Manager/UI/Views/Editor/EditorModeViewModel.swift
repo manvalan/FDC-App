@@ -96,10 +96,17 @@ class EditorModeViewModel: ObservableObject {
     
     func createNewRailwayLine() {
         let count = appState.railroad.network.lines.count + 1
-        let nodeIds = appState.selectedNodeIdsOrder.isEmpty ? Array(appState.selectedNodeIds) : appState.selectedNodeIdsOrder
-        
+        let rawIds = appState.selectedNodeIdsOrder.isEmpty
+            ? Array(appState.selectedNodeIds)
+            : appState.selectedNodeIdsOrder
+        let nodeIds = NetworkModel.buildOrderedPath(
+            through: rawIds,
+            nodes: appState.railroad.network.nodes,
+            edges: appState.railroad.network.edges
+        )
+
         appState.railroad.network.createCheckpoint()
-        
+
         let newLine = RailwayLine(
             name: "Linea \(count)",
             color: ["#3498db", "#e74c3c", "#2ecc71", "#f39c12", "#9b59b6", "#1abc9c"][count % 6],
