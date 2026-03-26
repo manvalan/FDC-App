@@ -25,6 +25,11 @@ struct LineProfileSheet: View {
     @State private var availableWidth: CGFloat = 300
     @State private var scrollOffset: CGFloat = 0
     @State private var lastScale: CGFloat = 1.0
+    @State private var dragActive = false
+    @State private var pendingNodeAltitude: (nodeId: String, altitude: Double)?
+    @State private var isShowingNodeAlert = false
+    @State private var pendingNodeName = ""
+    @State private var pendingConnectedCount = 0
 
     // MARK: - Body
 
@@ -43,6 +48,18 @@ struct LineProfileSheet: View {
         .onChange(of: appState.railroad.network.edges) { _, _ in
             rebuildProfile()
         }
+        .alert("Modifica quota stazione",
+               isPresented: $isShowingNodeAlert) {
+            Button("Modifica") { commitNodeAltitude() }
+            Button("Annulla", role: .cancel) { cancelNodeAltitude() }
+        } message: { nodeAlertMessage }
+    }
+
+    private var nodeAlertMessage: some View {
+        Text("Stai modificando \(pendingNodeName). " +
+             "Questa stazione è collegata a " +
+             "\(pendingConnectedCount) binari. " +
+             "La modifica si applica a tutti.")
     }
 
     // MARK: - Chart layout
@@ -74,6 +91,7 @@ struct LineProfileSheet: View {
                 slopeBandsCanvas(mapping: mapping)
                 gridCanvas(mapping: mapping)
                 curveCanvas(mapping: mapping)
+                handlesLayer(mapping: mapping)
             }
             .frame(width: canvasWidth, height: canvasHeight)
             .background(Color(.systemBackground))
@@ -174,6 +192,150 @@ struct LineProfileSheet: View {
             fill.closeSubpath()
             ctx.fill(fill, with: .color(curveColor.opacity(0.12)))
         }
+    }
+
+    // MARK: - Handle layer
+
+    private func handlesLayer(mapping: ProfileMapping) -> some View {
+        ZStack {
+            ForEach(Array(profile.enumerated()), id: \.offset) { i, point in
+                pointHandle(point: point, index: i, mapping: mapping)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func pointHandle(
+        point: LineProfilePoint,
+        index: Int,
+        mapping: ProfileMapping
+    ) -> some View {
+        let alt = effectiveAlt(for: point)
+        let pos = mapping.screen(d: point.distanceFromStart, a: alt)
+        switch point.source {
+        case .node(let nodeId):
+            nodeHandle(nodeId: nodeId, pos: pos,
+                       isEndpoint: point.isEndpoint,
+                       isFirst: index == 0, mapping: mapping)
+        case .controlPoint(let edgeId, let cpIndex):
+            controlHandle(edgeId: edgeId, cpIndex: cpIndex,
+                          pos: pos, mapping: mapping)
+        }
+    }
+
+    private func effectiveAlt(for point: LineProfilePoint) -> Double {
+        guard case .node(let nodeId) = point.source,
+              let pending = pendingNodeAltitude,
+              pending.nodeId == nodeId
+        else { return point.altitude }
+        return pending.altitude
+    }
+
+    @ViewBuilder
+    private func nodeHandle(
+        nodeId: String,
+        pos: CGPoint,
+        isEndpoint: Bool,
+        isFirst: Bool,
+        mapping: ProfileMapping
+    ) -> some View {
+        if isEndpoint {
+            Circle()
+                .fill(isFirst ? Color.green : Color.red)
+                .frame(width: 14, height: 14)
+                .position(pos)
+        } else {
+            Circle()
+                .fill(Color.blue)
+                .frame(width: 20, height: 20)
+                .overlay(Circle().stroke(Color.white, lineWidth: 2.5))
+                .shadow(color: .black.opacity(0.25), radius: 3)
+                .position(pos)
+                .gesture(nodeDragGesture(nodeId: nodeId, mapping: mapping))
+        }
+    }
+
+    private func nodeDragGesture(
+        nodeId: String,
+        mapping: ProfileMapping
+    ) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                beginEditIfNeeded()
+                pendingNodeAltitude = (
+                    nodeId,
+                    mapping.altitude(fromY: value.location.y)
+                )
+            }
+            .onEnded { value in
+                dragActive = false
+                handleNodeDragEnd(
+                    nodeId: nodeId,
+                    altitude: mapping.altitude(fromY: value.location.y)
+                )
+            }
+    }
+
+    private func controlHandle(
+        edgeId: String,
+        cpIndex: Int,
+        pos: CGPoint,
+        mapping: ProfileMapping
+    ) -> some View {
+        Circle()
+            .fill(Color.orange)
+            .frame(width: 20, height: 20)
+            .overlay(Circle().stroke(Color.white, lineWidth: 2.5))
+            .shadow(color: .black.opacity(0.25), radius: 3)
+            .position(pos)
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        beginEditIfNeeded()
+                        let alt = mapping.altitude(fromY: value.location.y)
+                        appState.railroad.network.updateControlPoint(
+                            edgeId: edgeId, index: cpIndex, altitude: alt
+                        )
+                    }
+                    .onEnded { _ in dragActive = false }
+            )
+    }
+
+    // MARK: - Edit actions
+
+    /// Prevents double-checkpoint when two simultaneous gestures fire.
+    /// `guard` returns from this function only — the caller's `.onChanged`
+    /// continues normally after this call, updating pendingNodeAltitude or
+    /// writing the model.
+    private func beginEditIfNeeded() {
+        guard !dragActive else { return }
+        dragActive = true
+        appState.railroad.network.createCheckpoint()
+    }
+
+    private func handleNodeDragEnd(nodeId: String, altitude: Double) {
+        guard let pt = profile.first(where: { point in
+            if case .node(let id) = point.source { return id == nodeId }
+            return false
+        }) else { return }
+        pendingNodeAltitude   = (nodeId, altitude)
+        pendingNodeName       = pt.stationName ?? nodeId
+        pendingConnectedCount = pt.connectedEdgesCount
+        isShowingNodeAlert    = true
+    }
+
+    private func commitNodeAltitude() {
+        guard let pending = pendingNodeAltitude else { return }
+        appState.railroad.network.updateNode(pending.nodeId, alt: pending.altitude)
+        pendingNodeAltitude = nil
+        isShowingNodeAlert  = false
+        rebuildProfile()
+    }
+
+    private func cancelNodeAltitude() {
+        pendingNodeAltitude = nil
+        isShowingNodeAlert  = false
+        appState.railroad.discardLastCheckpoint()
     }
 
     // MARK: - Grid helpers
