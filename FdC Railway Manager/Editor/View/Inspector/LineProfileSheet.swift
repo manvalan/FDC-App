@@ -200,8 +200,27 @@ struct LineProfileSheet: View {
         ZStack {
             ForEach(Array(profile.enumerated()), id: \.offset) { i, point in
                 pointHandle(point: point, index: i, mapping: mapping)
+                if let name = point.stationName {
+                    stationLabel(name: name, point: point, mapping: mapping)
+                }
             }
         }
+    }
+
+    private func stationLabel(
+        name: String,
+        point: LineProfilePoint,
+        mapping: ProfileMapping
+    ) -> some View {
+        let alt = effectiveAlt(for: point)
+        let x   = mapping.screenX(d: point.distanceFromStart)
+        let y   = mapping.screenY(a: alt) + 16   // below handle centre
+        return Text(name)
+            .font(.system(size: 8))
+            .foregroundStyle(.secondary)
+            .fixedSize()
+            .rotationEffect(.degrees(-90), anchor: .topLeading)
+            .position(x: x, y: y)
     }
 
     @ViewBuilder
