@@ -57,6 +57,7 @@ struct LineProfileSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .presentationBackground(Color(.systemGroupedBackground))
         .onAppear { rebuildProfile() }
         .onChange(of: appState.railroad.network.edges) { _, _ in
             rebuildProfile()
@@ -431,11 +432,9 @@ struct LineProfileSheet: View {
     // MARK: - Grid helpers
 
     private func kmTicks(for mapping: ProfileMapping) -> [Double] {
+        guard mapping.totalDist > 1 else { return [] }
         let pixelsPerKm = mapping.canvasSize.width /
             max(mapping.totalDist, 0.001)
-        print("kmTicks: canvasWidth=\(mapping.canvasSize.width)" +
-              " totalDist=\(mapping.totalDist)" +
-              " pixelsPerKm=\(pixelsPerKm)")
         let step: Double
         switch pixelsPerKm {
         case ..<2:  step = 100
