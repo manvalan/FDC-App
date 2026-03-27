@@ -37,28 +37,9 @@ struct LineProfileSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 12) {
-                chartRow
-                legendRow
-            }
-            .frame(maxHeight: .infinity, alignment: .top)
-            .padding(.vertical, 8)
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .onAppear {
-                            // canvas ≈ 40% of available height, min 160pt
-                            canvasHeight = max(
-                                (geo.size.height - reservedHeight) * 0.40, 160)
-                        }
-                        .onChange(of: geo.size.height) { _, h in
-                            canvasHeight = max(
-                                (h - reservedHeight) * 0.40, 160)
-                        }
-                }
-            )
-            .navigationTitle(line.name)
-            .navigationBarTitleDisplayMode(.inline)
+            sizedContent
+                .navigationTitle(line.name)
+                .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
@@ -71,6 +52,39 @@ struct LineProfileSheet: View {
             Button("Modifica") { commitNodeAltitude() }
             Button("Annulla", role: .cancel) { cancelNodeAltitude() }
         } message: { nodeAlertMessage }
+    }
+
+    /// GeometryReader fills the full sheet area so canvasHeight is
+    /// computed from the real available height; the content sits at top.
+    private var sizedContent: some View {
+        GeometryReader { geo in
+            sheetContent
+                .onAppear {
+                    canvasHeight = max(
+                        (geo.size.height - reservedHeight) * 0.40, 160)
+                }
+                .onChange(of: geo.size.height) { _, h in
+                    canvasHeight = max(
+                        (h - reservedHeight) * 0.40, 160)
+                }
+        }
+    }
+
+    /// chartRow + legend inside a single rounded container.
+    /// No .frame(maxHeight: .infinity) — dark space below is the sheet bg.
+    private var sheetContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            chartRow
+            Divider()
+            legendRow
+                .padding(.vertical, 8)
+        }
+        .background(
+            Color(.secondarySystemGroupedBackground),
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+        .padding(.horizontal, 8)
+        .padding(.top, 8)
     }
 
     private var nodeAlertMessage: some View {
@@ -100,9 +114,6 @@ struct LineProfileSheet: View {
                     }
             }
         )
-        .background(Color(.secondarySystemGroupedBackground))
-        .cornerRadius(12)
-        .padding(.horizontal, 4)
     }
 
     private func scrollableCanvas(mapping: ProfileMapping) -> some View {
@@ -117,6 +128,7 @@ struct LineProfileSheet: View {
             .background(Color(.systemBackground))
             .background(scrollOffsetTracker)
         }
+        .defaultScrollAnchor(.leading)
         .coordinateSpace(name: "profileScroll")
         .onPreferenceChange(ScrollOffsetKey.self) { scrollOffset = $0 }
         .simultaneousGesture(pinchGesture)
@@ -324,20 +336,19 @@ struct LineProfileSheet: View {
         isFirst: Bool,
         mapping: ProfileMapping
     ) -> some View {
-        if isEndpoint {
-            Circle()
-                .fill(isFirst ? Color.green : Color.red)
-                .frame(width: 14, height: 14)
-                .position(pos)
-        } else {
-            Circle()
-                .fill(Color.blue)
-                .frame(width: 20, height: 20)
-                .overlay(Circle().stroke(Color.white, lineWidth: 2.5))
-                .shadow(color: .black.opacity(0.25), radius: 3)
-                .position(pos)
-                .gesture(nodeDragGesture(nodeId: nodeId, mapping: mapping))
-        }
+        let color: Color = isEndpoint ? (isFirst ? .green : .red) : .blue
+        let size: CGFloat = isEndpoint ? 14 : 20
+        Circle()
+            .fill(color)
+            .frame(width: size, height: size)
+            .overlay {
+                if !isEndpoint {
+                    Circle().stroke(Color.white, lineWidth: 2.5)
+                }
+            }
+            .shadow(color: .black.opacity(0.25), radius: 3)
+            .position(pos)
+            .gesture(nodeDragGesture(nodeId: nodeId, mapping: mapping))
     }
 
     private func nodeDragGesture(
