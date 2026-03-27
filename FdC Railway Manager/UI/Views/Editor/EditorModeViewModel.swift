@@ -5,6 +5,7 @@ import CoreLocation
 @MainActor
 class EditorModeViewModel: ObservableObject {
     @Published var appState: AppState
+    @Published var errorMessage: String? = nil
     
     private var cancellables = Set<AnyCancellable>()
     
@@ -95,21 +96,30 @@ class EditorModeViewModel: ObservableObject {
     }
     
     func createNewRailwayLine() {
-        let count = appState.railroad.network.lines.count + 1
         let rawIds = appState.selectedNodeIdsOrder.isEmpty
             ? Array(appState.selectedNodeIds)
             : appState.selectedNodeIdsOrder
-        let nodeIds = NetworkModel.buildOrderedPath(
+        switch NetworkModel.resolveLinePath(
             through: rawIds,
             nodes: appState.railroad.network.nodes,
             edges: appState.railroad.network.edges
-        )
+        ) {
+        case .success(let path):
+            commitNewLine(nodeIds: path)
+        case .failure(let error):
+            errorMessage = linePathErrorMessage(error)
+        }
+    }
 
+    private func commitNewLine(nodeIds: [String]) {
+        let count = appState.railroad.network.lines.count + 1
         appState.railroad.network.createCheckpoint()
-
         let newLine = RailwayLine(
             name: "Linea \(count)",
-            color: ["#3498db", "#e74c3c", "#2ecc71", "#f39c12", "#9b59b6", "#1abc9c"][count % 6],
+            color: [
+                "#3498db", "#e74c3c", "#2ecc71",
+                "#f39c12", "#9b59b6", "#1abc9c"
+            ][count % 6],
             nodeIds: nodeIds
         )
         appState.railroad.network.lines.append(newLine)
@@ -117,6 +127,24 @@ class EditorModeViewModel: ObservableObject {
         appState.selectedNodeIds = Set(newLine.nodeIds)
         appState.selectedNodeIdsOrder = Array(newLine.nodeIds)
         appState.isMultiSelectMode = false
+    }
+
+    private func linePathErrorMessage(_ error: LinePathError) -> String {
+        switch error {
+        case .tooFewNodes:
+            return "Seleziona almeno due stazioni."
+        case .noEndpointsFound:
+            return "Impossibile determinare le estremità della linea. " +
+                   "Assicurati che le stazioni selezionate formino " +
+                   "un percorso lineare senza diramazioni."
+        case .pathNotFound:
+            return "Le stazioni selezionate non sono collegate da " +
+                   "binari continui. Verifica che esista un percorso " +
+                   "infrastrutturale tra tutte le stazioni."
+        case .pathMissingNodes(let names):
+            return "Il percorso trovato non include tutte le stazioni " +
+                   "selezionate: \(names.joined(separator: ", "))."
+        }
     }
     
     func deleteSelectedItems() {
