@@ -37,23 +37,23 @@ struct LineProfileSheet: View {
 
     var body: some View {
         NavigationStack {
-            sheetContent
-                .overlay(
-                    GeometryReader { geo in
-                        Color.clear
-                            .onAppear {
-                                canvasHeight = max(
-                                    (geo.size.height - reservedHeight)
-                                        * 0.40, 160)
-                            }
-                            .onChange(of: geo.size.height) { _, h in
-                                canvasHeight = max(
-                                    (h - reservedHeight) * 0.40, 160)
-                            }
-                    }
-                )
-                .navigationTitle(line.name)
-                .navigationBarTitleDisplayMode(.inline)
+            ZStack(alignment: .top) {
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear {
+                            canvasHeight = max(
+                                (geo.size.height - reservedHeight) * 0.40,
+                                160)
+                        }
+                        .onChange(of: geo.size.height) { _, h in
+                            canvasHeight = max(
+                                (h - reservedHeight) * 0.40, 160)
+                        }
+                }
+                sheetContent
+            }
+            .navigationTitle(line.name)
+            .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
