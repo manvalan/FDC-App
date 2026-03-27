@@ -37,7 +37,21 @@ struct LineProfileSheet: View {
 
     var body: some View {
         NavigationStack {
-            sizedContent
+            sheetContent
+                .overlay(
+                    GeometryReader { geo in
+                        Color.clear
+                            .onAppear {
+                                canvasHeight = max(
+                                    (geo.size.height - reservedHeight)
+                                        * 0.40, 160)
+                            }
+                            .onChange(of: geo.size.height) { _, h in
+                                canvasHeight = max(
+                                    (h - reservedHeight) * 0.40, 160)
+                            }
+                    }
+                )
                 .navigationTitle(line.name)
                 .navigationBarTitleDisplayMode(.inline)
         }
@@ -52,22 +66,6 @@ struct LineProfileSheet: View {
             Button("Modifica") { commitNodeAltitude() }
             Button("Annulla", role: .cancel) { cancelNodeAltitude() }
         } message: { nodeAlertMessage }
-    }
-
-    /// GeometryReader fills the full sheet area so canvasHeight is
-    /// computed from the real available height; the content sits at top.
-    private var sizedContent: some View {
-        GeometryReader { geo in
-            sheetContent
-                .onAppear {
-                    canvasHeight = max(
-                        (geo.size.height - reservedHeight) * 0.40, 160)
-                }
-                .onChange(of: geo.size.height) { _, h in
-                    canvasHeight = max(
-                        (h - reservedHeight) * 0.40, 160)
-                }
-        }
     }
 
     /// chartRow + legend inside a single rounded container.
@@ -260,14 +258,6 @@ struct LineProfileSheet: View {
                                                  a: pt.altitude))
             }
             ctx.stroke(path, with: .color(curveColor), lineWidth: 2)
-            var fill = path
-            // JUSTIFY: .last! safe — guarded by count >= 2 above
-            fill.addLine(to: mapping.screen(d: pts.last!.distanceFromStart,
-                                             a: mapping.minAlt))
-            fill.addLine(to: mapping.screen(d: pts[0].distanceFromStart,
-                                             a: mapping.minAlt))
-            fill.closeSubpath()
-            ctx.fill(fill, with: .color(curveColor.opacity(0.12)))
         }
     }
 
@@ -443,6 +433,9 @@ struct LineProfileSheet: View {
     private func kmTicks(for mapping: ProfileMapping) -> [Double] {
         let pixelsPerKm = mapping.canvasSize.width /
             max(mapping.totalDist, 0.001)
+        print("kmTicks: canvasWidth=\(mapping.canvasSize.width)" +
+              " totalDist=\(mapping.totalDist)" +
+              " pixelsPerKm=\(pixelsPerKm)")
         let step: Double
         switch pixelsPerKm {
         case ..<2:  step = 100
