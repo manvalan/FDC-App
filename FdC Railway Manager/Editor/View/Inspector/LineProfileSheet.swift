@@ -77,7 +77,7 @@ struct LineProfileSheet: View {
             chartRow
             Divider()
             legendRow
-                .padding(.vertical, 8)
+                .padding(.top, 8)
         }
         .background(
             Color(.secondarySystemGroupedBackground),
@@ -441,12 +441,14 @@ struct LineProfileSheet: View {
     // MARK: - Grid helpers
 
     private func kmTicks(for mapping: ProfileMapping) -> [Double] {
+        let pixelsPerKm = mapping.canvasSize.width /
+            max(mapping.totalDist, 0.001)
         let step: Double
-        switch zoomX {
-        case ..<1.5: step = 50
-        case ..<3.0: step = 20
-        case ..<6.0: step = 10
-        default:     step = 5
+        switch pixelsPerKm {
+        case ..<2:  step = 100
+        case ..<5:  step = 50
+        case ..<10: step = 20
+        default:    step = 10
         }
         let count = Int(mapping.totalDist / step) + 1
         return (0...count).map { Double($0) * step }
