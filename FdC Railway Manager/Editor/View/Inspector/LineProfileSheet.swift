@@ -15,12 +15,13 @@ struct LineProfileSheet: View {
 
     // MARK: - Layout constants
 
-    // canvasHeight is dynamic: updated by GeometryReader in body.
-    // 220 is the fallback before the first layout pass.
-    @State private var canvasHeight: CGFloat = 220
-    private let yAxisWidth:    CGFloat = 44
-    // nav bar (~44) + drag indicator (~20) + legend row (~70) + padding (~16)
-    private let reservedHeight: CGFloat = 150
+    private let yAxisWidth: CGFloat = 44
+
+    // sheet .large ~92 % of screen; subtract navBar + legend + padding
+    private var canvasHeight: CGFloat {
+        let available = UIScreen.main.bounds.height * 0.92 - 130
+        return max(available * 0.45, 180)
+    }
 
     // MARK: - State
 
@@ -37,21 +38,17 @@ struct LineProfileSheet: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .top) {
-                GeometryReader { geo in
-                    Color.clear
-                        .onAppear {
-                            canvasHeight = max(
-                                (geo.size.height - reservedHeight) * 0.40,
-                                160)
-                        }
-                        .onChange(of: geo.size.height) { _, h in
-                            canvasHeight = max(
-                                (h - reservedHeight) * 0.40, 160)
-                        }
-                }
-                sheetContent
+            VStack(alignment: .leading, spacing: 0) {
+                chartRow
+                Divider()
+                legendRow.padding(.top, 8)
             }
+            .background(
+                Color(.secondarySystemGroupedBackground),
+                in: RoundedRectangle(cornerRadius: 12)
+            )
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
             .navigationTitle(line.name)
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -67,23 +64,6 @@ struct LineProfileSheet: View {
             Button("Modifica") { commitNodeAltitude() }
             Button("Annulla", role: .cancel) { cancelNodeAltitude() }
         } message: { nodeAlertMessage }
-    }
-
-    /// chartRow + legend inside a single rounded container.
-    /// No .frame(maxHeight: .infinity) — dark space below is the sheet bg.
-    private var sheetContent: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            chartRow
-            Divider()
-            legendRow
-                .padding(.top, 8)
-        }
-        .background(
-            Color(.secondarySystemGroupedBackground),
-            in: RoundedRectangle(cornerRadius: 12)
-        )
-        .padding(.horizontal, 8)
-        .padding(.top, 8)
     }
 
     private var nodeAlertMessage: some View {
