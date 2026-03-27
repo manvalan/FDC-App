@@ -47,13 +47,13 @@ struct LineProfileSheet: View {
                 GeometryReader { geo in
                     Color.clear
                         .onAppear {
-                            // canvas ≈ 55% of available height, min 160pt
+                            // canvas ≈ 40% of available height, min 160pt
                             canvasHeight = max(
-                                (geo.size.height - reservedHeight) * 0.55, 160)
+                                (geo.size.height - reservedHeight) * 0.40, 160)
                         }
                         .onChange(of: geo.size.height) { _, h in
                             canvasHeight = max(
-                                (h - reservedHeight) * 0.55, 160)
+                                (h - reservedHeight) * 0.40, 160)
                         }
                 }
             )
@@ -100,6 +100,9 @@ struct LineProfileSheet: View {
                     }
             }
         )
+        .background(Color(.secondarySystemGroupedBackground))
+        .cornerRadius(12)
+        .padding(.horizontal, 4)
     }
 
     private func scrollableCanvas(mapping: ProfileMapping) -> some View {
@@ -126,7 +129,7 @@ struct LineProfileSheet: View {
         return VStack(alignment: .leading, spacing: 6) {
             Text("Pendenza limite: \(Int(limit))‰  (\(line.electrification.rawValue))")
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color(.secondaryLabel))
             HStack(spacing: 16) {
                 legendItem(color: .red.opacity(0.35),
                            symbol: "square.fill",
@@ -158,7 +161,7 @@ struct LineProfileSheet: View {
                 .foregroundStyle(color)
             Text(label)
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color(.secondaryLabel))
         }
     }
 
@@ -198,7 +201,7 @@ struct LineProfileSheet: View {
                 let x2 = mapping.screenX(d: p2.distanceFromStart)
                 let r  = CGRect(x: x1, y: 0,
                                 width: x2 - x1, height: mapping.canvasSize.height)
-                ctx.fill(Path(r), with: .color(.red.opacity(0.15)))
+                ctx.fill(Path(r), with: .color(Color(.systemRed).opacity(0.15)))
             }
         }
     }
@@ -213,17 +216,19 @@ struct LineProfileSheet: View {
                 var p = Path()
                 p.move(to: CGPoint(x: 0, y: y))
                 p.addLine(to: CGPoint(x: mapping.canvasSize.width, y: y))
-                ctx.stroke(p, with: .color(.gray.opacity(0.25)), lineWidth: 0.5)
+                ctx.stroke(p, with: .color(Color(.separator).opacity(0.3)),
+                           lineWidth: 0.5)
             }
             for km in kmTicks {
                 let x = mapping.screenX(d: km)
                 var p = Path()
                 p.move(to: CGPoint(x: x, y: 0))
                 p.addLine(to: CGPoint(x: x, y: mapping.canvasSize.height))
-                ctx.stroke(p, with: .color(.gray.opacity(0.2)), lineWidth: 0.5)
+                ctx.stroke(p, with: .color(Color(.separator).opacity(0.3)),
+                           lineWidth: 0.5)
                 let label = Text("\(Int(km))km")
                     .font(.system(size: 8))
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(Color(.secondaryLabel))
                 ctx.draw(label, at: CGPoint(x: x + 2, y: 4), anchor: .topLeading)
             }
         }
