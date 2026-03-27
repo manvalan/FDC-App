@@ -1,5 +1,12 @@
 import Foundation
 
+enum LinePathError: Error {
+    case tooFewNodes
+    case noEndpointsFound
+    case pathNotFound
+    case pathMissingNodes([String])
+}
+
 extension NetworkModel {
     // MARK: - Pathfinding logic
     
@@ -285,5 +292,41 @@ extension NetworkModel {
         }
         var seen = Set<String>()
         return result.filter { seen.insert($0).inserted }
+    }
+
+    // MARK: - resolveLinePath
+
+    /// Resolves the ordered physical path for a railway line.
+    ///
+    /// - Step 1: Find the two degree-1 endpoints in the selected-node subgraph.
+    /// - Step 2: Run undirected Dijkstra between them.
+    /// - Step 3: Verify all selected nodes appear in the resulting path.
+    ///
+    /// Intermediate junction nodes are included automatically.
+    static nonisolated func resolveLinePath(
+        through selectedNodeIds: [String],
+        nodes: [Node],
+        edges: [Edge]
+    ) -> Result<[String], LinePathError> {
+        guard selectedNodeIds.count >= 2 else {
+            return .failure(.tooFewNodes)
+        }
+        guard let (start, end) = findLineEndpoints(
+            nodeIds: selectedNodeIds, edges: edges
+        ) else {
+            return .failure(.noEndpointsFound)
+        }
+        guard let (path, _) = findShortestPath(
+            from: start, to: end,
+            nodes: nodes, edges: edges,
+            ignoreDirection: true
+        ) else {
+            return .failure(.pathNotFound)
+        }
+        let missing = Set(selectedNodeIds).subtracting(Set(path))
+        guard missing.isEmpty else {
+            return .failure(.pathMissingNodes(Array(missing)))
+        }
+        return .success(path)
     }
 }

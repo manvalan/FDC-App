@@ -17,8 +17,7 @@ extension RailroadNetwork {
     }
 
     /// Ensures every RailwayLine's nodeIds follows the actual graph topology,
-    /// inserting any intermediate junction nodes that Dijkstra finds between
-    /// consecutive entries.
+    /// inserting any intermediate junction nodes found by Dijkstra.
     ///
     /// Idempotent: a line whose nodeIds already form a valid ordered path
     /// produces the same output on repeated calls.
@@ -29,26 +28,36 @@ extension RailroadNetwork {
         let edges = network.edges
         var fixedCount = 0
         network.lines = network.lines.map { line in
-            let duplicateCount = line.nodeIds.count
-                - Set(line.nodeIds).count
-            if duplicateCount > 0 {
-                print("⚠️ [Migration] Line '\(line.name)' had" +
-                      " \(duplicateCount) duplicate node(s) in saved data")
-            }
-            let ordered = NetworkModel.buildOrderedPath(
+            logDuplicatesIfNeeded(in: line)
+            switch NetworkModel.resolveLinePath(
                 through: line.nodeIds,
                 nodes: nodes,
-                edges: edges,
-                lineName: line.name
-            )
-            guard ordered != line.nodeIds else { return line }
-            fixedCount += 1
-            var updated = line
-            updated.nodeIds = ordered
-            return updated
+                edges: edges
+            ) {
+            case .success(let path) where path != line.nodeIds:
+                fixedCount += 1
+                print("🔄 [Migration] '\(line.name)' reordered:" +
+                      " \(line.nodeIds.count) → \(path.count) nodes")
+                var updated = line
+                updated.nodeIds = path
+                return updated
+            case .success:
+                return line
+            case .failure(let error):
+                print("⚠️ [Migration] '\(line.name)'" +
+                      " not correctable: \(error)")
+                return line
+            }
         }
         if fixedCount > 0 {
             print("🔄 [Migration] \(fixedCount) line(s) had node ordering fixed")
         }
+    }
+
+    private func logDuplicatesIfNeeded(in line: RailwayLine) {
+        let duplicateCount = line.nodeIds.count - Set(line.nodeIds).count
+        guard duplicateCount > 0 else { return }
+        print("⚠️ [Migration] Line '\(line.name)' had" +
+              " \(duplicateCount) duplicate node(s) in saved data")
     }
 }
