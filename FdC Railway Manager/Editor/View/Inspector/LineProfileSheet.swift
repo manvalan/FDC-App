@@ -44,6 +44,7 @@ struct LineProfileSheet: View {
                     Divider()
                     legendRow.padding(.top, 8)
                 }
+                .fixedSize(horizontal: false, vertical: true)
                 .background(
                     Color(.secondarySystemGroupedBackground),
                     in: RoundedRectangle(cornerRadius: 12)
@@ -450,7 +451,6 @@ struct LineProfileSheet: View {
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 2)
-                    .background(Color(.systemBackground))
                     .position(
                         x: yAxisWidth / 2,
                         y: mapping.screenY(a: Double(alt))
@@ -458,7 +458,7 @@ struct LineProfileSheet: View {
             }
         }
         .frame(width: yAxisWidth, height: canvasHeight)
-        .clipped()
+        .background(Color(.systemBackground))
     }
 
     private func altitudeTicks(for mapping: ProfileMapping) -> [Int] {
