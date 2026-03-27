@@ -20,7 +20,7 @@ struct LineProfileSheet: View {
     // sheet .large ~92 % of screen; subtract navBar + legend + padding
     private var canvasHeight: CGFloat {
         let available = UIScreen.main.bounds.height * 0.92 - 130
-        return max(available * 0.45, 180)
+        return max(available * 0.55, 180)
     }
 
     // MARK: - State
@@ -38,17 +38,20 @@ struct LineProfileSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 0) {
-                chartRow
-                Divider()
-                legendRow.padding(.top, 8)
+            VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
+                    chartRow
+                    Divider()
+                    legendRow.padding(.top, 8)
+                }
+                .background(
+                    Color(.secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: 12)
+                )
+                .padding(.horizontal, 8)
+                .padding(.top, 4)
+                Spacer()
             }
-            .background(
-                Color(.secondarySystemGroupedBackground),
-                in: RoundedRectangle(cornerRadius: 12)
-            )
-            .padding(.horizontal, 8)
-            .padding(.top, 8)
             .navigationTitle(line.name)
             .navigationBarTitleDisplayMode(.inline)
         }
