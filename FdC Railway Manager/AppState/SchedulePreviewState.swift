@@ -24,7 +24,7 @@ final class SchedulePreviewState: ObservableObject {
     @Published var trains: [RailwayTrain]? = nil
     @Published var route: TrainRoute? = nil
     @Published var mode: ScheduleMode = .single
-    var selectedModel: TrainModel? = nil
+    @Published var selectedModel: TrainModel? = nil
     @Published var optimizeVehicles: Bool = true
     @Published var minTurnaroundTime: Int = 15
     @Published var optimizedTimesData: OptimizedTimesPreviewData? = nil
@@ -33,3 +33,4 @@ final class SchedulePreviewState: ObservableObject {
     /// Incremented to force `ScheduleCreationView` recreation after preview acceptance.
     @Published var refreshId: Int = 0
 }
+
