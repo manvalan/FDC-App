@@ -17,10 +17,15 @@ struct LineProfileSheet: View {
 
     private let yAxisWidth: CGFloat = 44
 
-    // sheet .large ~92 % of screen; subtract navBar + legend + padding
+    // Populated by a GeometryReader on NavigationStack; avoids UIScreen.main
+    // (deprecated in iOS 16 and incorrect in iPad split view).
+    @State private var sheetHeight: CGFloat = 0
+
     private var canvasHeight: CGFloat {
-        let available = UIScreen.main.bounds.height * 0.92 - 130
-        return max(available * 0.55, 180)
+        guard sheetHeight > 0 else { return 300 }
+        // sheetHeight = NavigationStack total height (incl. nav bar).
+        // Subtract nav bar (~44) + legend row (~86) = 130.
+        return max((sheetHeight - 130) * 0.55, 180)
     }
 
     // MARK: - State
@@ -32,30 +37,35 @@ struct LineProfileSheet: View {
     @State private var lastScale: CGFloat = 1.0
     @State private var dragActive = false
     @State private var pendingNodeAltitude: (nodeId: String, altitude: Double)?
+    @State private var pendingControlPoint: (edgeId: String, cpIndex: Int, altitude: Double)?
     @State private var isShowingNodeAlert = false
 
     // MARK: - Body
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 0) {
-                    chartRow
-                    Divider()
-                    legendRow.padding(.top, 8)
-                }
-                .fixedSize(horizontal: false, vertical: true)
-                .background(
-                    Color(.secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: 12)
-                )
-                .padding(.horizontal, 8)
-                .padding(.top, 4)
-                Spacer()
+            VStack(alignment: .leading, spacing: 0) {
+                chartRow
+                Divider()
+                legendRow.padding(.top, 8).padding(.bottom, 12)
             }
+            .background(
+                Color(.secondarySystemGroupedBackground),
+                in: RoundedRectangle(cornerRadius: 12)
+            )
+            .padding(.horizontal, 8)
+            .padding(.top, 4)
+            .frame(maxHeight: .infinity, alignment: .top)
             .navigationTitle(line.name)
             .navigationBarTitleDisplayMode(.inline)
         }
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { sheetHeight = geo.size.height }
+                    .onChange(of: geo.size.height) { _, h in sheetHeight = h }
+            }
+        )
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Color(.systemGroupedBackground))
@@ -109,6 +119,7 @@ struct LineProfileSheet: View {
             }
             .frame(width: canvasWidth, height: canvasHeight)
             .background(Color(.systemBackground))
+            .padding(.horizontal, 10)
             .background(scrollOffsetTracker)
         }
         .defaultScrollAnchor(.leading)
@@ -250,7 +261,7 @@ struct LineProfileSheet: View {
 
     private func handlesLayer(mapping: ProfileMapping) -> some View {
         ZStack {
-            ForEach(Array(profile.enumerated()), id: \.offset) { i, point in
+            ForEach(Array(profile.enumerated()), id: \.element.source.stableId) { i, point in
                 pointHandle(point: point, index: i, mapping: mapping)
                 if let name = point.stationName {
                     stationLabel(name: name, point: point, mapping: mapping)
@@ -296,11 +307,18 @@ struct LineProfileSheet: View {
     }
 
     private func effectiveAlt(for point: LineProfilePoint) -> Double {
-        guard case .node(let nodeId) = point.source,
-              let pending = pendingNodeAltitude,
-              pending.nodeId == nodeId
-        else { return point.altitude }
-        return pending.altitude
+        switch point.source {
+        case .node(let nodeId):
+            guard let pending = pendingNodeAltitude,
+                  pending.nodeId == nodeId
+            else { return point.altitude }
+            return pending.altitude
+        case .controlPoint(let edgeId, let index):
+            guard let pending = pendingControlPoint,
+                  pending.edgeId == edgeId, pending.cpIndex == index
+            else { return point.altitude }
+            return pending.altitude
+        }
     }
 
     @ViewBuilder
@@ -364,11 +382,19 @@ struct LineProfileSheet: View {
                     .onChanged { value in
                         beginEditIfNeeded()
                         let alt = mapping.altitude(fromY: value.location.y)
-                        appState.railroad.network.updateControlPoint(
-                            edgeId: edgeId, index: cpIndex, altitude: alt
-                        )
+                        pendingControlPoint = (edgeId, cpIndex, alt)
                     }
-                    .onEnded { _ in dragActive = false }
+                    .onEnded { _ in
+                        dragActive = false
+                        guard let pending = pendingControlPoint else { return }
+                        appState.railroad.network.updateControlPoint(
+                            edgeId: pending.edgeId,
+                            index: pending.cpIndex,
+                            altitude: pending.altitude
+                        )
+                        pendingControlPoint = nil
+                        rebuildProfile()
+                    }
             )
     }
 
@@ -573,6 +599,19 @@ struct LineProfileSheet: View {
             edges: net.edges,
             allLines: net.lines
         )
+    }
+}
+
+// MARK: - Stable ID for ForEach identity
+
+private extension LineProfilePoint.Source {
+    var stableId: String {
+        switch self {
+        case .node(let nodeId):
+            return "node_\(nodeId)"
+        case .controlPoint(let edgeId, let index):
+            return "cp_\(edgeId)_\(index)"
+        }
     }
 }
 
