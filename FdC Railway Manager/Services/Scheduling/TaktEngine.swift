@@ -1,44 +1,46 @@
 import Foundation
+import FDCDomain
 
 /// Risultato diagnostico per il posizionamento Takt di un singolo treno.
-struct TaktDiagnosticEntry: Identifiable {
-    let id: UUID
-    let trainName: String
-    let trainNumber: Int?
-    let isMainTrain: Bool
-    let hubArrival: Date?
-    let hubDeparture: Date?
-    let taktMinute: Int
-    let deltaFromTaktMinute: Double
-    let hubStationName: String
+public struct TaktDiagnosticEntry: Identifiable {
+    public let id: UUID
+    public let trainName: String
+    public let trainNumber: Int?
+    public let isMainTrain: Bool
+    public let hubArrival: Date?
+    public let hubDeparture: Date?
+    public let taktMinute: Int
+    public let deltaFromTaktMinute: Double
+    public let hubStationName: String
 
-    enum Status: String {
+    public enum Status: String {
         case ok = "✅ OK"
         case warning = "⚠️ Marginale"
         case conflict = "❌ Conflitto"
         case noHub = "⏭️ No Hub"
     }
-    let status: Status
-    let suggestion: String?
-    let overlapsMainTrain: Bool
+    public let status: Status
+    public let suggestion: String?
+    public let overlapsMainTrain: Bool
 }
 
 /// Motore dedicato alla logica di allineamento Taktfahrplan e diagnostica.
-struct TaktEngine {
-    let topology: RailwayTopology
+public struct TaktEngine {
+    public let topology: RailwayTopology
     private let kinematicCalculator: KinematicCalculator
+    let travelTimeCalculator: TrainTravelTimeCalculating
 
-    init(topology: RailwayTopology, kinematicCalculator: KinematicCalculator) {
+    public init(
+        topology: RailwayTopology,
+        kinematicCalculator: KinematicCalculator,
+        travelTimeCalculator: TrainTravelTimeCalculating
+    ) {
         self.topology = topology
         self.kinematicCalculator = kinematicCalculator
+        self.travelTimeCalculator = travelTimeCalculator
     }
 
-    init(network: NetworkModel, kinematicCalculator: KinematicCalculator) {
-        self.topology = RailwayTopology(nodes: network.nodes, edges: network.edges)
-        self.kinematicCalculator = kinematicCalculator
-    }
-
-    func calculateAlignedStartTime(
+    public func calculateAlignedStartTime(
         startTime: Date,
         stationSequence: [String],
         taktStationId: String,
@@ -74,7 +76,7 @@ struct TaktEngine {
         return Calendar.current.date(from: comps)
     }
 
-    func findFirstTaktStation(in sequence: [String]) -> (String, Int)? {
+    public func findFirstTaktStation(in sequence: [String]) -> (String, Int)? {
         for sid in sequence {
             if let node = topology.node(id: sid),
                let takt = node.taktMinutes {
@@ -84,7 +86,7 @@ struct TaktEngine {
         return nil
     }
 
-    func calculateTaktSuggestions(
+    public func calculateTaktSuggestions(
         stationSequence: [String]
     ) -> [(stationId: String, stationName: String, taktMinute: Int, suggestedArrival: String, suggestedDeparture: String)] {
         var suggestions: [(String, String, Int, String, String)] = []
@@ -104,7 +106,7 @@ struct TaktEngine {
         return suggestions
     }
 
-    func validateTaktPlacement(
+    public func validateTaktPlacement(
         trains: [Train],
         taktStationId: String
     ) -> [TaktDiagnosticEntry] {

@@ -1,0 +1,83 @@
+\chapter{Package FDCScheduling}
+\label{ch:scheduling-package}
+
+\section{Obiettivo (Fase 8)}
+
+Estrarre la pipeline di scheduling in \module{FDCScheduling} SPM,
+collegata a \module{FDCDomain} tramite protocolli in \texttt{Domain/Services/}.
+
+\section{Architettura dipendenze}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw, rectangle, rounded corners, minimum width=3.2cm,
+    minimum height=0.8cm, align=center, font=\footnotesize},
+  arr/.style={-{Stealth[length=1.5mm]}}
+]
+  \node[box, fill=blue!10] (domain) {FDCDomain};
+  \node[box, fill=green!12, right=1.8cm of domain] (sched) {FDCScheduling};
+  \node[box, fill=orange!12, right=1.8cm of sched] (app) {App target};
+
+  \node[box, fill=gray!10, below=1.2cm of sched] (proto) {Protocolli\\Conflict / GA / AI / TravelTime};
+
+  \draw[arr] (domain) -- (sched);
+  \draw[arr] (sched) -- (app);
+  \draw[arr] (proto) -- (domain);
+  \draw[arr, dashed] (app.south) to[bend left=20] node[right, font=\scriptsize]{adapters} (proto.east);
+\end{tikzpicture}
+\caption{Dipendenze Fase 8: package puro + adapter nell'app.}
+\end{figure}
+
+\section{Contenuto package}
+
+Symlink da \repo{Services/Scheduling/} (7 file):
+
+\begin{itemize}
+  \item \texttt{PathResolver}, \texttt{KinematicCalculator}
+  \item \texttt{TaktEngine}, \texttt{TaktEngineScheduleGeneration}
+  \item \texttt{ScheduleRefresher}, \texttt{VehicleSuitabilityEngine}
+  \item \texttt{ScheduleOptimizationPipeline}
+\end{itemize}
+
+\section{Protocolli (FDCDomain)}
+
+\begin{table}[htbp]
+\centering
+\caption{Boundary tra package e app.}
+\begin{tabularx}{\textwidth}{lX}
+  \toprule
+  \textbf{Protocollo} & \textbf{Implementazione app} \\
+  \midrule
+  \texttt{ScheduleConflictDetecting} & \texttt{ConflictManagerAdapter} \\
+  \texttt{ScheduleGeneticOptimizing} & \texttt{GeneticOptimizerAdapter} \\
+  \texttt{ScheduleAIOptimizing} & \texttt{ScheduleAIResolverAdapter} \\
+  \texttt{TrainTravelTimeCalculating} & \texttt{FDCSchedulerTravelTimeAdapter} \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Shell app}
+
+Restano nel target app:
+
+\begin{itemize}
+  \item \texttt{ScheduleGenerationEngine} --- orchestratore UI
+  \item \texttt{ScheduleAIResolver} --- RailwayAIService
+  \item \texttt{AppSchedulingAdapters.swift} --- conformità protocolli
+  \item \texttt{SchedulingBridge.swift} --- \texttt{@\_exported import FDCScheduling}
+\end{itemize}
+
+\section{Test}
+
+\begin{itemize}
+  \item \textbf{6 test} \texttt{FDCDomainTests}
+  \item \textbf{4 test} \texttt{FDCSchedulingTests}
+  \item \textbf{24 test} app (invariati, stub travel-time nei test)
+\end{itemize}
+
+\section{Nota tecnica}
+
+I path con carattere \texttt{+} nelle \texttt{membershipExceptions} del
+\texttt{pbxproj} corrompono il parser Xcode; i file sono stati rinominati
+(es.\ \texttt{DateScheduling.swift}, \texttt{TaktEngineScheduleGeneration.swift}).

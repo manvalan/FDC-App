@@ -1,0 +1,1 @@
+../../../../FdC Railway Manager/Services/Scheduling/KinematicCalculator.swift

@@ -39,4 +39,16 @@ final class FDCDomainTests: XCTestCase {
 
         XCTAssertGreaterThan(service.calculateDistance(from: n1, to: n2), 0)
     }
+
+    func testScheduleConflictIdentifiable() {
+        let conflict = ScheduleConflict(
+            trainAId: UUID(), trainBId: UUID(),
+            trainAName: "A", trainBName: "B",
+            locationType: .station,
+            locationName: "Hub", locationId: "TRACK::B::1",
+            timeStart: Date(), timeEnd: Date().addingTimeInterval(300),
+            capacity: 1, occupantsCount: 2
+        )
+        XCTAssertFalse(conflict.id.isEmpty)
+    }
 }

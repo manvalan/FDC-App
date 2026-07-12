@@ -26,7 +26,8 @@ cd docs/latex
 make
 ```
 
-Output: `docs/latex/build/main.pdf`
+Output: `docs/latex/build/main.pdf` (anche copiato in `docs/FDC-Railway-Manager.pdf`)
+
 
 Con **tectonic** (senza installazione completa TeX):
 
@@ -44,7 +45,9 @@ tectonic main.tex --outdir build
 | 3 | `FDCScheduling` — pipeline | ✅ v0.1 |
 | 4 | Pathfinding | ✅ v0.1 |
 | 5 | SPM integration | ✅ v0.1 |
-| 6 | `Editor` | 🔲 pianificato |
+| 6 | Network adapter | ✅ v0.1 |
+| 7 | FDCScheduling package | ✅ v0.1 |
+| 8 | `Editor` | 🔲 pianificato |
 | 7 | `Simulator` | 🔲 pianificato |
 | 8 | `RailwayAIService` | 🔲 pianificato |
 | 9 | `Infrastructure` / I/O | 🔲 pianificato |

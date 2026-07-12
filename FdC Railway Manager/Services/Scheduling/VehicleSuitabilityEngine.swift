@@ -1,15 +1,15 @@
 import Foundation
+import FDCDomain
 
 /// Motore per il calcolo dell'idoneità dei veicoli rispetto alle caratteristiche di una linea.
-struct VehicleSuitabilityEngine {
+public struct VehicleSuitabilityEngine {
     private let kinematicCalculator: KinematicCalculator
-    
-    init(kinematicCalculator: KinematicCalculator) {
+
+    public init(kinematicCalculator: KinematicCalculator) {
         self.kinematicCalculator = kinematicCalculator
     }
-    
-    /// Calcola un punteggio di idoneità per un veicolo rispetto alla linea (0-100).
-    func calculateSuitabilityScore(
+
+    public func calculateSuitabilityScore(
         vehicle: Vehicle,
         lineMaxSpeed: Double,
         stationSequence: [String],
@@ -20,31 +20,31 @@ struct VehicleSuitabilityEngine {
         let altitudeScore = scoreForAltitude(vehicle: vehicle, stationSequence: stationSequence)
         let stopScore = scoreForStopSpacing(vehicle: vehicle, lineMaxSpeed: lineMaxSpeed, stationSequence: stationSequence, estimatedDistance: estimatedDistance)
         let elecScore = scoreForElectrification(vehicle: vehicle, isLineElectrified: isLineElectrified)
-        
+
         return speedScore + altitudeScore + stopScore + elecScore
     }
-    
+
     private func scoreForSpeedMatch(vehicle: Vehicle, lineMaxSpeed: Double) -> Double {
         max(0, 100 - abs(vehicle.maxSpeed - lineMaxSpeed)) * 0.35
     }
-    
+
     private func scoreForAltitude(vehicle: Vehicle, stationSequence: [String]) -> Double {
         let altInfo = kinematicCalculator.calculateAltitudeCharacteristics(stationSequence: stationSequence)
         guard let maxGrad = altInfo.maxGradient else { return 0 }
-        
+
         let multiplier: Double
         if maxGrad > 25      { multiplier = 40 }
         else if maxGrad > 15 { multiplier = 30 }
         else if maxGrad > 10 { multiplier = 20 }
         else                 { return 50 * 0.15 }
-        
+
         return min(vehicle.acceleration * multiplier, 100) * 0.15
     }
-    
+
     private func scoreForStopSpacing(vehicle: Vehicle, lineMaxSpeed: Double, stationSequence: [String], estimatedDistance: Double) -> Double {
         let stopCount = max(stationSequence.count - 1, 1)
         let avgDist = estimatedDistance / Double(stopCount)
-        
+
         if avgDist < 10 {
             return min(vehicle.acceleration * 30, 100) * 0.25
         } else if avgDist < 20 {
@@ -55,7 +55,7 @@ struct VehicleSuitabilityEngine {
             return min((vehicle.maxSpeed / lineMaxSpeed) * 100, 100) * 0.25
         }
     }
-    
+
     private func scoreForElectrification(vehicle: Vehicle, isLineElectrified: Bool) -> Double {
         let rawScore: Double
         if isLineElectrified == vehicle.isElectric { rawScore = 25 }

@@ -138,7 +138,7 @@ Dettaglio completo in `CLAUDE.md`.
 
 ---
 
-## Stato refactor (Fasi 0–7)
+## Stato refactor (Fasi 0–8)
 
 | Fase | Esito |
 |------|-------|
@@ -146,10 +146,11 @@ Dettaglio completo in `CLAUDE.md`.
 | 5 | `NetworkPathfinder`, UI decoupling, docs LaTeX |
 | 6 | `FDCDomain` SPM linkato a Xcode, `DomainBridge`, 3 test package |
 | 7 | `NetworkTopologyService`, `NetworkModel` adapter, DTO in Infrastructure |
+| 8 | `FDCScheduling` SPM, protocolli scheduling, adapter app |
 
-### Prossimi passi (Fase 8+)
+### Prossimi passi
 
-Vedi [`PLAN.md`](PLAN.md) per il dettaglio completo.
+Vedi [`PLAN.md`](PLAN.md). Refactor Fasi 0–8 completato.
 
 ---
 

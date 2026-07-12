@@ -2,6 +2,7 @@ import Foundation
 import Combine
 
 /// Step 6 della pipeline: ottimizzazione AI Cloud e applicazione risoluzioni.
+/// Resta nel target app (dipende da RailwayAIService).
 struct ScheduleAIResolver {
     var aiService: RailwayAIService = .shared
 
@@ -10,21 +11,22 @@ struct ScheduleAIResolver {
         existingTrains: [Train],
         topology: RailwayTopology,
         refresher: ScheduleRefresher,
-        conflictManager: ConflictManager,
+        conflictDetector: ScheduleConflictDetecting,
         preferredHubId: String?,
         hasTaktRequired: Bool,
-        pathCache: inout [String: [Edge]]
+        pathCache: inout [String: [Edge]],
+        refreshTrains: (inout [Train], String?) -> Void
     ) async -> [Train] {
         let conflictsBefore = detectConflicts(
             trains, existingTrains: existingTrains,
-            topology: topology, conflictManager: conflictManager,
+            topology: topology, conflictDetector: conflictDetector,
             pathCache: &pathCache
         ).count
 
         guard let response = await performCloudOptimization(
             trains: trains, existingTrains: existingTrains,
             topology: topology, refresher: refresher,
-            conflictManager: conflictManager,
+            conflictDetector: conflictDetector,
             preferredHubId: preferredHubId, pathCache: &pathCache
         ),
         let resolutions = response.resolutions, !resolutions.isEmpty else {
@@ -43,12 +45,12 @@ struct ScheduleAIResolver {
 
         var results = applyResolutions(trains, resolutions: resolutions)
         if !hasTaktRequired {
-            refresher.refreshMultiple(&results, preferredHubId: preferredHubId)
+            refreshTrains(&results, preferredHubId)
         }
 
         let conflictsAfter = detectConflicts(
             results, existingTrains: existingTrains,
-            topology: topology, conflictManager: conflictManager,
+            topology: topology, conflictDetector: conflictDetector,
             pathCache: &pathCache
         ).count
 
@@ -64,18 +66,20 @@ struct ScheduleAIResolver {
     private func performCloudOptimization(
         trains: [Train], existingTrains: [Train],
         topology: RailwayTopology, refresher: ScheduleRefresher,
-        conflictManager: ConflictManager,
+        conflictDetector: ScheduleConflictDetecting,
         preferredHubId: String?, pathCache: inout [String: [Edge]]
     ) async -> RailwayAIResponse? {
         var all = existingTrains + trains
         refresher.refreshMultiple(&all, preferredHubId: preferredHubId)
 
-        var dc: [String: [Edge]]? = pathCache
-        let currentConflicts = conflictManager.calculateConflictsWithCapacities(
-            nodes: topology.nodes, edges: topology.edges,
-            trains: all, pathCache: &dc
-        ).0
-        if let updated = dc { pathCache = updated }
+        var cache: [String: [Edge]]? = pathCache
+        let currentConflicts = conflictDetector.detectConflicts(
+            nodes: topology.nodes,
+            edges: topology.edges,
+            trains: all,
+            pathCache: &cache
+        )
+        if let updated = cache { pathCache = updated }
 
         guard !currentConflicts.isEmpty else { return nil }
 
@@ -122,16 +126,18 @@ struct ScheduleAIResolver {
 
     private func detectConflicts(
         _ trainSubset: [Train], existingTrains: [Train],
-        topology: RailwayTopology, conflictManager: ConflictManager,
+        topology: RailwayTopology, conflictDetector: ScheduleConflictDetecting,
         pathCache: inout [String: [Edge]]
     ) -> [ScheduleConflict] {
         let allTrains = existingTrains + trainSubset
-        var dc: [String: [Edge]]? = pathCache
-        let result = conflictManager.calculateConflictsWithCapacities(
-            nodes: topology.nodes, edges: topology.edges,
-            trains: allTrains, pathCache: &dc
-        ).0
-        if let updated = dc { pathCache = updated }
+        var cache: [String: [Edge]]? = pathCache
+        let result = conflictDetector.detectConflicts(
+            nodes: topology.nodes,
+            edges: topology.edges,
+            trains: allTrains,
+            pathCache: &cache
+        )
+        if let updated = cache { pathCache = updated }
         return result
     }
 }

@@ -1,8 +1,8 @@
 // swift-tools-version: 5.9
 import PackageDescription
 
-/// Scheduling services scaffold. Not yet linked to the Xcode target:
-/// depends on ConflictManager, GeneticOptimizer, RailwayAIService, FDCSchedulerEngine.
+/// Scheduling pipeline extracted from `FdC Railway Manager/Services/Scheduling/`.
+/// App-specific adapters (ConflictManager, GA, AI) conform to FDCDomain protocols.
 let package = Package(
     name: "FDCScheduling",
     platforms: [.iOS(.v17), .macOS(.v14)],
@@ -17,6 +17,11 @@ let package = Package(
             name: "FDCScheduling",
             dependencies: ["FDCDomain"],
             path: "Sources/FDCScheduling"
+        ),
+        .testTarget(
+            name: "FDCSchedulingTests",
+            dependencies: ["FDCScheduling", "FDCDomain"],
+            path: "Tests/FDCSchedulingTests"
         ),
     ]
 )

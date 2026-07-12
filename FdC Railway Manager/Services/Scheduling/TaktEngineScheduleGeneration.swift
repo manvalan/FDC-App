@@ -1,10 +1,11 @@
 import Foundation
+import FDCDomain
 
 /// Generazione orari cadenzati (Taktfahrplan) — logica unificata
 /// precedentemente in RailwayScheduleOptimizer+CTCTaktEngine.
 extension TaktEngine {
 
-    typealias ConflictDetector = (
+    public typealias ConflictDetector = (
         _ trainSubset: [Train],
         _ existingTrains: [Train],
         _ pathCache: inout [String: [Edge]]
@@ -12,7 +13,7 @@ extension TaktEngine {
 
     // MARK: - Entry point
 
-    func generaOrarioCadenzato(
+    public func generaOrarioCadenzato(
         newTrains: [Train],
         existingTrains: [Train],
         preferredTaktNodeId: String? = nil,
@@ -157,7 +158,7 @@ extension TaktEngine {
     // MARK: - Hub times
 
     /// Ritorna (arrivo, partenza) all'hub takt per un treno.
-    func taktHubTimes(
+    public func taktHubTimes(
         train: Train, base: Date, calendar: Calendar = .current
     ) -> (Date, Date) {
         if train.isMainTrain {
@@ -212,7 +213,7 @@ extension TaktEngine {
 
     // MARK: - Schedule refresh
 
-    func refreshTaktSchedule(
+    public func refreshTaktSchedule(
         train: inout Train, hIdx: Int, hNode: Node
     ) {
         let (hArr, hDep) = calculateHubTimes(for: train, hIdx: hIdx, hNode: hNode)
@@ -290,7 +291,7 @@ extension TaktEngine {
             let isStoppingAtNext = !train.stops[j + 1].isSkipped
             let isStartingAtCur = (j == 0)
 
-            let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(
+            let tt = travelTimeCalculator.travelTimeBetweenNodes(
                 from: idCur, to: idNext, train: train,
                 nodes: nodes, edges: edges,
                 isStarting: isStartingAtCur, isStopping: isStoppingAtNext
@@ -325,7 +326,7 @@ extension TaktEngine {
             let isStoppingAtCur = !train.stops[j].isSkipped
             let isStartingAtPrev = (j - 1 == 0) && !train.stops[j - 1].isSkipped
 
-            let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(
+            let tt = travelTimeCalculator.travelTimeBetweenNodes(
                 from: idPrev, to: idCur, train: train,
                 nodes: nodes, edges: edges,
                 isStarting: isStartingAtPrev, isStopping: isStoppingAtCur
@@ -391,7 +392,7 @@ extension TaktEngine {
         return groups
     }
 
-    static func roundToBusinessSeconds(_ date: Date) -> Date {
+    public static func roundToBusinessSeconds(_ date: Date) -> Date {
         let seconds = date.timeIntervalSince1970
         let rounded = (seconds / 30.0).rounded() * 30.0
         return Date(timeIntervalSince1970: rounded)

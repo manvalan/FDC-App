@@ -1,31 +1,43 @@
 import Foundation
+import FDCDomain
 
 /// Pipeline di ottimizzazione in `Services/Scheduling` — sostituto del legacy
 /// `RailwayScheduleOptimizer.shared.executePipeline`.
-struct ScheduleOptimizationPipeline {
-    let topology: RailwayTopology
+public struct ScheduleOptimizationPipeline {
+    public let topology: RailwayTopology
     private let taktEngine: TaktEngine
     private let refresher: ScheduleRefresher
-    private let conflictManager = ConflictManager()
-    private let geneticOptimizer = GeneticOptimizer()
-    private var aiResolver = ScheduleAIResolver()
+    private let conflictDetector: ScheduleConflictDetecting
+    private let geneticOptimizer: ScheduleGeneticOptimizing
+    private let aiOptimizer: ScheduleAIOptimizing?
 
-    init(topology: RailwayTopology) {
+    public init(
+        topology: RailwayTopology,
+        conflictDetector: ScheduleConflictDetecting,
+        geneticOptimizer: ScheduleGeneticOptimizing,
+        travelTimeCalculator: TrainTravelTimeCalculating,
+        aiOptimizer: ScheduleAIOptimizing? = nil
+    ) {
         self.topology = topology
+        self.conflictDetector = conflictDetector
+        self.geneticOptimizer = geneticOptimizer
+        self.aiOptimizer = aiOptimizer
+        let kinematic = KinematicCalculator(topology: topology, travelTimeCalculator: travelTimeCalculator)
         self.taktEngine = TaktEngine(
             topology: topology,
-            kinematicCalculator: KinematicCalculator(topology: topology)
+            kinematicCalculator: kinematic,
+            travelTimeCalculator: travelTimeCalculator
         )
-        self.refresher = ScheduleRefresher(topology: topology)
+        self.refresher = ScheduleRefresher(topology: topology, travelTimeCalculator: travelTimeCalculator)
     }
 
-    func execute(
+    public func execute(
         newTrains: [Train],
         existingTrains: [Train],
         useAI: Bool = false,
         useGA: Bool = true,
         preferredTaktNodeId: String? = nil,
-        geneticOptimizer overrideGA: GeneticOptimizer? = nil
+        geneticOptimizer overrideGA: ScheduleGeneticOptimizing? = nil
     ) async -> [Train] {
         if Task.isCancelled { return newTrains }
 
@@ -37,7 +49,6 @@ struct ScheduleOptimizationPipeline {
 
         print("\n🚀 [NEW PIPELINE] Avvio per \(newTrains.count) treni (Takt=\(hasTaktRequired), GA=\(effectiveUseGA))")
 
-        // STEP 1: Ottimizzazione partenze
         var working = newTrains
         if effectiveUseGA {
             working = optimizeDepartureTimes(
@@ -45,11 +56,9 @@ struct ScheduleOptimizationPipeline {
             )
         }
 
-        // STEP 2: Refresh fisico
         var refreshed = working
         refresher.refreshMultiple(&refreshed, preferredHubId: preferredTaktNodeId)
 
-        // STEP 3-5: Allineamento Takt
         let conflicts = detectConflicts(
             refreshed, existingTrains: existingTrains, pathCache: &pathCache
         )
@@ -66,22 +75,23 @@ struct ScheduleOptimizationPipeline {
             }
         }
 
-        // STEP 6: AI Cloud
-        if useAI {
+        if useAI, let aiOptimizer {
             print("🧠 [NEW PIPELINE] AI Cloud Optimization...")
-            refreshed = await aiResolver.optimize(
+            refreshed = await aiOptimizer.optimize(
                 trains: refreshed,
                 existingTrains: existingTrains,
-                topology: topology,
-                refresher: refresher,
-                conflictManager: conflictManager,
+                nodes: nodes,
+                edges: edges,
                 preferredHubId: preferredTaktNodeId,
                 hasTaktRequired: hasTaktRequired,
-                pathCache: &pathCache
+                pathCache: &pathCache,
+                conflictDetector: conflictDetector,
+                refreshTrains: { trains, hubId in
+                    refresher.refreshMultiple(&trains, preferredHubId: hubId)
+                }
             )
         }
 
-        // STEP 7: Genetic refinement
         if effectiveUseGA {
             let ga = overrideGA ?? geneticOptimizer
             refreshed = await ga.optimize(
@@ -93,7 +103,6 @@ struct ScheduleOptimizationPipeline {
             )
         }
 
-        // STEP 8: Verifica finale
         refresher.refreshMultiple(&refreshed, preferredHubId: preferredTaktNodeId)
         let finalConflicts = detectConflicts(
             refreshed, existingTrains: existingTrains, pathCache: &pathCache
@@ -104,24 +113,22 @@ struct ScheduleOptimizationPipeline {
         return refreshed
     }
 
-    // MARK: - Conflict detection
-
     private func detectConflicts(
         _ trainSubset: [Train],
         existingTrains: [Train],
         pathCache: inout [String: [Edge]]
     ) -> [ScheduleConflict] {
         let allTrains = existingTrains + trainSubset
-        var dc: [String: [Edge]]? = pathCache
-        let result = conflictManager.calculateConflictsWithCapacities(
-            nodes: topology.nodes, edges: topology.edges,
-            trains: allTrains, pathCache: &dc
-        ).0
-        if let updated = dc { pathCache = updated }
+        var cache: [String: [Edge]]? = pathCache
+        let result = conflictDetector.detectConflicts(
+            nodes: topology.nodes,
+            edges: topology.edges,
+            trains: allTrains,
+            pathCache: &cache
+        )
+        if let updated = cache { pathCache = updated }
         return result
     }
-
-    // MARK: - Departure shift optimization
 
     private func optimizeDepartureTimes(
         _ newTrains: [Train],

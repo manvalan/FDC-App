@@ -11,6 +11,7 @@ final class Taktfahrplan120MinTests: XCTestCase {
     private var taktEngine: TaktEngine!
     private var nodes: [RailwayNode]!
     private var edges: [Edge]!
+    private let travel = StubTravelTimeCalculator()
 
     override func setUp() {
         super.setUp()
@@ -38,9 +39,11 @@ final class Taktfahrplan120MinTests: XCTestCase {
         ]
 
         let topology = RailwayTopology(nodes: nodes, edges: edges)
+        let kinematic = KinematicCalculator(topology: topology, travelTimeCalculator: travel)
         taktEngine = TaktEngine(
             topology: topology,
-            kinematicCalculator: KinematicCalculator(topology: topology)
+            kinematicCalculator: kinematic,
+            travelTimeCalculator: travel
         )
     }
 
@@ -206,5 +209,40 @@ final class Taktfahrplan120MinTests: XCTestCase {
         guard arrivals.count == 2 else { return 0 }
         return (arrivals[0].timeIntervalSince1970
             + arrivals[1].timeIntervalSince1970) / 2
+    }
+}
+
+private struct StubTravelTimeCalculator: TrainTravelTimeCalculating {
+    func travelTimeHours(
+        distanceKm: Double,
+        maxSpeedKmh: Double,
+        train: Train,
+        initialSpeedKmh: Double,
+        finalSpeedKmh: Double,
+        gradient: Double
+    ) -> Double {
+        distanceKm / max(maxSpeedKmh, 1.0)
+    }
+
+    func travelTimeBetweenNodes(
+        from: String,
+        to: String,
+        train: Train,
+        nodes: [Node],
+        edges: [Edge],
+        isStarting: Bool,
+        isStopping: Bool
+    ) -> TimeInterval {
+        guard let edge = edges.first(where: {
+            ($0.from == from && $0.to == to) || ($0.from == to && $0.to == from)
+        }) else { return 0 }
+        return travelTimeHours(
+            distanceKm: edge.distance,
+            maxSpeedKmh: Double(edge.maxSpeed),
+            train: train,
+            initialSpeedKmh: 0,
+            finalSpeedKmh: 0,
+            gradient: 0
+        ) * 3600
     }
 }

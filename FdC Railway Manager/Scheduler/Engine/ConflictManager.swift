@@ -2,54 +2,6 @@ import Foundation
 import SwiftUI
 import Combine
 
-// MARK: - Conflict Models
-
-struct ScheduleConflict: Identifiable, Hashable {
-    let trainAId: UUID
-    let trainBId: UUID
-    let trainAName: String
-    let trainBName: String
-    
-    enum LocationType: String {
-        case station = "Stazione"
-        case line = "Linea"
-        case routing = "Instradamento"
-    }
-    
-    let locationType: LocationType
-    let locationName: String 
-    let locationId: String 
-    let timeStart: Date
-    let timeEnd: Date
-    let capacity: Int
-    let occupantsCount: Int
-    
-    var id: String {
-        "\(trainAId.uuidString)_\(trainBId.uuidString)_\(locationId)_\(Int(timeStart.timeIntervalSince1970))"
-    }
-    
-    var description: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss"
-        let start = formatter.string(from: timeStart)
-        let end = formatter.string(from: timeEnd)
-        
-        if locationType == .routing {
-            return "instradamento_non_consentito_fmt".localizedFormat(trainAName, locationName)
-        }
-        
-        let typeStr: String = {
-            if locationId.hasPrefix("STATION_GLOBAL") { return "Stazione (Totale Binari)" }
-            if locationId.hasPrefix("TRACK") { return "Binario Specifico" }
-            if locationId.hasPrefix("SEGMENT") { return "Tratta / Segmento" }
-            return "Risorsa"
-        }()
-        
-        return String(format: "conflitto_capacita_fmt".localized, 
-                      trainAName, trainBName, locationName, typeStr, capacity, start, end)
-    }
-}
-
 // MARK: - Conflict Manager
 
 class ConflictManager: ObservableObject {

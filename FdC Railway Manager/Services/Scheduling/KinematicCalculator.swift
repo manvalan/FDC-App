@@ -1,21 +1,19 @@
 import Foundation
+import FDCDomain
 
 /// Servizio dedicato ai calcoli cinematici e dei tempi di percorrenza.
-/// Segue i principi di "Code That Fits in Your Head" isolando la logica computazionale.
-struct KinematicCalculator {
-    private let topology: RailwayTopology
+public struct KinematicCalculator {
+    public let topology: RailwayTopology
+    public let travelTimeCalculator: TrainTravelTimeCalculating
 
-    init(topology: RailwayTopology) {
+    public init(topology: RailwayTopology, travelTimeCalculator: TrainTravelTimeCalculating) {
         self.topology = topology
-    }
-
-    init(network: NetworkModel) {
-        self.topology = RailwayTopology(nodes: network.nodes, edges: network.edges)
+        self.travelTimeCalculator = travelTimeCalculator
     }
 
     // MARK: - Travel Time Calculations
 
-    func calculateAccurateTravelTime(
+    public func calculateAccurateTravelTime(
         stationSequence: [String],
         train: Train
     ) -> Int {
@@ -41,7 +39,7 @@ struct KinematicCalculator {
                         gradient = ((tA - fA) / (legDist * 1000)) * 100
                     }
 
-                    let hours = FDCSchedulerEngine.calculateTravelTime(
+                    let hours = travelTimeCalculator.travelTimeHours(
                         distanceKm: legDist,
                         maxSpeedKmh: legMinSpeed == .infinity ? 100 : legMinSpeed,
                         train: train,
@@ -65,7 +63,7 @@ struct KinematicCalculator {
         return Int(ceil(totalSeconds / 60))
     }
 
-    func travelMinutesToStation(
+    public func travelMinutesToStation(
         _ targetId: String,
         in sequence: [String],
         train: Train
@@ -83,7 +81,7 @@ struct KinematicCalculator {
         return totalMinutes
     }
 
-    func legTravelMinutes(from: String, to: String, train: Train) -> Double {
+    public func legTravelMinutes(from: String, to: String, train: Train) -> Double {
         guard let path = topology.findPathEdges(from: from, to: to) else {
             return 0
         }
@@ -95,17 +93,18 @@ struct KinematicCalculator {
         }
         guard legDist > 0 else { return 0 }
         let effectiveSpeed = legSpeed == .infinity ? 100.0 : legSpeed
-        let hours = FDCSchedulerEngine.calculateTravelTime(
+        let hours = travelTimeCalculator.travelTimeHours(
             distanceKm: legDist,
             maxSpeedKmh: effectiveSpeed,
             train: train,
             initialSpeedKmh: 0,
-            finalSpeedKmh: 0
+            finalSpeedKmh: 0,
+            gradient: 0
         )
         return (hours * 60) + (35.0 / 60.0)
     }
 
-    func dwellMinutes(at stationId: String) -> Double {
+    public func dwellMinutes(at stationId: String) -> Double {
         let node = topology.node(id: stationId)
         let isInterchange = node?.type == .interchange
         return isInterchange ? 5.0 : 3.0
@@ -113,7 +112,7 @@ struct KinematicCalculator {
 
     // MARK: - Altitude & Elevation
 
-    func calculateAltitudeCharacteristics(
+    public func calculateAltitudeCharacteristics(
         stationSequence: [String]
     ) -> (totalElevationGain: Double?, maxGradient: Double?, avgGradient: Double?) {
         let nodes = stationSequence.compactMap { topology.node(id: $0) }

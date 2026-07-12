@@ -113,6 +113,7 @@
 		F6654C26A354C65F79F03BEF /* ScheduleChangeModifiersA.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73654F998955E039A4D1123A /* ScheduleChangeModifiersA.swift */; };
 		F8DF4FA5A91CF8888FE2AC08 /* NetworkModel+Mutations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4581446C841FDED53B75747B /* NetworkModel+Mutations.swift */; };
 		FDC6FRM2F6000010003C8FEC /* FDCDomain in Frameworks */ = {isa = PBXBuildFile; productRef = FDC6PRD2F6000010003C8FEC /* FDCDomain */; };
+		FDC8FRM2F6000010003C8FEC /* FDCScheduling in Frameworks */ = {isa = PBXBuildFile; productRef = FDC8PRD2F6000010003C8FEC /* FDCScheduling */; };
 		FF264703A3700F4BF8D0B4BF /* SchedulerResultDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13244829AC510BA089D2BF7D /* SchedulerResultDocument.swift */; };
 /* End PBXBuildFile section */
 
@@ -252,6 +253,7 @@
 				Domain/Model/RailwayTopology.swift,
 				Domain/Model/RelationStop.swift,
 				Domain/Model/RoutingConstraint.swift,
+				Domain/Model/ScheduleConflict.swift,
 				Domain/Model/Signal.swift,
 				Domain/Model/Switch.swift,
 				Domain/Model/TrackControlPoint.swift,
@@ -263,6 +265,18 @@
 				Domain/Model/Vehicle.swift,
 				Domain/Pathfinding/NetworkPathfinder.swift,
 				Domain/Services/NetworkTopologyService.swift,
+				Domain/Services/ScheduleAIOptimizing.swift,
+				Domain/Services/ScheduleConflictDetecting.swift,
+				Domain/Services/ScheduleGeneticOptimizing.swift,
+				Domain/Services/TrainTravelTimeCalculating.swift,
+				Domain/Utilities/DateScheduling.swift,
+				Services/Scheduling/KinematicCalculator.swift,
+				Services/Scheduling/PathResolver.swift,
+				Services/Scheduling/ScheduleOptimizationPipeline.swift,
+				Services/Scheduling/ScheduleRefresher.swift,
+				Services/Scheduling/TaktEngineScheduleGeneration.swift,
+				Services/Scheduling/TaktEngine.swift,
+				Services/Scheduling/VehicleSuitabilityEngine.swift,
 			);
 			target = 31234B402F1FD849003C8FEC /* FdC Railway Manager */;
 		};
@@ -290,6 +304,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FDC6FRM2F6000010003C8FEC /* FDCDomain in Frameworks */,
+				FDC8FRM2F6000010003C8FEC /* FDCScheduling in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -450,6 +465,7 @@
 			name = "FdC Railway Manager";
 			packageProductDependencies = (
 				FDC6PRD2F6000010003C8FEC /* FDCDomain */,
+				FDC8PRD2F6000010003C8FEC /* FDCScheduling */,
 			);
 			productName = "FdC Railway Manager";
 			productReference = 31234B412F1FD849003C8FEC /* FdC Railway Manager.app */;
@@ -507,6 +523,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				FDC6PKG2F6000010003C8FEC /* XCLocalSwiftPackageReference "Packages/FDCDomain" */,
+				FDC8PKG2F6000010003C8FEC /* XCLocalSwiftPackageReference "Packages/FDCScheduling" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 31234B422F1FD849003C8FEC /* Products */;
@@ -943,6 +960,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/FDCDomain;
 		};
+		FDC8PKG2F6000010003C8FEC /* XCLocalSwiftPackageReference "Packages/FDCScheduling" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/FDCScheduling;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -950,6 +971,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = FDC6PKG2F6000010003C8FEC /* XCLocalSwiftPackageReference "Packages/FDCDomain" */;
 			productName = FDCDomain;
+		};
+		FDC8PRD2F6000010003C8FEC /* FDCScheduling */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FDC8PKG2F6000010003C8FEC /* XCLocalSwiftPackageReference "Packages/FDCScheduling" */;
+			productName = FDCScheduling;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

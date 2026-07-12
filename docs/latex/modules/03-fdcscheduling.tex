@@ -4,9 +4,9 @@
 \section{Responsabilità}
 
 \module{FDCScheduling} orchestrate la \textbf{generazione e ottimizzazione
-degli orari}. Il codice attivo risiede in
+degli orari}. Il codice sorgente risiede in
 \repo{FdC Railway Manager/Services/Scheduling/}; il package SPM
-\repo{Packages/FDCScheduling/} è uno scaffold per l'estrazione futura.
+\repo{Packages/FDCScheduling/} è linkato al target Xcode (Fase 8).
 
 \section{Componenti principali}
 
@@ -36,16 +36,16 @@ degli orari}. Il codice attivo risiede in
 \begin{figure}[htbp]
 \centering
 \begin{tikzpicture}[
-  step/.style={draw, rectangle, rounded corners, minimum width=4.8cm,
+  pipestep/.style={draw, rectangle, rounded corners, minimum width=4.8cm,
     minimum height=0.75cm, align=center, font=\small},
   arr/.style={-{Stealth[length=2mm]}}
 ]
-  \node[step, fill=yellow!15] (s1) {1. Shift partenze (greedy)};
-  \node[step, fill=blue!10, below=0.5cm of s1] (s2) {2. Refresh fisico};
-  \node[step, fill=green!12, below=0.5cm of s2] (s35) {3--5. TaktEngine};
-  \node[step, fill=purple!10, below=0.5cm of s35] (s6) {6. AI cloud (opz.)};
-  \node[step, fill=orange!12, below=0.5cm of s6] (s7) {7. Ottimizzatore genetico};
-  \node[step, fill=red!8, below=0.5cm of s7] (s8) {8. Verifica finale};
+  \node[pipestep, fill=yellow!15] (s1) {1. Shift partenze (greedy)};
+  \node[pipestep, fill=blue!10, below=0.5cm of s1] (s2) {2. Refresh fisico};
+  \node[pipestep, fill=green!12, below=0.5cm of s2] (s35) {3--5. TaktEngine};
+  \node[pipestep, fill=purple!10, below=0.5cm of s35] (s6) {6. AI cloud (opz.)};
+  \node[pipestep, fill=orange!12, below=0.5cm of s6] (s7) {7. Ottimizzatore genetico};
+  \node[pipestep, fill=red!8, below=0.5cm of s7] (s8) {8. Verifica finale};
 
   \draw[arr] (s1) -- (s2);
   \draw[arr] (s2) -- (s35);
@@ -89,17 +89,16 @@ return await pipeline.execute(
 )
 \end{lstlisting}
 
-\section{Dipendenze esterne (non ancora nel package)}
+\section{Dipendenze esterne (adapter app)}
 
 \begin{itemize}
-  \item \texttt{ConflictManager} --- Rilevamento conflitti capacità/binari.
-  \item \texttt{GeneticOptimizer} --- Meta-euristica su orari.
-  \item \texttt{RailwayAIService} --- Ottimizzazione remota.
-  \item \texttt{NetworkModel} --- Bridge verso UI e persistenza.
+  \item \texttt{ConflictManager} --- via \texttt{ScheduleConflictDetecting}
+  \item \texttt{GeneticOptimizer} --- via \texttt{ScheduleGeneticOptimizing}
+  \item \texttt{RailwayAIService} --- via \texttt{ScheduleAIOptimizing}
+  \item \texttt{FDCSchedulerEngine} --- via \texttt{TrainTravelTimeCalculating}
 \end{itemize}
 
-L'estrazione in \texttt{FDCScheduling} richiederà protocolli in
-\repo{Domain/Services/} (pianificato Fase 5+).
+I protocolli sono definiti in \repo{Domain/Services/} (FDCDomain SPM).
 
 \section{Test di regressione}
 

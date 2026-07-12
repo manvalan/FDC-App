@@ -1,19 +1,15 @@
 import Foundation
+import FDCDomain
 
 /// Servizio per la gestione dei percorsi e delle sequenze di stazioni.
-struct PathResolver {
+public struct PathResolver {
     private let topology: RailwayTopology
 
-    init(topology: RailwayTopology) {
+    public init(topology: RailwayTopology) {
         self.topology = topology
     }
 
-    init(network: NetworkModel) {
-        self.topology = RailwayTopology(nodes: network.nodes, edges: network.edges)
-    }
-
-    /// Risolve la sequenza di stazioni tra partenza e arrivo su una data linea.
-    func resolveStationSequence(
+    public func resolveStationSequence(
         route: TrainRoute,
         startId: String,
         endId: String
@@ -30,8 +26,7 @@ struct PathResolver {
         return range
     }
 
-    /// Pre-seleziona un hub Takt sensato nel percorso.
-    func presetTaktHub(
+    public func presetTaktHub(
         stationSequence: [String],
         currentHubId: String
     ) -> String {
@@ -55,8 +50,7 @@ struct PathResolver {
         return taktNodesInPath.first?.id ?? ""
     }
 
-    /// Verifica se la sequenza stazioni contiene tratte ad alta velocità.
-    func hasHighSpeedTrack(stationSequence: [String]) -> Bool {
+    public func hasHighSpeedTrack(stationSequence: [String]) -> Bool {
         guard stationSequence.count >= 2 else { return false }
         for i in 0..<(stationSequence.count - 1) {
             let from = stationSequence[i]
@@ -71,8 +65,7 @@ struct PathResolver {
         return false
     }
 
-    /// Calcola la distanza totale di un percorso.
-    func calculatePathDistance(stationSequence: [String]) -> Double {
+    public func calculatePathDistance(stationSequence: [String]) -> Double {
         topology.calculatePathDistance(path: stationSequence)
     }
 }

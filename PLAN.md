@@ -95,11 +95,14 @@ Ogni fase di codice aggiorna il capitolo LaTeX corrispondente.
 - [x] `DomainBridge` ridotto: `@_exported import` + disambiguazione `Edge`
 - [x] Capitolo LaTeX `06-network-adapter.tex`
 
-### Fase 8 — FDCScheduling package 🔲
+### Fase 8 — FDCScheduling package ✅
 
-- [ ] Protocolli in `Domain/Services/` per ConflictManager, GA, AI
-- [ ] Estrarre `Services/Scheduling/` in `Packages/FDCScheduling`
-- [ ] Capitolo LaTeX aggiornato con diagrammi dipendenze finali
+- [x] Protocolli in `Domain/Services/` (Conflict, GA, AI, TravelTime)
+- [x] `ScheduleConflict` in Domain; `ScheduleConflict+UI` in app
+- [x] 7 sorgenti scheduling in `Packages/FDCScheduling` + symlink
+- [x] `FDCScheduling` linkato a Xcode + `SchedulingBridge`
+- [x] Adapter app (`AppSchedulingAdapters.swift`)
+- [x] Capitolo LaTeX `07-scheduling-package.tex`
 
 ---
 
@@ -108,9 +111,9 @@ Ogni fase di codice aggiorna il capitolo LaTeX corrispondente.
 | Metrica | Valore |
 |---------|--------|
 | Test app XCTest | 24 |
-| Test FDCDomain SPM | 5 |
-| Tipi in `Domain/Model/` | 18 file |
-| Servizi in `Domain/Services/` | `NetworkTopologyService` |
+| Test FDCDomain SPM | 6 |
+| Test FDCScheduling SPM | 4 |
+| Package SPM attivi | `FDCDomain`, `FDCScheduling` |
 | Legacy `RailwayScheduleOptimizer` | rimosso |
 | Pipeline attiva | `ScheduleOptimizationPipeline` |
 
@@ -128,4 +131,4 @@ Ogni fase di codice aggiorna il capitolo LaTeX corrispondente.
 
 ## Prossima azione
 
-Avviare **Fase 8**: estrarre `FDCScheduling` in package SPM.
+Refactor completato (Fasi 0–8). Eventuali estensioni: Editor, Simulator, RailwayAI in package dedicati.
