@@ -108,17 +108,6 @@ final class ScheduleGenerationEngine {
         let useGA = mode == .taktfahrplan ? false : useDepartureOptimizer
         let taktNode = (mode == .taktfahrplan && !taktStationId.isEmpty) ? taktStationId : nil
         let existing = trainManager.trains.filter { $0.routeId != routeId }
-
-        if FeatureFlags.useLegacyScheduleOptimizer {
-            return await RailwayScheduleOptimizer.shared.executePipeline(
-                newTrains: trains,
-                existingTrains: existing,
-                nodes: network.nodes, edges: network.edges,
-                useAI: false, useGA: useGA,
-                geneticOptimizer: (nil as GeneticOptimizer?),
-                preferredTaktNodeId: taktNode)
-        }
-
         let topology = RailwayTopology(nodes: network.nodes, edges: network.edges)
         let pipeline = ScheduleOptimizationPipeline(topology: topology)
         return await pipeline.execute(

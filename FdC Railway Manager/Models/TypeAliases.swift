@@ -8,7 +8,8 @@ import MapKit
 
 // Bridge for refactoring compatibility
 // Domain/Model: Node, Edge, Train, RelationStop, Vehicle, TrackSegment,
-// RoutingConstraint, RailwayTopology, TrainRoute, Ferrovia
+// RoutingConstraint, RailwayTopology, Signal, Switch, ElectrificationType,
+// TrackControlPoint, TrainRoute, Ferrovia
 typealias RailwayNetwork = NetworkModel
 typealias TrainManager = LinesManager
 typealias RailwayEdge = Edge // Disambiguation from SwiftUI.Edge
