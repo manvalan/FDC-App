@@ -143,7 +143,7 @@ struct StationInspectorView: View {
                     Text(dir.localizedName).tag(RailwayNode.HubOffsetDirection?.some(dir))
                 }
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.menu)
         }
     }
     

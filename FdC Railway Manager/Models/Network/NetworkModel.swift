@@ -111,3 +111,19 @@ final class NetworkModel: ObservableObject {
         if didChange { edges = copy }
     }
 }
+
+extension NetworkModel {
+    /// Binding stabile per inspector: lookup per ID, non per indice catturato.
+    func edgeBinding(for edgeId: String) -> Binding<Edge> {
+        Binding(
+            get: {
+                self.edges.first(where: { $0.id.uuidString == edgeId })
+                    ?? Edge(from: "", to: "", distance: 0, trackType: .single, maxSpeed: 100)
+            },
+            set: { newEdge in
+                guard let idx = self.edges.firstIndex(where: { $0.id.uuidString == edgeId }) else { return }
+                self.edges[idx] = newEdge
+            }
+        )
+    }
+}

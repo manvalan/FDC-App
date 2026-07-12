@@ -174,8 +174,14 @@ final class RailwayRenderer {
     
     func drawNode(_ node: Node, at point: CGPoint, in context: GraphicsContext, zoomLevel: CGFloat, style: NodeStyle, hubRole: HubTopology.HubVisualRole = .none) {
         if hubRole != .none {
-            drawHubStationDot(at: point, in: context, zoomLevel: zoomLevel, isSelected: style.isSelected)
-        } else if node.type == .interchange {
+            if style.isSelected {
+                let selectRadius: CGFloat = (zoomLevel > 4.0 ? 10 : 12) * 1.4
+                let selectRect = CGRect(x: point.x - selectRadius / 2, y: point.y - selectRadius / 2, width: selectRadius, height: selectRadius)
+                context.stroke(Path(ellipseIn: selectRect), with: .color(.blue), lineWidth: 2)
+            }
+            return
+        }
+        if node.type == .interchange {
             drawHubStationDot(at: point, in: context, zoomLevel: zoomLevel, isSelected: style.isSelected)
         } else {
             // Nodi standard: Icona basata su VisualType
@@ -308,7 +314,7 @@ final class RailwayRenderer {
         }
     }
 
-    /// Disegna un hub AV/classico: linea a 8 + etichetta (i pallini sono in drawNode).
+    /// Icona hub: due pallini pieni, doppia fascia, bordo capsula fluido.
     func drawHubPair(
         classicPosition: CGPoint,
         avPosition: CGPoint,
@@ -318,9 +324,64 @@ final class RailwayRenderer {
         zoomLevel: CGFloat,
         in context: GraphicsContext
     ) {
-        let figureEight = figureEightPath(between: classicPosition, and: avPosition)
-        let lineWidth: CGFloat = zoomLevel > 4.0 ? 2.5 : 3.5
-        context.stroke(figureEight, with: .color(.red.opacity(0.85)), lineWidth: lineWidth)
+        let dx = avPosition.x - classicPosition.x
+        let dy = avPosition.y - classicPosition.y
+        let dist = hypot(dx, dy)
+        let metrics = hubIconMetrics(zoomLevel: zoomLevel, centerDistance: max(dist, 1))
+        let hubColor = Color(red: 0.92, green: 0.28, blue: 0.22)
+
+        // 1. Alone bianco per il gap, poi contenuto pieno
+        let borderPath = hubSmoothBorderPath(
+            classicPosition: classicPosition,
+            avPosition: avPosition,
+            metrics: metrics
+        )
+        context.stroke(
+            borderPath,
+            with: .color(.white),
+            style: StrokeStyle(lineWidth: metrics.borderWidth + metrics.shellGap * 2, lineCap: .round, lineJoin: .round)
+        )
+
+        context.fill(
+            Path(ellipseIn: CGRect(
+                x: classicPosition.x - metrics.dotRadius, y: classicPosition.y - metrics.dotRadius,
+                width: metrics.dotRadius * 2, height: metrics.dotRadius * 2
+            )),
+            with: .color(hubColor)
+        )
+        context.fill(
+            Path(ellipseIn: CGRect(
+                x: avPosition.x - metrics.dotRadius, y: avPosition.y - metrics.dotRadius,
+                width: metrics.dotRadius * 2, height: metrics.dotRadius * 2
+            )),
+            with: .color(hubColor)
+        )
+
+        if dist > 1 {
+            let ux = dx / dist
+            let uy = dy / dist
+            let nx = -uy
+            let ny = ux
+            let trim = metrics.dotRadius * 0.75
+            let start = CGPoint(x: classicPosition.x + ux * trim, y: classicPosition.y + uy * trim)
+            let end = CGPoint(x: avPosition.x - ux * trim, y: avPosition.y - uy * trim)
+
+            context.fill(
+                hubBandQuad(from: start, to: end, normal: CGPoint(x: nx, y: ny), offset: metrics.lineOffset, halfThickness: metrics.bandHalf),
+                with: .color(hubColor)
+            )
+            context.fill(
+                hubBandQuad(from: start, to: end, normal: CGPoint(x: nx, y: ny), offset: -metrics.lineOffset, halfThickness: metrics.bandHalf),
+                with: .color(hubColor)
+            )
+        }
+
+        // 2. Bordo capsula sopra il riempimento
+        context.stroke(
+            borderPath,
+            with: .color(hubColor),
+            style: StrokeStyle(lineWidth: metrics.borderWidth, lineCap: .round, lineJoin: .round)
+        )
 
         let adaptiveFontSize = zoomLevel > 4.0 ? fontSize * 0.85 : fontSize
         let text = context.resolve(Text(label).font(.system(size: adaptiveFontSize, weight: .black)).foregroundColor(.black))
@@ -328,6 +389,132 @@ final class RailwayRenderer {
         let bgRect = CGRect(x: center.x - sz.width / 2 - 4, y: center.y - sz.height / 2 - 2, width: sz.width + 8, height: sz.height + 4)
         context.fill(Path(roundedRect: bgRect, cornerRadius: 4), with: .color(.white.opacity(0.85)))
         context.draw(text, at: center)
+    }
+
+    private struct HubIconMetrics {
+        let dotRadius: CGFloat
+        let lineOffset: CGFloat
+        let bandHalf: CGFloat
+        let shellGap: CGFloat
+        let borderWidth: CGFloat
+    }
+
+    private func hubIconMetrics(zoomLevel: CGFloat, centerDistance: CGFloat) -> HubIconMetrics {
+        let scale: CGFloat = zoomLevel > 4.0 ? 0.9 : 1.0
+        let dotRadius = min(10 * scale, max(4.5 * scale, centerDistance * 0.42))
+        let sizeScale = dotRadius / (10 * scale)
+        return HubIconMetrics(
+            dotRadius: dotRadius,
+            lineOffset: 5 * scale * sizeScale,
+            bandHalf: 2.5 * scale * sizeScale,
+            shellGap: 3.5 * scale * sizeScale,
+            borderWidth: 3 * scale * sizeScale
+        )
+    }
+
+    /// Contorno chiuso: due archi lunghi esterni sui pallini + due raccordi paralleli.
+    private func hubSmoothBorderPath(
+        classicPosition p1: CGPoint,
+        avPosition p2: CGPoint,
+        metrics: HubIconMetrics
+    ) -> Path {
+        let ringRadius = metrics.dotRadius + metrics.shellGap + metrics.borderWidth / 2
+        let outerOff = metrics.lineOffset + metrics.bandHalf + metrics.shellGap + metrics.borderWidth / 2
+
+        var path = Path()
+        let dx = p2.x - p1.x
+        let dy = p2.y - p1.y
+        let dist = hypot(dx, dy)
+
+        if dist < 1 {
+            path.addEllipse(in: CGRect(x: p1.x - ringRadius, y: p1.y - ringRadius, width: ringRadius * 2, height: ringRadius * 2))
+            return path
+        }
+
+        let ux = dx / dist
+        let uy = dy / dist
+        let nx = -uy
+        let ny = ux
+
+        let sinPhi = min(outerOff / ringRadius, 0.95)
+        let cosPhi = sqrt(max(0, 1 - sinPhi * sinPhi))
+
+        func ringPoint(center: CGPoint, along: CGFloat, across: CGFloat) -> CGPoint {
+            CGPoint(
+                x: center.x + ringRadius * (along * ux + across * nx),
+                y: center.y + ringRadius * (along * uy + across * ny)
+            )
+        }
+
+        let p1Top = ringPoint(center: p1, along: cosPhi, across: sinPhi)
+        let p1Bottom = ringPoint(center: p1, along: cosPhi, across: -sinPhi)
+        let p2Top = ringPoint(center: p2, along: -cosPhi, across: sinPhi)
+        let p2Bottom = ringPoint(center: p2, along: -cosPhi, across: -sinPhi)
+
+        path.move(to: p1Top)
+        path.addLine(to: p2Top)
+        appendExteriorArc(on: &path, center: p2, from: p2Top, to: p2Bottom, awayFrom: p1)
+        path.addLine(to: p1Bottom)
+        appendExteriorArc(on: &path, center: p1, from: p1Bottom, to: p1Top, awayFrom: p2)
+        path.closeSubpath()
+        return path
+    }
+
+    /// Arco esterno tra due tangenti sullo stesso cerchio (quello più lontano dall'altro pallino).
+    private func appendExteriorArc(
+        on path: inout Path,
+        center: CGPoint,
+        from startPoint: CGPoint,
+        to endPoint: CGPoint,
+        awayFrom other: CGPoint
+    ) {
+        let radius = hypot(startPoint.x - center.x, startPoint.y - center.y)
+        let start = Double(atan2(startPoint.y - center.y, startPoint.x - center.x))
+        let end = Double(atan2(endPoint.y - center.y, endPoint.x - center.x))
+
+        func midpoint(clockwise: Bool) -> CGPoint {
+            var span = end - start
+            if clockwise {
+                if span > 0 { span -= 2 * Double.pi }
+            } else if span < 0 {
+                span += 2 * Double.pi
+            }
+            let mid = start + span / 2
+            return CGPoint(
+                x: center.x + radius * CGFloat(cos(mid)),
+                y: center.y + radius * CGFloat(sin(mid))
+            )
+        }
+
+        let midCW = midpoint(clockwise: true)
+        let midCCW = midpoint(clockwise: false)
+        let distCW = hypot(midCW.x - other.x, midCW.y - other.y)
+        let distCCW = hypot(midCCW.x - other.x, midCCW.y - other.y)
+        let clockwise = distCW > distCCW
+
+        path.addArc(
+            center: center,
+            radius: radius,
+            startAngle: .radians(start),
+            endAngle: .radians(end),
+            clockwise: clockwise
+        )
+    }
+
+    private func hubBandQuad(from start: CGPoint, to end: CGPoint, normal: CGPoint, offset: CGFloat, halfThickness: CGFloat) -> Path {
+        let o = CGPoint(x: normal.x * offset, y: normal.y * offset)
+        let t = CGPoint(x: normal.x * halfThickness, y: normal.y * halfThickness)
+        let a = CGPoint(x: start.x + o.x - t.x, y: start.y + o.y - t.y)
+        let b = CGPoint(x: end.x + o.x - t.x, y: end.y + o.y - t.y)
+        let c = CGPoint(x: end.x + o.x + t.x, y: end.y + o.y + t.y)
+        let d = CGPoint(x: start.x + o.x + t.x, y: start.y + o.y + t.y)
+        var path = Path()
+        path.move(to: a)
+        path.addLine(to: b)
+        path.addLine(to: c)
+        path.addLine(to: d)
+        path.closeSubpath()
+        return path
     }
 
     /// Compatibilità snapshot: accetta due posizioni ordinate [classica, AV].
@@ -344,34 +531,6 @@ final class RailwayRenderer {
         )
     }
 
-    private func figureEightPath(between p1: CGPoint, and p2: CGPoint) -> Path {
-        let dx = p2.x - p1.x
-        let dy = p2.y - p1.y
-        let dist = hypot(dx, dy)
-        guard dist > 8 else { return Path() }
-
-        let ux = dx / dist
-        let uy = dy / dist
-        let nx = -uy
-        let ny = ux
-        let trim: CGFloat = 8
-        let bulge = max(dist * 0.28, 14)
-
-        var path = Path()
-        path.move(to: CGPoint(x: p1.x + ux * trim, y: p1.y + uy * trim))
-        path.addCurve(
-            to: CGPoint(x: p2.x - ux * trim, y: p2.y - uy * trim),
-            control1: CGPoint(x: p1.x + nx * bulge, y: p1.y + ny * bulge),
-            control2: CGPoint(x: p2.x + nx * bulge, y: p2.y + ny * bulge)
-        )
-        path.addCurve(
-            to: CGPoint(x: p1.x + ux * trim, y: p1.y + uy * trim),
-            control1: CGPoint(x: p2.x - nx * bulge, y: p2.y - ny * bulge),
-            control2: CGPoint(x: p1.x - nx * bulge, y: p1.y - ny * bulge)
-        )
-        return path
-    }
-    
     // MARK: - Path Helpers
     
     private func createSmoothPath(points: [CGPoint]) -> Path {

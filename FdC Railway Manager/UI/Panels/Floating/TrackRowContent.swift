@@ -37,11 +37,11 @@ struct TrackRowContent: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
-        .background(appState.selectedEdgeId == edge.id.uuidString ? appState.theme.accent.opacity(0.15) : appState.theme.backgroundSecondary)
+        .background(appState.isEdgeSelected(edge.id.uuidString) ? appState.theme.accent.opacity(0.15) : appState.theme.backgroundSecondary)
         .cornerRadius(10)
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(appState.selectedEdgeId == edge.id.uuidString ? appState.theme.accent : appState.theme.line.opacity(0.2), lineWidth: 1)
+                .stroke(appState.isEdgeSelected(edge.id.uuidString) ? appState.theme.accent : appState.theme.line.opacity(0.2), lineWidth: 1)
         )
     }
 }

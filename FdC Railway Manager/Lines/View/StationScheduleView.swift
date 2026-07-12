@@ -228,9 +228,12 @@ struct StationScheduleView: View {
         let nodes = network.nodes
         
         Task(priority: .userInitiated) {
-            let nodeMap = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0.name) })
-            let routeMap = Dictionary(uniqueKeysWithValues: routes.map { ($0.id, $0) })
-            let vehicleMap = Dictionary(uniqueKeysWithValues: vehicles.map { ($0.id, $0) })
+            var nodeMap: [String: String] = [:]
+            for node in nodes { nodeMap[node.id] = node.name }
+            var routeMap: [String: TrainRoute] = [:]
+            for route in routes { routeMap[route.id] = route }
+            var vehicleMap: [UUID: RailwayVehicle] = [:]
+            for vehicle in vehicles { vehicleMap[vehicle.id] = vehicle }
             
             var results: [StationArrival] = []
             

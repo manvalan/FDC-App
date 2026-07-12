@@ -124,4 +124,33 @@ public struct Edge: Identifiable, Codable, Hashable {
         try container.encode(hasManualDistance, forKey: .hasManualDistance)
         try container.encodeIfPresent(pairedEdgeId, forKey: .pairedEdgeId)
     }
+
+    /// Binari paralleli dello stesso tratto (doppio binario, coppia A↔B, AV) da selezionare insieme.
+    public static func selectionGroup(containing edge: Edge, in edges: [Edge]) -> Set<UUID> {
+        let corridor = edge.canonicalKey
+        let type = edge.trackType
+        var ids = Set(
+            edges
+                .filter { $0.canonicalKey == corridor && $0.trackType == type }
+                .map(\.id)
+        )
+        expandPairedLinks(in: &ids, within: edges)
+        return ids
+    }
+
+    /// Aggiunge al gruppo gli edge collegati da `pairedEdgeId` (doppio binario esplicito).
+    private static func expandPairedLinks(in ids: inout Set<UUID>, within edges: [Edge]) {
+        var pending = ids
+        while let id = pending.popFirst() {
+            guard let edge = edges.first(where: { $0.id == id }) else { continue }
+            if let paired = edge.pairedEdgeId, ids.insert(paired).inserted {
+                pending.insert(paired)
+            }
+            for other in edges where other.pairedEdgeId == id {
+                if ids.insert(other.id).inserted {
+                    pending.insert(other.id)
+                }
+            }
+        }
+    }
 }

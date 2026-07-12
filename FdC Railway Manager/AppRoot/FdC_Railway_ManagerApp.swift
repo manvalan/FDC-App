@@ -18,17 +18,15 @@ struct FdC_Railway_ManagerApp: App {
         WindowGroup("RailWay Manager") {
             if showSplash {
                 SplashScreen()
-                    .onAppear {
-                        print("🚀 APP AVVIATA - TEST CONSOLE OK 🚀")
-                        // Keep splash for at least 2.5 seconds
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                            withAnimation {
-                                showSplash = false
-                            }
-                        }
-                    }
                     .task {
-                        await loader.performInitialLoad()
+                        print("🚀 APP AVVIATA - TEST CONSOLE OK 🚀")
+                        let started = Date()
+                        loader.performInitialLoad()
+                        let remaining = max(0, 2.5 - Date().timeIntervalSince(started))
+                        try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+                        withAnimation {
+                            showSplash = false
+                        }
                     }
             } else {
                 ContentView()
@@ -41,7 +39,7 @@ struct FdC_Railway_ManagerApp: App {
                         // Periodic autosave every 30 seconds
                         while true {
                             try? await Task.sleep(nanoseconds: 30 * 1_000_000_000)
-                            await loader.saveCurrentState()
+                            loader.saveCurrentState()
                         }
                     }
             }

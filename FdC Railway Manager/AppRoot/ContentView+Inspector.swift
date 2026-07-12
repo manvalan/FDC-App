@@ -161,15 +161,15 @@ extension ContentView {
         } else if let route = appState.selectedRoute {
             RouteInspectorView(route: route)
                 .id("route-\(route.id)")
-        } else if let edgeId = appState.selectedEdgeId, let index = network.edges.firstIndex(where: { $0.id.uuidString == edgeId }) {
+        } else if let edgeId = appState.selectedEdgeId,
+                  network.edges.contains(where: { $0.id.uuidString == edgeId }) {
             TrackInspectorView(
-                edge: Binding(
-                    get: { network.edges[index] },
-                    set: { network.edges[index] = $0 }
-                ),
+                edge: network.edgeBinding(for: edgeId),
                 onDelete: {
                     withAnimation {
-                        network.removeEdge(from: network.edges[index].from, to: network.edges[index].to)
+                        if let edge = network.edges.first(where: { $0.id.uuidString == edgeId }) {
+                            network.removeEdge(from: edge.from, to: edge.to)
+                        }
                         appState.selectedEdgeId = nil
                     }
                 },
@@ -179,7 +179,7 @@ extension ContentView {
                     }
                 }
             )
-            .id("edge-\(edgeId)")
+            .id("edge-\(edgeId)-\(appState.railroad.topologyId)")
         } else if !appState.selectedTrainIds.isEmpty {
             trainSelectionInspector()
         } else {

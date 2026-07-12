@@ -49,8 +49,11 @@ final class IOManager: ObservableObject {
     
     private func populate(from dto: RailwayNetworkDTO) {
         guard let railroad = railroad else { return }
-        railroad.network.nodes = dto.nodes
-        railroad.network.edges = dto.edges
+        var nodes = Self.sanitizeNodes(dto.nodes)
+        var edges = dto.edges
+        HubTopology.reconcileLegacyAVStations(nodes: &nodes, edges: &edges)
+        railroad.network.nodes = nodes
+        railroad.network.edges = edges
         railroad.network.lines = dto.lines ?? []
         railroad.lines.routes = dto.routes ?? []
         railroad.lines.trains = dto.trains ?? []
@@ -59,6 +62,24 @@ final class IOManager: ObservableObject {
         railroad.migrateLineNodeOrdering()
         railroad.clearUndoHistory()
         railroad.processInfrastructure()
+    }
+
+    /// Rimuove ID duplicati e satelliti hub orfani (evita abort su Dictionary(uniqueKeysWithValues:)).
+    private static func sanitizeNodes(_ nodes: [Node]) -> [Node] {
+        var seen = Set<String>()
+        let deduped = nodes.filter { seen.insert($0.id).inserted }
+        if deduped.count != nodes.count {
+            print("⚠️ Rimossi \(nodes.count - deduped.count) nodi con ID duplicato dal salvataggio")
+        }
+        let parentIds = Set(deduped.map(\.id))
+        return deduped.map { node in
+            var sanitized = node
+            if let parentId = sanitized.parentHubId, !parentIds.contains(parentId) {
+                sanitized.parentHubId = nil
+                sanitized.hubOffsetDirection = nil
+            }
+            return sanitized
+        }
     }
 
     func importFromFDC(data: Data) throws {
@@ -95,15 +116,26 @@ final class IOManager: ObservableObject {
 
     private func mapFDCEdges(_ edges: [FDCEdge]) -> [Edge] {
         return edges.map { fdc in
+            let rawType = fdc.trackType?.lowercased() ?? "regional"
+            let isLegacyDouble = rawType == "double"
             let type: Edge.TrackType = {
-                switch fdc.trackType?.lowercased() {
+                switch rawType {
                 case "highspeed", "high_speed": return .highSpeed
-                case "single": return .single
-                case "double": return .single  // legacy — migrated to paired singles at load
+                case "single", "double": return .single
                 default: return .regional
                 }
             }()
-            return Edge(from: fdc.from, to: fdc.to, distance: fdc.distance ?? 1.0, trackType: type, maxSpeed: Int(fdc.maxSpeed ?? 120.0), capacity: fdc.capacity)
+            var edge = Edge(
+                from: fdc.from, to: fdc.to,
+                distance: fdc.distance ?? 1.0,
+                trackType: type,
+                maxSpeed: Int(fdc.maxSpeed ?? 120.0),
+                capacity: fdc.capacity
+            )
+            if isLegacyDouble {
+                edge.needsPairedMigration = true
+            }
+            return edge
         }
     }
 

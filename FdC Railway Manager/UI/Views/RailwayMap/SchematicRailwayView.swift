@@ -369,9 +369,7 @@ struct SchematicRailwayView: View {
                         interactionVM.handleStationTap(node, editMode: editModeBinding, newTrackFrom: $newTrackFrom, newTrackTo: $newTrackTo, newTrackDistance: $newTrackDistance)
                     }
                 } else {
-                    appState.selectedEdgeId = sel.id
-                    appState.selectedNodeId = nil
-                    appState.selectedRouteId = nil
+                    appState.selectEdge(sel.id)
                     appState.activePanel = .inspector
                 }
             } else {

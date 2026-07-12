@@ -175,11 +175,24 @@ struct MapGeometryEngine {
             edgesByPair: edgesByPair, nodePositions: nodePositions,
             nodeNeighbors: nodeNeighbors, lines: lines,
             hiddenLineIds: hiddenLineIds, size: size, bounds: bounds)
-        let hubGeometries = calculateHubGeometries(network: network, nodePositions: nodePositions)
-        let selectionIndex = buildSelectionIndex(nodePositions: nodePositions, edgeGeometries: edgeGeometries)
+        let hubGeometries = calculateHubGeometries(
+            network: network,
+            nodePositions: nodePositions,
+            edgeGeometries: edgeGeometries
+        )
+        let hubTopology = HubTopology(nodes: network.nodes)
+        let hubVisualRoles = buildHubVisualRoles(network: network)
+        let hiddenNodeIds = Set(network.nodes.filter { hubTopology.isLegacyDuplicateAVNode($0) }.map(\.id))
+        let selectionIndex = buildSelectionIndex(
+            nodePositions: nodePositions,
+            edgeGeometries: edgeGeometries,
+            hiddenNodeIds: hiddenNodeIds
+        )
         return MapRenderData(
             size: size, bounds: bounds, nodePositions: nodePositions,
             edgeGeometries: edgeGeometries, hubGeometries: hubGeometries,
+            hubVisualRoles: hubVisualRoles,
+            hiddenNodeIds: hiddenNodeIds,
             commercialLines: commercialLines, selectionIndex: selectionIndex)
     }
 
@@ -201,10 +214,8 @@ struct MapGeometryEngine {
             let nEnd = (nodeNeighbors[first.to]?.filter { $0 != first.from } ?? []).compactMap { nodePositions[$0] }
             let base = getBasePoints(for: first, from: p1, to: p2, avoid: avoid,
                                      nPosStart: nStart, nPosEnd: nEnd, size: size, bounds: bounds)
-            let trackCount = edges.count
-            let offsetDist: CGFloat = trackCount > 4 ? (28.0 / CGFloat(trackCount - 1)) : 8.0
-            for (index, edge) in edges.enumerated() {
-                let offset = trackCount == 1 ? 0 : (CGFloat(index) - CGFloat(trackCount - 1) / 2.0) * offsetDist
+            for edge in edges {
+                let offset = Edge.visualRailOffset(for: edge, in: edges)
                 geometries[edge.id.uuidString] = offsetPoints(base, offset: offset)
             }
         }
@@ -330,23 +341,79 @@ struct MapGeometryEngine {
         return len > 0 ? CGPoint(x: -dy / len, y: dx / len) : .zero
     }
 
-    private static func calculateHubGeometries(network: NetworkModel, nodePositions: [String: CGPoint]) -> [String: [CGPoint]] {
+    private static func buildHubVisualRoles(network: NetworkModel) -> [String: HubTopology.HubVisualRole] {
+        let hubTopology = HubTopology(nodes: network.nodes)
+        var roles: [String: HubTopology.HubVisualRole] = [:]
+        for node in network.nodes {
+            let role = hubTopology.hubVisualRole(for: node)
+            if role != .none {
+                roles[node.id] = role
+            }
+        }
+        return roles
+    }
+
+    private static func calculateHubGeometries(
+        network: NetworkModel,
+        nodePositions: [String: CGPoint],
+        edgeGeometries: [String: [CGPoint]]
+    ) -> [String: [CGPoint]] {
         let hubTopology = HubTopology(nodes: network.nodes)
         var geometries: [String: [CGPoint]] = [:]
         for parent in network.nodes where hubTopology.avSatellite(for: parent.id) != nil {
             guard let satellite = hubTopology.avSatellite(for: parent.id),
                   let parentPos = nodePositions[parent.id],
                   let satellitePos = nodePositions[satellite.id] else { continue }
-            geometries[parent.id] = [parentPos, satellitePos]
+            let classicPos = hubTrackAnchor(
+                nodeId: parent.id,
+                trackType: .regional,
+                network: network,
+                edgeGeometries: edgeGeometries,
+                fallback: parentPos
+            )
+            let avPos = hubTrackAnchor(
+                nodeId: satellite.id,
+                trackType: .highSpeed,
+                network: network,
+                edgeGeometries: edgeGeometries,
+                fallback: satellitePos
+            )
+            geometries[parent.id] = [classicPos, avPos]
         }
         return geometries
     }
 
-    private static func buildSelectionIndex(nodePositions: [String: CGPoint], edgeGeometries: [String: [CGPoint]]) -> [MapRenderData.HitTarget] {
+    /// Punto sul binario fisico più vicino al nodo hub (classico o AV).
+    private static func hubTrackAnchor(
+        nodeId: String,
+        trackType: Edge.TrackType,
+        network: NetworkModel,
+        edgeGeometries: [String: [CGPoint]],
+        fallback: CGPoint
+    ) -> CGPoint {
+        let hub = HubTopology(nodes: network.nodes)
+        let resolvedId = hub.endpointNodeId(for: nodeId, trackType: trackType)
+        for edge in network.edges where edge.trackType == trackType {
+            let fromId = hub.endpointNodeId(for: edge.from, trackType: trackType)
+            let toId = hub.endpointNodeId(for: edge.to, trackType: trackType)
+            guard fromId == resolvedId || toId == resolvedId else { continue }
+            guard let points = edgeGeometries[edge.id.uuidString], let first = points.first, let last = points.last else {
+                continue
+            }
+            return fromId == resolvedId ? first : last
+        }
+        return fallback
+    }
+
+    private static func buildSelectionIndex(
+        nodePositions: [String: CGPoint],
+        edgeGeometries: [String: [CGPoint]],
+        hiddenNodeIds: Set<String> = []
+    ) -> [MapRenderData.HitTarget] {
         var index: [MapRenderData.HitTarget] = []
         let nodeThreshold: CGFloat = 25.0
         let edgeThreshold: CGFloat = 20.0
-        for (id, pos) in nodePositions {
+        for (id, pos) in nodePositions where !hiddenNodeIds.contains(id) {
             let rect = CGRect(x: pos.x - nodeThreshold, y: pos.y - nodeThreshold, width: nodeThreshold * 2, height: nodeThreshold * 2)
             index.append(MapRenderData.HitTarget(id: id, type: .node, bounds: rect, center: pos, points: nil))
         }

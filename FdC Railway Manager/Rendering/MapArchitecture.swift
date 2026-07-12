@@ -56,6 +56,8 @@ struct MapRenderData {
     let nodePositions: [String: CGPoint]
     let edgeGeometries: [String: [CGPoint]] // Chiave: canonicalKey degli edge
     let hubGeometries: [String: [CGPoint]] // Chiave: hubId
+    let hubVisualRoles: [String: HubTopology.HubVisualRole]
+    let hiddenNodeIds: Set<String>
     let commercialLines: [SegmentKey: [PrecomputedLine]]
     
     // Hit-test Index (Pre-calculated for instant interaction)

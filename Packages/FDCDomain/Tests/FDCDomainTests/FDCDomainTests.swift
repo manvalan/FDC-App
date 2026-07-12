@@ -69,9 +69,47 @@ final class FDCDomainTests: XCTestCase {
         XCTAssertEqual(hub.hubVisualRole(for: satellite), .avSatellite)
     }
 
+    func testHubTopology_reconcileLegacyDuplicateAV() {
+        let parent = Node(id: "BW", name: "Bywater", type: .station, latitude: 1, longitude: 1)
+        let satellite = Node(
+            id: "BW_av", name: "Bywater AV", type: .station,
+            latitude: 1, longitude: 1,
+            parentHubId: "BW", hubOffsetDirection: .topRight
+        )
+        let legacy = Node(id: "BW_AV_OLD", name: "Bywater AV", type: .station, latitude: 1.1, longitude: 1.1)
+        var nodes = [parent, satellite, legacy]
+        var edges = [Edge(from: "BW_AV_OLD", to: "X", distance: 5, trackType: .highSpeed, maxSpeed: 300)]
+
+        HubTopology.reconcileLegacyAVStations(nodes: &nodes, edges: &edges)
+
+        XCTAssertEqual(nodes.count, 2)
+        XCTAssertEqual(edges.first?.from, "BW_av")
+        XCTAssertFalse(nodes.contains(where: { $0.id == "BW_AV_OLD" }))
+    }
+
     func testHubTopology_canvasOffsetEightPositions() {
         XCTAssertEqual(HubTopology.canvasOffset(for: .top).y, -25)
         XCTAssertEqual(HubTopology.canvasOffset(for: .right).x, 25)
         XCTAssertEqual(HubTopology.canvasOffset(for: .topLeft).x, -25)
+    }
+
+    func testEdge_selectionGroupPairsParallelTracks() {
+        let fwdId = UUID()
+        let bwdId = UUID()
+        let fwd = Edge(id: fwdId, from: "A", to: "B", distance: 10, trackType: .highSpeed, maxSpeed: 300, pairedEdgeId: bwdId)
+        let bwd = Edge(id: bwdId, from: "B", to: "A", distance: 10, trackType: .highSpeed, maxSpeed: 300, pairedEdgeId: fwdId)
+        let other = Edge(from: "A", to: "B", distance: 10, trackType: .regional, maxSpeed: 160)
+        let edges = [fwd, bwd, other]
+
+        XCTAssertEqual(Edge.selectionGroup(containing: fwd, in: edges), Set([fwdId, bwdId]))
+        XCTAssertEqual(Edge.selectionGroup(containing: other, in: edges), Set([other.id]))
+    }
+
+    func testEdge_selectionGroupLegacyDoubleWithoutPairedLink() {
+        let ab = Edge(from: "A", to: "B", distance: 10, trackType: .single, maxSpeed: 120)
+        let ba = Edge(from: "B", to: "A", distance: 10, trackType: .single, maxSpeed: 120)
+        let edges = [ab, ba]
+
+        XCTAssertEqual(Edge.selectionGroup(containing: ab, in: edges), Set([ab.id, ba.id]))
     }
 }

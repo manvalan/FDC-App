@@ -76,6 +76,12 @@ struct TrackInspectorView: View {
         .onAppear {
             isEditingEnabled = true
         }
+        .onChange(of: appState.railroad.topologyId) {
+            if let edgeId = appState.selectedEdgeId,
+               !network.edges.contains(where: { $0.id.uuidString == edgeId }) {
+                appState.selectedEdgeId = nil
+            }
+        }
         .onDisappear {
             isEditingEnabled = false
             Task { loader.saveCurrentState() }
@@ -133,42 +139,36 @@ struct TrackInspectorView: View {
     
     private var trackTypeSection: some View {
         InspectorSection(title: "track_type".localized, icon: "signpost.right.fill", iconColor: .purple) {
-            Picker("type".localized, selection: $edge.trackType) {
-                Label("single_track".localized, systemImage: "1.circle").tag(RailwayEdge.TrackType.single)
-                Label("high_speed_track".localized, systemImage: "bolt.fill").tag(RailwayEdge.TrackType.highSpeed)
-                Label("regional_track".localized, systemImage: "tram").tag(RailwayEdge.TrackType.regional)
+            Picker("type".localized, selection: layoutModeBinding) {
+                ForEach(TrackLayoutMode.allCases) { mode in
+                    Label(mode.localizationKey.localized, systemImage: mode.icon)
+                        .tag(mode)
+                }
             }
             .pickerStyle(.menu)
-            .onChange(of: edge.trackType) { oldValue, newValue in
-                updateParametersForTrackType(newValue)
-            }
-
-            if edge.pairedEdgeId == nil && edge.trackType != .regional {
-                Button {
-                    appState.railroad.addPairedEdge(to: edge.id)
-                } label: {
-                    Label("Converti in Doppio Binario", systemImage: "2.circle")
-                        .font(.caption)
-                }
-                .buttonStyle(.borderless)
-                .foregroundColor(.purple)
-            } else if edge.pairedEdgeId != nil {
-                Label("Doppio Binario", systemImage: "2.circle")
-                    .font(.caption)
-                    .foregroundColor(.purple)
-            }
-
-            HStack {
-                Image(systemName: trackTypeIcon)
-                    .foregroundColor(trackTypeColor)
-                Text(trackTypeLabel)
-                    .font(.caption)
-                Spacer()
-            }
-            .padding(8)
-            .background(trackTypeColor.opacity(0.1))
-            .cornerRadius(8)
         }
+    }
+
+    private var layoutModeBinding: Binding<TrackLayoutMode> {
+        Binding(
+            get: {
+                guard let edgeId = appState.selectedEdgeId,
+                      let live = network.edges.first(where: { $0.id.uuidString == edgeId })
+                else { return .single }
+                return TrackLayoutMode.from(live, in: network.edges)
+            },
+            set: { newMode in
+                guard let edgeId = appState.selectedEdgeId.flatMap(UUID.init(uuidString:)),
+                      network.edges.contains(where: { $0.id == edgeId })
+                else { return }
+                appState.railroad.applyTrackLayout(
+                    newMode,
+                    to: edgeId,
+                    singleMaxSpeed: Int(appState.singleTrackMaxSpeed),
+                    highSpeedMaxSpeed: Int(appState.highSpeedTrackMaxSpeed)
+                )
+            }
+        )
     }
     
     private var parametersSection: some View {
@@ -277,45 +277,5 @@ struct TrackInspectorView: View {
         let distM = edge.distance * 1000.0
         guard distM > 0 else { return "—" }
         return String(format: "%.1f ‰", (dAlt / distM) * 1000.0)
-    }
-
-    // MARK: - Metodi di Supporto
-    
-    private var trackTypeIcon: String {
-        switch edge.trackType {
-        case .single: return "1.circle"
-        case .highSpeed: return "bolt.fill"
-        case .regional: return "tram"
-        }
-    }
-
-    private var trackTypeLabel: String {
-        switch edge.trackType {
-        case .single: return "single_track".localized
-        case .highSpeed: return "high_speed_track".localized
-        case .regional: return "regional_track".localized
-        }
-    }
-
-    private var trackTypeColor: Color {
-        switch edge.trackType {
-        case .single: return .blue
-        case .highSpeed: return .purple
-        case .regional: return .orange
-        }
-    }
-
-    private func updateParametersForTrackType(_ type: RailwayEdge.TrackType) {
-        switch type {
-        case .single:
-            edge.capacity = 6
-            edge.maxSpeed = Int(appState.singleTrackMaxSpeed)
-        case .highSpeed:
-            edge.capacity = 15
-            edge.maxSpeed = Int(appState.highSpeedTrackMaxSpeed)
-        case .regional:
-            edge.capacity = 6
-            edge.maxSpeed = Int(appState.regionalTrackMaxSpeed)
-        }
     }
 }

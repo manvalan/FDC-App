@@ -466,11 +466,8 @@ struct RailwayMapView: View {
                 let p2 = finalPosition(for: n2, bounds: bounds, snapshotSize: snapshotSize, nodes: nodes)
                 let basePoints = generateSchematicPoints(from: p1, to: p2)
                 
-                let trackCount = edgeGroup.count
-                let offsetDistance: CGFloat = 6.0
-                
-                for (index, edge) in edgeGroup.enumerated() {
-                    let offset = (trackCount == 1) ? 0 : (CGFloat(index) - CGFloat(trackCount - 1) / 2.0) * offsetDistance
+                for edge in edgeGroup {
+                    let offset = Edge.visualRailOffset(for: edge, in: edgeGroup, spacing: 6)
                     let offsetPoints = applyPerpendicularOffset(to: basePoints, offset: offset)
                     let path = createSmoothPath(points: offsetPoints)
                     let baseColor: Color = mode.isSchedulerMode ? .gray.opacity(0.3) : .gray

@@ -24,15 +24,13 @@ struct EditorInspectorContent: View {
                         }
                     )
                 } else if let edgeId = appState.selectedEdgeId,
-                          let index = appState.railroad.network.edges.firstIndex(where: { $0.id.uuidString == edgeId }) {
+                          appState.railroad.network.edges.contains(where: { $0.id.uuidString == edgeId }) {
                     TrackInspectorView(
-                        edge: Binding(
-                            get: { appState.railroad.network.edges[index] },
-                            set: { appState.railroad.network.edges[index] = $0 }
-                        ),
+                        edge: appState.railroad.network.edgeBinding(for: edgeId),
                         onDelete: {
-                            let edge = appState.railroad.network.edges[index]
-                            appState.railroad.network.removeEdge(from: edge.from, to: edge.to)
+                            if let edge = appState.railroad.network.edges.first(where: { $0.id.uuidString == edgeId }) {
+                                appState.railroad.network.removeEdge(from: edge.from, to: edge.to)
+                            }
                             appState.selectedEdgeId = nil
                         },
                         onBack: nil

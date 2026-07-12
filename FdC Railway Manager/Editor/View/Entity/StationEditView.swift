@@ -92,14 +92,14 @@ struct StationEditView: View {
             Text("Centro Scambio").font(.caption.bold()).foregroundColor(appState.theme.medium)
             Picker("Appartiene a", selection: $station.parentHubId) {
                 Text("Nessuno").tag(String?.none)
-                ForEach(appState.railroad.network.nodes.filter { $0.id != station.id }) { Text($0.name).tag(String?.some($0.id)) }
+                ForEach(appState.railroad.network.nodes.filter { $0.id != station.id && $0.parentHubId == nil }) { Text($0.name).tag(String?.some($0.id)) }
             }
             if station.parentHubId != nil {
                 Picker("Posizione Offset", selection: $station.hubOffsetDirection) {
                     Text("Standard").tag(RailwayNode.HubOffsetDirection?.none)
                     ForEach(RailwayNode.HubOffsetDirection.allCases) { Text($0.localizedName).tag(RailwayNode.HubOffsetDirection?.some($0)) }
                 }
-                .pickerStyle(.segmented)
+                .pickerStyle(.menu)
             }
         }
         .padding().background(appState.theme.backgroundSecondary).cornerRadius(12)

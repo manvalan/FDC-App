@@ -81,7 +81,7 @@ struct TrackListViewModel {
 
     func onDelete(_ edge: Edge) {
         network.removeEdge(from: edge.from, to: edge.to)
-        if selectedEdgeId == edge.id.uuidString {
+        if appState.isEdgeSelected(edge.id.uuidString) {
             selectedEdgeId = nil
         }
         network.createCheckpoint()

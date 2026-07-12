@@ -30,7 +30,7 @@ struct InfrastructureCanvas: View {
             for edge in appState.railroad.network.edges {
                 guard let points = renderData.edgeGeometries[edge.id.uuidString] else { continue }
                 
-                let isSelected = !mode.isSchedulerMode && appState.selectedEdgeId == edge.id.uuidString
+                let isSelected = !mode.isSchedulerMode && appState.isEdgeSelected(edge.id.uuidString)
                 var style = EdgeStyle.forTrackType(edge.trackType)
                 if totalZoom > 4.0 {
                     style.strokeWidth *= 0.8
@@ -46,15 +46,31 @@ struct InfrastructureCanvas: View {
                 )
             }
 
-            let hubTopology = HubTopology(nodes: appState.railroad.network.nodes)
+            // 2. Hub (icona unificata: bordo capsula + pallini + doppia linea)
+            for (hubId, positions) in renderData.hubGeometries where positions.count >= 2 {
+                let parentNode = appState.railroad.network.nodes.first(where: { $0.id == hubId })
+                let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
+                let maxY = positions.map { $0.y }.max() ?? positions[0].y
 
-            // 2. Disegno NODI (Stazioni, Bivi, Hub)
+                renderer.drawHubPair(
+                    classicPosition: positions[0],
+                    avPosition: positions[1],
+                    label: parentNode?.name ?? "",
+                    center: CGPoint(x: centerX, y: maxY + 35),
+                    fontSize: appState.globalFontSize,
+                    zoomLevel: totalZoom,
+                    in: context
+                )
+            }
+
+            // 3. Disegno NODI (Stazioni, Bivi, Hub)
             for node in appState.railroad.network.nodes {
+                if renderData.hiddenNodeIds.contains(node.id) { continue }
                 if appState.isDraggingNode && appState.selectedNodeId == node.id { continue }
                 let isSelected = appState.selectedNodeId == node.id || appState.selectedNodeIds.contains(node.id)
                 guard let point = renderData.nodePositions[node.id] else { continue }
 
-                let hubRole = hubTopology.hubVisualRole(for: node)
+                let hubRole = renderData.hubVisualRoles[node.id] ?? .none
                 let isJunction = node.type == .junction
                 let baseIconSize: CGFloat = isJunction ? 1.5 : 8
                 let adaptiveSize = baseIconSize + (1.8 * totalZoom)
@@ -79,23 +95,6 @@ struct InfrastructureCanvas: View {
                     isSelected: isSelected
                 )
                 renderer.drawNode(node, at: point, in: context, zoomLevel: totalZoom, style: style, hubRole: hubRole)
-            }
-
-            // 3. Hubs (linea a 8)
-            for (hubId, positions) in renderData.hubGeometries where positions.count >= 2 {
-                let parentNode = appState.railroad.network.nodes.first(where: { $0.id == hubId })
-                let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
-                let maxY = positions.map { $0.y }.max() ?? positions[0].y
-
-                renderer.drawHubPair(
-                    classicPosition: positions[0],
-                    avPosition: positions[1],
-                    label: parentNode?.name ?? "",
-                    center: CGPoint(x: centerX, y: maxY + 35),
-                    fontSize: appState.globalFontSize,
-                    zoomLevel: totalZoom,
-                    in: context
-                )
             }
             
             // 4. Linee Commerciali (Ottimizzate: niente più ricerche O(N))

@@ -155,6 +155,33 @@ final class RailroadNetwork: ObservableObject {
         topologyId += 1
     }
 
+    /// Migra hub legacy (es. stazione «Foo AV» separata) e rimappa i binari.
+    func reconcileHubTopology() {
+        var nodes = network.nodes
+        var edges = network.edges
+        HubTopology.reconcileLegacyAVStations(nodes: &nodes, edges: &edges)
+        reconcileCorridorDuplicates(&edges)
+        network.nodes = nodes
+        network.edges = edges
+        forceUpdateTopology()
+    }
+
+    /// Rimuove binari orfani extra sullo stesso tratto (es. terza linea dopo conversioni).
+    private func reconcileCorridorDuplicates(_ edges: inout [Edge]) {
+        var toRemove = Set<UUID>()
+        let grouped = Dictionary(grouping: edges, by: \.canonicalKey)
+        for (_, group) in grouped where group.count > 2 {
+            let pairIds = Set(group.filter { TrackLayoutMode.isInPair($0, in: group) }.map(\.id))
+            guard pairIds.count == 2 else { continue }
+            for edge in group where !pairIds.contains(edge.id) {
+                toRemove.insert(edge.id)
+            }
+        }
+        guard !toRemove.isEmpty else { return }
+        edges.removeAll { toRemove.contains($0.id) }
+        print("⚠️ Rimossi \(toRemove.count) binari duplicati sullo stesso tratto")
+    }
+
     /// Rigenera i segmenti di blocco sull'infrastruttura di rete.
     func processInfrastructure() {
         infrastructureManager.processNetwork(network)
@@ -183,6 +210,7 @@ final class RailroadNetwork: ObservableObject {
         createCheckpoint()
         let hub = HubTopology(nodes: network.nodes)
         let endpoints = hub.resolvedEndpoints(from: from, to: to, trackType: trackType)
+        guard endpoints.from != endpoints.to else { return }
         if isPaired {
             let fwdId = UUID()
             let bwdId = UUID()
@@ -206,6 +234,29 @@ final class RailroadNetwork: ObservableObject {
         infrastructureManager.processNetwork(network)
     }
 
+    /// Crea il satellite AV per uno hub, evitando duplicati.
+    @discardableResult
+    func addHubAVSatellite(
+        for parentId: String,
+        direction: Node.HubOffsetDirection = .bottomRight
+    ) -> Node? {
+        guard let parent = network.findNode(id: parentId) else { return nil }
+        let hub = HubTopology(nodes: network.nodes)
+        guard hub.avSatellite(for: parentId) == nil else { return hub.avSatellite(for: parentId) }
+
+        var satelliteId = "\(parentId)_av"
+        var suffix = 2
+        while network.findNode(id: satelliteId) != nil {
+            satelliteId = "\(parentId)_av\(suffix)"
+            suffix += 1
+        }
+
+        let satellite = hub.makeAVSatellite(for: parent, direction: direction, id: satelliteId)
+        network.addNode(satellite)
+        forceUpdateTopology()
+        return satellite
+    }
+
     /// Removes an edge (and optionally its paired counterpart) under a single
     /// undo checkpoint.
     func removeEdge(_ id: UUID, includingPaired: Bool) {
@@ -227,11 +278,16 @@ final class RailroadNetwork: ObservableObject {
     /// and cross-links both edges' `pairedEdgeId`.
     /// No-op if the edge is already paired or not found.
     func addPairedEdge(to edgeId: UUID) {
-        guard let original = network.edges.first(where: { $0.id == edgeId }),
-              original.pairedEdgeId == nil else { return }
+        guard let idx = network.edges.firstIndex(where: { $0.id == edgeId }),
+              network.edges[idx].pairedEdgeId == nil,
+              !network.edges.contains(where: { $0.pairedEdgeId == edgeId }) else { return }
         createCheckpoint()
+        let original = network.edges[idx]
         let pairedId = UUID()
-        let reverse = Edge(
+        var forward = original
+        forward.pairedEdgeId = pairedId
+        network.edges[idx] = forward
+        network.edges.append(Edge(
             id: pairedId,
             from: original.to, to: original.from,
             distance: original.distance,
@@ -239,12 +295,10 @@ final class RailroadNetwork: ObservableObject {
             maxSpeed: original.maxSpeed,
             capacity: original.capacity,
             pairedEdgeId: original.id
-        )
-        if let idx = network.edges.firstIndex(where: { $0.id == edgeId }) {
-            network.edges[idx].pairedEdgeId = pairedId
-        }
-        network.edges.append(reverse)
+        ))
         infrastructureManager.processNetwork(network)
+        forceUpdateTopology()
+        objectWillChange.send()
     }
 
     // MARK: - Node Removal (cascade-aware)
@@ -277,5 +331,149 @@ final class RailroadNetwork: ObservableObject {
             updated.destinationStationId = updated.stationIds[updated.stationIds.count - 1]
             return updated
         }
+    }
+
+    // MARK: - Track layout (singolo / doppio / AV)
+
+    /// Applica il layout binario scelto dall'utente (singolo / doppio / AV).
+    func applyTrackLayout(
+        _ mode: TrackLayoutMode,
+        to edgeId: UUID,
+        singleMaxSpeed: Int,
+        highSpeedMaxSpeed: Int
+    ) {
+        guard network.edges.contains(where: { $0.id == edgeId }) else { return }
+        repairPairedEdgeLinks()
+        createCheckpoint()
+
+        switch mode {
+        case .single:
+            dissolvePair(around: edgeId)
+            removeCorridorOrphans(anchorId: edgeId)
+            updateEdgeRecord(edgeId) { edge in
+                edge.trackType = .single
+                edge.capacity = 6
+                edge.maxSpeed = singleMaxSpeed
+            }
+
+        case .double:
+            removeCorridorOrphans(anchorId: edgeId)
+            updateEdgeRecord(edgeId) { edge in
+                edge.trackType = .single
+                edge.capacity = 6
+                edge.maxSpeed = singleMaxSpeed
+            }
+            if let current = network.edges.first(where: { $0.id == edgeId }),
+               !TrackLayoutMode.isInPair(current, in: network.edges) {
+                appendPairedEdgeRecord(to: edgeId)
+            }
+            syncPairedPartner(of: edgeId)
+
+        case .highSpeed:
+            removeCorridorOrphans(anchorId: edgeId)
+            let wasPaired = network.edges.first(where: { $0.id == edgeId })
+                .map { TrackLayoutMode.isInPair($0, in: network.edges) } ?? false
+            updateEdgeRecord(edgeId) { edge in
+                edge.trackType = .highSpeed
+                edge.capacity = 15
+                edge.maxSpeed = highSpeedMaxSpeed
+            }
+            if wasPaired {
+                syncPairedPartner(of: edgeId)
+            }
+        }
+
+        repairPairedEdgeLinks()
+        infrastructureManager.processNetwork(network)
+        forceUpdateTopology()
+        objectWillChange.send()
+    }
+
+    /// Azzera `pairedEdgeId` che puntano a binari già rimossi (evita stato inconsistente dopo conversioni).
+    private func repairPairedEdgeLinks() {
+        let liveIds = Set(network.edges.map(\.id))
+        for idx in network.edges.indices {
+            if let pairedId = network.edges[idx].pairedEdgeId, !liveIds.contains(pairedId) {
+                network.edges[idx].pairedEdgeId = nil
+            }
+        }
+    }
+
+    /// Elimina binari extra sullo stesso tratto (stesso `canonicalKey`), tenendo solo l'ancora e il partner collegato.
+    private func removeCorridorOrphans(anchorId: UUID) {
+        guard let anchor = network.edges.first(where: { $0.id == anchorId }) else { return }
+        let key = anchor.canonicalKey
+        let partnerId = anchor.pairedEdgeId ?? network.edges.first(where: { $0.pairedEdgeId == anchorId })?.id
+        network.edges.removeAll { edge in
+            guard edge.canonicalKey == key else { return false }
+            if edge.id == anchorId { return false }
+            if let partnerId, edge.id == partnerId { return false }
+            return true
+        }
+    }
+
+    private func updateEdgeRecord(_ edgeId: UUID, mutate: (inout Edge) -> Void) {
+        guard let idx = network.edges.firstIndex(where: { $0.id == edgeId }) else { return }
+        var edge = network.edges[idx]
+        mutate(&edge)
+        network.edges[idx] = edge
+    }
+
+    private func dissolvePair(around edgeId: UUID) {
+        guard let idx = network.edges.firstIndex(where: { $0.id == edgeId }) else { return }
+        var edge = network.edges[idx]
+
+        if let pairedId = edge.pairedEdgeId {
+            network.edges.removeAll { $0.id == pairedId }
+            edge.pairedEdgeId = nil
+            network.edges[idx] = edge
+            return
+        }
+
+        if let partnerIdx = network.edges.firstIndex(where: { $0.pairedEdgeId == edgeId }) {
+            network.edges.remove(at: partnerIdx)
+        }
+    }
+
+    private func appendPairedEdgeRecord(to edgeId: UUID) {
+        guard let idx = network.edges.firstIndex(where: { $0.id == edgeId }) else { return }
+        let original = network.edges[idx]
+        guard original.pairedEdgeId == nil,
+              !network.edges.contains(where: { $0.pairedEdgeId == edgeId }) else { return }
+
+        let pairedId = UUID()
+        var forward = original
+        forward.pairedEdgeId = pairedId
+        network.edges[idx] = forward
+
+        network.edges.append(Edge(
+            id: pairedId,
+            from: original.to,
+            to: original.from,
+            distance: original.distance,
+            trackType: original.trackType,
+            maxSpeed: original.maxSpeed,
+            capacity: original.capacity,
+            pairedEdgeId: original.id
+        ))
+    }
+
+    private func syncPairedPartner(of edgeId: UUID) {
+        guard let idx = network.edges.firstIndex(where: { $0.id == edgeId }) else { return }
+        let edge = network.edges[idx]
+        let partnerId = edge.pairedEdgeId ?? network.edges.first(where: { $0.pairedEdgeId == edgeId })?.id
+        guard let partnerId, let partnerIdx = network.edges.firstIndex(where: { $0.id == partnerId }) else { return }
+
+        var partner = network.edges[partnerIdx]
+        partner.trackType = edge.trackType
+        partner.maxSpeed = edge.maxSpeed
+        partner.capacity = edge.capacity
+        partner.distance = edge.distance
+        partner.pairedEdgeId = edge.id
+        network.edges[partnerIdx] = partner
+
+        var forward = edge
+        forward.pairedEdgeId = partnerId
+        network.edges[idx] = forward
     }
 }

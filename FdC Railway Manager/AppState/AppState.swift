@@ -114,6 +114,24 @@ final class AppState: ObservableObject {
         railroad.network.nodes.first { $0.id == selectedNodeId }
     }
 
+    /// Tutti gli edge del gruppo parallelo (doppio binario / coppia AV) dell'edge selezionato.
+    var edgeSelectionIds: Set<String> {
+        guard let selectedEdgeId,
+              let edge = railroad.network.edges.first(where: { $0.id.uuidString == selectedEdgeId })
+        else { return [] }
+        return Set(Edge.selectionGroup(containing: edge, in: railroad.network.edges).map(\.uuidString))
+    }
+
+    func isEdgeSelected(_ edgeId: String) -> Bool {
+        edgeSelectionIds.contains(edgeId)
+    }
+
+    func selectEdge(_ edgeId: String) {
+        selectedEdgeId = edgeId
+        selectedNodeId = nil
+        selectedRouteId = nil
+    }
+
     var selectedVehicle: RailwayVehicle? {
         railroad.lines.vehicles.first { $0.id == selectedVehicleId }
     }

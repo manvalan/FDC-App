@@ -250,8 +250,9 @@ struct StationInlineEditor: View {
                         }
                     } else if canCreateAVSatellite {
                         Button {
-                            let satellite = hubTopology.makeAVSatellite(for: node)
-                            appState.railroad.network.addNode(satellite)
+                            if let satellite = appState.railroad.addHubAVSatellite(for: node.id) {
+                                appState.selectedNodeId = satellite.id
+                            }
                         } label: {
                             Label("Crea stazione AV satellite", systemImage: "plus.circle.fill")
                         }

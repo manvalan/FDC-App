@@ -101,6 +101,48 @@ public struct HubTopology: Sendable {
         )
     }
 
+    /// Nodo «Foo AV» standalone quando l'hub ha già un satellite — da non disegnare.
+    public func isLegacyDuplicateAVNode(_ node: Node) -> Bool {
+        guard node.parentHubId == nil, node.name.hasSuffix(" AV") else { return false }
+        let parentName = String(node.name.dropLast(3))
+        guard let parent = nodes.first(where: { $0.name == parentName && $0.parentHubId == nil }) else { return false }
+        guard let satellite = avSatellite(for: parent.id) else { return false }
+        return satellite.id != node.id
+    }
+
+    /// Unisce stazioni legacy «Foo AV» con l'hub «Foo» e rimappa i binari.
+    public static func reconcileLegacyAVStations(nodes: inout [Node], edges: inout [Edge]) {
+        var toRemove = Set<String>()
+        var idRemap: [String: String] = [:]
+
+        for parent in nodes where parent.parentHubId == nil {
+            let legacyName = "\(parent.name) AV"
+            guard let legacyIndex = nodes.firstIndex(where: {
+                $0.name == legacyName && $0.parentHubId == nil && $0.id != parent.id
+            }) else { continue }
+            let legacyId = nodes[legacyIndex].id
+
+            if let satellite = nodes.first(where: { $0.parentHubId == parent.id }) {
+                idRemap[legacyId] = satellite.id
+                toRemove.insert(legacyId)
+            } else {
+                nodes[legacyIndex].parentHubId = parent.id
+                nodes[legacyIndex].hubOffsetDirection = .topRight
+                nodes[legacyIndex].latitude = parent.latitude
+                nodes[legacyIndex].longitude = parent.longitude
+            }
+        }
+
+        for index in edges.indices {
+            if let mapped = idRemap[edges[index].from] { edges[index].from = mapped }
+            if let mapped = idRemap[edges[index].to] { edges[index].to = mapped }
+        }
+        if !toRemove.isEmpty {
+            nodes.removeAll { toRemove.contains($0.id) }
+            print("⚠️ Uniti \(toRemove.count) nodi AV legacy duplicati negli hub")
+        }
+    }
+
     /// Offset canvas rispetto al centro hub (quadrato 8 posizioni).
     public static func canvasOffset(
         for direction: Node.HubOffsetDirection,

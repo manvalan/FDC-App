@@ -53,34 +53,23 @@ struct TrackInlineEditor: View {
                         .padding(.leading, 4)
                     
                     Menu {
-                        Button(action: { updateTrackType(.single) }) {
-                            Label("Binario Singolo", systemImage: "1.circle")
-                        }
-                        if edge.pairedEdgeId == nil {
-                            Button(action: {
-                                appState.railroad.addPairedEdge(to: edge.id)
-                            }) {
-                                Label("Doppio Binario", systemImage: "2.circle")
+                        ForEach(TrackLayoutMode.allCases) { mode in
+                            Button {
+                                appState.railroad.applyTrackLayout(
+                                    mode,
+                                    to: edge.id,
+                                    singleMaxSpeed: Int(appState.singleTrackMaxSpeed),
+                                    highSpeedMaxSpeed: Int(appState.highSpeedTrackMaxSpeed)
+                                )
+                            } label: {
+                                Label(mode.localizationKey.localized, systemImage: mode.icon)
                             }
-                        }
-                        Button(action: { updateTrackType(.highSpeed) }) {
-                            Label("Alta Velocità", systemImage: "bolt.fill")
-                        }
-                        if edge.pairedEdgeId == nil {
-                            Button(action: {
-                                updateTrackType(.highSpeed)
-                                appState.railroad.addPairedEdge(to: edge.id)
-                            }) {
-                                Label("Alta Velocità (doppio)", systemImage: "bolt.circle")
-                            }
-                        }
-                        Button(action: { updateTrackType(.regional) }) {
-                            Label("Linea Regionale", systemImage: "tram")
                         }
                     } label: {
                         HStack {
-                            trackIcon(for: edge.trackType, isPaired: edge.pairedEdgeId != nil)
-                            Text(trackLabel(for: edge.trackType, isPaired: edge.pairedEdgeId != nil))
+                            let mode = TrackLayoutMode.from(edge, in: appState.railroad.network.edges)
+                            Image(systemName: mode.icon)
+                            Text(mode.localizationKey.localized)
                                 .foregroundColor(appState.theme.dark)
                             Spacer()
                             Image(systemName: "chevron.up.chevron.down")
@@ -270,45 +259,7 @@ struct TrackInlineEditor: View {
         }
     }
     
-    private func updateTrackType(_ type: RailwayEdge.TrackType) {
-        edge.trackType = type
-        updateCapacity(for: type)
-    }
-    
-    private func updateCapacity(for type: RailwayEdge.TrackType) {
-        switch type {
-        case .single: edge.capacity = 6
-        case .highSpeed: edge.capacity = 15
-        case .regional: edge.capacity = 6
-        }
 
-        switch type {
-        case .single: edge.maxSpeed = Int(appState.singleTrackMaxSpeed)
-        case .highSpeed: edge.maxSpeed = Int(appState.highSpeedTrackMaxSpeed)
-        case .regional: edge.maxSpeed = Int(appState.regionalTrackMaxSpeed)
-        }
-    }
-
-    private func trackLabel(for type: RailwayEdge.TrackType, isPaired: Bool = false) -> String {
-        switch (type, isPaired) {
-        case (.single, true): return "Doppio Binario"
-        case (.highSpeed, true): return "Alta Velocità (doppio)"
-        case (.single, _): return "Binario Singolo"
-        case (.highSpeed, _): return "Alta Velocità"
-        case (.regional, _): return "Linea Regionale"
-        }
-    }
-
-    private func trackIcon(for type: RailwayEdge.TrackType, isPaired: Bool = false) -> Image {
-        switch (type, isPaired) {
-        case (.single, true): return Image(systemName: "2.circle")
-        case (.highSpeed, true): return Image(systemName: "bolt.circle")
-        case (.single, _): return Image(systemName: "1.circle")
-        case (.highSpeed, _): return Image(systemName: "bolt.fill")
-        case (.regional, _): return Image(systemName: "tram")
-        }
-    }
-    
     private func addGeometryPoint() {
         guard let fromNode = fromStation, let toNode = toStation,
               let fromLat = fromNode.latitude, let fromLon = fromNode.longitude,

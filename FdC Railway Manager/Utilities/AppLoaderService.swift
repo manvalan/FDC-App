@@ -17,6 +17,7 @@ class AppLoaderService: ObservableObject {
 
         // Load data into the new architecture
         appState.railroad.io.load()
+        appState.railroad.reconcileHubTopology()
         
         // Post-load tasks
         appState.railroad.lines.validateSchedules()

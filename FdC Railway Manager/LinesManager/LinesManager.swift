@@ -356,7 +356,10 @@ public final class LinesManager: ObservableObject {
     
     func generateSchedulesPreview(with customTrains: [RailwayTrain]? = nil) -> [TrainSchedule] {
         let targetTrains = customTrains ?? self.trains
-        let nodeNames = Dictionary(uniqueKeysWithValues: network.nodes.map { ($0.id, $0.name) })
+        var nodeNames: [String: String] = [:]
+        for node in network.nodes {
+            nodeNames[node.id] = node.name
+        }
         
         return targetTrains.map { train in
             let schedStops = train.stops.map { stop in
