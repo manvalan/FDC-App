@@ -1,0 +1,71 @@
+\chapter{Architettura generale}
+\label{ch:architettura}
+
+\section{Visione}
+
+L'applicazione è organizzata in tre aree funzionali indipendenti
+(\module{Editor}, \module{Scheduler}, \module{Simulator}) che
+comunicano esclusivamente tramite tipi in \repo{Domain/Model/}.
+Le dipendenze puntano sempre verso il dominio (regola delle frecce).
+
+\section{Struttura repository}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners, minimum width=3.2cm,
+    minimum height=0.9cm, align=center, font=\small},
+  arr/.style={-{Stealth[length=2mm]}, thick}
+]
+  \node[box, fill=blue!8] (ui) {UI / ViewModel};
+  \node[box, fill=green!10, below=1.2cm of ui] (svc) {Services};
+  \node[box, fill=orange!12, below=1.2cm of svc] (dom) {Domain/Model};
+  \node[box, fill=gray!15, right=2.8cm of svc] (infra) {Infrastructure};
+  \node[box, fill=gray!15, left=2.8cm of svc] (models) {Models (bridge)};
+
+  \draw[arr] (ui) -- (svc);
+  \draw[arr] (svc) -- (dom);
+  \draw[arr] (infra) -- (dom);
+  \draw[arr] (models) -- (dom);
+  \draw[arr, dashed] (ui) -- (models);
+\end{tikzpicture}
+\caption{Direzione delle dipendenze (semplificata).}
+\end{figure}
+
+\section{Refactor Strangler (Fasi 0--4)}
+
+Il monolite \texttt{RailwayScheduleOptimizer} è stato sostituito da
+\repo{Services/Scheduling/}. La migrazione dei modelli da
+\repo{Models/} a \repo{Domain/Model/} è in corso: i tipi infrastrutturali
+(\texttt{Node}, \texttt{Edge}, \texttt{Signal}, \ldots) risiedono già
+nel dominio; \texttt{NetworkModel} e i DTO restano nel layer bridge.
+
+\section{Swift Packages (scaffold)}
+
+\begin{table}[htbp]
+\centering
+\caption{Pacchetti SPM locali (\repo{Packages/}).}
+\begin{tabular}{lll}
+  \toprule
+  \textbf{Package} & \textbf{Stato} & \textbf{Note} \\
+  \midrule
+  \texttt{FDCDomain}   & Compilabile & 9 tipi Foundation via symlink \\
+  \texttt{FDCScheduling} & Scaffold & Non linkato al target Xcode \\
+  \bottomrule
+\end{tabular}
+\end{table}
+
+\section{Test}
+
+\begin{itemize}
+  \item \textbf{20 test XCTest} nel target \texttt{FdC Railway ManagerTests}.
+  \item \textbf{2 test} nel package \texttt{FDCDomain}.
+  \item I servizi di scheduling sono \texttt{struct} pure su
+    \texttt{RailwayTopology} (no \texttt{@MainActor}, no singleton).
+\end{itemize}
+
+\section{Feature flags}
+
+Funzionalità sperimentali in \repo{FeatureFlags.swift}:
+\texttt{simulatorGameMode}, \texttt{realtimeConflictHighlight}.
+Il flag \texttt{useLegacyScheduleOptimizer} è stato rimosso con la Fase 4.

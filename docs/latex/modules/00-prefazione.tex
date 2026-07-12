@@ -1,0 +1,42 @@
+\chapter{Prefazione}
+
+\section{Scopo del documento}
+
+Questo manuale descrive i \textbf{moduli software} del progetto
+\emph{FdC Railway Manager}: architettura, responsabilità, dipendenze
+e flussi dati. È pensato per sviluppatori che contribuiscono al
+refactor verso un \emph{functional core} testabile.
+
+La documentazione viene estesa \textbf{incrementalmente}: ogni capitolo
+corrisponde a un modulo (o sotto-modulo) e può essere aggiornato in
+autonomia senza riscrivere l'intero volume.
+
+\section{Pubblico e prerequisiti}
+
+\begin{itemize}
+  \item Conoscenza di Swift 5.9+ e SwiftUI.
+  \item Familiarità con pattern \emph{Strangler}, CQS e DI esplicita.
+  \item Nozioni base di ferrovie: stazione, binario, Taktfahrplan.
+\end{itemize}
+
+\section{Convenzioni}
+
+\begin{description}
+  \item[\repo{Domain/Model/}] Tipi di dominio condivisi; preferibilmente
+    solo \texttt{Foundation} (o \texttt{CoreLocation} dove necessario).
+  \item[\repo{Services/}] Logica applicativa orchestrata dai ViewModel.
+  \item[\repo{Models/}] Adapter, \texttt{NetworkModel}, estensioni UI.
+  \item[Pipeline] Sequenza deterministica di trasformazioni su \texttt{[Train]}.
+\end{description}
+
+\section{Versione}
+
+\begin{center}
+\begin{tabular}{ll}
+  \toprule
+  \textbf{Versione documento} & 0.1 (Fase 4 completata) \\
+  \textbf{Ultimo aggiornamento}  & Luglio 2026 \\
+  \textbf{Commit di riferimento} & \texttt{00db4c2} \\
+  \bottomrule
+\end{tabular}
+\end{center}

@@ -1,0 +1,109 @@
+\chapter{Modulo FDCDomain}
+\label{ch:fdcdomain}
+
+\section{Responsabilità}
+
+\module{FDCDomain} contiene i \textbf{tipi di dominio ferroviario}:
+entità immutabili (o quasi), \texttt{Codable} per persistenza,
+senza dipendenze da SwiftUI o da \texttt{NetworkModel}.
+
+Il package SPM in \repo{Packages/FDCDomain/} espone un sottoinsieme
+\textbf{Foundation-only} compilabile standalone; il target Xcode include
+l'intera cartella \repo{FdC Railway Manager/Domain/Model/}.
+
+\section{Grafo del dominio}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  type/.style={draw, ellipse, minimum width=2.4cm, minimum height=0.8cm,
+    align=center, font=\footnotesize},
+  arr/.style={-{Stealth[length=1.5mm]}}
+]
+  \node[type] (topo) {RailwayTopology};
+  \node[type, below left=1cm and 0.5cm of topo] (node) {Node};
+  \node[type, below right=1cm and 0.5cm of topo] (edge) {Edge};
+  \node[type, below=1.8cm of node] (train) {Train};
+  \node[type, below=0.6cm of train] (stop) {RelationStop};
+  \node[type, right=2.2cm of edge] (seg) {TrackSegment};
+  \node[type, above=0.5cm of seg] (sig) {Signal};
+  \node[type, below=0.6cm of edge] (tcp) {TrackControlPoint};
+  \node[type, left=1.8cm of node] (elec) {ElectrificationType};
+  \node[type, right=1.8cm of node] (rc) {RoutingConstraint};
+
+  \draw[arr] (topo) -- (node);
+  \draw[arr] (topo) -- (edge);
+  \draw[arr] (edge) -- (seg);
+  \draw[arr] (edge) -- (tcp);
+  \draw[arr] (seg) -- (sig);
+  \draw[arr] (node) -- (elec);
+  \draw[arr] (node) -- (rc);
+  \draw[arr] (train) -- (stop);
+\end{tikzpicture}
+\caption{Relazioni principali tra tipi di dominio.}
+\end{figure}
+
+\section{Tipi per categoria}
+
+\subsection{Topologia}
+
+\begin{description}
+  \item[\texttt{RailwayTopology}] Snapshot immutabile di \texttt{nodes}
+    e \texttt{edges}. Delega pathfinding a \texttt{NetworkPathfinder}
+    (Fase 5). Nessun \texttt{init(network:)}.
+  \item[\texttt{Node}] Stazione, deposito, interscambio; vincoli di
+    instradamento, altitudine, parametri Takt (\texttt{taktMinutes}).
+  \item[\texttt{Edge}] Tratta tra due nodi; segmenti \texttt{TrackSegment},
+    punti di controllo, elettrificazione, limite velocità.
+\end{description}
+
+\subsection{Infrastruttura di dettaglio}
+
+\begin{description}
+  \item[\texttt{TrackSegment}] Binario fisico con ordine, lunghezza,
+    segnale opzionale, occupazione.
+  \item[\texttt{TrackControlPoint}] Punto sulla tratta (lat/lon/alt).
+  \item[\texttt{Signal}] Segnale con aspetto (\texttt{stop}, \texttt{proceed},
+    \texttt{caution}).
+  \item[\texttt{Switch}] Deviatione con \texttt{nodeId} e collegamenti.
+  \item[\texttt{ElectrificationType}] Trazione: diesel, 3\,kV, 25\,kV, 950\,V.
+  \item[\texttt{RoutingConstraint}] Vincoli di percorso per stazione.
+\end{description}
+
+\subsection{Servizio e rotazione}
+
+\begin{description}
+  \item[\texttt{Train}] Treno con fermate \texttt{RelationStop}, orari,
+    assegnazione binari, \texttt{routeId}.
+  \item[\texttt{RelationStop}] Fermata o transito su una stazione.
+  \item[\texttt{Vehicle}] Rotazione materiale rotabile.
+  \item[\texttt{TrainRoute}] Template di percorso (origine, destinazione,
+    sequenza stazioni). \texttt{displayColor} in \repo{Models/TrainRoute+UI.swift}.
+\end{description}
+
+\section{Package SPM}
+
+\begin{lstlisting}
+Packages/FDCDomain/
+  Package.swift
+  Sources/FDCDomain/    # symlink ai .swift Foundation-only
+  Tests/FDCDomainTests/
+\end{lstlisting}
+
+Tipi inclusi nel package (v0.1):
+\texttt{ElectrificationType}, \texttt{Signal}, \texttt{Switch},
+\texttt{RoutingConstraint}, \texttt{RelationStop}, \texttt{Vehicle},
+\texttt{TrackSegment}, \texttt{TrackControlPoint}, \texttt{RailwayConstants}.
+
+Tipi \textbf{esclusi} fino a decoupling UI / NetworkModel:
+\texttt{Node}, \texttt{Edge}, \texttt{Train}, \texttt{RailwayTopology},
+\texttt{LineProfilePoint}, \texttt{TrainRoute}, \texttt{Ferrovia}.
+
+\section{Regole di evoluzione}
+
+\begin{enumerate}
+  \item Nuovi modelli → \repo{Domain/Model/}, solo \texttt{import Foundation}.
+  \item Estensioni SwiftUI → file \texttt{+UI.swift} in \repo{Models/}.
+  \item Rimuovere voci duplicate da \texttt{project.pbxproj} (sync group).
+  \item Aggiungere test in \texttt{FDCDomainTests} quando il tipo è standalone.
+\end{enumerate}

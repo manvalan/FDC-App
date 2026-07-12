@@ -9,7 +9,7 @@ struct PathResolver {
     }
 
     init(network: NetworkModel) {
-        self.topology = RailwayTopology(network: network)
+        self.topology = RailwayTopology(nodes: network.nodes, edges: network.edges)
     }
 
     /// Risolve la sequenza di stazioni tra partenza e arrivo su una data linea.

@@ -10,7 +10,7 @@ struct KinematicCalculator {
     }
 
     init(network: NetworkModel) {
-        self.topology = RailwayTopology(network: network)
+        self.topology = RailwayTopology(nodes: network.nodes, edges: network.edges)
     }
 
     // MARK: - Travel Time Calculations

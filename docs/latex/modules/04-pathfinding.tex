@@ -1,0 +1,60 @@
+\chapter{Modulo Pathfinding}
+\label{ch:pathfinding}
+
+\section{Responsabilità}
+
+Il pathfinding calcola percorsi minimi sulla topologia ferroviaria:
+Dijkstra, distanza cumulata, percorsi alternativi, ordinamento nodi per linea
+fisica. Dal refactor Fase 5 la logica risiede in
+\repo{Domain/Pathfinding/NetworkPathfinder.swift} --- puro Foundation,
+senza \texttt{NetworkModel}.
+
+\section{API principale}
+
+\begin{table}[htbp]
+\centering
+\caption{Funzioni \texttt{NetworkPathfinder}.}
+\begin{tabularx}{\textwidth}{lX}
+  \toprule
+  \textbf{Funzione} & \textbf{Scopo} \\
+  \midrule
+  \texttt{findShortestPath} & Dijkstra: sequenza nodi + distanza \\
+  \texttt{findPathEdges}    & Percorso come lista di \texttt{Edge} \\
+  \texttt{calculatePathDistance} & Somma \texttt{edge.distance} su un path \\
+  \texttt{findAlternativePaths}  & Varianti Rapido / Alternativo / Panoramico \\
+  \texttt{findLineEndpoints}     & Capolinea (grado 1 nel sottografo) \\
+  \texttt{buildOrderedPath}        & Ordinamento topologico nodi linea \\
+  \texttt{resolveLinePath}         & Validazione path linea fisica \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Integrazione}
+
+\begin{itemize}
+  \item \texttt{RailwayTopology} delega \texttt{findPathEdges} e
+    \texttt{calculatePathDistance} a \texttt{NetworkPathfinder}.
+  \item \texttt{NetworkModel+Pathfinding} resta come \emph{facciata} per il
+    layer UI (Strangler): inoltra tutte le chiamate al dominio.
+  \item Rimosso \texttt{RailwayTopology.init(network:)} --- nessuna
+    dipendenza Domain $\rightarrow$ \texttt{NetworkModel}.
+\end{itemize}
+
+\section{Vincoli algoritmici}
+
+\begin{itemize}
+  \item Binario singolo non accoppiato: tratto \textbf{non direzionale}.
+  \item Coppie direzionali (\texttt{pairedEdgeId}): rispetto del verso.
+  \item \texttt{restrictIntermediateStations}: Dijkstra non espande \emph{attraverso}
+    stazioni intermedie (solo origine).
+\end{itemize}
+
+\section{Test}
+
+\texttt{PathfindingTests} (target app): percorso diretto A$\rightarrow$B e
+delega da \texttt{RailwayTopology}.
+
+\section{Evoluzione (Fase 6+)}
+
+Inclusione in \texttt{Packages/FDCDomain} quando \texttt{Node} sarà
+decoupled da \texttt{.localized}. Pathfinding è già Foundation-only.

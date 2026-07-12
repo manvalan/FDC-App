@@ -119,6 +119,16 @@
 		FF264703A3700F4BF8D0B4BF /* SchedulerResultDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13244829AC510BA089D2BF7D /* SchedulerResultDocument.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		TST0092F5000010003C8FEC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 31234B392F1FD849003C8FEC /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 31234B402F1FD849003C8FEC;
+			remoteInfo = "FdC Railway Manager";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		022F4C1D9E3C1F79F9C3B7F6 /* ScheduleChangeModifiersB1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ScheduleChangeModifiersB1.swift; path = "FdC Railway Manager/UI/Views/ScheduleCreation/ScheduleChangeModifiersB1.swift"; sourceTree = SOURCE_ROOT; };
 		04C9453E968736DBB9266943 /* MenuRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MenuRow.swift; path = "FdC Railway Manager/UI/Panels/Floating/MenuRow.swift"; sourceTree = SOURCE_ROOT; };
@@ -138,7 +148,6 @@
 		2AAD44BF944AFE68FA51359B /* InfrastructureCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = InfrastructureCanvas.swift; path = "FdC Railway Manager/UI/Views/RailwayMap/InfrastructureCanvas.swift"; sourceTree = SOURCE_ROOT; };
 		2B434B39B5CC40541071818B /* MapControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MapControlsView.swift; path = "FdC Railway Manager/UI/Views/RailwayMap/MapControlsView.swift"; sourceTree = SOURCE_ROOT; };
 		31234B412F1FD849003C8FEC /* FdC Railway Manager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "FdC Railway Manager.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		TST0032F5000010003C8FEC /* FdC Railway ManagerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "FdC Railway ManagerTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		31294B442F40AB6500E80C34 /* GenericEntityListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GenericEntityListView.swift; path = "FdC Railway Manager/SharedUI/GenericEntityListView.swift"; sourceTree = SOURCE_ROOT; };
 		31294B532F4259D900E80C34 /* LineColorAssigner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LineColorAssigner.swift; path = "FdC Railway Manager/Lines/View/LineColorAssigner.swift"; sourceTree = SOURCE_ROOT; };
 		31294B552F425FDB00E80C34 /* SettingsInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SettingsInspectorView.swift; path = "FdC Railway Manager/Settings/SettingsInspectorView.swift"; sourceTree = SOURCE_ROOT; };
@@ -232,6 +241,7 @@
 		F90E453C9E57F39176C4F7ED /* SchematicRailwayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SchematicRailwayView.swift; path = "FdC Railway Manager/UI/Views/RailwayMap/SchematicRailwayView.swift"; sourceTree = SOURCE_ROOT; };
 		F9F041E8B3FDF34BDEBBE568 /* TrackInlineEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TrackInlineEditor.swift; path = "FdC Railway Manager/UI/Panels/Floating/TrackInlineEditor.swift"; sourceTree = SOURCE_ROOT; };
 		FB854A7080622D51365E316C /* TrackQuickStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TrackQuickStats.swift; path = "FdC Railway Manager/UI/Panels/Floating/TrackQuickStats.swift"; sourceTree = SOURCE_ROOT; };
+		TST0032F5000010003C8FEC /* FdC Railway ManagerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "FdC Railway ManagerTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -246,6 +256,16 @@
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		TST0042F5000010003C8FEC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		31234B382F1FD849003C8FEC = {
@@ -378,26 +398,6 @@
 		};
 /* End PBXGroup section */
 
-/* Begin PBXContainerItemProxy section */
-		TST0092F5000010003C8FEC /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 31234B392F1FD849003C8FEC /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 31234B402F1FD849003C8FEC;
-			remoteInfo = "FdC Railway Manager";
-		};
-/* End PBXContainerItemProxy section */
-
-/* Begin PBXFrameworksBuildPhase section */
-		TST0042F5000010003C8FEC /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXFrameworksBuildPhase section */
-
 /* Begin PBXNativeTarget section */
 		31234B402F1FD849003C8FEC /* FdC Railway Manager */ = {
 			isa = PBXNativeTarget;
@@ -492,13 +492,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		TST0052F5000010003C8FEC /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		31234B3D2F1FD849003C8FEC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -613,6 +606,13 @@
 				B97B4D15935C254576E50C48 /* NetworkModel+Pathfinding.swift in Sources */,
 				F8DF4FA5A91CF8888FE2AC08 /* NetworkModel+Mutations.swift in Sources */,
 				18C249ACADCF64D70EDAC3CD /* NetworkModel.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		TST0052F5000010003C8FEC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

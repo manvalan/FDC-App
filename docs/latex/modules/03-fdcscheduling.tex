@@ -1,0 +1,126 @@
+\chapter{Modulo FDCScheduling}
+\label{ch:fdcscheduling}
+
+\section{Responsabilità}
+
+\module{FDCScheduling} orchestrate la \textbf{generazione e ottimizzazione
+degli orari}. Il codice attivo risiede in
+\repo{FdC Railway Manager/Services/Scheduling/}; il package SPM
+\repo{Packages/FDCScheduling/} è uno scaffold per l'estrazione futura.
+
+\section{Componenti principali}
+
+\begin{table}[htbp]
+\centering
+\caption{Servizi di scheduling.}
+\begin{tabularx}{\textwidth}{lX}
+  \toprule
+  \textbf{Tipo} & \textbf{Ruolo} \\
+  \midrule
+  \texttt{ScheduleGenerationEngine} & Orchestratore: crea treni grezzi,
+    invoca pipeline, gestisce modalità Takt/libera. \\
+  \texttt{ScheduleOptimizationPipeline} & Pipeline a 8 step (vedi \S\ref{sec:pipeline}). \\
+  \texttt{TaktEngine} & Allineamento Taktfahrplan, diagnostica hub. \\
+  \texttt{ScheduleRefresher} & Ricalcolo orari fisici (arrivi/partenze). \\
+  \texttt{ScheduleAIResolver} & Step AI cloud (\texttt{RailwayAIService}). \\
+  \texttt{KinematicCalculator} & Tempi di percorrenza su topologia. \\
+  \texttt{PathResolver} & Risoluzione percorsi tra stazioni. \\
+  \texttt{VehicleSuitabilityEngine} & Compatibilità rotabile/linea. \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Pipeline a 8 step}
+\label{sec:pipeline}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  step/.style={draw, rectangle, rounded corners, minimum width=4.8cm,
+    minimum height=0.75cm, align=center, font=\small},
+  arr/.style={-{Stealth[length=2mm]}}
+]
+  \node[step, fill=yellow!15] (s1) {1. Shift partenze (greedy)};
+  \node[step, fill=blue!10, below=0.5cm of s1] (s2) {2. Refresh fisico};
+  \node[step, fill=green!12, below=0.5cm of s2] (s35) {3--5. TaktEngine};
+  \node[step, fill=purple!10, below=0.5cm of s35] (s6) {6. AI cloud (opz.)};
+  \node[step, fill=orange!12, below=0.5cm of s6] (s7) {7. Ottimizzatore genetico};
+  \node[step, fill=red!8, below=0.5cm of s7] (s8) {8. Verifica finale};
+
+  \draw[arr] (s1) -- (s2);
+  \draw[arr] (s2) -- (s35);
+  \draw[arr] (s35) -- (s6);
+  \draw[arr] (s6) -- (s7);
+  \draw[arr] (s7) -- (s8);
+\end{tikzpicture}
+\caption{\texttt{ScheduleOptimizationPipeline.execute}.}
+\end{figure}
+
+\subsection{Dettaglio step}
+
+\begin{enumerate}
+  \item \textbf{Ottimizzazione partenze} --- Per ogni nuovo treno, prova
+    shift coarse ($\pm 10, 20, 30, 50$\,min) e fine ($\pm 1, 2, 5$\,min);
+    minimizza i conflitti rilevati da \texttt{ConflictManager}.
+  \item \textbf{Refresh fisico} --- \texttt{ScheduleRefresher.refreshMultiple}
+    ricalcola tempi di transito e fermata.
+  \item \textbf{Allineamento Takt} --- Se almeno un nodo ha
+    \texttt{taktMinutes}, \texttt{TaktEngine.generaOrarioCadenzato}
+    allinea arrivi/partenze all'hub; GA disabilitato in modalità Takt.
+  \item \textbf{AI cloud} --- Opzionale (\texttt{useAI}); delega a
+    \texttt{ScheduleAIResolver} e \texttt{RailwayAIService}.
+  \item \textbf{GA} --- \texttt{GeneticOptimizer} con 250 iterazioni
+    (solo se non Takt).
+  \item \textbf{Verifica} --- Secondo refresh + report conflitti residui.
+\end{enumerate}
+
+\section{Entry point}
+
+\begin{lstlisting}
+// ScheduleGenerationEngine (semplificato)
+let topology = RailwayTopology(nodes: network.nodes, edges: network.edges)
+let pipeline = ScheduleOptimizationPipeline(topology: topology)
+return await pipeline.execute(
+    newTrains: trains,
+    existingTrains: existing,
+    useAI: false,
+    useGA: useGA,
+    preferredTaktNodeId: taktNode
+)
+\end{lstlisting}
+
+\section{Dipendenze esterne (non ancora nel package)}
+
+\begin{itemize}
+  \item \texttt{ConflictManager} --- Rilevamento conflitti capacità/binari.
+  \item \texttt{GeneticOptimizer} --- Meta-euristica su orari.
+  \item \texttt{RailwayAIService} --- Ottimizzazione remota.
+  \item \texttt{NetworkModel} --- Bridge verso UI e persistenza.
+\end{itemize}
+
+L'estrazione in \texttt{FDCScheduling} richiederà protocolli in
+\repo{Domain/Services/} (pianificato Fase 5+).
+
+\section{Test di regressione}
+
+\begin{table}[htbp]
+\centering
+\caption{Suite test scheduling (\texttt{FdC Railway ManagerTests}).}
+\begin{tabular}{ll}
+  \toprule
+  \textbf{File} & \textbf{Copertura} \\
+  \midrule
+  \texttt{ServicesSchedulingTests} & Pipeline, refresher, path resolver \\
+  \texttt{Taktfahrplan120MinTests} & Cicli Takt 120\,min, hub timing \\
+  \texttt{TrackAssignmentTests}   & Assegnazione binari \\
+  \texttt{EdgeMigrationTests}     & Migrazione modello Edge \\
+  \bottomrule
+\end{tabular}
+\end{table}
+
+\section{Storico}
+
+Il capitolo sostituisce la documentazione del legacy
+\texttt{RailwayScheduleOptimizer} (rimosso in commit \texttt{00db4c2}).
+Per confronto algoritmico vedere anche
+\repo{FdC Railway Manager/RailwayAlgorithmDocs.md}.

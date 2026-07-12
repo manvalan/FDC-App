@@ -1,5 +1,4 @@
 import Foundation
-import SwiftUI
 
 // MARK: - RailwayLine (Physical Infrastructure)
 
@@ -14,12 +13,6 @@ public struct RailwayLine: Identifiable, Codable, Hashable {
     public var color: String?                             // Hex color for map display
     public var nodeIds: [String]                          // Ordered sequence of infrastructure node IDs
     public var electrification: ElectrificationType      // Electrification type for the whole line
-
-    // MARK: - Computed
-
-    public var displayColor: Color {
-        color.flatMap { Color(hex: $0) } ?? .gray
-    }
 
     // MARK: - Init
 

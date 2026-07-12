@@ -12,11 +12,6 @@ struct RailwayTopology: Equatable, Sendable {
         self.edges = edges
     }
 
-    init(network: NetworkModel) {
-        self.nodes = network.nodes
-        self.edges = network.edges
-    }
-
     func node(id: String) -> Node? {
         nodes.first { $0.id == id }
     }
@@ -25,7 +20,7 @@ struct RailwayTopology: Equatable, Sendable {
         from startId: String,
         to endId: String
     ) -> [Edge]? {
-        NetworkModel.findPathEdges(
+        NetworkPathfinder.findPathEdges(
             from: startId,
             to: endId,
             nodes: nodes,
@@ -34,6 +29,6 @@ struct RailwayTopology: Equatable, Sendable {
     }
 
     func calculatePathDistance(path: [String]) -> Double {
-        NetworkModel.calculatePathDistance(path: path, edges: edges)
+        NetworkPathfinder.calculatePathDistance(path: path, edges: edges)
     }
 }

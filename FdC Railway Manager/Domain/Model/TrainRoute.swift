@@ -1,5 +1,4 @@
 import Foundation
-import SwiftUI
 
 // MARK: - TrainRoute (Service Route Template)
 
@@ -30,10 +29,6 @@ public struct TrainRoute: Identifiable, Codable, Hashable {
     public var numberPrefix: Int?               // e.g. 5 → trains numbered 5001, 5002, 5003...
 
     // MARK: - Computed
-
-    public var displayColor: Color {
-        color.flatMap { Color(hex: $0) } ?? .accentColor
-    }
 
     /// Convenience: intermediate stations (excluding origin and destination)
     public var intermediateStationIds: [String] {

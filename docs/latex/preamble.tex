@@ -1,0 +1,59 @@
+% Preamble condiviso — FdC Railway Manager
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[italian]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{geometry}
+\geometry{a4paper, margin=2.5cm}
+
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  urlcolor=blue!70!black,
+  pdftitle={FdC Railway Manager — Documentazione moduli},
+  pdfauthor={FDC-App}
+}
+
+\definecolor{codebg}{RGB}{245,245,245}
+\definecolor{codeframe}{RGB}{200,200,200}
+\definecolor{swiftkw}{RGB}{170,13,130}
+
+\lstdefinelanguage{Swift}{
+  morekeywords={import,struct,enum,class,func,let,var,if,else,guard,
+    return,async,await,throws,try,catch,init,public,private,static,
+    protocol,extension,true,false,nil},
+  sensitive=true,
+  morecomment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  morestring=[b]",
+}
+
+\lstset{
+  language=Swift,
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{codeframe},
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  keywordstyle=\color{swiftkw}\bfseries,
+  commentstyle=\itshape\color{gray},
+}
+
+\newcommand{\repo}[1]{\texttt{#1}}
+\newcommand{\module}[1]{\textbf{#1}}
+\newcommand{\wip}{\textcolor{orange}{\textbf{[WIP]}}}

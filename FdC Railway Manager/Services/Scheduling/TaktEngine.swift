@@ -34,7 +34,7 @@ struct TaktEngine {
     }
 
     init(network: NetworkModel, kinematicCalculator: KinematicCalculator) {
-        self.topology = RailwayTopology(network: network)
+        self.topology = RailwayTopology(nodes: network.nodes, edges: network.edges)
         self.kinematicCalculator = kinematicCalculator
     }
 

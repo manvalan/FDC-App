@@ -1,0 +1,55 @@
+\documentclass[11pt,a4paper,twoside,openright]{report}
+
+\input{preamble}
+
+\title{%
+  \textbf{FdC Railway Manager}\\[0.4em]
+  \large Documentazione modulare
+}
+\author{Progetto FDC-App}
+\date{Luglio 2026 --- v0.1}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\listoffigures
+\listoftables
+
+\part{Fondamenti}
+\input{modules/00-prefazione}
+\input{modules/01-architettura}
+
+\part{Moduli core}
+\input{modules/02-fdcdomain}
+\input{modules/03-fdcscheduling}
+\input{modules/04-pathfinding}
+
+% Prossimi capitoli (aggiungere man mano):
+% \part{Moduli applicativi}
+% \input{modules/04-editor}
+% \input{modules/05-simulator}
+% \input{modules/06-railway-ai}
+% \input{modules/07-infrastructure}
+
+\appendix
+\chapter{Indice dei sorgenti}
+\begin{longtable}{ll}
+  \toprule
+  \textbf{Percorso} & \textbf{Modulo} \\
+  \midrule
+  \endhead
+  \repo{Domain/Pathfinding/}  & NetworkPathfinder \\
+  \repo{Domain/Model/}        & FDCDomain \\
+  \repo{Services/Scheduling/} & FDCScheduling \\
+  \repo{Editor/}             & Editor \textit{(da documentare)} \\
+  \repo{Scheduler/}          & UI Scheduler \\
+  \repo{Simulator/}          & Simulator \textit{(da documentare)} \\
+  \repo{RailwayAIService/}   & AI \textit{(da documentare)} \\
+  \repo{Infrastructure/}     & I/O \textit{(da documentare)} \\
+  \repo{Packages/FDCDomain/} & SPM Domain \\
+  \repo{Packages/FDCScheduling/} & SPM Scheduling \\
+  \bottomrule
+\end{longtable}
+
+\end{document}
