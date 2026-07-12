@@ -43,10 +43,11 @@ tectonic main.tex --outdir build
 | 2 | `FDCDomain` — modelli | ✅ v0.1 |
 | 3 | `FDCScheduling` — pipeline | ✅ v0.1 |
 | 4 | Pathfinding | ✅ v0.1 |
-| 5 | `Editor` | 🔲 pianificato |
-| 6 | `Simulator` | 🔲 pianificato |
-| 7 | `RailwayAIService` | 🔲 pianificato |
-| 8 | `Infrastructure` / I/O | 🔲 pianificato |
+| 5 | SPM integration | ✅ v0.1 |
+| 6 | `Editor` | 🔲 pianificato |
+| 7 | `Simulator` | 🔲 pianificato |
+| 8 | `RailwayAIService` | 🔲 pianificato |
+| 9 | `Infrastructure` / I/O | 🔲 pianificato |
 
 Per aggiungere un modulo: creare `modules/NN-nome.tex`, includerlo in
 `main.tex`, aggiornare questa tabella.
