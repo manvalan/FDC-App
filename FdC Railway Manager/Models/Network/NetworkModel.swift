@@ -15,18 +15,16 @@ final class NetworkModel: ObservableObject {
     
     /// Global system owner
     weak var owner: RailroadNetwork?
-    
-    var sortedNodes: [Node] {
-        nodes.sorted { $0.name < $1.name }
+
+    var topologyService: NetworkTopologyService {
+        NetworkTopologyService(nodes: nodes, edges: edges)
     }
-    
-    var sortedEdges: [Edge] {
-        edges.sorted { e1, e2 in
-            let name1 = findNode(id: e1.from)?.name ?? ""
-            let name2 = findNode(id: e2.from)?.name ?? ""
-            return name1 < name2
-        }
-    }
+
+    var topology: RailwayTopology { topologyService.topology }
+
+    var sortedNodes: [Node] { topologyService.sortedNodes() }
+
+    var sortedEdges: [Edge] { topologyService.sortedEdges() }
     
     var sortedLines: [RailwayLine] {
         lines.sorted { $0.name < $1.name }
@@ -39,20 +37,14 @@ final class NetworkModel: ObservableObject {
     
     // MARK: - Humane Methods (Domain Driven Design)
     
-    func allStations() -> [Node] {
-        nodes.filter { $0.type == .station || $0.type == .interchange }
-    }
-    
-    func allJunctions() -> [Node] {
-        nodes.filter { $0.type == .junction }
-    }
-    
-    func findNode(id: String) -> Node? {
-        nodes.first(where: { $0.id == id })
-    }
-    
+    func allStations() -> [Node] { topologyService.allStations() }
+
+    func allJunctions() -> [Node] { topologyService.allJunctions() }
+
+    func findNode(id: String) -> Node? { topologyService.findNode(id: id) }
+
     func findEdge(from: String, to: String) -> Edge? {
-        edges.first(where: { ($0.from == from && $0.to == to) || ($0.from == to && $0.to == from) })
+        topologyService.findEdge(from: from, to: to)
     }
     
 
@@ -79,37 +71,15 @@ final class NetworkModel: ObservableObject {
     }
     
     func getConnectedNodeIds(for nodeId: String) -> [String] {
-        return edges.compactMap { edge -> String? in
-            if edge.from == nodeId { return edge.to }
-            if edge.to == nodeId { return edge.from }
-            return nil
-        }
+        topologyService.getConnectedNodeIds(for: nodeId)
     }
 
     func getNeighborStations(for nodeId: String) -> [String] {
-        var neighbors = Set<String>()
-        var visited = Set<String>([nodeId])
-        var queue = getConnectedNodeIds(for: nodeId)
-        
-        while !queue.isEmpty {
-            let currentId = queue.removeFirst()
-            if visited.contains(currentId) { continue }
-            visited.insert(currentId)
-            
-            if let node = findNode(id: currentId) {
-                if node.type == .station || node.type == .interchange {
-                    neighbors.insert(currentId)
-                } else {
-                    let nextLevel = getConnectedNodeIds(for: currentId)
-                    queue.append(contentsOf: nextLevel)
-                }
-            }
-        }
-        return Array(neighbors)
+        topologyService.getNeighborStations(for: nodeId)
     }
-    
+
     func calculatePathDistance(path: [String]) -> Double {
-        return NetworkModel.calculatePathDistance(path: path, edges: edges)
+        topology.calculatePathDistance(path: path)
     }
 
     // MARK: - Paired Control-Point Sync

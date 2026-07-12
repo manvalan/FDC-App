@@ -1,0 +1,67 @@
+\chapter{NetworkModel come adapter UI}
+\label{ch:network-adapter}
+
+\section{Obiettivo (Fase 7)}
+
+Separare la \textbf{shell osservabile} usata dall'interfaccia dalla logica
+di query sulla topologia. \texttt{NetworkModel} resta nel target app;
+le operazioni pure vivono in \module{FDCDomain}.
+
+\section{NetworkTopologyService}
+
+\texttt{NetworkTopologyService} (\repo{Domain/Services/}) è una struct
+\texttt{Sendable} che incapsula \texttt{RailwayTopology} e offre:
+
+\begin{itemize}
+  \item lookup: \texttt{findNode}, \texttt{findEdge}
+  \item filtri: \texttt{allStations}, \texttt{allJunctions}
+  \item ordinamento: \texttt{sortedNodes}, \texttt{sortedEdges}
+  \item connettività: \texttt{getConnectedNodeIds}, \texttt{getNeighborStations}
+  \item geometria: \texttt{calculateDistance} (hub-aware, km)
+\end{itemize}
+
+Nessuna mutazione, nessuna dipendenza da SwiftUI o undo.
+
+\section{NetworkModel}
+
+\texttt{NetworkModel} delega le query a \texttt{NetworkTopologyService}
+tramite una computed property \texttt{topologyService}. Espone
+\texttt{topology: RailwayTopology} per i servizi di scheduling.
+
+Le mutazioni (aggiunta nodi, binari, undo) restano in
+\repo{Models/Network/NetworkModel+Updates.swift}.
+
+\section{DomainBridge}
+
+\texttt{DomainBridge.swift} espone il package e risolve l'ambiguità
+\texttt{Edge} (SwiftUI vs dominio):
+
+\begin{verbatim}
+@_exported import FDCDomain
+public typealias Edge = FDCDomain.Edge
+\end{verbatim}
+
+I typealias legacy per gli altri tipi sono stati rimossi.
+
+\section{TrainCategory e DTO}
+
+\begin{itemize}
+  \item \texttt{TrainCategory} --- enum Foundation in \repo{Domain/Model/};
+        estensione SwiftUI in \repo{Models/TrainCategory+UI.swift}
+  \item \texttt{RailwayNetworkDTO} --- struct \texttt{Codable} in
+        \repo{Infrastructure/} (I/O JSON, non dominio puro)
+\end{itemize}
+
+\section{Test}
+
+\begin{itemize}
+  \item \textbf{2 test} aggiuntivi in \texttt{PathfindingTests} (app)
+  \item \textbf{2 test} in \texttt{FDCDomainTests} per \texttt{NetworkTopologyService}
+\end{itemize}
+
+\section{Prossimi passi (Fase 8)}
+
+\begin{itemize}
+  \item Estrarre \texttt{FDCScheduling} in package SPM
+  \item Protocolli in \texttt{Domain/Services/} per ConflictManager, GA, AI
+\end{itemize}

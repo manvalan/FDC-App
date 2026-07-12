@@ -86,11 +86,14 @@ Ogni fase di codice aggiorna il capitolo LaTeX corrispondente.
 - [x] 3 test FDCDomain SPM + build app OK
 - [x] Capitolo LaTeX `05-spm-integration.tex`
 
-### Fase 7 — NetworkModel → adapter 🔲
+### Fase 7 — NetworkModel → adapter ✅
 
-- [ ] `NetworkModel` resta shell `@Observable` per UI
-- [ ] Logica mutazioni/pathfinding solo via Domain services
-- [ ] Migrare `TrainCategory`, DTO verso Domain o Infrastructure
+- [x] `NetworkModel` resta shell `@Observable` per UI
+- [x] Logica query topologia via `NetworkTopologyService` (Domain)
+- [x] `TrainCategory` in Domain; `TrainCategory+UI` in Models
+- [x] `RailwayNetworkDTO` in Infrastructure
+- [x] `DomainBridge` ridotto: `@_exported import` + disambiguazione `Edge`
+- [x] Capitolo LaTeX `06-network-adapter.tex`
 
 ### Fase 8 — FDCScheduling package 🔲
 
@@ -104,9 +107,10 @@ Ogni fase di codice aggiorna il capitolo LaTeX corrispondente.
 
 | Metrica | Valore |
 |---------|--------|
-| Test app XCTest | 22 |
-| Test FDCDomain SPM | 3 |
-| Tipi in `Domain/Model/` | 17 file |
+| Test app XCTest | 24 |
+| Test FDCDomain SPM | 5 |
+| Tipi in `Domain/Model/` | 18 file |
+| Servizi in `Domain/Services/` | `NetworkTopologyService` |
 | Legacy `RailwayScheduleOptimizer` | rimosso |
 | Pipeline attiva | `ScheduleOptimizationPipeline` |
 
@@ -124,4 +128,4 @@ Ogni fase di codice aggiorna il capitolo LaTeX corrispondente.
 
 ## Prossima azione
 
-Avviare **Fase 7**: `NetworkModel` come shell UI, ridurre `DomainBridge`.
+Avviare **Fase 8**: estrarre `FDCScheduling` in package SPM.
