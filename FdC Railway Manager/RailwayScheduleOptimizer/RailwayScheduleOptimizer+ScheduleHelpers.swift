@@ -6,17 +6,13 @@ extension RailwayScheduleOptimizer {
     // MARK: - Local Schedule Helpers (Replacing TrainManager)
     
     func refreshMultipleSchedules(_ trains: inout [RailwayTrain], nodes: [RailwayNode], edges: [Edge], pathCache: inout [String: [Edge]], preferredHubId: String? = nil) {
-        for i in trains.indices {
-            refreshSingleTrainSchedule(&trains[i], nodes: nodes, edges: edges, pathCache: &pathCache, preferredHubId: preferredHubId)
-        }
+        let topo = RailwayTopology(nodes: nodes, edges: edges)
+        ScheduleRefresher(topology: topo).refreshMultiple(&trains, preferredHubId: preferredHubId)
     }
     
     func refreshSingleTrainSchedule(_ train: inout [RailwayTrain].Element, nodes: [RailwayNode], edges: [Edge], pathCache: inout [String: [Edge]], preferredHubId: String? = nil) {
-        if let (hIdx, hNode) = findHubNode(in: train, nodes: nodes, preferredId: preferredHubId) {
-            refreshTaktSchedule(train: &train, hIdx: hIdx, hNode: hNode, nodes: nodes, edges: edges)
-        } else {
-            refreshStandardSchedule(train: &train, nodes: nodes, edges: edges)
-        }
+        let topo = RailwayTopology(nodes: nodes, edges: edges)
+        ScheduleRefresher(topology: topo).refreshSingle(&train, preferredHubId: preferredHubId)
     }
 
     func findHubNode(in train: [RailwayTrain].Element, nodes: [RailwayNode], preferredId: String? = nil) -> (Int, RailwayNode)? {

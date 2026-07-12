@@ -8,6 +8,7 @@ struct ScheduleOptimizationPipeline {
     private let refresher: ScheduleRefresher
     private let conflictManager = ConflictManager()
     private let geneticOptimizer = GeneticOptimizer()
+    private var aiResolver = ScheduleAIResolver()
 
     init(topology: RailwayTopology) {
         self.topology = topology
@@ -65,9 +66,19 @@ struct ScheduleOptimizationPipeline {
             }
         }
 
-        // STEP 6: AI — non usata da ScheduleGenerationEngine (useAI=false)
+        // STEP 6: AI Cloud
         if useAI {
-            print("   ℹ️ [NEW PIPELINE] AI Cloud non ancora integrata, skip.")
+            print("🧠 [NEW PIPELINE] AI Cloud Optimization...")
+            refreshed = await aiResolver.optimize(
+                trains: refreshed,
+                existingTrains: existingTrains,
+                topology: topology,
+                refresher: refresher,
+                conflictManager: conflictManager,
+                preferredHubId: preferredTaktNodeId,
+                hasTaktRequired: hasTaktRequired,
+                pathCache: &pathCache
+            )
         }
 
         // STEP 7: Genetic refinement
