@@ -159,7 +159,9 @@ struct TrackInspectorView: View {
             },
             set: { newMode in
                 guard let edgeId = appState.selectedEdgeId.flatMap(UUID.init(uuidString:)),
-                      network.edges.contains(where: { $0.id == edgeId })
+                      let live = network.edges.first(where: { $0.id == edgeId }),
+                      network.edges.contains(where: { $0.id == edgeId }),
+                      TrackLayoutMode.from(live, in: network.edges) != newMode
                 else { return }
                 appState.railroad.applyTrackLayout(
                     newMode,

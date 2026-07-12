@@ -355,6 +355,7 @@ final class RailroadNetwork: ObservableObject {
                 edge.capacity = 6
                 edge.maxSpeed = singleMaxSpeed
             }
+            remapEdgeEndpoints(edgeId, trackType: .single)
 
         case .double:
             removeCorridorOrphans(anchorId: edgeId)
@@ -363,6 +364,7 @@ final class RailroadNetwork: ObservableObject {
                 edge.capacity = 6
                 edge.maxSpeed = singleMaxSpeed
             }
+            remapEdgeEndpoints(edgeId, trackType: .single)
             if let current = network.edges.first(where: { $0.id == edgeId }),
                !TrackLayoutMode.isInPair(current, in: network.edges) {
                 appendPairedEdgeRecord(to: edgeId)
@@ -378,6 +380,7 @@ final class RailroadNetwork: ObservableObject {
                 edge.capacity = 15
                 edge.maxSpeed = highSpeedMaxSpeed
             }
+            remapEdgeEndpoints(edgeId, trackType: .highSpeed)
             if wasPaired {
                 syncPairedPartner(of: edgeId)
             }
@@ -420,18 +423,28 @@ final class RailroadNetwork: ObservableObject {
     }
 
     private func dissolvePair(around edgeId: UUID) {
-        guard let idx = network.edges.firstIndex(where: { $0.id == edgeId }) else { return }
-        var edge = network.edges[idx]
+        guard network.edges.contains(where: { $0.id == edgeId }) else { return }
+        let partnerId = network.edges.first(where: { $0.id == edgeId })?.pairedEdgeId
+            ?? network.edges.first(where: { $0.pairedEdgeId == edgeId })?.id
 
-        if let pairedId = edge.pairedEdgeId {
-            network.edges.removeAll { $0.id == pairedId }
-            edge.pairedEdgeId = nil
-            network.edges[idx] = edge
-            return
+        if let partnerId {
+            network.edges.removeAll { $0.id == partnerId }
         }
 
-        if let partnerIdx = network.edges.firstIndex(where: { $0.pairedEdgeId == edgeId }) {
-            network.edges.remove(at: partnerIdx)
+        guard let idx = network.edges.firstIndex(where: { $0.id == edgeId }) else { return }
+        var edge = network.edges[idx]
+        edge.pairedEdgeId = nil
+        network.edges[idx] = edge
+    }
+
+    /// Risolve from/to sul nodo hub corretto (classico vs satellite AV) per il tipo traccia.
+    private func remapEdgeEndpoints(_ edgeId: UUID, trackType: Edge.TrackType) {
+        guard let edge = network.edges.first(where: { $0.id == edgeId }) else { return }
+        let hub = HubTopology(nodes: network.nodes)
+        let endpoints = hub.resolvedEndpoints(from: edge.from, to: edge.to, trackType: trackType)
+        updateEdgeRecord(edgeId) { edge in
+            edge.from = endpoints.from
+            edge.to = endpoints.to
         }
     }
 
@@ -470,6 +483,14 @@ final class RailroadNetwork: ObservableObject {
         partner.capacity = edge.capacity
         partner.distance = edge.distance
         partner.pairedEdgeId = edge.id
+        let hub = HubTopology(nodes: network.nodes)
+        let partnerEndpoints = hub.resolvedEndpoints(
+            from: partner.from,
+            to: partner.to,
+            trackType: edge.trackType
+        )
+        partner.from = partnerEndpoints.from
+        partner.to = partnerEndpoints.to
         network.edges[partnerIdx] = partner
 
         var forward = edge
