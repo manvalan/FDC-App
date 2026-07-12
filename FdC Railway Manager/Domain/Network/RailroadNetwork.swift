@@ -27,6 +27,8 @@ final class RailroadNetwork: ObservableObject {
     
     private var cancellables = Set<AnyCancellable>()
     
+    private let infrastructureManager = InfrastructureManager()
+    
     // MARK: - Init
     
     init() {
@@ -153,11 +155,16 @@ final class RailroadNetwork: ObservableObject {
         topologyId += 1
     }
 
+    /// Rigenera i segmenti di blocco sull'infrastruttura di rete.
+    func processInfrastructure() {
+        infrastructureManager.processNetwork(network)
+    }
+
     /// Adds an edge to the network and generates its track segments.
     /// Segments are an Infrastructure concern — this shell method keeps Domain clean.
     func addEdge(_ edge: Edge) {
         network.addEdge(edge)
-        InfrastructureManager.shared.processNetwork(network)
+        infrastructureManager.processNetwork(network)
     }
 
     /// Atomically adds one edge (or a paired A→B / B→A pair) with a
@@ -194,7 +201,7 @@ final class RailroadNetwork: ObservableObject {
                 distance: distance, trackType: trackType,
                 maxSpeed: maxSpeed, capacity: capacity))
         }
-        InfrastructureManager.shared.processNetwork(network)
+        infrastructureManager.processNetwork(network)
     }
 
     /// Removes an edge (and optionally its paired counterpart) under a single
@@ -211,7 +218,7 @@ final class RailroadNetwork: ObservableObject {
             }
             network.edges.removeAll { $0.id == id }
         }
-        InfrastructureManager.shared.processNetwork(network)
+        infrastructureManager.processNetwork(network)
     }
 
     /// Creates a reverse paired edge for an existing single (non-paired) edge
@@ -235,7 +242,7 @@ final class RailroadNetwork: ObservableObject {
             network.edges[idx].pairedEdgeId = pairedId
         }
         network.edges.append(reverse)
-        InfrastructureManager.shared.processNetwork(network)
+        infrastructureManager.processNetwork(network)
     }
 
     // MARK: - Node Removal (cascade-aware)

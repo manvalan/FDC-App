@@ -1,37 +1,8 @@
 import SwiftUI
 import Combine
 
-// MARK: - ScheduleMode & NumberParity (tipi condivisi tra View e ViewModel)
-
-/// Modalità di generazione dell'orario: corsa singola, cadenzata o Taktfahrplan.
-enum ScheduleMode: String, CaseIterable, Identifiable {
-    case single = "single_trip"
-    case cadenced = "cadenced_trip"
-    case taktfahrplan = "taktfahrplan"
-    var id: String { rawValue }
-
-    var localizedName: String {
-        switch self {
-        case .single:        return "single_trip".localized
-        case .cadenced:      return "cadenced_trip".localized
-        case .taktfahrplan:  return "Taktfahrplan"
-        }
-    }
-}
-
-/// Parità della numerazione treni: numeri pari o dispari.
-enum NumberParity: String, CaseIterable, Identifiable {
-    case even = "even"
-    case odd  = "odd"
-    var id: String { rawValue }
-
-    var localizedName: String {
-        switch self {
-        case .even: return "even".localized
-        case .odd:  return "odd".localized
-        }
-    }
-}
+// ScheduleMode, NumberParity → ScheduleCreationTypes.swift
+// Takt alignment methods → ScheduleCreationViewModel+Takt.swift
 
 // MARK: - Takt Diagnostic
 
@@ -57,9 +28,9 @@ final class ScheduleCreationViewModel: ObservableObject {
     var aiService: RailwayAIService = .shared
 
     // MARK: - Specialized Services (Modularization)
-    private var kinematicCalculator: KinematicCalculator
-    private var taktEngine: TaktEngine
-    private var pathResolver: PathResolver
+    var kinematicCalculator: KinematicCalculator
+    var taktEngine: TaktEngine
+    var pathResolver: PathResolver
     private var suitabilityEngine: VehicleSuitabilityEngine
     private var generationEngine: ScheduleGenerationEngine
 
@@ -289,68 +260,7 @@ final class ScheduleCreationViewModel: ObservableObject {
         previewCount = max(0, total)
     }
 
-    // MARK: - Takt alignment
-
-    /// Allinea l'orario di partenza al minuto Takt della prima stazione con nodo Takt.
-    /// - Parameter isReturn: se `true`, calcola per la direzione di ritorno.
-    func alignToTakt(isReturn: Bool) {
-        if let newDate = taktEngine.calculateAlignedStartTime(
-            startTime: startTime,
-            stationSequence: stationSequence,
-            taktStationId: taktStationId,
-            train: makeDummyTrain(),
-            isReturn: isReturn) {
-            startTime = newDate
-            updatePreview()
-        }
-    }
-
-
-
-    func presetTaktHub() {
-        taktStationId = pathResolver.presetTaktHub(stationSequence: stationSequence, currentHubId: taktStationId)
-    }
-
-    private func travelMinutesToStation(_ targetId: String, in sequence: [String]) -> Double {
-        return kinematicCalculator.travelMinutesToStation(targetId, in: sequence, train: makeDummyTrain())
-    }
-
-    private func legTravelMinutes(from: String, to: String, train: Train) -> Double {
-        return kinematicCalculator.legTravelMinutes(from: from, to: to, train: train)
-    }
-
-    private func dwellMinutes(at stationId: String) -> Double {
-        return kinematicCalculator.dwellMinutes(at: stationId)
-    }
-
-
-
-    /// Calcola i suggerimenti Takt per ogni stazione con minuto Takt configurato.
-    /// Restituisce le finestre di arrivo (-15/-5 min) e partenza (+5/+15 min).
-    func calculateTaktSuggestions() -> [(stationId: String, stationName: String, taktMinute: Int,
-                                          suggestedArrival: String, suggestedDeparture: String)] {
-        return taktEngine.calculateTaktSuggestions(stationSequence: stationSequence)
-    }
-
-    // MARK: - Takt Diagnostic per treni non principali
-
-    /// Verifica e diagnostica il posizionamento Takt per tutti i treni generati.
-    /// Controlla che i treni secondari (non principali) rispettino le finestre temporali
-    /// all'hub Takt senza interferire con i treni principali.
-    ///
-    /// La validazione verifica:
-    /// - Che ogni treno passi per l'hub Takt
-    /// - Che i treni secondari non si sovrappongano ai treni principali
-    /// - Che la distanza dal minuto Takt sia ragionevole
-    ///
-    /// - Returns: Array di `TaktDiagnosticEntry` con il report per ogni treno.
-    func validateNonMainTaktPlacement() -> [TaktDiagnosticEntry] {
-        return taktEngine.validateTaktPlacement(trains: generatedTrains ?? [], taktStationId: taktStationId)
-    }
-
-
-
-    // MARK: - AI Analysis
+    // MARK: - Preview count
 
     /// Avvia l'analisi AI della linea (se il cloud AI è attivo).
     func triggerRouteAnalysis() {
@@ -661,7 +571,7 @@ final class ScheduleCreationViewModel: ObservableObject {
 
 
     /// Crea un treno fittizio per i calcoli di tempo di percorrenza.
-    private func makeDummyTrain() -> Train {
+    func makeDummyTrain() -> Train {
         Train(id: UUID(), number: 0, name: "Probe",
               type: selectedTrainType.rawValue, lineId: nil, departureTime: Date(),
               stops: [], vehicleId: nil,

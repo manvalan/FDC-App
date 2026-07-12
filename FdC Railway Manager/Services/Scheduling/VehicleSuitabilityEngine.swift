@@ -1,7 +1,7 @@
 import Foundation
 
 /// Motore per il calcolo dell'idoneità dei veicoli rispetto alle caratteristiche di una linea.
-final class VehicleSuitabilityEngine {
+struct VehicleSuitabilityEngine {
     private let kinematicCalculator: KinematicCalculator
     
     init(kinematicCalculator: KinematicCalculator) {

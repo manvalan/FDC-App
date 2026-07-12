@@ -58,7 +58,7 @@ final class IOManager: ObservableObject {
         railroad.migrateDoubleTracksToSingle()
         railroad.migrateLineNodeOrdering()
         railroad.clearUndoHistory()
-        InfrastructureManager.shared.processNetwork(railroad.network)
+        railroad.processInfrastructure()
     }
 
     func importFromFDC(data: Data) throws {
@@ -77,7 +77,7 @@ final class IOManager: ObservableObject {
         railroad.migrateLineNodeOrdering()
         railroad.clearUndoHistory()
         railroad.lines.validateSchedules()
-        InfrastructureManager.shared.processNetwork(railroad.network)
+        railroad.processInfrastructure()
     }
 
     private func mapFDCNodes(_ stations: [FDCStation]) -> [Node] {

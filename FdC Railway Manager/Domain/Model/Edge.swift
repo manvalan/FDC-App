@@ -1,19 +1,10 @@
 import Foundation
-import SwiftUI
-import Combine
-import UniformTypeIdentifiers
-import CoreLocation
-import MapKit
 
 public struct Edge: Identifiable, Codable, Hashable {
     public enum TrackType: String, Codable, CaseIterable, Identifiable {
         case highSpeed, regional, single
         public var id: String { rawValue }
 
-        /// Legacy decoder: files saved before Fase 3f may contain the
-        /// raw value "double". Map it to .single so that
-        /// migrateDoubleTracksToSingle() can skip it (it has no
-        /// pairedEdgeId) and pathfinding treats it as undirected.
         public init(from decoder: Decoder) throws {
             let container = try decoder.singleValueContainer()
             let raw = try container.decode(String.self)
@@ -33,45 +24,31 @@ public struct Edge: Identifiable, Codable, Hashable {
             case .single: return "Sing"
             }
         }
-
-        public var color: Color {
-            switch self {
-            case .highSpeed: return .red
-            case .regional: return .blue
-            case .single: return .gray
-            }
-        }
     }
+
     public var id: UUID = UUID()
-    public var from: String     // id nodo di partenza
-    public var to: String       // id nodo di arrivo
-    /// Non-nil when this edge is one of two oriented edges that together
-    /// represent a double track. Points to the UUID of the reverse edge.
+    public var from: String
+    public var to: String
     public var pairedEdgeId: UUID? = nil
     public var distance: Double
     public var trackType: TrackType
     public var maxSpeed: Int
     public var capacity: Int?
     public var hasManualDistance: Bool = false
-    public var segments: [TrackSegment] = [] // Segmenti fisici (blocchi) del binario
-    /// Unified waypoints: map curve geometry + optional altitude per point.
-    /// Migrated from the legacy `geometryPoints` field at load time.
+    public var segments: [TrackSegment] = []
     public var controlPoints: [TrackControlPoint] = []
     public var electrification: ElectrificationType = .dc3kv
-    /// Transient: set when a legacy JSON `"double"` edge is decoded.
-    /// Triggers pairing in migrateDoubleTracksToSingleOriented(_:).
-    /// Not in CodingKeys — never serialized.
     public var needsPairedMigration: Bool = false
 
     public var canonicalKey: String {
         Edge.canonicalKey(from: from, to: to)
     }
-    
+
     public static func canonicalKey(from: String, to: String) -> String {
         let sorted = [from, to].sorted()
         return "\(sorted[0])-\(sorted[1])"
     }
-    
+
     public struct GeometryPoint: Codable, Hashable, Identifiable {
         public var id: UUID = UUID()
         public var latitude: Double
@@ -85,16 +62,10 @@ public struct Edge: Identifiable, Codable, Hashable {
     }
 
     public init(
-        id: UUID = UUID(),
-        from: String,
-        to: String,
-        distance: Double,
-        trackType: TrackType,
-        maxSpeed: Int,
-        capacity: Int? = nil,
+        id: UUID = UUID(), from: String, to: String, distance: Double,
+        trackType: TrackType, maxSpeed: Int, capacity: Int? = nil,
         electrification: ElectrificationType = .dc3kv,
-        hasManualDistance: Bool = false,
-        pairedEdgeId: UUID? = nil
+        hasManualDistance: Bool = false, pairedEdgeId: UUID? = nil
     ) {
         self.id = id
         self.from = from
@@ -107,15 +78,14 @@ public struct Edge: Identifiable, Codable, Hashable {
         self.hasManualDistance = hasManualDistance
         self.pairedEdgeId = pairedEdgeId
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         from = try container.decode(String.self, forKey: .from)
         to = try container.decode(String.self, forKey: .to)
         distance = try container.decodeIfPresent(Double.self, forKey: .distance) ?? 1.0
-        let rawTrackType = try container.decodeIfPresent(
-            String.self, forKey: .trackType) ?? "regional"
+        let rawTrackType = try container.decodeIfPresent(String.self, forKey: .trackType) ?? "regional"
         if rawTrackType == "double" {
             trackType = .single
             needsPairedMigration = true
@@ -125,8 +95,6 @@ public struct Edge: Identifiable, Codable, Hashable {
         maxSpeed = try container.decodeIfPresent(Int.self, forKey: .maxSpeed) ?? 120
         capacity = try container.decodeIfPresent(Int.self, forKey: .capacity)
         segments = try container.decodeIfPresent([TrackSegment].self, forKey: .segments) ?? []
-        // Migration: populate controlPoints from legacy geometryPoints when
-        // loading files saved before TrackControlPoint was introduced.
         let legacyPoints = try container.decodeIfPresent([GeometryPoint].self, forKey: .geometryPoints) ?? []
         let decoded = try container.decodeIfPresent([TrackControlPoint].self, forKey: .controlPoints) ?? []
         if decoded.isEmpty && !legacyPoints.isEmpty {
@@ -141,8 +109,6 @@ public struct Edge: Identifiable, Codable, Hashable {
         pairedEdgeId = try container.decodeIfPresent(UUID.self, forKey: .pairedEdgeId)
     }
 
-    /// Custom encoder: `geometryPoints` stays in CodingKeys for legacy
-    /// decoding only and must not be re-written to new files.
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)

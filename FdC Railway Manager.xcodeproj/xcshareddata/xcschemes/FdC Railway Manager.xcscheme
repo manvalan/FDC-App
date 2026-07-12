@@ -21,6 +21,20 @@
                ReferencedContainer = "container:FdC Railway Manager.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "TST0022F5000010003C8FEC"
+               BuildableName = "FdC Railway ManagerTests.xctest"
+               BlueprintName = "FdC Railway ManagerTests"
+               ReferencedContainer = "container:FdC Railway Manager.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -29,6 +43,19 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
+      <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "TST0022F5000010003C8FEC"
+               BuildableName = "FdC Railway ManagerTests.xctest"
+               BlueprintName = "FdC Railway ManagerTests"
+               ReferencedContainer = "container:FdC Railway Manager.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+      </Testables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"

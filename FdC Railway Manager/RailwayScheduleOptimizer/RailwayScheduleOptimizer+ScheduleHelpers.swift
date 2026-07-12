@@ -37,111 +37,12 @@ extension RailwayScheduleOptimizer {
         return nil
     }
     func refreshTaktSchedule(train: inout [RailwayTrain].Element, hIdx: Int, hNode: RailwayNode, nodes: [RailwayNode], edges: [Edge]) {
-        let (hArr, hDep) = calculateHubTimes(for: train, hIdx: hIdx, hNode: hNode)
-        
-        train.stops[hIdx].arrival = hArr
-        train.stops[hIdx].departure = (hIdx < train.stops.count - 1) ? hDep : nil
-        
-        propagateBackward(from: hIdx, arrival: hArr, train: &train, nodes: nodes, edges: edges)
-        propagateForward(from: hIdx, departure: hDep, train: &train, nodes: nodes, edges: edges)
-        
-        train.departureTime = train.stops.first?.departure ?? train.stops.first?.arrival
-    }
-
-    func calculateHubTimes(for train: [RailwayTrain].Element, hIdx: Int, hNode: RailwayNode) -> (Date, Date) {
-        let calendar = Calendar.current
-        let takt = hNode.taktMinutes ?? 0
-        let isT1 = (train.number ?? 0) % 2 == 1
-
-        let referenceTime = train.stops[hIdx].arrival ?? train.departureTime ?? Date()
-        let ttToHub = (train.stops[hIdx].arrival == nil) ? Double(hIdx) * 180.0 : 0
-        let estArrAtHub = referenceTime.addingTimeInterval(ttToHub)
-        
-        var anchorBase = calendar.date(bySetting: .minute, value: takt, of: estArrAtHub) ?? estArrAtHub
-        if anchorBase < estArrAtHub.addingTimeInterval(-1800) { anchorBase = calendar.date(byAdding: .hour, value: 1, to: anchorBase) ?? anchorBase }
-        if anchorBase > estArrAtHub.addingTimeInterval(1800) { anchorBase = calendar.date(byAdding: .hour, value: -1, to: anchorBase) ?? anchorBase }
-
-        var hArr: Date
-        var hDep: Date
-
-        if train.isMainTrain {
-            // Treni principali: crossing stretto ±2-3 min
-            if isT1 {
-                hArr = calendar.date(bySetting: .minute, value: (takt - 2 + 60) % 60, of: anchorBase) ?? anchorBase
-            } else {
-                hArr = calendar.date(bySetting: .minute, value: (takt - 3 + 60) % 60, of: anchorBase) ?? anchorBase
-            }
-            hArr = calendar.date(bySetting: .second, value: 0, of: hArr) ?? hArr
-            hDep = hArr.addingTimeInterval((isT1 ? 3 : 5) * 60)
-        } else {
-            // Treni non principali: posizionamento "a cavallo" della finestra dei principali.
-            // Regola semplificata: Arrival = Takt - 10, Departure = Takt + 10.
-            // Non usiamo più la parità numero treno per evitare inversioni illogiche.
-            hArr = calendar.date(bySetting: .minute, value: (takt - 10 + 60) % 60, of: anchorBase) ?? anchorBase
-            hArr = calendar.date(bySetting: .second, value: 0, of: hArr) ?? hArr
-            hDep = calendar.date(bySetting: .minute, value: (takt + 10 + 60) % 60, of: anchorBase) ?? anchorBase
-            hDep = calendar.date(bySetting: .second, value: 0, of: hDep) ?? hDep
-            
-            // Se Departure è prima di Arrival (raro con ±60min anchor), aggiustiamo
-            if hDep < hArr { hDep = calendar.date(byAdding: .hour, value: 1, to: hDep) ?? hDep }
-        }
-        
-        #if DEBUG
-        print("🔄 [Refresh Takt] \(train.name) [\(train.isMainTrain ? "MAIN" : "SEC ")] Hub: \(hNode.id) (#\(hIdx)) -> EstArrAtHub: \(formatTime(estArrAtHub)), Arr: \(formatTime(hArr)), Dep: \(formatTime(hDep))")
-        #endif
-
-        return (hArr, hDep)
-    }
-
-    func propagateBackward(from hIdx: Int, arrival: Date, train: inout [RailwayTrain].Element, nodes: [RailwayNode], edges: [Edge]) {
-        guard hIdx > 0 else { return }
-        var nextArrivalAtTarget = arrival
-        for j in (0..<hIdx).reversed() {
-            let idNext = train.stops[j+1].stationId
-            let idCur = train.stops[j].stationId
-            let isStoppingAtNext = !train.stops[j+1].isSkipped
-            let isStartingAtCur = (j == 0)
-            
-            let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(from: idCur, to: idNext, train: train, nodes: nodes, edges: edges, isStarting: isStartingAtCur, isStopping: isStoppingAtNext)
-            
-            let depTime = nextArrivalAtTarget.addingTimeInterval(-tt)
-            train.stops[j].departure = roundToBusinessSeconds(depTime)
-            
-            let dwellMinutes = train.stops[j].isSkipped ? 0.0 : Double(train.stops[j].minDwellTime)
-            let extraDwell = train.stops[j].extraDwellTime ?? 0
-            let dwell = train.stops[j].isSkipped ? 0.0 : max(120.0, (dwellMinutes + extraDwell) * 60.0)
-            
-            let arrTime = (train.stops[j].departure ?? depTime).addingTimeInterval(-dwell)
-            train.stops[j].arrival = (j > 0) ? roundToBusinessSeconds(arrTime) : nil
-            
-            nextArrivalAtTarget = train.stops[j].arrival ?? (train.stops[j].departure!.addingTimeInterval(-60))
-        }
-    }
-
-    func propagateForward(from hIdx: Int, departure: Date, train: inout [RailwayTrain].Element, nodes: [RailwayNode], edges: [Edge]) {
-        guard hIdx < train.stops.count - 1 else { return }
-        var currentDeparture = departure
-        for j in (hIdx + 1)..<train.stops.count {
-            let idPrev = train.stops[j-1].stationId
-            let idCur = train.stops[j].stationId
-            let isStoppingAtCur = !train.stops[j].isSkipped
-            let isStartingAtPrev = (j-1 == 0) && !train.stops[j-1].isSkipped
-            
-            let tt = FDCSchedulerEngine.calculateTravelTimeBetweenNodes(from: idPrev, to: idCur, train: train, nodes: nodes, edges: edges, isStarting: isStartingAtPrev, isStopping: isStoppingAtCur)
-            
-            let arrTime = currentDeparture.addingTimeInterval(tt)
-            train.stops[j].arrival = roundToBusinessSeconds(arrTime)
-            
-            let dwellMinutes = train.stops[j].isSkipped ? 0.0 : Double(train.stops[j].minDwellTime)
-            let extraDwell = train.stops[j].extraDwellTime ?? 0
-            let dwell = train.stops[j].isSkipped ? 0.0 : max(120.0, (dwellMinutes + extraDwell) * 60.0)
-            
-            let depTime = (train.stops[j].arrival ?? arrTime).addingTimeInterval(dwell)
-            train.stops[j].departure = (j < train.stops.count - 1) ? roundToBusinessSeconds(depTime) : nil
-            
-            if let d = train.stops[j].departure { currentDeparture = d } 
-            else { currentDeparture = (train.stops[j].arrival ?? arrTime).addingTimeInterval(60) }
-        }
+        let topo = RailwayTopology(nodes: nodes, edges: edges)
+        let engine = TaktEngine(
+            topology: topo,
+            kinematicCalculator: KinematicCalculator(topology: topo)
+        )
+        engine.refreshTaktSchedule(train: &train, hIdx: hIdx, hNode: hNode)
     }
 
     func refreshStandardSchedule(train: inout [RailwayTrain].Element, nodes: [RailwayNode], edges: [Edge]) {
