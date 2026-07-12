@@ -138,18 +138,15 @@ Dettaglio completo in `CLAUDE.md`.
 
 ---
 
-## Stato refactor (Fasi 0–5)
+## Stato refactor (Fasi 0–6)
 
 | Fase | Esito |
 |------|-------|
-| 0 | XCTest, test Taktfahrplan, FeatureFlags |
-| 1 | Fix malloc, DI, migrazione Domain iniziale |
-| 2 | `ScheduleOptimizationPipeline`, `TaktEngine` unificato |
-| 3 | Vehicle/TrackSegment/RoutingConstraint, `ScheduleAIResolver` |
-| 4 | Signal/Switch/ElectrificationType, rimozione legacy, SPM scaffold |
-| 5 | `NetworkPathfinder`, UI decoupling (`*+UI.swift`), docs LaTeX |
+| 0–4 | (vedi commit `0c18744`–`00db4c2`) |
+| 5 | `NetworkPathfinder`, UI decoupling, docs LaTeX |
+| 6 | `FDCDomain` SPM linkato a Xcode, `DomainBridge`, 3 test package |
 
-### Prossimi passi (Fase 6+)
+### Prossimi passi (Fase 7+)
 
 Vedi [`PLAN.md`](PLAN.md) per il dettaglio completo.
 

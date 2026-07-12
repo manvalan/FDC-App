@@ -1,6 +1,6 @@
 import Foundation
 
-enum LinePathError: Error {
+public enum LinePathError: Error {
     case tooFewNodes
     case noEndpointsFound
     case pathNotFound
@@ -9,9 +9,9 @@ enum LinePathError: Error {
 
 /// Pathfinding puro su topologia di rete (Dijkstra, distanze, ordinamento linee).
 /// Functional Core: nessuna dipendenza da `NetworkModel` o UI.
-enum NetworkPathfinder {
+public enum NetworkPathfinder {
 
-    static func findPathEdges(
+    public static func findPathEdges(
         from startId: String,
         to endId: String,
         nodes: [Node],
@@ -38,7 +38,7 @@ enum NetworkPathfinder {
         return pathEdges
     }
 
-    static func findShortestPath(
+    public static func findShortestPath(
         from start: String,
         to end: String,
         nodes: [Node],
@@ -67,7 +67,7 @@ enum NetworkPathfinder {
         return nil
     }
 
-    static func findAlternativePaths(
+    public static func findAlternativePaths(
         from start: String,
         to end: String,
         nodes: [Node],
@@ -109,7 +109,7 @@ enum NetworkPathfinder {
         return results
     }
 
-    static func calculatePathDistance(path: [String], edges: [Edge]) -> Double {
+    public static func calculatePathDistance(path: [String], edges: [Edge]) -> Double {
         guard path.count > 1 else { return 0.0 }
         var total = 0.0
         for i in 0..<(path.count - 1) {
@@ -124,7 +124,7 @@ enum NetworkPathfinder {
         return total
     }
 
-    static func findLineEndpoints(
+    public static func findLineEndpoints(
         nodeIds: [String],
         edges: [Edge]
     ) -> (String, String)? {
@@ -139,7 +139,7 @@ enum NetworkPathfinder {
         return (endpoints[0], endpoints[1])
     }
 
-    static func buildOrderedPath(
+    public static func buildOrderedPath(
         through nodeIds: [String],
         nodes: [Node],
         edges: [Edge],
@@ -184,7 +184,7 @@ enum NetworkPathfinder {
         return result.filter { seen.insert($0).inserted }
     }
 
-    static func resolveLinePath(
+    public static func resolveLinePath(
         through selectedNodeIds: [String],
         nodes: [Node],
         edges: [Edge]

@@ -95,7 +95,7 @@ public struct Train: Identifiable, Codable, Hashable {
 }
 
 extension Train {
-    func getPreferredTracks(
+    public func getPreferredTracks(
         at node: Node, prevStationId: String?, nextStationId: String?,
         for route: TrainRoute?, isSkipping: Bool = false
     ) -> [String] {
@@ -124,7 +124,7 @@ extension Train {
         return finalList
     }
 
-    func isTrackPreferred(
+    public func isTrackPreferred(
         _ track: String, at node: Node, prevStationId: String?,
         nextStationId: String?, for routeId: String?
     ) -> Bool {

@@ -77,12 +77,14 @@ Ogni fase di codice aggiorna il capitolo LaTeX corrispondente.
 - [x] `PathfindingTests` (2 test)
 - [x] `PLAN.md` + README aggiornati
 
-### Fase 6 — SPM integrato 🔲
+### Fase 6 — SPM integrato ✅
 
-- [ ] Collegare `FDCDomain` al target Xcode
-- [ ] Includere `Node`, `Edge`, `Train`, `RailwayTopology` nel package
-- [ ] Risolvere `.localized` in `Node` (adapter o stringhe raw)
-- [ ] `TrainDatabaseModels` / `Ferrovia` senza SwiftUI
+- [x] `Node+UI`, split `TrainDatabase` (Foundation / Infrastructure / UI)
+- [x] `FDCDomain` package completo (18 sorgenti)
+- [x] Package collegato al target Xcode + `DomainBridge` (`@_exported import`)
+- [x] Membership exceptions (no doppia compilazione Domain)
+- [x] 3 test FDCDomain SPM + build app OK
+- [x] Capitolo LaTeX `05-spm-integration.tex`
 
 ### Fase 7 — NetworkModel → adapter 🔲
 
@@ -103,7 +105,7 @@ Ogni fase di codice aggiorna il capitolo LaTeX corrispondente.
 | Metrica | Valore |
 |---------|--------|
 | Test app XCTest | 22 |
-| Test FDCDomain SPM | 2 |
+| Test FDCDomain SPM | 3 |
 | Tipi in `Domain/Model/` | 17 file |
 | Legacy `RailwayScheduleOptimizer` | rimosso |
 | Pipeline attiva | `ScheduleOptimizationPipeline` |
@@ -122,5 +124,4 @@ Ogni fase di codice aggiorna il capitolo LaTeX corrispondente.
 
 ## Prossima azione
 
-Avviare **Fase 6**: collegare `FDCDomain` al target Xcode e decoupling
-`Node.localized` / `TrainDatabaseModels`.
+Avviare **Fase 7**: `NetworkModel` come shell UI, ridurre `DomainBridge`.

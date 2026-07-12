@@ -1,0 +1,60 @@
+\chapter{Integrazione Swift Package}
+\label{ch:spm}
+
+\section{FDCDomain nel target Xcode}
+
+Dal refactor Fase 6 il package locale \texttt{Packages/FDCDomain}
+è collegato al target \emph{FdC Railway Manager}:
+
+\begin{itemize}
+  \item \texttt{XCLocalSwiftPackageReference} con \texttt{relativePath}
+  \item \texttt{packageProductDependencies} + fase \texttt{Frameworks}
+  \item \texttt{PBXFileSystemSynchronizedBuildFileExceptionSet}: i sorgenti
+    in \repo{Domain/Model/} e \repo{Domain/Pathfinding/} non vengono
+    ricompilati nell'app (evita simboli duplicati).
+  \item \repo{Models/DomainBridge.swift} con \texttt{@\_exported import FDCDomain}
+    e typealias per compatibilità con il codice esistente.
+\end{itemize}
+
+\section{Decoupling UI (Fase 6)}
+
+\begin{table}[htbp]
+\centering
+\caption{Spostamenti layer UI.}
+\begin{tabularx}{\textwidth}{lX}
+  \toprule
+  \textbf{Prima} & \textbf{Dopo} \\
+  \midrule
+  \texttt{Node.localizedName} & \texttt{Models/Node+UI.swift} \\
+  \texttt{TrainDatabaseManager + View} & \texttt{Infrastructure/} + \texttt{UI/Views/TrainDatabase/} \\
+  \texttt{TrainDatabaseModels} (SwiftUI) & Solo struct \texttt{Codable} in Domain \\
+  \bottomrule
+\end{tabularx}
+\end{table}
+
+\section{API pubbliche}
+
+I tipi esposti dal package richiedono \texttt{public} su proprietà e metodi
+usati dall'app, ad esempio:
+
+\begin{itemize}
+  \item \texttt{RailwayTopology.nodes/edges}
+  \item \texttt{Node.getTracksByProvenance}, \texttt{defaultVisualType}
+  \item \texttt{Train.getPreferredTracks}
+  \item \texttt{NetworkPathfinder} (tutti gli entry point statici)
+\end{itemize}
+
+\section{Test}
+
+\begin{itemize}
+  \item \textbf{3 test} in \texttt{FDCDomainTests} (package SPM)
+  \item \textbf{22 test} nel target app (inclusi \texttt{PathfindingTests})
+\end{itemize}
+
+\section{Prossimi passi (Fase 7)}
+
+\begin{itemize}
+  \item Ridurre \texttt{DomainBridge} typealias; import espliciti dove serve
+  \item \texttt{NetworkModel} come shell \texttt{@Observable} pura
+  \item Estrarre \texttt{FDCScheduling} con protocolli in \texttt{Domain/Services/}
+\end{itemize}

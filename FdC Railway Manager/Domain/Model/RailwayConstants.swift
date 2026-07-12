@@ -2,7 +2,7 @@ import Foundation
 
 /// Core constants for the railway system.
 /// Replaces "Magic Numbers" throughout the codebase.
-struct RailwayConstants {
+public struct RailwayConstants {
     // Physical Parameters
     static let standardTrackGauge: Double = 1.435 // meters
     static let gravity: Double = 9.81 // m/s^2

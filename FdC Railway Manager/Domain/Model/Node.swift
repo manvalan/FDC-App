@@ -13,16 +13,6 @@ public struct Node: Identifiable, Codable, Hashable {
         case emptyCircle = "Cerchio vuoto"
 
         public var id: String { self.rawValue }
-
-        public var localizedName: String {
-            switch self {
-            case .filledStar: return "filled_star".localized
-            case .filledSquare: return "filled_square".localized
-            case .emptySquare: return "empty_square".localized
-            case .filledCircle: return "filled_circle".localized
-            case .emptyCircle: return "empty_circle".localized
-            }
-        }
     }
 
     public enum HubOffsetDirection: String, Codable, CaseIterable, Identifiable {
@@ -32,15 +22,6 @@ public struct Node: Identifiable, Codable, Hashable {
         case bottomRight = "In Basso a Dx"
 
         public var id: String { self.rawValue }
-
-        public var localizedName: String {
-            switch self {
-            case .topLeft: return "top_left_offset".localized
-            case .topRight: return "top_right_offset".localized
-            case .bottomLeft: return "bottom_left_offset".localized
-            case .bottomRight: return "bottom_right_offset".localized
-            }
-        }
     }
 
     public let id: String
@@ -129,19 +110,19 @@ public struct Node: Identifiable, Codable, Hashable {
         try container.encodeIfPresent(taktMinutes, forKey: .taktMinutes)
     }
 
-    var coordinate: CLLocationCoordinate2D? {
+    public var coordinate: CLLocationCoordinate2D? {
         guard let lat = latitude, let lon = longitude else { return nil }
         return CLLocationCoordinate2D(latitude: lat, longitude: lon)
     }
 
-    var defaultVisualType: StationVisualType {
+    public var defaultVisualType: StationVisualType {
         switch type {
         case .interchange, .depot: return .filledSquare
         default: return .filledCircle
         }
     }
 
-    var defaultColor: String {
+    public var defaultColor: String {
         switch type {
         case .interchange: return "#FF3B30"
         case .depot: return "#FF9500"
@@ -149,7 +130,7 @@ public struct Node: Identifiable, Codable, Hashable {
         }
     }
 
-    func isTrackAllowed(
+    public func isTrackAllowed(
         track: String?, routeId: String, prevStationId: String?, nextStationId: String?
     ) -> Bool {
         let t = track ?? "1"
@@ -166,7 +147,7 @@ public struct Node: Identifiable, Codable, Hashable {
         return true
     }
 
-    func getTracksByProvenance(
+    public func getTracksByProvenance(
         from prevStationId: String?, nextStationId: String? = nil, forRoute routeId: String?
     ) -> [String] {
         let maxPlatforms = self.platforms ?? 2

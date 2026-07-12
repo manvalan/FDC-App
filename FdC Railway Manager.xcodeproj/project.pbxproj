@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		FDC6FRM2F6000010003C8FEC /* FDCDomain in Frameworks */ = {isa = PBXBuildFile; productRef = FDC6PRD2F6000010003C8FEC /* FDCDomain */; };
 		05104C7CB9A6FBFE4E71477E /* TimetableChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 644A4D55976338B7CDE50DA1 /* TimetableChart.swift */; };
 		068B48A0B3DFD275113BD0B6 /* Italian.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A364CB38D148999DB961FF1 /* Italian.swift */; };
 		0C264A718802B3265905ED2A /* LinesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9DE4A1ABAADAC85895A2810 /* LinesManager.swift */; };
@@ -26,6 +27,7 @@
 		31294B5A2F426D4200E80C34 /* TrainDatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B592F426D4200E80C34 /* TrainDatabaseModels.swift */; };
 		31294B5C2F426FEB00E80C34 /* VehicleRotationOptimizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B5B2F426FEB00E80C34 /* VehicleRotationOptimizer.swift */; };
 		31294B5E2F42EBFA00E80C34 /* SchedulePreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B5D2F42EBFA00E80C34 /* SchedulePreviewView.swift */; };
+		FDC6FRM2F6000010003C8FEC /* FDCDomain in Frameworks */ = {isa = PBXBuildFile; productRef = FDC6PRD2F6000010003C8FEC /* FDCDomain */; };
 		31294B602F42F00200E80C34 /* TrainModelSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B5F2F42F00200E80C34 /* TrainModelSelector.swift */; };
 		31294B622F42F4B500E80C34 /* TrainPhysicsEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B612F42F4B500E80C34 /* TrainPhysicsEngine.swift */; };
 		31294B662F42F81E00E80C34 /* SchedulePreviewInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31294B652F42F81E00E80C34 /* SchedulePreviewInspectorView.swift */; };
@@ -247,6 +249,9 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		31234B432F1FD849003C8FEC /* FdC Railway Manager */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				FDC6EXC2F6000010003C8FEC /* Exceptions for "FdC Railway Manager" folder in "FdC Railway Manager" target */,
+			);
 			path = "FdC Railway Manager";
 			sourceTree = "<group>";
 		};
@@ -258,6 +263,14 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		31234B3E2F1FD849003C8FEC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FDC6FRM2F6000010003C8FEC /* FDCDomain in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		TST0042F5000010003C8FEC /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -404,6 +417,7 @@
 			buildConfigurationList = 31234B4C2F1FD84A003C8FEC /* Build configuration list for PBXNativeTarget "FdC Railway Manager" */;
 			buildPhases = (
 				31234B3D2F1FD849003C8FEC /* Sources */,
+				31234B3E2F1FD849003C8FEC /* Frameworks */,
 				31234B3F2F1FD849003C8FEC /* Resources */,
 			);
 			buildRules = (
@@ -415,6 +429,7 @@
 			);
 			name = "FdC Railway Manager";
 			packageProductDependencies = (
+				FDC6PRD2F6000010003C8FEC /* FDCDomain */,
 			);
 			productName = "FdC Railway Manager";
 			productReference = 31234B412F1FD849003C8FEC /* FdC Railway Manager.app */;
@@ -474,6 +489,9 @@
 			productRefGroup = 31234B422F1FD849003C8FEC /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
+			packageReferences = (
+				FDC6PKG2F6000010003C8FEC /* XCLocalSwiftPackageReference "FDCDomain" */,
+			);
 			targets = (
 				31234B402F1FD849003C8FEC /* FdC Railway Manager */,
 				TST0022F5000010003C8FEC /* FdC Railway ManagerTests */,
@@ -500,8 +518,6 @@
 				31294B602F42F00200E80C34 /* TrainModelSelector.swift in Sources */,
 				31294B562F425FDB00E80C34 /* SettingsInspectorView.swift in Sources */,
 				31294B622F42F4B500E80C34 /* TrainPhysicsEngine.swift in Sources */,
-				31294B5A2F426D4200E80C34 /* TrainDatabaseModels.swift in Sources */,
-				EB4B4375883E4827B5821D39 /* LineProfilePoint.swift in Sources */,
 				31294B452F40AB6500E80C34 /* GenericEntityListView.swift in Sources */,
 				31294B662F42F81E00E80C34 /* SchedulePreviewInspectorView.swift in Sources */,
 				31294B682F432F6000E80C34 /* OptimizedTimesPreviewInspectorView.swift in Sources */,
@@ -903,6 +919,48 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		FDC6EXC2F6000010003C8FEC /* Exceptions for "FdC Railway Manager" folder in "FdC Railway Manager" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Domain/Model/Edge.swift,
+				Domain/Model/ElectrificationType.swift,
+				Domain/Model/Ferrovia.swift,
+				Domain/Model/LineProfilePoint.swift,
+				Domain/Model/Node.swift,
+				Domain/Model/RailwayConstants.swift,
+				Domain/Model/RailwayTopology.swift,
+				Domain/Model/RelationStop.swift,
+				Domain/Model/RoutingConstraint.swift,
+				Domain/Model/Signal.swift,
+				Domain/Model/Switch.swift,
+				Domain/Model/TrackControlPoint.swift,
+				Domain/Model/TrackSegment.swift,
+				Domain/Model/Train.swift,
+				Domain/Model/TrainDatabaseModels.swift,
+				Domain/Model/TrainRoute.swift,
+				Domain/Model/Vehicle.swift,
+				Domain/Pathfinding/NetworkPathfinder.swift,
+			);
+			target = 31234B402F1FD849003C8FEC /* FdC Railway Manager */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		FDC6PKG2F6000010003C8FEC /* XCLocalSwiftPackageReference "FDCDomain" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/FDCDomain;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		FDC6PRD2F6000010003C8FEC /* FDCDomain */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FDCDomain;
+			package = FDC6PKG2F6000010003C8FEC /* XCLocalSwiftPackageReference "FDCDomain" */;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 31234B392F1FD849003C8FEC /* Project object */;
 }

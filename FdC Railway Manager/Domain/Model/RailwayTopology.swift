@@ -3,20 +3,20 @@ import Foundation
 /// Snapshot immutabile della topologia di rete per calcoli puri
 /// (scheduling, pathfinding, cinematica).
 /// Functional Core: nessuna dipendenza da ObservableObject o MainActor.
-struct RailwayTopology: Equatable, Sendable {
-    let nodes: [Node]
-    let edges: [Edge]
+public struct RailwayTopology: Equatable, Sendable {
+    public let nodes: [Node]
+    public let edges: [Edge]
 
-    init(nodes: [Node] = [], edges: [Edge] = []) {
+    public init(nodes: [Node] = [], edges: [Edge] = []) {
         self.nodes = nodes
         self.edges = edges
     }
 
-    func node(id: String) -> Node? {
+    public func node(id: String) -> Node? {
         nodes.first { $0.id == id }
     }
 
-    func findPathEdges(
+    public func findPathEdges(
         from startId: String,
         to endId: String
     ) -> [Edge]? {
@@ -28,7 +28,7 @@ struct RailwayTopology: Equatable, Sendable {
         )
     }
 
-    func calculatePathDistance(path: [String]) -> Double {
+    public func calculatePathDistance(path: [String]) -> Double {
         NetworkPathfinder.calculatePathDistance(path: path, edges: edges)
     }
 }
