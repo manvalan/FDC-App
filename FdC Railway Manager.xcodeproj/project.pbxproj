@@ -264,6 +264,7 @@
 				Domain/Model/TrainRoute.swift,
 				Domain/Model/Vehicle.swift,
 				Domain/Pathfinding/NetworkPathfinder.swift,
+				Domain/Services/HubTopology.swift,
 				Domain/Services/NetworkTopologyService.swift,
 				Domain/Services/ScheduleAIOptimizing.swift,
 				Domain/Services/ScheduleConflictDetecting.swift,
@@ -274,8 +275,8 @@
 				Services/Scheduling/PathResolver.swift,
 				Services/Scheduling/ScheduleOptimizationPipeline.swift,
 				Services/Scheduling/ScheduleRefresher.swift,
-				Services/Scheduling/TaktEngineScheduleGeneration.swift,
 				Services/Scheduling/TaktEngine.swift,
+				Services/Scheduling/TaktEngineScheduleGeneration.swift,
 				Services/Scheduling/VehicleSuitabilityEngine.swift,
 			);
 			target = 31234B402F1FD849003C8FEC /* FdC Railway Manager */;

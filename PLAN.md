@@ -28,7 +28,7 @@ Legenda: ✅ completato · 🔄 in corso · 🔲 pianificato
 | 5 | Editor | `modules/05-editor.tex` | 🔲 |
 | 6 | Simulator | `modules/06-simulator.tex` | 🔲 |
 | 7 | RailwayAI | `modules/07-railway-ai.tex` | 🔲 |
-| 8 | Infrastructure | `modules/08-infrastructure.tex` | 🔲 |
+| 8 | Infrastructure | `modules/08-infrastructure.tex` | ✅ Fase 9 |
 
 Ogni fase di codice aggiorna il capitolo LaTeX corrispondente.
 
@@ -104,6 +104,16 @@ Ogni fase di codice aggiorna il capitolo LaTeX corrispondente.
 - [x] Adapter app (`AppSchedulingAdapters.swift`)
 - [x] Capitolo LaTeX `07-scheduling-package.tex`
 
+### Fase 9 — Visualizzazione hub AV/classico ✅
+
+- [x] `HubTopology` in Domain: regole endpoint binari + offset 8 posizioni
+- [x] `HubOffsetDirection` esteso (vertici + metà lati)
+- [x] Rendering: due pallini rossi + linea a 8 (`drawHubPair`)
+- [x] Binari AV tra satelliti; classici tra parent (`RailroadNetwork.addEdge`)
+- [x] Editor: creazione satellite AV da inspector
+- [x] Test FDCDomain `HubTopology`
+- [x] Capitolo LaTeX `08-infrastructure.tex`
+
 ---
 
 ## Metriche attuali
@@ -111,7 +121,7 @@ Ogni fase di codice aggiorna il capitolo LaTeX corrispondente.
 | Metrica | Valore |
 |---------|--------|
 | Test app XCTest | 24 |
-| Test FDCDomain SPM | 6 |
+| Test FDCDomain SPM | 8 |
 | Test FDCScheduling SPM | 4 |
 | Package SPM attivi | `FDCDomain`, `FDCScheduling` |
 | Legacy `RailwayScheduleOptimizer` | rimosso |
@@ -131,4 +141,4 @@ Ogni fase di codice aggiorna il capitolo LaTeX corrispondente.
 
 ## Prossima azione
 
-Refactor completato (Fasi 0–8). Eventuali estensioni: Editor, Simulator, RailwayAI in package dedicati.
+Refactor completato (Fasi 0–9). Eventuali estensioni: Editor, Simulator, RailwayAI in package dedicati.

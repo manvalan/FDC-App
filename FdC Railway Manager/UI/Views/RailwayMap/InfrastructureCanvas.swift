@@ -46,26 +46,29 @@ struct InfrastructureCanvas: View {
                 )
             }
 
+            let hubTopology = HubTopology(nodes: appState.railroad.network.nodes)
+
             // 2. Disegno NODI (Stazioni, Bivi, Hub)
             for node in appState.railroad.network.nodes {
                 if appState.isDraggingNode && appState.selectedNodeId == node.id { continue }
                 let isSelected = appState.selectedNodeId == node.id || appState.selectedNodeIds.contains(node.id)
                 guard let point = renderData.nodePositions[node.id] else { continue }
-                
+
+                let hubRole = hubTopology.hubVisualRole(for: node)
                 let isJunction = node.type == .junction
                 let baseIconSize: CGFloat = isJunction ? 1.5 : 8
                 let adaptiveSize = baseIconSize + (1.8 * totalZoom)
-                
+
                 let vType = node.visualType ?? node.defaultVisualType
-                let isCaposaldo = isSelected || vType == .filledSquare || vType == .filledStar || node.type == .interchange
+                let isCaposaldo = isSelected || vType == .filledSquare || vType == .filledStar || hubRole != .none
                 var showLabel = isCaposaldo
                 if !showLabel {
                     let hashVal = abs(node.id.hashValue % 100)
-                    if totalZoom > 2.8 { showLabel = true } 
-                    else if totalZoom > 1.8 { showLabel = hashVal < 60 } 
+                    if totalZoom > 2.8 { showLabel = true }
+                    else if totalZoom > 1.8 { showLabel = hashVal < 60 }
                     else if totalZoom > 1.2 { showLabel = hashVal < 20 }
                 }
-                
+
                 let style = NodeStyle(
                     fillColor: Color(hex: node.customColor ?? node.defaultColor) ?? .black,
                     strokeColor: isSelected ? .blue : (isJunction ? .clear : .black.opacity(0.2)),
@@ -75,17 +78,18 @@ struct InfrastructureCanvas: View {
                     isHighlighted: false,
                     isSelected: isSelected
                 )
-                renderer.drawNode(node, at: point, in: context, zoomLevel: totalZoom, style: style)
+                renderer.drawNode(node, at: point, in: context, zoomLevel: totalZoom, style: style, hubRole: hubRole)
             }
 
-            // 3. Hubs
-            for (hubId, positions) in renderData.hubGeometries {
-                let parentNode = appState.railroad.network.nodes.first(where: { $0.id == hubId }) ?? appState.railroad.network.nodes.first
+            // 3. Hubs (linea a 8)
+            for (hubId, positions) in renderData.hubGeometries where positions.count >= 2 {
+                let parentNode = appState.railroad.network.nodes.first(where: { $0.id == hubId })
                 let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
                 let maxY = positions.map { $0.y }.max() ?? positions[0].y
-                
-                renderer.drawHubGroup(
-                    positions: positions,
+
+                renderer.drawHubPair(
+                    classicPosition: positions[0],
+                    avPosition: positions[1],
                     label: parentNode?.name ?? "",
                     center: CGPoint(x: centerX, y: maxY + 35),
                     fontSize: appState.globalFontSize,

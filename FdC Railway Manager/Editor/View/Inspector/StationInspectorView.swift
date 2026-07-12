@@ -148,7 +148,7 @@ struct StationInspectorView: View {
     }
     
     private var availableHubs: [RailwayNode] {
-        network.nodes.filter { $0.id != station.id }.sorted { $0.name < $1.name }
+        network.nodes.filter { $0.id != station.id && $0.parentHubId == nil }.sorted { $0.name < $1.name }
     }
     
     private var visualStyleSection: some View {

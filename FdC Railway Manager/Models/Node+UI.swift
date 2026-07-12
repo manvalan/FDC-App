@@ -19,6 +19,10 @@ extension Node.HubOffsetDirection {
         case .topRight: return "top_right_offset".localized
         case .bottomLeft: return "bottom_left_offset".localized
         case .bottomRight: return "bottom_right_offset".localized
+        case .top: return "top_offset".localized
+        case .bottom: return "bottom_offset".localized
+        case .left: return "left_offset".localized
+        case .right: return "right_offset".localized
         }
     }
 }

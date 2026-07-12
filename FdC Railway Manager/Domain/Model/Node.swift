@@ -20,6 +20,10 @@ public struct Node: Identifiable, Codable, Hashable {
         case topRight = "In Alto a Dx"
         case bottomLeft = "In Basso a Sx"
         case bottomRight = "In Basso a Dx"
+        case top = "In Alto"
+        case bottom = "In Basso"
+        case left = "A Sinistra"
+        case right = "A Destra"
 
         public var id: String { self.rawValue }
     }

@@ -12,7 +12,17 @@ struct StationInlineEditor: View {
     @State private var isEditingCoordinates: Bool = false
     
     private var availableHubs: [RailwayNode] {
-        appState.railroad.network.nodes.filter { $0.id != node.id }.sorted { $0.name < $1.name }
+        appState.railroad.network.nodes
+            .filter { $0.id != node.id && $0.parentHubId == nil }
+            .sorted { $0.name < $1.name }
+    }
+
+    private var hubTopology: HubTopology {
+        HubTopology(nodes: appState.railroad.network.nodes)
+    }
+
+    private var canCreateAVSatellite: Bool {
+        node.parentHubId == nil && hubTopology.avSatellite(for: node.id) == nil
     }
     
     var body: some View {
@@ -224,18 +234,35 @@ struct StationInlineEditor: View {
                 
                 // Hub
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("HUB")
+                    Text("HUB AV / CLASSICO")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundColor(appState.theme.medium)
-                    Picker("Hub", selection: $node.parentHubId) {
-                        Text("Nessun Hub").tag(String?.none)
-                        ForEach(availableHubs) { hub in
-                            Text(hub.name).tag(String?.some(hub.id))
+                    Text("L'hub unisce la stazione classica (centro) e la stazione AV (offset). I binari AV collegano i satelliti.")
+                        .font(.caption2)
+                        .foregroundColor(appState.theme.medium)
+
+                    if node.parentHubId != nil {
+                        Picker("Stazione classica", selection: $node.parentHubId) {
+                            Text("Nessun Hub").tag(String?.none)
+                            ForEach(availableHubs) { hub in
+                                Text(hub.name).tag(String?.some(hub.id))
+                            }
                         }
+                    } else if canCreateAVSatellite {
+                        Button {
+                            let satellite = hubTopology.makeAVSatellite(for: node)
+                            appState.railroad.network.addNode(satellite)
+                        } label: {
+                            Label("Crea stazione AV satellite", systemImage: "plus.circle.fill")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                    } else if let satellite = hubTopology.avSatellite(for: node.id) {
+                        CompactInfoRow(label: "Satellite AV", value: satellite.name)
                     }
                 }
-                
-                // Hub Offset (only if hub is selected)
+
+                // Hub Offset (satellite AV o stazione collegata a hub)
                 if node.parentHubId != nil {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("POSIZIONE NELL'HUB")
@@ -244,7 +271,7 @@ struct StationInlineEditor: View {
                         Picker("Posizione", selection: $node.hubOffsetDirection) {
                             Text("Standard").tag(RailwayNode.HubOffsetDirection?.none)
                             ForEach(RailwayNode.HubOffsetDirection.allCases) { dir in
-                                Text(dir.rawValue).tag(RailwayNode.HubOffsetDirection?.some(dir))
+                                Text(dir.localizedName).tag(RailwayNode.HubOffsetDirection?.some(dir))
                             }
                         }
                         .pickerStyle(.menu)

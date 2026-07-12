@@ -172,15 +172,11 @@ final class RailwayRenderer {
     
     // MARK: - Disegno su Canvas (GraphicsContext)
     
-    func drawNode(_ node: Node, at point: CGPoint, in context: GraphicsContext, zoomLevel: CGFloat, style: NodeStyle) {
-        
-        if node.type == .interchange {
-            // Ripristino stile HUB originale costante: Un unico anello rosso grande e molto SPESSO
-            let ringSize: CGFloat = 24
-            let rect = CGRect(x: point.x - ringSize/2, y: point.y - ringSize/2, width: ringSize, height: ringSize)
-            
-            context.fill(Path(ellipseIn: rect), with: .color(.white))
-            context.stroke(Path(ellipseIn: rect), with: .color(.red), lineWidth: 6)
+    func drawNode(_ node: Node, at point: CGPoint, in context: GraphicsContext, zoomLevel: CGFloat, style: NodeStyle, hubRole: HubTopology.HubVisualRole = .none) {
+        if hubRole != .none {
+            drawHubStationDot(at: point, in: context, zoomLevel: zoomLevel, isSelected: style.isSelected)
+        } else if node.type == .interchange {
+            drawHubStationDot(at: point, in: context, zoomLevel: zoomLevel, isSelected: style.isSelected)
         } else {
             // Nodi standard: Icona basata su VisualType
             let rect = CGRect(x: point.x - style.size/2, y: point.y - style.size/2, width: style.size, height: style.size)
@@ -195,25 +191,20 @@ final class RailwayRenderer {
         
         // Disegno etichetta (SE consentito dalla LoD in InfrastruttureCanvas)
         if style.showLabel && !node.name.isEmpty {
-            // Selezionati: Blu | Altri: Neri
             let labelColor = style.isSelected ? Color.blue : Color.black
-            
-            // Per gli Hub (.interchange), il nome viene gestito dall'etichetta di gruppo (drawHubGroup)
-            // Per evitare doppioni nel disegno, qui disegniamo il nome solo per stazioni normali o se selezionate
-            let isParentHub = node.type == .interchange 
-            
-            if (!isParentHub && node.parentHubId == nil) || style.isSelected {
+            let isGroupedHub = hubRole != .none
+
+            if (!isGroupedHub && node.parentHubId == nil) || style.isSelected {
                 let isCaposaldo = (node.visualType ?? node.defaultVisualType) == .filledSquare || (node.visualType ?? node.defaultVisualType) == .filledStar
-                
                 let labelFontSize = isCaposaldo ? max(12, style.size * 0.7) : max(10, style.size * 0.55)
                 let fontWeight: Font.Weight = (isCaposaldo || style.isSelected) ? .black : .bold
-                
+
                 drawReadableText(
-                    node.name, 
-                    at: CGPoint(x: point.x, y: point.y + style.size * 1.5), 
-                    size: labelFontSize, 
-                    weight: fontWeight, 
-                    color: labelColor, 
+                    node.name,
+                    at: CGPoint(x: point.x, y: point.y + style.size * 1.5),
+                    size: labelFontSize,
+                    weight: fontWeight,
+                    color: labelColor,
                     in: context
                 )
             }
@@ -305,56 +296,80 @@ final class RailwayRenderer {
         context.draw(label, at: CGPoint(x: position.x, y: position.y - 20))
     }
     
-    /// Disegna un gruppo di hub
-    func drawHubGroup(positions: [CGPoint], label: String, center: CGPoint, fontSize: CGFloat, zoomLevel: CGFloat, in context: GraphicsContext) {
-        for i in 0..<positions.count {
-            for j in (i+1)..<positions.count {
-                let p1 = positions[i]
-                let p2 = positions[j]
-                
-                let dx = p2.x - p1.x
-                let dy = p2.y - p1.y
-                let dist = hypot(dx, dy)
-                
-                if dist > 30 { // Solo se i nodi sono abbastanza distanti
-                    let nx = -dy / dist
-                    let ny = dx / dist
-                    
-                    // Direzione normalizzata
-                    let ux = dx / dist
-                    let uy = dy / dist
-                    
-                    // RAGGIO DI TAGLIO: 12px (metà del cerchio/quadrato da 24px)
-                    let trim: CGFloat = 12
-                    
-                    let startPoint = CGPoint(x: p1.x + ux * trim, y: p1.y + uy * trim)
-                    let endPoint = CGPoint(x: p2.x - ux * trim, y: p2.y - uy * trim)
-                    
-                    // Disegno di DUE linee parallele rosse
-                    let offset: CGFloat = 7
-                    
-                    var path1 = Path()
-                    path1.move(to: CGPoint(x: startPoint.x + nx * offset, y: startPoint.y + ny * offset))
-                    path1.addLine(to: CGPoint(x: endPoint.x + nx * offset, y: endPoint.y + ny * offset))
-                    
-                    var path2 = Path()
-                    path2.move(to: CGPoint(x: startPoint.x - nx * offset, y: startPoint.y - ny * offset))
-                    path2.addLine(to: CGPoint(x: endPoint.x - nx * offset, y: endPoint.y - ny * offset))
-                    
-                    let lineWidth: CGFloat = zoomLevel > 4.0 ? 3 : 4
-                    context.stroke(path1, with: .color(.red.opacity(0.8)), lineWidth: lineWidth)
-                    context.stroke(path2, with: .color(.red.opacity(0.8)), lineWidth: lineWidth)
-                }
-            }
+    /// Pallino rosso hub (stazione classica o AV).
+    private func drawHubStationDot(at point: CGPoint, in context: GraphicsContext, zoomLevel: CGFloat, isSelected: Bool) {
+        let dotSize: CGFloat = zoomLevel > 4.0 ? 10 : 12
+        let rect = CGRect(x: point.x - dotSize / 2, y: point.y - dotSize / 2, width: dotSize, height: dotSize)
+        context.fill(Path(ellipseIn: rect), with: .color(.white))
+        context.stroke(Path(ellipseIn: rect), with: .color(.red), lineWidth: 3.5)
+        if isSelected {
+            let selectRect = rect.insetBy(dx: -4, dy: -4)
+            context.stroke(Path(ellipseIn: selectRect), with: .color(.blue), lineWidth: 2)
         }
-        
-        // Etichetta HUB in NERO come richiesto
+    }
+
+    /// Disegna un hub AV/classico: linea a 8 + etichetta (i pallini sono in drawNode).
+    func drawHubPair(
+        classicPosition: CGPoint,
+        avPosition: CGPoint,
+        label: String,
+        center: CGPoint,
+        fontSize: CGFloat,
+        zoomLevel: CGFloat,
+        in context: GraphicsContext
+    ) {
+        let figureEight = figureEightPath(between: classicPosition, and: avPosition)
+        let lineWidth: CGFloat = zoomLevel > 4.0 ? 2.5 : 3.5
+        context.stroke(figureEight, with: .color(.red.opacity(0.85)), lineWidth: lineWidth)
+
         let adaptiveFontSize = zoomLevel > 4.0 ? fontSize * 0.85 : fontSize
         let text = context.resolve(Text(label).font(.system(size: adaptiveFontSize, weight: .black)).foregroundColor(.black))
         let sz = text.measure(in: CGSize(width: 400, height: 100))
-        let bgRect = CGRect(x: center.x - sz.width/2 - 4, y: center.y - sz.height/2 - 2, width: sz.width + 8, height: sz.height + 4)
+        let bgRect = CGRect(x: center.x - sz.width / 2 - 4, y: center.y - sz.height / 2 - 2, width: sz.width + 8, height: sz.height + 4)
         context.fill(Path(roundedRect: bgRect, cornerRadius: 4), with: .color(.white.opacity(0.85)))
         context.draw(text, at: center)
+    }
+
+    /// Compatibilità snapshot: accetta due posizioni ordinate [classica, AV].
+    func drawHubGroup(positions: [CGPoint], label: String, center: CGPoint, fontSize: CGFloat, zoomLevel: CGFloat, in context: GraphicsContext) {
+        guard positions.count >= 2 else { return }
+        drawHubPair(
+            classicPosition: positions[0],
+            avPosition: positions[1],
+            label: label,
+            center: center,
+            fontSize: fontSize,
+            zoomLevel: zoomLevel,
+            in: context
+        )
+    }
+
+    private func figureEightPath(between p1: CGPoint, and p2: CGPoint) -> Path {
+        let dx = p2.x - p1.x
+        let dy = p2.y - p1.y
+        let dist = hypot(dx, dy)
+        guard dist > 8 else { return Path() }
+
+        let ux = dx / dist
+        let uy = dy / dist
+        let nx = -uy
+        let ny = ux
+        let trim: CGFloat = 8
+        let bulge = max(dist * 0.28, 14)
+
+        var path = Path()
+        path.move(to: CGPoint(x: p1.x + ux * trim, y: p1.y + uy * trim))
+        path.addCurve(
+            to: CGPoint(x: p2.x - ux * trim, y: p2.y - uy * trim),
+            control1: CGPoint(x: p1.x + nx * bulge, y: p1.y + ny * bulge),
+            control2: CGPoint(x: p2.x + nx * bulge, y: p2.y + ny * bulge)
+        )
+        path.addCurve(
+            to: CGPoint(x: p1.x + ux * trim, y: p1.y + uy * trim),
+            control1: CGPoint(x: p2.x - nx * bulge, y: p2.y - ny * bulge),
+            control2: CGPoint(x: p1.x - nx * bulge, y: p1.y - ny * bulge)
+        )
+        return path
     }
     
     // MARK: - Path Helpers

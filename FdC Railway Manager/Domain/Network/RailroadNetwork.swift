@@ -181,23 +181,25 @@ final class RailroadNetwork: ObservableObject {
         isPaired: Bool
     ) {
         createCheckpoint()
+        let hub = HubTopology(nodes: network.nodes)
+        let endpoints = hub.resolvedEndpoints(from: from, to: to, trackType: trackType)
         if isPaired {
             let fwdId = UUID()
             let bwdId = UUID()
             let fwd = Edge(
-                id: fwdId, from: from, to: to,
+                id: fwdId, from: endpoints.from, to: endpoints.to,
                 distance: distance, trackType: trackType,
                 maxSpeed: maxSpeed, capacity: capacity,
                 pairedEdgeId: bwdId)
             let bwd = Edge(
-                id: bwdId, from: to, to: from,
+                id: bwdId, from: endpoints.to, to: endpoints.from,
                 distance: distance, trackType: trackType,
                 maxSpeed: maxSpeed, capacity: capacity,
                 pairedEdgeId: fwdId)
             network.edges.append(contentsOf: [fwd, bwd])
         } else {
             network.edges.append(Edge(
-                from: from, to: to,
+                from: endpoints.from, to: endpoints.to,
                 distance: distance, trackType: trackType,
                 maxSpeed: maxSpeed, capacity: capacity))
         }

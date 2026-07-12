@@ -16,14 +16,9 @@ struct MapGeometryEngine {
     static func finalPosition(for node: RailwayNode, in size: CGSize, bounds: MapBounds, network: NetworkModel) -> CGPoint {
         if let parentId = node.parentHubId, let parent = network.nodes.first(where: { $0.id == parentId }) {
             let pPos = schematicPoint(for: parent, in: size, bounds: bounds)
-            let offset: CGFloat = 25.0 // Offset fisso per chiarezza visiva nei hub
             let direction = node.hubOffsetDirection ?? .bottomRight
-            switch direction {
-            case .topLeft: return CGPoint(x: pPos.x - offset, y: pPos.y - offset)
-            case .topRight: return CGPoint(x: pPos.x + offset, y: pPos.y - offset)
-            case .bottomLeft: return CGPoint(x: pPos.x - offset, y: pPos.y + offset)
-            case .bottomRight: return CGPoint(x: pPos.x + offset, y: pPos.y + offset)
-            }
+            let offset = HubTopology.canvasOffset(for: direction)
+            return CGPoint(x: pPos.x + offset.x, y: pPos.y + offset.y)
         }
         return schematicPoint(for: node, in: size, bounds: bounds)
     }
@@ -336,15 +331,13 @@ struct MapGeometryEngine {
     }
 
     private static func calculateHubGeometries(network: NetworkModel, nodePositions: [String: CGPoint]) -> [String: [CGPoint]] {
-        var hubGroups: [String: [RailwayNode]] = [:]
-        for node in network.nodes {
-            if let hid = node.parentHubId ?? (network.nodes.contains(where: { $0.parentHubId == node.id }) ? node.id : nil) {
-                hubGroups[hid, default: []].append(node)
-            }
-        }
+        let hubTopology = HubTopology(nodes: network.nodes)
         var geometries: [String: [CGPoint]] = [:]
-        for (hubId, nodes) in hubGroups where nodes.count > 1 {
-            geometries[hubId] = nodes.map { nodePositions[$0.id] ?? .zero }
+        for parent in network.nodes where hubTopology.avSatellite(for: parent.id) != nil {
+            guard let satellite = hubTopology.avSatellite(for: parent.id),
+                  let parentPos = nodePositions[parent.id],
+                  let satellitePos = nodePositions[satellite.id] else { continue }
+            geometries[parent.id] = [parentPos, satellitePos]
         }
         return geometries
     }

@@ -1,0 +1,71 @@
+\chapter{Visualizzazione infrastruttura hub/AV}
+\label{ch:infrastructure}
+
+\section{Modello hub}
+
+Un \textbf{hub} unisce due nodi fisici distinti ma logicamente la stessa
+stazione ferroviaria:
+
+\begin{itemize}
+  \item \textbf{Stazione classica} --- nodo \emph{parent} al centro del
+        quadrato schematico (\texttt{parentHubId == nil}).
+  \item \textbf{Stazione AV} --- nodo \emph{satellite} spostato su uno
+        degli 8 punti del quadrato (4 vertici + 4 metà lati), tramite
+        \texttt{hubOffsetDirection}.
+\end{itemize}
+
+Le coordinate geografiche del satellite ereditano quelle del parent
+(calcolo distanze in \texttt{NetworkTopologyService}); la mappa applica
+l'offset canvas in \texttt{MapGeometryEngine.finalPosition}.
+
+\section{Regole di routing binari}
+
+\texttt{HubTopology} (Domain) risolve gli endpoint fisici in base al
+tipo traccia:
+
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  \textbf{Tipo binario} & \textbf{Endpoint} & \textbf{Motivo} \\
+  \midrule
+  \texttt{regional}, \texttt{single} & parent (centro) & binario classico \\
+  \texttt{highSpeed} & satellite AV & binario AV separato \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+La risoluzione avviene in \texttt{RailroadNetwork.addEdge} prima della
+persistenza: l'utente può selezionare la stazione logica; il sistema
+collega il nodo fisico corretto.
+
+\section{Rendering}
+
+\begin{itemize}
+  \item \textbf{Pallini rossi} --- entrambi i nodi hub
+        (\texttt{drawHubStationDot}).
+  \item \textbf{Linea a 8} --- curva chiusa tra classico e satellite
+        (\texttt{drawHubPair}).
+  \item \textbf{Etichetta} --- nome del parent sotto il gruppo.
+  \item I binari AV usano le coordinate del satellite, quindi non si
+        sovrappongono ai binari classici al centro.
+\end{itemize}
+
+\section{Workflow editor}
+
+Dall'inspector stazione (\texttt{StationInlineEditor}):
+\begin{enumerate}
+  \item Selezionare la stazione classica (parent).
+  \item Pulsante \emph{Crea stazione AV satellite}.
+  \item Regolare \texttt{hubOffsetDirection} sul satellite.
+  \item Creare binari AV tra satelliti; binari regionali tra parent.
+\end{enumerate}
+
+\section{Sorgenti}
+
+\begin{itemize}
+  \item \repo{Domain/Services/HubTopology.swift}
+  \item \repo{Domain/Model/Node.swift} --- \texttt{HubOffsetDirection}
+  \item \repo{Rendering/RailwayRenderer.swift}
+  \item \repo{Rendering/MapGeometryEngine.swift}
+  \item \repo{UI/Views/RailwayMap/InfrastructureCanvas.swift}
+\end{itemize}

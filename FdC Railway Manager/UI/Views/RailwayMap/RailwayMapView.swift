@@ -443,15 +443,9 @@ struct RailwayMapView: View {
             if let parentId = node.parentHubId,
                let parent = nodes.first(where: { $0.id == parentId }) {
                 let parentP = finalPositionStatic(for: parent, bounds: bounds, snapshotSize: snapshotSize)
-                
-                let offset: CGFloat = 25.0
                 let direction = node.hubOffsetDirection ?? .bottomRight
-                switch direction {
-                case .topLeft: return CGPoint(x: parentP.x - offset, y: parentP.y - offset)
-                case .topRight: return CGPoint(x: parentP.x + offset, y: parentP.y - offset)
-                case .bottomLeft: return CGPoint(x: parentP.x - offset, y: parentP.y + offset)
-                case .bottomRight: return CGPoint(x: parentP.x + offset, y: parentP.y + offset)
-                }
+                let offset = HubTopology.canvasOffset(for: direction)
+                return CGPoint(x: parentP.x + offset.x, y: parentP.y + offset.y)
             }
             return pPos
         }
@@ -514,22 +508,25 @@ struct RailwayMapView: View {
 
         private static func generateHubClusters(nodes: [RailwayNode], bounds: MapBounds, snapshotSize: CGSize) -> [GroupDraw] {
             var visualGroups: [GroupDraw] = []
-            let hubGroupsLookup = Dictionary(grouping: nodes.filter { $0.parentHubId != nil || nodes.contains(where: { $0.parentHubId == $0.id }) }) { 
-                $0.parentHubId ?? $0.id 
+            let hubTopology = HubTopology(nodes: nodes)
+
+            for parent in nodes where hubTopology.avSatellite(for: parent.id) != nil {
+                guard let satellite = hubTopology.avSatellite(for: parent.id) else { continue }
+                let parentPos = finalPosition(for: parent, bounds: bounds, snapshotSize: snapshotSize, nodes: nodes)
+                let satellitePos = finalPosition(for: satellite, bounds: bounds, snapshotSize: snapshotSize, nodes: nodes)
+                let maxY = max(parentPos.y, satellitePos.y)
+                let centerX = (parentPos.x + satellitePos.x) / 2
+                visualGroups.append(GroupDraw(
+                    positions: [parentPos, satellitePos],
+                    label: parent.name,
+                    center: CGPoint(x: centerX, y: maxY + 35),
+                    bottomY: maxY,
+                    isSingle: false
+                ))
             }
-            
-            for (hubId, gNodes) in hubGroupsLookup {
-                if gNodes.count > 1 {
-                    let positions = gNodes.map { finalPosition(for: $0, bounds: bounds, snapshotSize: snapshotSize, nodes: nodes) }
-                    let maxY = positions.map { $0.y }.max() ?? positions[0].y
-                    let centerX = positions.reduce(0) { $0 + $1.x } / CGFloat(positions.count)
-                    let rootNode = gNodes.first(where: { $0.id == hubId }) ?? gNodes.first
-                    visualGroups.append(GroupDraw(positions: positions, label: rootNode?.name ?? "", center: CGPoint(x: centerX, y: maxY + 35), bottomY: maxY, isSingle: false))
-                }
-            }
-            
+
             let orphanInterchanges = nodes.filter { node in
-                node.type == .interchange && (hubGroupsLookup[node.parentHubId ?? node.id]?.count ?? 0) <= 1
+                node.type == .interchange && hubTopology.hubVisualRole(for: node) == .none
             }
             for node in orphanInterchanges {
                 let p = finalPosition(for: node, bounds: bounds, snapshotSize: snapshotSize, nodes: nodes)

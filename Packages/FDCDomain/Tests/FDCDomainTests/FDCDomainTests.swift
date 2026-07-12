@@ -51,4 +51,27 @@ final class FDCDomainTests: XCTestCase {
         )
         XCTAssertFalse(conflict.id.isEmpty)
     }
+
+    func testHubTopology_resolvesClassicAndAVEndpoints() {
+        let parent = Node(id: "MIL", name: "Milano", type: .station, latitude: 45.0, longitude: 9.0)
+        let satellite = Node(
+            id: "MIL_AV", name: "Milano AV", type: .station,
+            latitude: 45.0, longitude: 9.0,
+            parentHubId: "MIL", hubOffsetDirection: .topRight
+        )
+        let hub = HubTopology(nodes: [parent, satellite])
+
+        XCTAssertEqual(hub.endpointNodeId(for: "MIL", trackType: .regional), "MIL")
+        XCTAssertEqual(hub.endpointNodeId(for: "MIL", trackType: .highSpeed), "MIL_AV")
+        XCTAssertEqual(hub.endpointNodeId(for: "MIL_AV", trackType: .regional), "MIL")
+        XCTAssertEqual(hub.endpointNodeId(for: "MIL_AV", trackType: .highSpeed), "MIL_AV")
+        XCTAssertEqual(hub.hubVisualRole(for: parent), .classicCenter)
+        XCTAssertEqual(hub.hubVisualRole(for: satellite), .avSatellite)
+    }
+
+    func testHubTopology_canvasOffsetEightPositions() {
+        XCTAssertEqual(HubTopology.canvasOffset(for: .top).y, -25)
+        XCTAssertEqual(HubTopology.canvasOffset(for: .right).x, 25)
+        XCTAssertEqual(HubTopology.canvasOffset(for: .topLeft).x, -25)
+    }
 }
