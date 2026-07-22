@@ -20,5 +20,5 @@ jobs:
         password: ${{ secrets.FTP_PASSWORD }}
         port: 22
         local_path: './*'
-        remote_path: '/Develop/RailwayManager
+        remote_path: '/Develop/RailwayManager'
         sftp_only: true
